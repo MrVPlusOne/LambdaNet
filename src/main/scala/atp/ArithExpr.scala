@@ -2,7 +2,11 @@ package atp
 
 import org.scalacheck.Gen
 
-object ArithExpr{
+/**
+  * Chapter 1: Arithmetic Expressions
+  */
+object ArithExpr {
+
   sealed trait Expr {
     def show: String = prettyPrint(this, 0)
 
@@ -21,6 +25,7 @@ object ArithExpr{
     def wrap(prec: Int, s: String) = {
       if (outerPrecedence > prec) s"($s)" else s
     }
+
     expr match {
       case Var(name) => name
       case Const(n) => n.toString
@@ -33,14 +38,14 @@ object ArithExpr{
 
 
   def simplify1(expr: Expr): Expr = expr match {
-    case Add(Const(m), Const(n)) => Const(m+n)
-    case Mul(Const(m), Const(n)) => Const(m*n)
-    case Add(Const(0),x) => x
-    case Add(x,Const(0)) => x
-    case Mul(Const(0),x) => Const(0)
-    case Mul(x,Const(0)) => Const(0)
-    case Mul(Const(1),x) => x
-    case Mul(x,Const(1)) => x
+    case Add(Const(m), Const(n)) => Const(m + n)
+    case Mul(Const(m), Const(n)) => Const(m * n)
+    case Add(Const(0), x) => x
+    case Add(x, Const(0)) => x
+    case Mul(Const(0), _) => Const(0)
+    case Mul(_, Const(0)) => Const(0)
+    case Mul(Const(1), x) => x
+    case Mul(x, Const(1)) => x
     case _ => expr
   }
 
@@ -48,11 +53,14 @@ object ArithExpr{
     * However, simplifying just once is not necessarily adequate; we would like instead to simplify repeatedly until no further progress is possible. To do this, let us apply the above function in a bottom-up sweep through an expres- sion tree, which will simplify in a cascaded manner.
     */
   def simplify(expr: Expr): Expr = expr match {
-    case Add(e1,e2) => simplify1(Add(simplify(e1),simplify(e2)))
-    case Mul(e1,e2) => simplify1(Mul(simplify(e1),simplify(e2)))
+    case Add(e1, e2) => simplify1(Add(simplify(e1), simplify(e2)))
+    case Mul(e1, e2) => simplify1(Mul(simplify(e1), simplify(e2)))
     case _ => simplify1(expr)
   }
 
+  /**
+    * With this implicit class in scope, now we can write `ae"x+1"` for `ArithParser.parseExpr("x+1")`
+    */
   implicit class ArithStringBuild(val ctx: StringContext) extends AnyVal {
     def ae(args: Any*): Expr = {
       assert(ctx.parts.length == 1)
@@ -62,21 +70,21 @@ object ArithExpr{
 
   val varGen: Gen[Var] = {
     for (n <- Gen.oneOf(Gen.oneOf("x", "y", "z", "x1", "x2"),
-      for(c <- Gen.alphaChar; s <- Gen.alphaNumStr) yield c +: s)) yield Var(n)
+      for (c <- Gen.alphaChar; s <- Gen.alphaNumStr) yield c +: s)) yield Var(n)
   }
 
-  val constGen: Gen[Const] = Gen.choose(0,100).map(Const)
+  val constGen: Gen[Const] = Gen.choose(0, 100).map(Const)
 
   def binaryGen(size: Int, bF: (Expr, Expr) => Expr): Gen[Expr] = {
-    for(
-      s1 <- Gen.choose(1,size);
+    for (
+      s1 <- Gen.choose(1, size);
       l <- arithGenWithSize(s1);
       r <- arithGenWithSize(size - s1)
-    ) yield bF(l,r)
+    ) yield bF(l, r)
   }
 
   def arithGenWithSize(size: Int): Gen[Expr] = {
-    if(size <= 1) Gen.oneOf(varGen, constGen)
+    if (size <= 1) Gen.oneOf(varGen, constGen)
     else {
       Gen.frequency(
         1 -> varGen,

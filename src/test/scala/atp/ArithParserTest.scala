@@ -1,8 +1,6 @@
 package atp
 
 import atp.ArithExpr._
-import atp.ArithParser
-import org.scalacheck.Properties
 import org.scalacheck.Prop.forAll
 import org.scalacheck.Test
 import org.scalatest.{FlatSpec, Matchers, WordSpec}
