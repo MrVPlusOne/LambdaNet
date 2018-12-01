@@ -4,18 +4,21 @@ import org.scalacheck.Gen
 import scala.language.implicitConversions
 
 /**
-  * T :=
-  * | Star
-  * | Base
-  * | T => T
-  * | [l: T, ...]
+  * T :=                  ([[gtype.GType]])
+  * | ?                   ([[gtype.AnyType]])
+  * | b                   ([[gtype.BaseType]])
+  * | tv                  ([[gtype.TyVar]])
+  * | T -> T              ([[gtype.FuncType]])
+  * | {l: T, ..., l: T}   ([[gtype.ObjectType]])
+  *
+  * where l is [[String]]
   */
 sealed trait GType {
   override def toString: String = prettyPrint
 
-  def prettyPrint: String = pPrint(0)
+  def prettyPrint: String = pPrint(0, id => s"#$id")
 
-  def pPrint(envPriority: Int): String = {
+  def pPrint(envPriority: Int, showVar: Int => String): String = {
     def wrap(priority: Int)(content: String) = {
       if (priority < envPriority) s"($content)" else content
     }
@@ -23,13 +26,16 @@ sealed trait GType {
     this match {
       case BaseType(name) => name.name
       case AnyType => "?"
-      case FuncType(from, to) => wrap(0)(from.pPrint(1) + "->" + to.pPrint(0))
-      case ObjectType(fields) => fields.map { case (l, t) => s"$l: ${t.pPrint(0)}" }.mkString("[", ", ", "]")
+      case TyVar(id) => showVar(id)
+      case FuncType(from, to) => wrap(0)(from.pPrint(1, showVar) + "->" + to.pPrint(0, showVar))
+      case ObjectType(fields) => fields.map {
+        case (l, t) => s"$l: ${t.pPrint(0, showVar)}" }.mkString("{", ", ", "}")
     }
   }
 
   def astSize: Int = this match {
     case _: GroundType => 1
+    case _: TyVar => 1
     case FuncType(from, to) => from.astSize + to.astSize + 1
     case ObjectType(fields) => fields.map(_._2.astSize).sum + 1
   }
@@ -45,10 +51,24 @@ case class BaseType(name: Symbol) extends GroundType
 /** The any type */
 case object AnyType extends GroundType
 
+case class TyVar(id: Int) extends GType
+
 case class FuncType(from: GType, to: GType) extends GType
 
 case class ObjectType(fields: Map[String, GType]) extends GType
 
+
+/**
+  * A context used for checking consistent-subtyping relation
+  * @param subRel records the currently assumed sub typing relations
+  * @param typeUnfold defines how to unfold a type var once
+  */
+case class TypeContext(subRel: Set[(GType, GType)],
+                       typeUnfold: Map[Int, GType]){
+  typeUnfold.collect{ case (id, TyVar(id2)) =>
+      throw new IllegalArgumentException(s"type var $id unfold to another type var $id2!")
+  }
+}
 
 object GType {
 
@@ -57,43 +77,42 @@ object GType {
 
     implicit def string2base(name: String): BaseType = BaseType(Symbol(name))
 
+    implicit def int2tyVar(id: Int): TyVar = TyVar(id)
+
     def any: AnyType.type = AnyType
 
     def obj(fields: (String, GType)*): ObjectType = ObjectType(fields.toMap)
   }
 
-  /** structural subtyping check */
-  def isSubtype(child: GType, parent: GType,
-                subRel: (BaseType, BaseType) => Boolean): Boolean = (child, parent) match {
-    case (g1: GroundType, g2: GroundType) if g1 == g2 => true // reflexivity
-    case (b1: BaseType, b2: BaseType) => subRel(b1, b2)
-    case (FuncType(c1, c2), FuncType(p1, p2)) =>
-      isSubtype(p1, c1, subRel) && isSubtype(c2, p2, subRel)
-    case (ObjectType(fields1), ObjectType(fields2)) =>
-      fields2.forall { case (l, lt) =>
-        fields1.get(l) match {
-          case None => false // filed missing, not subtype
-          case Some(lt1) => isSubtype(lt1, lt, subRel)
+  /** the consistent-subtyping relation */
+  def checkSubType(child: GType, parent: GType,
+                   context: TypeContext): Option[TypeContext] = {
+    import context._
+
+    if (child == AnyType || parent == AnyType || subRel.contains(child -> parent))
+      return Some(context)
+
+    lazy val context1 = context.copy(subRel + (child -> parent))
+
+    (child, parent) match {
+      case (b1: BaseType, b2: BaseType) => if (b1 == b2) Some(context) else None
+      case (FuncType(c1, c2), FuncType(p1, p2)) =>
+        checkSubType(p1, c1, context1).flatMap{ context2 => checkSubType(c2, p2, context2)}
+      case (TyVar(id), _) => checkSubType(typeUnfold(id), parent, context1)
+      case (_, TyVar(id)) => checkSubType(child, typeUnfold(id), context1)
+      case (ObjectType(fields1), ObjectType(fields2)) =>
+        var currentContext = context1
+        fields2.foreach { case (l, lt) =>
+          fields1.get(l).flatMap{ lt1 =>
+            checkSubType(lt1, lt, currentContext)
+          } match {
+            case None => return None // filed missing, not subtype
+            case Some(c) => currentContext = c
+          }
         }
-      }
-    case _ => false
-  }
-
-  /** mask out a type using another type */
-  def restrict(t: GType, mask: GType): GType = (t, mask) match {
-    case (_, AnyType) => AnyType
-    case (ObjectType(fields1), ObjectType(fields2)) =>
-      ObjectType(fields1.map { case (l, lt) =>
-        l -> fields2.get(l).map { m => restrict(lt, m) }.getOrElse(lt)
-      })
-    case (FuncType(t1, t2), FuncType(m1, m2)) =>
-      FuncType(restrict(t1, m1), restrict(t2, m2))
-    case _ => t
-  }
-
-
-  def consistent(t1: GType, t2: GType): Boolean = {
-    restrict(t1, t2) == restrict(t2, t1)
+        Some(currentContext)
+      case _ => None
+    }
   }
 
 
@@ -120,19 +139,20 @@ object GType {
     )
   }
 
-  def funcGen(size: Int, groundGen: Gen[GroundType], fNameGen: Gen[String]): Gen[FuncType] = {
+  def funcGen(size: Int)(implicit params: GTypeGenParams): Gen[FuncType] = {
     if(size < 1){
       println(s"funcGen size: $size")
     }
     val s0 = size - 3
     for (
       s1 <- Gen.choose(1, math.max(1,s0));
-      l <- gTypeGen(s1, groundGen, fNameGen);
-      r <- gTypeGen(s0 - s1, groundGen, fNameGen)
+      l <- gTypeGen(s1);
+      r <- gTypeGen(s0 - s1)
     ) yield l.arrow(r)
   }
 
-  def objGen(size: Int, groundGen: Gen[GroundType], fNameGen: Gen[String]): Gen[ObjectType] = {
+  def objGen(size: Int)(implicit params: GTypeGenParams): Gen[ObjectType] = {
+    import params._
     if(size < 1){
       println(s"objGen size: $size")
     }
@@ -141,7 +161,7 @@ object GType {
       val fieldGen =
         for (fieldName <- fNameGen;
              s1 <- Gen.choose(1, math.max(1, s0));
-             t <- gTypeGen(s1, groundGen, fNameGen)) yield {
+             t <- gTypeGen(s1)) yield {
           s0 -= s1
           (fieldName, t)
         }
@@ -151,7 +171,8 @@ object GType {
     }
   }
 
-  def gTypeGen(size: Int, groundGen: Gen[GroundType], fNameGen: Gen[String]): Gen[GType] = {
+  def gTypeGen(size: Int)(implicit params: GTypeGenParams): Gen[GType] = {
+    import params._
     if (size <= 1) {
       Gen.frequency(
         5 -> groundGen,
@@ -160,18 +181,38 @@ object GType {
     }
     else if(size <= 10) Gen.frequency(
       1 -> groundGen,
-      4 -> funcGen(size, groundGen, fNameGen),
-      2 -> objGen(size, groundGen, fNameGen)
+      1 -> tyVarGen,
+      4 -> funcGen(size),
+      2 -> objGen(size)
     ) else {
       Gen.frequency(
-        1 -> funcGen(size, groundGen, fNameGen),
-        1 -> objGen(size, groundGen, fNameGen)
+        4 -> funcGen(size),
+        5 -> objGen(size),
+        1 -> tyVarGen
       )
     }
   }
 
+  case class GTypeGenParams(groundGen: Gen[GroundType],
+                            fNameGen: Gen[String], tyVarGen: Gen[TyVar])
+
+  def contextGen(tyVarNum: Int, objectGen: Gen[ObjectType]): Gen[TypeContext] = {
+    for(tys <- Gen.listOfN(tyVarNum, objectGen);
+        map = tys.indices.zip(tys).toMap) yield
+      TypeContext(subRel = Set(), typeUnfold = map)
+  }
+
+  /** TyVar ranges from 0 to 2 */
+  val simpleGenParams = GTypeGenParams(simpleGroundGen, simpleNameGen, Gen.choose(0,2).map{TyVar})
+
+  /** TyVar ranges from 0 to 2 */
   val simpleGTypeGen: Gen[GType] = {
-    Gen.sized{ size => gTypeGen(size, simpleGroundGen, simpleNameGen) }
+    Gen.sized{ size => gTypeGen(size)(simpleGenParams) }
+  }
+
+  /** TyVar ranges from 0 to 2 */
+  val simpleContextGen: Gen[TypeContext] = {
+    contextGen(3, objGen(25)(simpleGenParams))
   }
 
   // === End of GType random sampling ===

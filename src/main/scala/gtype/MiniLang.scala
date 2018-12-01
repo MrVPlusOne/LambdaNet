@@ -13,9 +13,15 @@ object MiniLang {
     b1 == TInt && b2 == TFloat
   }
 
-  def miniGTypeGen(anyRatio: Double): Gen[GType] = Gen.sized { size =>
-    val groundGen: Gen[GroundType] = for(x <- Gen.choose(0.0, 1.0);
-        t <- if (x < anyRatio) Gen.const(AnyType) else Gen.oneOf(allBases) ) yield t
-    GType.gTypeGen(size, groundGen, GType.simpleNameGen)
+  def miniGen(anyRatio: Double): (Gen[GType], Gen[TypeContext]) = {
+    val groundGen: Gen[GroundType] = for (x <- Gen.choose(0.0, 1.0);
+                                          t <- if (x < anyRatio) Gen.const(AnyType) else Gen.oneOf(allBases)) yield t
+    val tyVarGen = Gen.choose(0, 2).map {
+      TyVar
+    }
+    val params = GType.GTypeGenParams(groundGen, GType.simpleNameGen, tyVarGen)
+
+
+    Gen.sized { size => GType.gTypeGen(size)(params) } -> GType.contextGen(3, GType.objGen(25)(params))
   }
 }
