@@ -1,5 +1,7 @@
 package gtype
 
+import gtype.GType.GTypeAPI
+
 import scala.language.implicitConversions
 
 // === Expression definitions ===
@@ -55,21 +57,17 @@ case class ExprContext(varAssign: Map[Symbol, GType], typeContext: TypeContext) 
 
 object GExpr {
 
-  val boolType = BaseType(Symbol("𝔹"))
+  val boolType = TyVar(Symbol("𝔹"))
 
-  object API {
+  trait GExprAPI extends GTypeAPI{
     implicit def symbol2Var(name: Symbol): Var = Var(name)
 
     def mkObj(fields: (Symbol, GExpr)*) = Constructor(fields.toMap)
 
     def C(v: Any, ty: GType) = Const(v, ty)
-
-    case class IFBuild(b: GExpr, resultType: GType, e1: GExpr){
-      def ELSE(e2: GExpr) = IfExpr(b, e1, e2, resultType)
-    }
-
-    def IF(b: GExpr, resultType: GType)(e1: GExpr) = IFBuild(b, resultType, e1)
   }
+
+  object API extends GExprAPI
 
   /**
     * Check whether an expression is well-typed and infer a most precise type. Assumes the expression
@@ -91,7 +89,7 @@ object GExpr {
           case AnyType => AnyType -> (e1 ++ e2)
           case FuncType(from, to) =>
             val e3 = xTs.zip(from).foldLeft(Set[TypeCheckError]()){ case (errors, (cT, pT)) =>
-              errors ++ typeContext.mkSubTypeError(cT, pT).toSet
+              errors ++ typeContext.mkSubTypeError(cT, pT)
             }
             to -> (e1 ++ e2 ++ e3)
           case _ =>
@@ -100,7 +98,7 @@ object GExpr {
         }
       case Cast(e, t) =>
         val (et, errors) = typeCheckInfer(e, context)
-        val e1 = typeContext.mkSubTypeError(et, t).toSet
+        val e1 = typeContext.mkSubTypeError(et, t)
         t -> (errors ++ e1)
       case Constructor(fields) =>
         var errors = Set[TypeCheckError]()
@@ -128,9 +126,9 @@ object GExpr {
         val (e1T, errs1) = typeCheckInfer(e1, context)
         val (e2T, errs2) = typeCheckInfer(e2, context)
         val allErrors = errs0 ++ errs1 ++ errs2 ++
-          typeContext.mkSubTypeError(condT, boolType).toSet ++
-          typeContext.mkSubTypeError(e1T, resultType).toSet ++
-          typeContext.mkSubTypeError(e2T, resultType).toSet
+          typeContext.mkSubTypeError(condT, boolType) ++
+          typeContext.mkSubTypeError(e1T, resultType) ++
+          typeContext.mkSubTypeError(e2T, resultType)
         resultType -> allErrors
       case _ => throw new NotImplementedError("Expressions with GTHoles not supported.")
     }

@@ -8,7 +8,7 @@ import GType._
 class GTypeTest extends WordSpec with MyTest {
   "GType pretty print test cases" in {
     (List("a", "b") -: (List('c) -: any)).prettyPrint shouldBe "(a,b)->(c)->*"
-    val abcd = List("a") -: List("b") -: List("c") -: 'd
+    val abcd = List('a) -: List('b) -: List('c) -: 'd
     abcd.prettyPrint shouldBe "(a)->(b)->(c)->d"
     obj('f -> abcd).prettyPrint shouldBe "{f: (a)->(b)->(c)->d}"
   }
@@ -20,16 +20,9 @@ class GTypeTest extends WordSpec with MyTest {
     }.check()
   }
 
-  "Print random mini GTypes" in {
-    checkProp(
-      forAll(MiniLang.miniGen(anyRatio = 0.2)._1) { t =>
-        println(t)
-        t == t
-      })
-  }
 
   "the consistent-subtyping relation" should {
-    val (typeGen, contextGen) = MiniLang.miniGen(anyRatio = 0.2)
+    val (typeGen, contextGen) = (GType.simpleGTypeGen, GType.simpleContextGen)
     "be reflexive" in {
       checkProp(
         forAll(typeGen, contextGen) { (t, context) =>
