@@ -8,19 +8,17 @@ import scala.language.implicitConversions
   *  e :=                         ([[GExpr]])
   *     | x                       ([[Var]])
   *     | c                       ([[Const]])
-  *     | (x: α) => e             ([[Lambda]])
-  *     | e e                     ([[Apply]])
+  *     | e(e,...,e)              ([[Apply]])
   *     | e[t]                    ([[Cast]])
   *     | { l: e, ..., l: e }     ([[Constructor]])
   *     | e.l                     ([[Access]])
-  *     | let (x: α) = e in e     ([[LetBind]])
-  *     | if[α] e then e else e      ([[IfExpr]])
+  *     | if[α] e then e else e   ([[IfExpr]])
   *
-  *  where l is [[Symbol]], t is [[GType]], and α is [[GTMark]]
+  *  where x, l are [[Symbol]], t is [[GType]], and α is [[GTMark]]
   */
 sealed trait GExpr {
-  def call(e0: GExpr, es: GExpr*): Apply = {
-    es.foldLeft(Apply(this, e0)){ case (a, e) => Apply(a,e) }
+  def call(args: GExpr*): Apply = {
+    Apply(this, args.toList)
   }
 
   def cast(ty: GType): Cast = Cast(this, ty)
@@ -32,17 +30,13 @@ case class Var(name: Symbol) extends GExpr
 
 case class Const(value: Any, ty: GType) extends GExpr
 
-case class Lambda(arg: (Symbol, GTMark), expr: GExpr) extends GExpr
-
-case class Apply(f: GExpr, x: GExpr) extends GExpr
+case class Apply(f: GExpr, args: List[GExpr]) extends GExpr
 
 case class Cast(expr: GExpr, ty: GType) extends GExpr
 
 case class Constructor(fields: Map[Symbol, GExpr]) extends GExpr
 
 case class Access(expr: GExpr, field: Symbol) extends GExpr
-
-case class LetBind(bind: (Symbol, GTMark, GExpr), expr: GExpr) extends GExpr
 
 case class IfExpr(cond: GExpr, e1: GExpr, e2: GExpr, resultType: GTMark) extends GExpr
 
@@ -70,20 +64,6 @@ object GExpr {
 
     def C(v: Any, ty: GType) = Const(v, ty)
 
-    def FUN(arg: Symbol, ty: GTMark)(body: GExpr): Lambda = {
-      Lambda(arg->ty, body)
-    }
-
-    case class LETBuild(arg: Symbol, ty: GTMark, expr: GExpr){
-      def IN(body: GExpr): LetBind = {
-        LetBind((arg, ty, expr), body)
-      }
-    }
-
-    def LET(arg: Symbol, ty: GTMark)(expr: GExpr): LETBuild = {
-      LETBuild(arg, ty, expr)
-    }
-
     case class IFBuild(b: GExpr, resultType: GType, e1: GExpr){
       def ELSE(e2: GExpr) = IfExpr(b, e1, e2, resultType)
     }
@@ -103,16 +83,16 @@ object GExpr {
     expr match {
       case Var(name) => varAssign(name) -> Set()
       case c: Const => c.ty -> Set()
-      case Lambda((arg, argT: GType), body) =>
-        val (t, errors) = typeCheckInfer(body, context.newVar(arg, argT))
-        argT.arrow(t) -> errors
-      case Apply(f, x) =>
+      case Apply(f, args) =>
         val (fT, e1) = typeCheckInfer(f, context)
-        val (xT, e2) = typeCheckInfer(x, context)
+        val (xTs, e2s) = args.map{ x=> typeCheckInfer(x, context) }.unzip
+        val e2 = e2s.fold(Set[TypeCheckError]()){ _ ++ _}
         fT match {
           case AnyType => AnyType -> (e1 ++ e2)
           case FuncType(from, to) =>
-            val e3 = typeContext.mkSubTypeError(xT, from).toSet
+            val e3 = xTs.zip(from).foldLeft(Set[TypeCheckError]()){ case (errors, (cT, pT)) =>
+              errors ++ typeContext.mkSubTypeError(cT, pT).toSet
+            }
             to -> (e1 ++ e2 ++ e3)
           case _ =>
             val e3 = ApplyError(f, fT)
@@ -143,11 +123,6 @@ object GExpr {
           case _ =>
             AnyType -> (errors + AccessError(e, field, et))
         }
-      case LetBind((arg, argT: GType, e1), body) =>
-        val newContext = context.newVar(arg, argT)
-        val (e1T, errors1) = typeCheckInfer(e1, newContext)
-        val (t, errors2) = typeCheckInfer(body, newContext)
-        t -> (errors1 ++ errors2 ++ typeContext.mkSubTypeError(e1T, argT).toSet)
       case IfExpr(cond, e1, e2, resultType: GType) =>
         val (condT, errs0) = typeCheckInfer(cond, context)
         val (e1T, errs1) = typeCheckInfer(e1, context)
@@ -157,6 +132,7 @@ object GExpr {
           typeContext.mkSubTypeError(e1T, resultType).toSet ++
           typeContext.mkSubTypeError(e2T, resultType).toSet
         resultType -> allErrors
+      case _ => throw new NotImplementedError("Expressions with GTHoles not supported.")
     }
   }
 }

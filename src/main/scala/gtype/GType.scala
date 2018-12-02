@@ -15,7 +15,7 @@ case class GTHole(id: Int) extends GTMark
   * | ?                   ([[AnyType]])
   * | b                   ([[BaseType]])
   * | tv                  ([[TyVar]])
-  * | T -> T              ([[FuncType]])
+  * | (T, ..., T) -> T    ([[FuncType]])
   * | {l: T, ..., l: T}   ([[ObjectType]])
   *
   * where l is [[String]]
@@ -34,7 +34,8 @@ sealed trait GType extends GTMark{
       case BaseType(name) => name.name
       case AnyType => "*"
       case TyVar(id) => showVar(id)
-      case FuncType(from, to) => wrap(0)(from.pPrint(1, showVar) + "->" + to.pPrint(0, showVar))
+      case FuncType(from, to) => wrap(0)(
+        from.map(_.pPrint(1, showVar)).mkString("(", ",", ")") + "->" + to.pPrint(0, showVar))
       case ObjectType(fields) => fields.map {
         case (l, t) => s"${l.name}: ${t.pPrint(0, showVar)}" }.mkString("{", ", ", "}")
     }
@@ -43,13 +44,11 @@ sealed trait GType extends GTMark{
   def astSize: Int = this match {
     case _: GroundType => 1
     case _: TyVar => 1
-    case FuncType(from, to) => from.astSize + to.astSize + 1
+    case FuncType(from, to) => from.map(_.astSize).sum + to.astSize + 1
     case ObjectType(fields) => fields.map(_._2.astSize).sum + 1
   }
 
-  def arrow(t: GType): FuncType = FuncType(this, t)
-
-  def -:(t: GType) = FuncType(t, this)
+  def -:[T](from: List[T])(implicit conv: T => GType) = FuncType(from.map(conv), this)
 }
 
 /** A [[BaseType]] or [[AnyType]] */
@@ -62,7 +61,7 @@ case object AnyType extends GroundType
 
 case class TyVar(id: Int) extends GType
 
-case class FuncType(from: GType, to: GType) extends GType
+case class FuncType(from: List[GType], to: GType) extends GType
 
 case class ObjectType(fields: Map[Symbol, GType]) extends GType
 
@@ -111,8 +110,18 @@ object GType {
 
     (child, parent) match {
       case (b1: BaseType, b2: BaseType) => if (b1 == b2) Some(context) else None
-      case (FuncType(c1, c2), FuncType(p1, p2)) =>
-        checkSubType(p1, c1, context1).flatMap{ context2 => checkSubType(c2, p2, context2)}
+      case (FuncType(cFrom, c2), FuncType(pFrom, p2)) =>
+        if(cFrom.length != pFrom.length){
+          return None  // arity different
+        }
+        var currentContext = context1
+        pFrom.zip(cFrom).foreach{ case (p, c) =>
+          checkSubType(p, c, currentContext) match {
+            case None => return None  // arg type mismatch
+            case Some(ctx) => currentContext = ctx
+          }
+        }
+        checkSubType(c2, p2, currentContext)
       case (TyVar(id), _) => checkSubType(typeUnfold(id), parent, context1)
       case (_, TyVar(id)) => checkSubType(child, typeUnfold(id), context1)
       case (ObjectType(fields1), ObjectType(fields2)) =>
@@ -155,15 +164,22 @@ object GType {
   }
 
   def funcGen(size: Int)(implicit params: GTypeGenParams): Gen[FuncType] = {
-    if(size < 1){
+    if(size < 2){
       println(s"funcGen size: $size")
     }
-    val s0 = size - 3
-    for (
-      s1 <- Gen.choose(1, math.max(1,s0));
-      l <- gTypeGen(s1);
-      r <- gTypeGen(s0 - s1)
-    ) yield l.arrow(r)
+
+    Gen.choose(1, math.min(size - 1, 4)).flatMap { argNum =>
+      var s0 = size - argNum - 1
+      val argGen =
+        for (s1 <- Gen.choose(1, math.max(1, s0/2));
+             t <- gTypeGen(s1)) yield {
+          s0 -= s1
+          t
+        }
+
+
+      Gen.listOfN(argNum, argGen).map{ ats => FuncType(ats.tail, ats.head)}
+    }
   }
 
   def objGen(size: Int)(implicit params: GTypeGenParams): Gen[ObjectType] = {
@@ -197,8 +213,8 @@ object GType {
     else if(size <= 10) Gen.frequency(
       1 -> groundGen,
       1 -> tyVarGen,
-      4 -> funcGen(size),
-      2 -> objGen(size)
+      3 -> funcGen(size),
+      3 -> objGen(size)
     ) else {
       Gen.frequency(
         4 -> funcGen(size),

@@ -7,10 +7,10 @@ import GType._
 
 class GTypeTest extends WordSpec with MyTest {
   "GType pretty print test cases" in {
-    (("a" arrow "b") arrow ("c" arrow any)).prettyPrint shouldBe "(a->b)->c->*"
-    val abcd = "a".arrow("b".arrow("c".arrow("d")))
-    abcd.prettyPrint shouldBe "a->b->c->d"
-    obj('f -> abcd).prettyPrint shouldBe "{f: a->b->c->d}"
+    (List("a", "b") -: (List('c) -: any)).prettyPrint shouldBe "(a,b)->(c)->*"
+    val abcd = List("a") -: List("b") -: List("c") -: 'd
+    abcd.prettyPrint shouldBe "(a)->(b)->(c)->d"
+    obj('f -> abcd).prettyPrint shouldBe "{f: (a)->(b)->(c)->d}"
   }
 
   "Print random GTypes" in {
