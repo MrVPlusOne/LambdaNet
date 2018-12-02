@@ -42,7 +42,6 @@ sealed trait GType extends GTMark {
 
   def astSize: Int = this match {
     case _: GroundType => 1
-    case _: TyVar => 1
     case FuncType(from, to) => from.map(_.astSize).sum + to.astSize + 1
     case ObjectType(fields) => fields.map(_._2.astSize).sum + 1
   }
@@ -113,14 +112,16 @@ object GType {
     (child, parent) match {
       case (b1: TyVar, b2: TyVar)
         if baseTypes.contains(b1.id) && baseTypes.contains(b2.id) =>
-        if (b1 == b2) Some(context) else None
+        if (b1 == b2) Some(context1) else None
       case (TyVar(id), _) =>
         if (typeUnfold.contains(id)) {
-          checkSubType(typeUnfold(id), parent, context1)
+          if(child == parent) Some(context1)
+          else checkSubType(typeUnfold(id), parent, context1)
         } else { assert(baseTypes.contains(id), s"unknown type: $id"); None }
       case (_, TyVar(id))  =>
         if (typeUnfold.contains(id)) {
-          checkSubType(child, typeUnfold(id), context1)
+          if(child == parent) Some(context1)
+          else checkSubType(child, typeUnfold(id), context1)
         } else { assert(baseTypes.contains(id), s"unknown type: $id"); None }
       case (FuncType(cFrom, c2), FuncType(pFrom, p2)) =>
         if (cFrom.length != pFrom.length) {
