@@ -3,17 +3,24 @@ package gtype
 import org.scalacheck.Gen
 import scala.language.implicitConversions
 
+/** A gradual type annotation, either a [[GType]] or a [[GTHole]] */
+sealed trait GTMark
+
+/** An annotation hole that needs to be inferred. */
+case class GTHole(id: Int) extends GTMark
+
+
 /**
-  * T :=                  ([[gtype.GType]])
-  * | ?                   ([[gtype.AnyType]])
-  * | b                   ([[gtype.BaseType]])
-  * | tv                  ([[gtype.TyVar]])
-  * | T -> T              ([[gtype.FuncType]])
-  * | {l: T, ..., l: T}   ([[gtype.ObjectType]])
+  * T :=                  ([[GType]])
+  * | ?                   ([[AnyType]])
+  * | b                   ([[BaseType]])
+  * | tv                  ([[TyVar]])
+  * | T -> T              ([[FuncType]])
+  * | {l: T, ..., l: T}   ([[ObjectType]])
   *
   * where l is [[String]]
   */
-sealed trait GType {
+sealed trait GType extends GTMark{
   override def toString: String = prettyPrint
 
   def prettyPrint: String = pPrint(0, id => s"#$id")
@@ -25,11 +32,11 @@ sealed trait GType {
 
     this match {
       case BaseType(name) => name.name
-      case AnyType => "?"
+      case AnyType => "*"
       case TyVar(id) => showVar(id)
       case FuncType(from, to) => wrap(0)(from.pPrint(1, showVar) + "->" + to.pPrint(0, showVar))
       case ObjectType(fields) => fields.map {
-        case (l, t) => s"$l: ${t.pPrint(0, showVar)}" }.mkString("{", ", ", "}")
+        case (l, t) => s"${l.name}: ${t.pPrint(0, showVar)}" }.mkString("{", ", ", "}")
     }
   }
 
@@ -41,6 +48,8 @@ sealed trait GType {
   }
 
   def arrow(t: GType): FuncType = FuncType(this, t)
+
+  def -:(t: GType) = FuncType(t, this)
 }
 
 /** A [[BaseType]] or [[AnyType]] */
@@ -55,7 +64,7 @@ case class TyVar(id: Int) extends GType
 
 case class FuncType(from: GType, to: GType) extends GType
 
-case class ObjectType(fields: Map[String, GType]) extends GType
+case class ObjectType(fields: Map[Symbol, GType]) extends GType
 
 
 /**
@@ -65,6 +74,16 @@ case class ObjectType(fields: Map[String, GType]) extends GType
   */
 case class TypeContext(subRel: Set[(GType, GType)],
                        typeUnfold: Map[Int, GType]){
+  def isSubType(child: GType, parent: GType): Boolean = {
+    GType.checkSubType(child, parent, this).nonEmpty
+  }
+
+  def mkSubTypeError(child: GType, parent: GType): Option[SubTypeError] = {
+    if(!isSubType(child, parent)){
+      Some(SubTypeError(child, parent))
+    } else None
+  }
+
   typeUnfold.collect{ case (id, TyVar(id2)) =>
       throw new IllegalArgumentException(s"type var $id unfold to another type var $id2!")
   }
@@ -81,7 +100,7 @@ object GType {
 
     def any: AnyType.type = AnyType
 
-    def obj(fields: (String, GType)*): ObjectType = ObjectType(fields.toMap)
+    def obj(fields: (Symbol, GType)*): ObjectType = ObjectType(fields.toMap)
   }
 
   /** the consistent-subtyping relation */
@@ -118,24 +137,24 @@ object GType {
 
   // === GType random sampling ===
 
-  val shortNameGen: Gen[String] = {
+  val shortSymbolGen: Gen[Symbol] = {
     for(
       c <- Gen.alphaChar;
       suffixLen <- Gen.choose(0,4);
-      s <- Gen.listOfN(suffixLen, Gen.alphaNumChar)) yield (c +: s).mkString
+      s <- Gen.listOfN(suffixLen, Gen.alphaNumChar)) yield Symbol((c +: s).mkString)
   }
 
   val simpleGroundGen: Gen[GroundType] = {
     Gen.frequency(
       1 -> Gen.const(AnyType),
       2 -> Gen.oneOf("x", "y", "z", "x1", "x2").map(API.string2base),
-      1 -> shortNameGen.map(API.string2base))
+      1 -> shortSymbolGen.map(API.symbol2base))
   }
 
-  val simpleNameGen: Gen[String] = {
+  val simpleNameGen: Gen[Symbol] = {
     Gen.oneOf(
-      Gen.oneOf("f", "g", "h"),
-      shortNameGen
+      Gen.oneOf('f, 'g, 'h),
+      shortSymbolGen
     )
   }
 
@@ -194,7 +213,7 @@ object GType {
   }
 
   case class GTypeGenParams(groundGen: Gen[GroundType],
-                            fNameGen: Gen[String], tyVarGen: Gen[TyVar])
+                            fNameGen: Gen[Symbol], tyVarGen: Gen[TyVar])
 
   def contextGen(tyVarNum: Int, objectGen: Gen[ObjectType]): Gen[TypeContext] = {
     for(tys <- Gen.listOfN(tyVarNum, objectGen);

@@ -7,10 +7,10 @@ import GType._
 
 class GTypeTest extends WordSpec with MyTest {
   "GType pretty print test cases" in {
-    (("a" arrow "b") arrow ("c" arrow any)).prettyPrint shouldBe "(a->b)->c->?"
+    (("a" arrow "b") arrow ("c" arrow any)).prettyPrint shouldBe "(a->b)->c->*"
     val abcd = "a".arrow("b".arrow("c".arrow("d")))
     abcd.prettyPrint shouldBe "a->b->c->d"
-    obj("f" -> abcd).prettyPrint shouldBe "{f: a->b->c->d}"
+    obj('f -> abcd).prettyPrint shouldBe "{f: a->b->c->d}"
   }
 
   "Print random GTypes" in {
@@ -38,32 +38,13 @@ class GTypeTest extends WordSpec with MyTest {
     }
 
     "pass simple examples" in {
-      /*
-      * let Point = { x: int, moveX: int => Point }
-      *
-      * let mkPoint: int -> Point =
-      *   (x: int) => { x: x0, moveX: (dx: int) => mkPoint (x0 + dx) }
-      *
-      * let Point2D = { x: int, moveX: int => Point2D, y: int, moveY: int => Point2D }
-      * */
-
-      val point = 0
-      val point2D = 1
-
-      import API._
-
-      val context = TypeContext(subRel = Set(),
-        typeUnfold = Map(
-          point -> obj("x" -> "int", "moveX" -> "int".arrow(point)),
-          point2D -> obj(
-            "x" -> "int", "moveX" -> "int".arrow(point2D),
-            "y" -> "int", "moveY" -> "int".arrow(point2D))
-        ))
+      import SamplePrograms._
+      val context = typeContext
 
       assert(checkSubType(point2D, point, context).nonEmpty)
       assert(checkSubType(point, point2D, context).isEmpty)
-      assert(checkSubType(obj("x" -> "int", "y" -> "int"), point2D, context).isEmpty)
-      assert(checkSubType(point2D, obj("x" -> "int", "y" -> "int"), context).nonEmpty)
+      assert(checkSubType(obj('x -> "int", 'y -> "int"), point2D, context).isEmpty)
+      assert(checkSubType(point2D, obj('x -> "int", 'y -> "int"), context).nonEmpty)
     }
   }
 }
