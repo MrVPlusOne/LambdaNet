@@ -7,7 +7,7 @@ import scala.language.implicitConversions
 sealed trait GTMark
 
 /** An annotation hole that needs to be inferred. */
-case class GTHole(id: Int) extends GTMark
+case object GTHole extends GTMark
 
 
 /**

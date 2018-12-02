@@ -12,11 +12,11 @@ case class GProgram() {
   *
   * S :=                                    [[GStmt]]
   *   | var x: α = e                        [[VarDef]]
+  *   | x := e                              [[AssignStmt]]
   *   | function x (x: α, ..., x:α): α      [[FuncDef]]
   *   | [return] e                          [[ExprStmt]]
   *   | if e then e else e                  [[IfStmt]]
   *   | while e do e                        [[WhileStmt]]
-  *   | e;...;e                             [[BlockStmt]]
   *
   *   where x is [[Symbol]], α is [[GTMark]], and e is [[GExpr]]
   * */
@@ -25,6 +25,8 @@ sealed trait GStmt
 // === Start of Statement definitions ====
 
 case class VarDef(x: Symbol, ty: GTMark, init: GExpr) extends GStmt
+
+case class AssignStmt(x: Symbol, expr: GExpr) extends GStmt
 
 case class ExprStmt(e: GExpr, isReturn: Boolean) extends GStmt
 
@@ -49,11 +51,10 @@ object GStmt {
 
     def VAR(x: Symbol, ty: GTMark)(init: GExpr) = VarDef(x, ty, init)
 
-    def BLOCK(stmts: GStmt*): GStmt = {
-      stmts match {
-        case Seq(s) => s
-        case _ => BlockStmt(stmts.toIndexedSeq)
-      }
+    def VAR(x: Symbol)(init: GExpr) = VarDef(x, GTHole, init)
+
+    def BLOCK(stmts: GStmt*): BlockStmt = {
+      BlockStmt(stmts.toIndexedSeq)
     }
 
     def WHILE(cond: GExpr)(stmts: GStmt*): WhileStmt = {
@@ -62,6 +63,9 @@ object GStmt {
 
     case class IFBuild(b: GExpr, branch1: Seq[GStmt]){
       def ELSE(branch2: GStmt*) = IfStmt(b, BLOCK(branch1:_*), BLOCK(branch2: _*))
+
+      def NoElse: IfStmt = IfStmt(b, BLOCK(branch1:_*), BLOCK())
+
     }
 
     def IF(b: GExpr)(branch1: GStmt*) = IFBuild(b, branch1)
@@ -74,16 +78,48 @@ object GStmt {
   object API extends GStmtAPI
 
 
-  /** No forward reference is supported yet.
-    * I.e., vars and functions can only be used after the point where they are defined,
-    * and they will not leak out of their scope */
-  def typeCheckStmt(stmt: GStmt, ctx: ExprContext, returnType: GType): (ExprContext, Set[TypeCheckError]) = {
+  /**
+    * Allows forward reference to function definitions, but they will not escape their scope.
+    * */
+  def typeCheckBlock(block: BlockStmt, ctx: ExprContext, returnType: GType): Set[TypeCheckError] = {
+    var currentCtx = ctx
+    block.stmts.foreach{
+      case FuncDef(name, args, newReturn: GType, _) =>
+        val signatureType = args.map(_._2.asInstanceOf[GType]) -: newReturn
+        currentCtx = currentCtx.newVar(name, signatureType)
+      case _ =>
+    }
+    var currentErrs = Set[TypeCheckError]()
+    block.stmts.foreach{ stmt =>
+      val (newCtx, errs) = typeCheckStmt(stmt, currentCtx, returnType)
+      currentCtx = newCtx
+      currentErrs ++= errs
+    }
+    currentErrs
+  }
+
+  /**
+    * Allows forward reference to function definitions, but they will not escape their scope.
+    * */
+  private def typeCheckStmt(stmt: GStmt, ctx: ExprContext, returnType: GType): (ExprContext, Set[TypeCheckError]) = {
     import ctx.typeContext.mkSubTypeError
     stmt match {
-      case VarDef(x, ty: GType, init) =>
-        val ctx1 = ctx.newVar(x, ty)
-        val (initT, es) = typeCheckInfer(init, ctx1)
-        ctx1 -> (es ++ mkSubTypeError(initT, ty))
+      case VarDef(x, ty, init) =>
+        ty match {
+          case ty: GType =>
+            val ctx1 = ctx.newVar(x, ty)
+            val (initT, es) = typeCheckInfer(init, ctx1)
+            ctx1 -> (es ++ mkSubTypeError(initT, ty))
+          case GTHole =>
+            val ctx0 = ctx.newVar(x, any)
+            val (initT, es) = typeCheckInfer(init, ctx0)
+            val ctx1 = ctx.newVar(x, initT)
+            ctx1 -> es
+        }
+
+      case AssignStmt(x, expr) =>
+        val (xT, es) = typeCheckInfer(expr, ctx)
+        ctx -> (es ++ mkSubTypeError(xT, ctx.varAssign(x)))
       case ExprStmt(e, isReturn) =>
         val (eT, es) = typeCheckInfer(e, ctx)
         ctx -> (if(isReturn) es ++ mkSubTypeError(eT, returnType) else es)
@@ -96,22 +132,13 @@ object GStmt {
         val (condT, e0) = typeCheckInfer(cond, ctx)
         val (_, e1) = typeCheckStmt(body, ctx, returnType)
         ctx -> (e0 ++ e1 ++ mkSubTypeError(condT, GExpr.boolType))
-      case BlockStmt(stmts) =>
-        var currentCtx = ctx
-        var currentErrs = Set[TypeCheckError]()
-        stmts.foreach{ stmt =>
-          val (newCtx, errs) = typeCheckStmt(stmt, currentCtx, returnType)
-          currentCtx = newCtx
-          currentErrs ++= errs
-        }
-        ctx -> currentErrs
-      case FuncDef(name, args, newReturn: GType, body) =>
-        val signatureType = args.map(_._2.asInstanceOf[GType]) -: newReturn
-        val ctx1 = ctx.newVar(name, signatureType)
-        val ctxWithArgs = ctx1.copy(varAssign =
-          ctx1.varAssign ++ args.toMap.mapValues(_.asInstanceOf[GType]))
+      case FuncDef(_, args, newReturn: GType, body) =>
+        val ctxWithArgs = ctx.copy(varAssign =
+          ctx.varAssign ++ args.toMap.mapValues(_.asInstanceOf[GType]))
         val (_, errs) = typeCheckStmt(body, ctxWithArgs, newReturn)
-        ctx1 -> errs
+        ctx -> errs
+      case block: BlockStmt =>
+        ctx -> typeCheckBlock(block, ctx, returnType)
       case _ =>
         throw new NotImplementedError(s"GTHoles in Stmt: $stmt")
     }

@@ -7,9 +7,9 @@ class GProgramTest extends WordSpec with MyTest {
   "sample programs" should {
 
     "type check" in {
-      SamplePrograms.WellFormed.all.foreach{ case (name, program) =>
-        val (_, errors) = GStmt.typeCheckStmt(program, SamplePrograms.exprContext, 'int)
-        assert(errors.isEmpty, s"errors in example $name")
+      SamplePrograms.Collection.all.foreach{ case (name, example) =>
+        val errors = GStmt.typeCheckBlock(example.program, SamplePrograms.exprContext, 'int)
+        assert(errors === example.errors, s"errors mismatch in example $name")
       }
     }
   }

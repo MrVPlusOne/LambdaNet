@@ -28,7 +28,9 @@ sealed trait GExpr {
   def m(field: Symbol) = Access(this, field)
 }
 
-case class Var(name: Symbol) extends GExpr
+case class Var(name: Symbol) extends GExpr{
+  def := (expr: GExpr) = AssignStmt(this.name, expr)
+}
 
 case class Const(value: Any, ty: GType) extends GExpr
 
@@ -49,7 +51,12 @@ case class IfExpr(cond: GExpr, e1: GExpr, e2: GExpr, resultType: GTMark) extends
   */
 case class ExprContext(varAssign: Map[Symbol, GType], typeContext: TypeContext) {
   def newVar(arg: Symbol, argT: GType): ExprContext = {
-    copy(varAssign = varAssign.updated(arg, argT))
+    copy(varAssign = {
+      if(varAssign.contains(arg)){
+        println(s"warning: new definition: (${arg.name}: $argT) shadows outer definition of type ${varAssign(arg)}")
+      }
+      varAssign.updated(arg, argT)
+    })
   }
 
 }
@@ -65,6 +72,12 @@ object GExpr {
     def mkObj(fields: (Symbol, GExpr)*) = Constructor(fields.toMap)
 
     def C(v: Any, ty: GType) = Const(v, ty)
+
+    def I(i: Int) = Const(i, 'int)
+
+    def N(n: Double) = Const(n, 'number)
+
+    val undefined = Const("undefined", any)
   }
 
   object API extends GExprAPI
