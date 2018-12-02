@@ -132,7 +132,11 @@ object GExpr {
         ObjectType(fieldTypes) -> errors
       case Access(e, field) =>
         val (et, errors) = typeCheckInfer(e, context)
-        et match {
+        val et1 = et match {
+          case TyVar(id) => typeContext.typeUnfold(id)
+          case _ => et
+        }
+        et1 match {
           case AnyType => AnyType -> errors
           case ObjectType(fields) if fields.contains(field) =>
             fields(field) -> errors

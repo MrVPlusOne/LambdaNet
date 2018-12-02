@@ -16,6 +16,7 @@ object SamplePrograms {
 
   val point = 0
   val point2D = 1
+  val numArray = 2
 
   val typeContext = TypeContext(
     subRel = Set(
@@ -25,16 +26,24 @@ object SamplePrograms {
       point -> obj('x -> "int", 'moveX -> "int".arrow(point)),
       point2D -> obj(
         'x -> "int", 'moveX -> "int".arrow(point2D),
-        'y -> "int", 'moveY -> "int".arrow(point2D))
+        'y -> "int", 'moveY -> "int".arrow(point2D)),
+      numArray -> obj(
+        'length -> 'int,
+        'slice -> ('int -: 'int -: numArray),
+        'access -> ('int -: 'number),
+        'push -> ('number -: numArray)
+      )
     ))
 
   val exprContext: ExprContext = {
 
     val varAssign = Map[Symbol, GType](
-      'le -> ('int -: 'int -: boolType),
+      'lt -> ('int -: 'int -: boolType),
       'plus -> ('int -: 'int -: 'int),
       'minus -> ('int -: 'int -: 'int),
-      'times -> ('int -: 'int -: 'int)
+      'times -> ('int -: 'int -: 'int),
+      'divide -> ('number -: 'number -: 'number),
+      'floor -> ('number -: 'int)
     )
 
     ExprContext(varAssign, typeContext)
@@ -42,7 +51,7 @@ object SamplePrograms {
 
   object WellFormed {
     val ltExample: GExpr = {
-      'le.call(C(1, 'int), C(2, 'int))
+      'lt.call(C(1, 'int), C(2, 'int))
     }
 
     val factExample: GExpr = {
@@ -54,7 +63,7 @@ object SamplePrograms {
 
       LET('fact, 'int -: 'int) {
         FUN('x, 'int) {
-          IF('le.call('x, C(0, 'int)), 'int) {
+          IF('lt.call('x, C(0, 'int)), 'int) {
             C(1, 'int)
           } ELSE {
             'times.call('x, 'fact.call('minus.call('x, C(1, 'int))))
@@ -77,10 +86,25 @@ object SamplePrograms {
       } IN 'mkPoint.call(C(5, 'int))
     }
 
+    val arrayMerge: GExpr = {
+      FUN('left, numArray)(FUN('right, numArray){
+        LET('array, numArray)(C("[]", numArray)) IN {
+          LET('lIndex, 'int)(C(0, 'int)) IN {
+            LET('whileCond, boolType)('lt.call('lIndex, 'left.m('length))) IN {
+              LET('lItem, 'number)('left.m('access).call('lIndex)) IN {
+                'array.m('push).call('lItem)
+              }
+            }
+          }
+        }
+      })
+    }
+
     val all: Seq[(String, GExpr, GType)] = Seq(
       ("ltExample", ltExample, boolType),
       ("factExample", factExample, 'int),
-      ("mkPointExample", mkPointExample, point)
+      ("mkPointExample", mkPointExample, point),
+      ("merge array simplified", arrayMerge, numArray -: numArray -: numArray)
     )
   }
 }

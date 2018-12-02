@@ -73,7 +73,7 @@ case class ObjectType(fields: Map[Symbol, GType]) extends GType
   * @param typeUnfold defines how to unfold a type var once
   */
 case class TypeContext(subRel: Set[(GType, GType)],
-                       typeUnfold: Map[Int, GType]){
+                       typeUnfold: Map[Int, ObjectType]){
   def isSubType(child: GType, parent: GType): Boolean = {
     GType.checkSubType(child, parent, this).nonEmpty
   }
@@ -82,10 +82,6 @@ case class TypeContext(subRel: Set[(GType, GType)],
     if(!isSubType(child, parent)){
       Some(SubTypeError(child, parent))
     } else None
-  }
-
-  typeUnfold.collect{ case (id, TyVar(id2)) =>
-      throw new IllegalArgumentException(s"type var $id unfold to another type var $id2!")
   }
 }
 
