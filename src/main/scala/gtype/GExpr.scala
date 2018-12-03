@@ -26,11 +26,11 @@ sealed trait GExpr {
   def cast(ty: GType): Cast = Cast(this, ty)
 
   def m(field: Symbol) = Access(this, field)
+
+  def := (expr: GExpr) = AssignStmt(this, expr)
 }
 
-case class Var(name: Symbol) extends GExpr{
-  def := (expr: GExpr) = AssignStmt(this.name, expr)
-}
+case class Var(name: Symbol) extends GExpr
 
 case class Const(value: Any, ty: GType) extends GExpr
 
@@ -50,11 +50,14 @@ case class IfExpr(cond: GExpr, e1: GExpr, e2: GExpr, resultType: GTMark) extends
   * A context used for type checking expressions
   */
 case class ExprContext(varAssign: Map[Symbol, GType], typeContext: TypeContext) {
+  def newTypeVar(name: Symbol, objectType: ObjectType): ExprContext = {
+    copy(typeContext = typeContext.newTypeVar(name, objectType))
+  }
+
   def newVar(arg: Symbol, argT: GType): ExprContext = {
     copy(varAssign = {
-      if(varAssign.contains(arg)){
-        println(s"warning: new definition: (${arg.name}: $argT) shadows outer definition of type ${varAssign(arg)}")
-      }
+      assert(!varAssign.contains(arg),
+        s"new definition (${arg.name}: $argT) shadows outer definition of type ${varAssign(arg)}")
       varAssign.updated(arg, argT)
     })
   }

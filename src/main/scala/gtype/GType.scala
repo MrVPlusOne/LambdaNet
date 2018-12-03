@@ -72,6 +72,7 @@ case class ObjectType(fields: Map[Symbol, GType]) extends GType
 case class TypeContext(baseTypes: Set[Symbol],
                        typeUnfold: Map[Symbol, ObjectType],
                        subRel: Set[(GType, GType)]) {
+
   def isSubType(child: GType, parent: GType): Boolean = {
     GType.checkSubType(child, parent, this).nonEmpty
   }
@@ -80,6 +81,13 @@ case class TypeContext(baseTypes: Set[Symbol],
     if (!isSubType(child, parent)) {
       Set(SubTypeError(child, parent))
     } else Set()
+  }
+
+  def newTypeVar(name: Symbol, objectType: ObjectType): TypeContext = {
+    if(typeUnfold.contains(name)){
+      println(s"warning: Redefine type var: ($name, $objectType), old value: ${typeUnfold(name)}")
+    }
+    copy(typeUnfold = typeUnfold.updated(name, objectType))
   }
 }
 
