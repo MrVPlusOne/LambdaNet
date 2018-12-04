@@ -104,6 +104,7 @@ object GExpr {
         fT match {
           case AnyType => AnyType -> (e1 ++ e2)
           case FuncType(from, to) =>
+            // allow some arguments to be omitted, as in Typescript
             val e3 = xTs.zip(from).foldLeft(Set[TypeCheckError]()){ case (errors, (cT, pT)) =>
               errors ++ typeContext.mkSubTypeError(cT, pT)
             }

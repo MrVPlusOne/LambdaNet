@@ -69,14 +69,19 @@ object GStmt {
       WhileStmt(cond, BLOCK(stmts: _*))
     }
 
-    case class IFBuild(b: GExpr, branch1: Seq[GStmt]){
-      def ELSE(branch2: GStmt*) = IfStmt(b, BLOCK(branch1:_*), BLOCK(branch2: _*))
+    case class IFBuild(b: GExpr, branch1: BlockStmt, mkBranch2: BlockStmt => GStmt){
+      def ELSE(branch2: GStmt*) = IfStmt(b, branch1, mkBranch2(BLOCK(branch2:_*)))
 
-      def NoElse: IfStmt = IfStmt(b, BLOCK(branch1:_*), BLOCK())
+      def NoElse: IfStmt = IfStmt(b, branch1, mkBranch2(BLOCK()))
 
+      def EIF(cond: GExpr)(body: GStmt*): IFBuild = {
+        IFBuild(b, branch1, block => {
+          IfStmt(cond, BLOCK(body: _*), mkBranch2(block))
+        })
+      }
     }
 
-    def IF(b: GExpr)(branch1: GStmt*) = IFBuild(b, branch1)
+    def IF(b: GExpr)(branch1: GStmt*) = IFBuild(b, BLOCK(branch1:_*), identity)
 
     def FUNC(name: Symbol, returnType: GTMark)(args: (Symbol, GTMark)*)(body: GStmt*): FuncDef = {
       FuncDef(name, args.toList, returnType, BLOCK(body: _*))

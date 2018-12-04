@@ -50,10 +50,14 @@ sealed trait GType extends GTMark {
 }
 
 /** A [[TyVar]] or [[AnyType]] */
-sealed trait GroundType extends GType
+sealed trait GroundType extends GType{
+  def id: Symbol
+}
 
 /** The any type */
-case object AnyType extends GroundType
+case object AnyType extends GroundType{
+  def id: Symbol = 'any
+}
 
 case class TyVar(id: Symbol) extends GroundType
 
