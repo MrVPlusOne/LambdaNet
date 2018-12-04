@@ -21,7 +21,7 @@ object JSExamples {
       'length -> number,
       'pop -> (List() -: baseType),
       'push -> (List(baseType) -: number),
-      'foreach -> (List(List(baseType) -: any) -: void),
+      'forEach -> (List(List(baseType) -: any) -: void),
       'slice -> (List(number, number) -: arrayType),
       'access -> (List(number) -: baseType)
     )
@@ -226,6 +226,14 @@ object JSExamples {
               currentNode := (currentNode m 'next)
             ),
             RETURN('nodes)
+          ),
+
+          FUNC('fromArray, linkedList)(('values, anyArray))(
+            FUNC('$local0, void)('value -> any)(
+              (THIS m 'append).call('value)
+            ),
+            ('values m 'forEach).call('$local0),
+            RETURN(THIS)
           )
         ),
 
