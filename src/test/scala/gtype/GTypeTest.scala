@@ -34,10 +34,11 @@ class GTypeTest extends WordSpec with MyTest {
       import SamplePrograms._
       val context = typeContext
 
-      assert(checkSubType(point2D, point, context).nonEmpty)
-      assert(checkSubType(point, point2D, context).isEmpty)
-      assert(checkSubType(obj('x -> "int", 'y -> "int"), point2D, context).isEmpty)
-      assert(checkSubType(point2D, obj('x -> "int", 'y -> "int"), context).nonEmpty)
+      assert(context.isSubType(point2D, point))
+      assert(context.isSubType(point, 'PointAlias))
+      assert(!context.isSubType(point, point2D))
+      assert(!context.isSubType(obj('x -> "int", 'y -> "int"), point2D))
+      assert(context.isSubType(point2D, obj('x -> "int", 'y -> "int")))
     }
   }
 }

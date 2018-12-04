@@ -21,6 +21,7 @@ object SamplePrograms {
     baseTypes = Set('int, 'number, 'string, GExpr.boolType.id),
     typeUnfold = Map(
       point -> obj('x -> 'int, 'moveX -> (List('int) -: point)),
+      'PointAlias -> obj('x -> 'int, 'moveX -> (List('int) -: 'PointAlias)),
       point2D -> obj(
         'x -> 'int, 'moveX -> (List('int) -: point2D),
         'y -> 'int, 'moveY -> (List('int) -: point2D)),

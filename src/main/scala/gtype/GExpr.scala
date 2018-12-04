@@ -10,7 +10,7 @@ import scala.language.implicitConversions
   *  e :=                         ([[GExpr]])
   *     | x                       ([[Var]])
   *     | c                       ([[Const]])
-  *     | e(e,...,e)              ([[Apply]])
+  *     | e(e,...,e)              ([[FuncCall]])
   *     | e[t]                    ([[Cast]])
   *     | { l: e, ..., l: e }     ([[Constructor]])
   *     | e.l                     ([[Access]])
@@ -19,8 +19,8 @@ import scala.language.implicitConversions
   *  where x, l are [[Symbol]], t is [[GType]], and α is [[GTMark]]
   */
 sealed trait GExpr {
-  def call(args: GExpr*): Apply = {
-    Apply(this, args.toList)
+  def call(args: GExpr*): FuncCall = {
+    FuncCall(this, args.toList)
   }
 
   def cast(ty: GType): Cast = Cast(this, ty)
@@ -34,7 +34,7 @@ case class Var(name: Symbol) extends GExpr
 
 case class Const(value: Any, ty: GType) extends GExpr
 
-case class Apply(f: GExpr, args: List[GExpr]) extends GExpr
+case class FuncCall(f: GExpr, args: List[GExpr]) extends GExpr
 
 case class Cast(expr: GExpr, ty: GType) extends GExpr
 
@@ -97,7 +97,7 @@ object GExpr {
     expr match {
       case Var(name) => varAssign(name) -> Set()
       case c: Const => c.ty -> Set()
-      case Apply(f, args) =>
+      case FuncCall(f, args) =>
         val (fT, e1) = typeCheckInfer(f, context)
         val (xTs, e2s) = args.map{ x=> typeCheckInfer(x, context) }.unzip
         val e2 = e2s.fold(Set[TypeCheckError]()){ _ ++ _}
