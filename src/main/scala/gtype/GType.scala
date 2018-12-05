@@ -10,6 +10,7 @@ sealed trait GTMark
 case object GTHole extends GTMark
 
 
+// @formatter:off
 /**
   * T :=                  ([[GType]])
   * | *                   ([[AnyType]])
@@ -19,6 +20,7 @@ case object GTHole extends GTMark
   *
   * where l is [[String]]
   */
+// @formatter:on
 sealed trait GType extends GTMark {
   override def toString: String = prettyPrint
 
@@ -50,12 +52,12 @@ sealed trait GType extends GTMark {
 }
 
 /** A [[TyVar]] or [[AnyType]] */
-sealed trait GroundType extends GType{
+sealed trait GroundType extends GType {
   def id: Symbol
 }
 
 /** The any type */
-case object AnyType extends GroundType{
+case object AnyType extends GroundType {
   def id: Symbol = 'any
 }
 
@@ -88,7 +90,7 @@ case class TypeContext(baseTypes: Set[Symbol],
   }
 
   def newTypeVar(name: Symbol, objectType: ObjectType): TypeContext = {
-    if(typeUnfold.contains(name)){
+    if (typeUnfold.contains(name)) {
       println(s"warning: Redefine type var: ($name, $objectType), old value: ${typeUnfold(name)}")
     }
     copy(typeUnfold = typeUnfold.updated(name, objectType))
@@ -127,14 +129,18 @@ object GType {
         if (b1 == b2) Some(context1) else None
       case (TyVar(id), _) =>
         if (typeUnfold.contains(id)) {
-          if(child == parent) Some(context1)
+          if (child == parent) Some(context1)
           else checkSubType(typeUnfold(id), parent, context1)
-        } else { assert(baseTypes.contains(id), s"unknown type: $id"); None }
-      case (_, TyVar(id))  =>
+        } else {
+          assert(baseTypes.contains(id), s"unknown type: $id"); None
+        }
+      case (_, TyVar(id)) =>
         if (typeUnfold.contains(id)) {
-          if(child == parent) Some(context1)
+          if (child == parent) Some(context1)
           else checkSubType(child, typeUnfold(id), context1)
-        } else { assert(baseTypes.contains(id), s"unknown type: $id"); None }
+        } else {
+          assert(baseTypes.contains(id), s"unknown type: $id"); None
+        }
       case (FuncType(cFrom, c2), FuncType(pFrom, p2)) =>
         if (cFrom.length != pFrom.length) {
           return None // arity different

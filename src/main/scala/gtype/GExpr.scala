@@ -6,6 +6,7 @@ import scala.language.implicitConversions
 
 // === Expression definitions ===
 
+// @formatter:off
 /**
   *  e :=                         ([[GExpr]])
   *     | x                       ([[Var]])
@@ -16,8 +17,11 @@ import scala.language.implicitConversions
   *     | e.l                     ([[Access]])
   *     | if[α] e then e else e   ([[IfExpr]])
   *
-  *  where x, l are [[Symbol]], t is [[GType]], and α is [[GTMark]]
+  *  where x, l are [[Symbol]],
+  *        t is [[GType]],
+  *        α is [[GTMark]]
   */
+// @formatter:on
 sealed trait GExpr {
   def call(args: GExpr*): FuncCall = {
     FuncCall(this, args.toList)
@@ -27,7 +31,7 @@ sealed trait GExpr {
 
   def m(field: Symbol) = Access(this, field)
 
-  def := (expr: GExpr) = AssignStmt(this, expr)
+  def :=(expr: GExpr) = AssignStmt(this, expr)
 }
 
 case class Var(name: Symbol) extends GExpr
@@ -69,7 +73,7 @@ object GExpr {
 
   val boolType = TyVar(Symbol("𝔹"))
 
-  trait GExprAPI extends GTypeAPI{
+  trait GExprAPI extends GTypeAPI {
     implicit def symbol2Var(name: Symbol): Var = Var(name)
 
     def mkObj(fields: (Symbol, GExpr)*) = Constructor(fields.toMap)
@@ -99,13 +103,15 @@ object GExpr {
       case c: Const => c.ty -> Set()
       case FuncCall(f, args) =>
         val (fT, e1) = typeCheckInfer(f, context)
-        val (xTs, e2s) = args.map{ x=> typeCheckInfer(x, context) }.unzip
-        val e2 = e2s.fold(Set[TypeCheckError]()){ _ ++ _}
+        val (xTs, e2s) = args.map { x => typeCheckInfer(x, context) }.unzip
+        val e2 = e2s.fold(Set[TypeCheckError]()) {
+          _ ++ _
+        }
         fT match {
           case AnyType => AnyType -> (e1 ++ e2)
           case FuncType(from, to) =>
             // allow some arguments to be omitted, as in Typescript
-            val e3 = xTs.zip(from).foldLeft(Set[TypeCheckError]()){ case (errors, (cT, pT)) =>
+            val e3 = xTs.zip(from).foldLeft(Set[TypeCheckError]()) { case (errors, (cT, pT)) =>
               errors ++ typeContext.mkSubTypeError(cT, pT)
             }
             to -> (e1 ++ e2 ++ e3)
@@ -119,10 +125,10 @@ object GExpr {
         t -> (errors ++ e1)
       case Constructor(fields) =>
         var errors = Set[TypeCheckError]()
-        val fieldTypes = fields.map{ case (name, e) =>
-            val (et, err) = typeCheckInfer(e, context)
-            errors ++= err
-            name -> et
+        val fieldTypes = fields.map { case (name, e) =>
+          val (et, err) = typeCheckInfer(e, context)
+          errors ++= err
+          name -> et
         }
         ObjectType(fieldTypes) -> errors
       case Access(e, field) =>

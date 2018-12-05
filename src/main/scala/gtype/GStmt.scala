@@ -4,19 +4,28 @@ import scala.language.implicitConversions
 import GType.API._
 import gtype.GExpr.GExprAPI
 
+// @formatter:off
 /** a program statement
   *
-  * S :=                                    [[GStmt]]
-  *   | var x: α = e                        [[VarDef]]
-  *   | e := e                              [[AssignStmt]]
-  *   | function x (x: α, ..., x:α): α      [[FuncDef]]
-  *   | [return] e                          [[ExprStmt]]
-  *   | if e then e else e                  [[IfStmt]]
-  *   | while e do e                        [[WhileStmt]]
+  * S :=                                  [[GStmt]]
+  *   | var x: α = e                      [[VarDef]]
+  *   | e := e                            [[AssignStmt]]
+  *   | [return] e                        [[ExprStmt]]
+  *   | if e then e else e                [[IfStmt]]
+  *   | while e do e                      [[WhileStmt]]
+  *   | { S; ...; S }                     [[BlockStmt]]
+  *   | function x (x: α, ..., x:α): α    [[FuncDef]]
+  *   | class x (l: α, ..., l:α)          [[ClassDef]]
+  *     ↳ [extends x]{ f, ..., f }
   *
-  *   where x and l are [[Symbol]], α is [[GTMark]], and e is [[GExpr]]
+  *   where x and l are [[Symbol]],
+  *         α is [[GTMark]],
+  *         e is [[GExpr]],
+  *         f is [[FuncDef]]
   * */
+// @formatter:on
 sealed trait GStmt
+
 
 // === Start of Statement definitions ====
 
@@ -37,12 +46,12 @@ case class FuncDef(name: Symbol, args: List[(Symbol, GTMark)],
 
 case class ClassDef(name: Symbol, superType: Option[Symbol] = None,
                     constructor: FuncDef,
-                    vars: Map[Symbol, GType], funcDefs: Vector[FuncDef]) extends GStmt{
+                    vars: Map[Symbol, GType], funcDefs: Vector[FuncDef]) extends GStmt {
   require(constructor.name == name)
   require(constructor.returnType == any)
 }
 
-object ClassDef{
+object ClassDef {
   val thisSymbol = 'this
   val superSymbol = 'super
 }
@@ -50,6 +59,7 @@ object ClassDef{
 // === End of Statement definitions ====
 
 object GStmt {
+
   import GExpr.typeCheckInfer
 
   trait GStmtAPI extends GExprAPI {
@@ -69,8 +79,8 @@ object GStmt {
       WhileStmt(cond, BLOCK(stmts: _*))
     }
 
-    case class IFBuild(b: GExpr, branch1: BlockStmt, mkBranch2: BlockStmt => GStmt){
-      def ELSE(branch2: GStmt*) = IfStmt(b, branch1, mkBranch2(BLOCK(branch2:_*)))
+    case class IFBuild(b: GExpr, branch1: BlockStmt, mkBranch2: BlockStmt => GStmt) {
+      def ELSE(branch2: GStmt*) = IfStmt(b, branch1, mkBranch2(BLOCK(branch2: _*)))
 
       def NoElse: IfStmt = IfStmt(b, branch1, mkBranch2(BLOCK()))
 
@@ -81,7 +91,7 @@ object GStmt {
       }
     }
 
-    def IF(b: GExpr)(branch1: GStmt*) = IFBuild(b, BLOCK(branch1:_*), identity)
+    def IF(b: GExpr)(branch1: GStmt*) = IFBuild(b, BLOCK(branch1: _*), identity)
 
     def FUNC(name: Symbol, returnType: GTMark)(args: (Symbol, GTMark)*)(body: GStmt*): FuncDef = {
       FuncDef(name, args.toList, returnType, BLOCK(body: _*))
@@ -101,7 +111,7 @@ object GStmt {
 
   /**
     * Allows forward reference to function definitions, but they will not escape their scope.
-    * */
+    **/
   def typeCheckBlock(block: BlockStmt, ctx: ExprContext, returnType: GType): Set[TypeCheckError] = {
     var currentCtx = ctx
     block.stmts.foreach {
@@ -109,9 +119,9 @@ object GStmt {
         val signatureType = extractSignature(f)
         currentCtx = currentCtx.newVar(f.name, signatureType)
       case ClassDef(name, superType, constructor, vars, funcDefs) =>
-        val sT = superType.map{ s => currentCtx.typeContext.typeUnfold(s) }.getOrElse(obj())
+        val sT = superType.map { s => currentCtx.typeContext.typeUnfold(s) }.getOrElse(obj())
         var fields = sT.fields ++ vars
-        funcDefs.foreach{ f =>
+        funcDefs.foreach { f =>
           fields = fields.updated(f.name, extractSignature(f))
         }
         val constructorType = extractSignature(constructor).copy(to = name)
@@ -120,7 +130,7 @@ object GStmt {
       case _ =>
     }
     var currentErrs = Set[TypeCheckError]()
-    block.stmts.foreach{ stmt =>
+    block.stmts.foreach { stmt =>
       val (newCtx, errs) = typeCheckStmt(stmt, currentCtx, returnType)
       currentCtx = newCtx
       currentErrs ++= errs
@@ -130,7 +140,7 @@ object GStmt {
 
   /**
     * Allows forward reference to function definitions, but they will not escape their scope.
-    * */
+    **/
   private def typeCheckStmt(stmt: GStmt, ctx: ExprContext, returnType: GType): (ExprContext, Set[TypeCheckError]) = {
     import ctx.typeContext.mkSubTypeError
     stmt match {
@@ -153,7 +163,7 @@ object GStmt {
         ctx -> (e1 ++ e2 ++ mkSubTypeError(rT, lT))
       case ExprStmt(e, isReturn) =>
         val (eT, es) = typeCheckInfer(e, ctx)
-        ctx -> (if(isReturn) es ++ mkSubTypeError(eT, returnType) else es)
+        ctx -> (if (isReturn) es ++ mkSubTypeError(eT, returnType) else es)
       case IfStmt(cond, branch1, branch2) =>
         val (condT, e0) = typeCheckInfer(cond, ctx)
         val (_, e1) = typeCheckStmt(branch1, ctx, returnType)
@@ -172,9 +182,11 @@ object GStmt {
         ctx -> typeCheckBlock(block, ctx, returnType)
       case ClassDef(name, superType, constructor, _, funcDefs) =>
         val ctxWithThis = ctx.newVar(ClassDef.thisSymbol, ctx.typeContext.typeUnfold(name))
-          .newVar(ClassDef.superSymbol, superType.map{ ctx.typeContext.typeUnfold}.getOrElse(obj()))
+          .newVar(ClassDef.superSymbol, superType.map {
+            ctx.typeContext.typeUnfold
+          }.getOrElse(obj()))
         var errors = Set[TypeCheckError]()
-        (funcDefs :+ constructor).foreach{ stmt =>
+        (funcDefs :+ constructor).foreach { stmt =>
           val (_, e) = typeCheckStmt(stmt, ctxWithThis, returnType)
           errors ++= e
         }

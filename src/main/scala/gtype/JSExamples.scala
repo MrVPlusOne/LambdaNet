@@ -42,7 +42,7 @@ object JSExamples {
 
     def ===(other: GExpr): GExpr = 'eq.call(expr, other)
 
-    def && (other: GExpr): GExpr = 'OP_And.call(expr, other)
+    def &&(other: GExpr): GExpr = 'OP_And.call(expr, other)
   }
 
   def I(i: Int): Const = Const(i, number)
@@ -221,7 +221,7 @@ object JSExamples {
           FUNC('toArray, anyArray)()(
             VAR('nodes)('emptyArray),
             VAR(currentNode)(THIS m 'head),
-            WHILE('toBool.call(currentNode)) (
+            WHILE('toBool.call(currentNode))(
               ('nodes m 'push).call(currentNode),
               currentNode := (currentNode m 'next)
             ),
