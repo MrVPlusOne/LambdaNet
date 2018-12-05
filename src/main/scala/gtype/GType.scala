@@ -18,7 +18,7 @@ case object GTHole extends GTMark
   * | (T, ..., T) -> T    ([[FuncType]])
   * | {l: T, ..., l: T}   ([[ObjectType]])
   *
-  * where l is [[String]]
+  * where l is [[Symbol]]
   */
 // @formatter:on
 sealed trait GType extends GTMark {

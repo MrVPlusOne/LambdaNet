@@ -7,21 +7,21 @@ import gtype.GExpr.GExprAPI
 // @formatter:off
 /** a program statement
   *
-  * S :=                                  [[GStmt]]
-  *   | var x: α = e                      [[VarDef]]
-  *   | e := e                            [[AssignStmt]]
-  *   | [return] e                        [[ExprStmt]]
-  *   | if e then e else e                [[IfStmt]]
-  *   | while e do e                      [[WhileStmt]]
-  *   | { S; ...; S }                     [[BlockStmt]]
-  *   | function x (x: α, ..., x:α): α    [[FuncDef]]
-  *   | class x (l: α, ..., l:α)          [[ClassDef]]
+  * S :=                                  ([[GStmt]])
+  *   | var x: α = e                      ([[VarDef]])
+  *   | e := e                            ([[AssignStmt]])
+  *   | [return] e                        ([[ExprStmt]])
+  *   | if e then e else e                ([[IfStmt]])
+  *   | while e do e                      ([[WhileStmt]])
+  *   | { S; ...; S }                     ([[BlockStmt]])
+  *   | function x (x: α, ..., x:α): α    ([[FuncDef]])
+  *   | class x (l: α, ..., l:α)          ([[ClassDef]])
   *     ↳ [extends x]{ f, ..., f }
   *
-  *   where x and l are [[Symbol]],
-  *         α is [[GTMark]],
-  *         e is [[GExpr]],
-  *         f is [[FuncDef]]
+  * where x and l are [[Symbol]],
+  *       α is [[GTMark]],
+  *       e is [[GExpr]],
+  *       f is [[FuncDef]]
   * */
 // @formatter:on
 sealed trait GStmt
