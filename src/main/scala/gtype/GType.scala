@@ -63,9 +63,12 @@ case object AnyType extends GroundType {
 
 case class TyVar(id: Symbol) extends GroundType
 
-case class FuncType(from: List[GType], to: GType) extends GType
+/** A [[FuncType]] or [[ObjectType]] */
+sealed trait CompoundType extends GType
 
-case class ObjectType(fields: Map[Symbol, GType]) extends GType
+case class FuncType(from: List[GType], to: GType) extends CompoundType
+
+case class ObjectType(fields: Map[Symbol, GType]) extends CompoundType
 
 
 /**
