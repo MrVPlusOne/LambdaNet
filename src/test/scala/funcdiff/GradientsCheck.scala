@@ -279,6 +279,14 @@ class GradientMatrixTest extends TestUtils {
     layerGradCheck(construct, pc, "GRU sum bits")
   }
 
+  "randomUnitVec" should "have unit norm" in {
+    for(_ <- 0 until 100) {
+      val n = TensorExtension.normL2(TensorExtension.randomUnitVec(10))
+      assert(relError(n, Tensor(1.0)) < 1e5,
+        s"norm = $n")
+    }
+  }
+
 //
 //  "Parallel version of Backprop" should "be consistent with old version" in {
 //    import API._

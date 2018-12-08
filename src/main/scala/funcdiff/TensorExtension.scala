@@ -110,6 +110,22 @@ object TensorExtension {
     t
   }
 
+  def normL2(tensor: Tensor, sumAlongDim: Int = -1): Tensor = {
+    numsca.sqrt(numsca.sum(numsca.square(tensor), sumAlongDim))
+  }
+
+  /** Generates a random point on the surface of an N-dimensional sphere.
+    * @param resultDim the dimension N */
+  def randomUnitVec(resultDim: Int): Tensor = {
+    val x = numsca.randn(resultDim)
+    val n = normL2(x)
+    if(n.squeeze() < TensorExtension.zeroTolerance){
+      randomUnitVec(resultDim)  // try again
+    }else {
+      x / n
+    }
+  }
+
   def matrix(rows: Seq[Array[Float]]): Tensor = {
     val ndArray = Nd4j.create(rows.toArray)
     new Tensor(ndArray)
