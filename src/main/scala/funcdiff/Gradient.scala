@@ -42,6 +42,8 @@ sealed trait Gradient{
   /** split gradient tensor along an axis into two */
   def splitAlongAxis(axis: Int, splitAt: Int): (Gradient, Gradient)
 
+  def subGradient(subRegion: Seq[Range]): Gradient
+
   def toTensor(shape: Array[Int]): Tensor = {
     val r = numsca.zeros(shape)
     addToTensor(r)
@@ -67,7 +69,7 @@ object Gradient{
 /**
   * Useful when the target scalar does not depend on the variable
   */
-case class ZeroGradient(shape: Array[Int]) extends Gradient{
+case class ZeroGradient(shape: Array[Int]) extends Gradient {
 
   override def isZero: Boolean = true
 
@@ -99,6 +101,10 @@ case class ZeroGradient(shape: Array[Int]) extends Gradient{
   def transpose: Gradient = ZeroGradient(Gradient.transposeShape(shape))
 
   def clip(min: Real, max: Real): Gradient = this
+
+  def subGradient(subRegion: Seq[Range]): Gradient = {
+    ZeroGradient(subRegion.map{r => r.end - r.start}.toArray)
+  }
 }
 
 case class DenseGradient(value: Tensor) extends Gradient {
@@ -140,6 +146,12 @@ case class DenseGradient(value: Tensor) extends Gradient {
   def clip(min: Real, max: Real): Gradient = {
     copy(value = value.clip(min, max))
   }
+
+  def subGradient(subRegion: Seq[Range]): Gradient = {
+    val ranges = subRegion.map{ r => r.start :> r.end}
+    DenseGradient(value(ranges: _*))
+  }
+
 }
 
 /**
@@ -248,6 +260,10 @@ case class InflatedGradient(core: Tensor, ranges: List[NumscaRange], shape: Arra
 
   def clip(min: Real, max: Real): Gradient = {
     copy(core = core.clip(min, max))
+  }
+
+  def subGradient(subRegion: Seq[Range]): Gradient = {
+    throw new Exception("subGradient on sparse gradient not supported. Turn the gradient into dense instead.")
   }
 }
 

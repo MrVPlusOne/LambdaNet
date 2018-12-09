@@ -51,6 +51,8 @@ object API {
 
   def total(xs: IS[CompNode]): CompNode = funcNode(Total(xs))
 
+  def concatN(xs: IS[CompNode], axis: Int): CompNode = funcNode(ConcatN(xs, axis))
+
   def crossEntropy(prediction: CompNode, targets: Tensor): CompNode = -sum(log(prediction + 1e-7) * targets, axis = 1)
 
   def crossEntropyOnSoftmax(logits: CompNode, targets: Tensor): CompNode = funcNode(CrossEntropyOnSoftmax(logits, targets))

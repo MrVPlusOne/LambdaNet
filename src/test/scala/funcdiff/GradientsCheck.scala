@@ -204,6 +204,8 @@ class GradientMatrixTest extends TestUtils {
       "square" -> square,
       "x => sqrt(abs(x) + 0.1)" -> (x => sqrt(abs(x) + 0.1)),
       "x => total(IS(x,x,x,x))" -> (x => total(IS(x,x,x,x))),
+      "x => concatN(IS(x,x,x,x), axis = 0)" -> (x => concatN(IS(x,x,x,x), axis = 0)),
+      "x => concatN(IS(x,x,x,x), axis = 1)" -> (x => concatN(IS(x,x,x,x), axis = 1)),
       "crossEntropyOnSoftmax(x, t)" -> (x => crossEntropyOnSoftmax(x, t))
     )
   }

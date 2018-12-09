@@ -338,6 +338,31 @@ object DiffFunc {
     }
   }
 
+  case class ConcatN(args: IS[CompNode], axis: Int) extends DiffFunc {
+    require(args.nonEmpty)
+
+    val value: Tensor = ns.concatenate(args.map(_.value), axis)
+
+    val name: String = s"concatN{axis=$axis}"
+
+    def backProp(grad: Gradient): IS[Gradient] = {
+      val denseGrad = grad match {
+        case grad: InflatedGradient => grad.toDense
+        case _ => grad
+      }
+
+      val ranges = value.shape.toVector.map{ size => 0 until size }
+      var idx = 0
+      val subRegions = args.map{ arg =>
+        val s = arg.shape(axis)
+        idx += s
+        ranges.updated(axis, (idx - s) until idx)
+      }
+
+      subRegions.map{ rgs => denseGrad.subGradient(rgs) }
+    }
+  }
+
   // ================ Loss functions ======================
   case class CrossEntropyOnSoftmax(logits: CompNode, targets: CompNode) extends UnaryFunc {
     def x1: CompNode = logits

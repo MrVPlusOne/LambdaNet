@@ -50,6 +50,13 @@ object TensorExtension {
     }
   }
 
+  def rangesToShape(totalShape: Array[Int], ranges: Seq[NumscaRange]): Array[Int] = {
+    ranges.zipWithIndex.map{ case(nr, i) =>
+      val to = nr.to.getOrElse(totalShape(i))
+      to - nr.from
+    }.toArray
+  }
+
   implicit class TensorWrapper(data: Tensor){
     def unbroadcast(oldShape: Array[Int]): Tensor = {
       val axes = broadcastAxes(oldShape, data.shape)
