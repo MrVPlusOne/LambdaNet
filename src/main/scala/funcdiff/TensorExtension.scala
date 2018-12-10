@@ -3,6 +3,7 @@ package funcdiff
 import botkop.numsca
 import botkop.numsca.{NumscaRange, Tensor}
 import botkop.{numsca => ns}
+import org.nd4j.linalg.api.ops.impl.indexaccum.{IMax, IMin}
 import org.nd4j.linalg.factory.Nd4j
 
 
@@ -11,6 +12,16 @@ object TensorExtension {
   /** set this to true to turn on NaN checking */
   var checkNaN = true
   var zeroTolerance = 1e-8
+
+  // ==== basic operations ====
+  /** fix the implementation in numsca */
+  def argmax(t: Tensor, axis: Int): Tensor =
+    new Tensor(Nd4j.getExecutioner.exec(new IMax(t.array), axis))
+
+  /** fix the implementation in numsca */
+  def argmin(t: Tensor, axis: Int): Tensor =
+    new Tensor(Nd4j.getExecutioner.exec(new IMin(t.array), axis))
+
 
   /** calculates which axes have been broadcasted */
   def broadcastAxes(oldShape: Array[Int], newShape: Array[Int]): Seq[Int] = {

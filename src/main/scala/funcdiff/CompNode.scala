@@ -17,7 +17,7 @@ class CompNode(val func: DiffFunc){
   }
 
   override def toString: String = {
-    s"${func.name}${func.args.mkString("(",",",")")}"
+    s"Node[name=${func.name}, shape=${TensorExtension.showShape(shape)}, value=$value]"
   }
 
   def withShape(shape: Int*): CompNode = {

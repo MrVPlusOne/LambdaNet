@@ -1,5 +1,6 @@
 package funcdiff
 
+import botkop.numsca
 import botkop.numsca._
 import DiffFunc._
 
@@ -59,6 +60,11 @@ object API {
 
   def crossEntropyOnSoftmaxIneff(logits: CompNode, targets: Tensor): CompNode = -sum(log(softmax(logits) + 1e-7) * targets, axis = 1)
 
+  def accuracy(logits: Tensor, targets: Seq[Int]): Double = {
+    require(logits.shape(0) == targets.length)
+    val predicts = TensorExtension.argmax(logits, axis = 1)
+    predicts.data.zip(targets).count{ case (p, t) => p == t}.toDouble / targets.length
+  }
 
   implicit def doubleToNode(d: Double): CompNode = const(Tensor(d))
 
