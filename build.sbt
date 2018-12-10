@@ -11,10 +11,9 @@ libraryDependencies ++= Seq(
   "org.scalacheck" %% "scalacheck" % "1.14.0",
   "org.scalatest" %% "scalatest" % "3.0.3" % Test,
 
-  "com.typesafe.scala-logging" %% "scala-logging" % "3.7.2",
   "ch.qos.logback" % "logback-classic" % "1.2.3",
   "be.botkop" %% "numsca" % "0.1.3",
   "com.typesafe.akka" %% "akka-actor" % "2.5.12",
   "com.typesafe.akka" %% "akka-testkit" % "2.5.12" % Test,
-  "com.lihaoyi" %% "ammonite-ops" % "1.0.3"
+  "com.lihaoyi" %% "ammonite-ops" % "1.0.3",
 )

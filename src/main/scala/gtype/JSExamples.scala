@@ -52,8 +52,10 @@ object JSExamples {
   val SUPER: Symbol = ClassDef.superSymbol
 
   val typeContext = TypeContext(
-    baseTypes = Set(boolean, void),
+    baseTypes = Set(),
     typeUnfold = Map(
+      boolean -> obj('BoolPlaceholder -> boolean),
+      void -> obj('VoidPlaceholder -> void),
       number -> obj(
         'OP_Plus -> (List(number) -: number),
         'OP_Minus -> (List(number) -: number),
@@ -69,7 +71,7 @@ object JSExamples {
       'Comparator -> obj(
         'equal -> (List(any, any) -: boolType)
       )
-    ) ++ Seq[GroundType](boolean, void, number, string, any).map(mkArrayType).toMap // create array types for basic types
+    ) ++ Seq[GroundType](boolean, number, string, any).map(mkArrayType).toMap // create array types for basic types
     , subRel = Set()
   )
 

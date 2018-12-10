@@ -56,6 +56,13 @@ sealed trait GroundType extends GType {
   def id: Symbol
 }
 
+object GroundType {
+  def symbolToType(symbol: Symbol): GroundType = {
+      if(symbol == AnyType.id) AnyType
+      else TyVar(symbol)
+    }
+}
+
 /** The any type */
 case object AnyType extends GroundType {
   def id: Symbol = 'any

@@ -4,7 +4,7 @@ import botkop.numsca
 import botkop.numsca._
 import DiffFunc._
 
-import scala.language.implicitConversions
+import scala.language.{implicitConversions, reflectiveCalls}
 
 object API {
 
@@ -60,10 +60,25 @@ object API {
 
   def crossEntropyOnSoftmaxIneff(logits: CompNode, targets: Tensor): CompNode = -sum(log(softmax(logits) + 1e-7) * targets, axis = 1)
 
-  def accuracy(logits: Tensor, targets: Seq[Int]): Double = {
+  def correctWrongSets(logits: Tensor, targets: Seq[Int]): (Set[Int], Set[Int]) = {
     require(logits.shape(0) == targets.length)
     val predicts = TensorExtension.argmax(logits, axis = 1)
-    predicts.data.zip(targets).count{ case (p, t) => p == t}.toDouble / targets.length
+    var correct = Set[Int]()
+    var wrong = Set[Int]()
+    targets.indices.foreach{ i =>
+      if(predicts.data(i) == targets(i)){
+        correct += i
+      }else{
+        wrong += i
+      }
+    }
+
+    (correct, wrong)
+  }
+
+  def accuracy(logits: Tensor, targets: Seq[Int]): Double = {
+    val (correct, wrong) = correctWrongSets(logits, targets)
+    correct.size.toDouble / (correct.size + wrong.size)
   }
 
   implicit def doubleToNode(d: Double): CompNode = const(Tensor(d))
