@@ -79,7 +79,7 @@ case class ObjectType(fields: Map[Symbol, GType]) extends CompoundType
   * @param typeUnfold defines how to unfold a type var once
   */
 case class TypeContext(baseTypes: Set[Symbol],
-                       typeUnfold: Map[Symbol, ObjectType],
+                       typeUnfold: Map[Symbol, CompoundType],
                        subRel: Set[(GType, GType)]) {
 
   def isSubType(child: GType, parent: GType): Boolean = {
@@ -92,7 +92,7 @@ case class TypeContext(baseTypes: Set[Symbol],
     } else Set()
   }
 
-  def newTypeVar(name: Symbol, objectType: ObjectType): TypeContext = {
+  def newTypeVar(name: Symbol, objectType: CompoundType): TypeContext = {
     if (typeUnfold.contains(name)) {
       println(s"warning: Redefine type var: ($name, $objectType), old value: ${typeUnfold(name)}")
     }

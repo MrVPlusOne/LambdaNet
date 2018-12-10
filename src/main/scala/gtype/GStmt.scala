@@ -119,7 +119,7 @@ object GStmt {
         val signatureType = extractSignature(f)
         currentCtx = currentCtx.newVar(f.name, signatureType)
       case ClassDef(name, superType, constructor, vars, funcDefs) =>
-        val sT = superType.map { s => currentCtx.typeContext.typeUnfold(s) }.getOrElse(obj())
+        val sT = superType.map { s => currentCtx.typeContext.typeUnfold(s).asInstanceOf[ObjectType] }.getOrElse(obj())
         var fields = sT.fields ++ vars
         funcDefs.foreach { f =>
           fields = fields.updated(f.name, extractSignature(f))
