@@ -85,6 +85,14 @@ object TypeConstraintGraph {
       fieldAggregation = FieldAggregation.Attention,
       activation = x => funcdiff.API.leakyRelu(x)
     )
+
+    val large = EncoderParams(
+      labelDim = 40,
+      typeDim = 80,
+      fieldDim = 120,
+      fieldAggregation = FieldAggregation.Attention,
+      activation = x => funcdiff.API.leakyRelu(x)
+    )
   }
 
   import funcdiff.API._
@@ -117,7 +125,7 @@ object TypeConstraintGraph {
       val fieldZeroInit = const(numsca.zeros(1, fieldDim))
       val funcArgInit =
         pc.getVar(typePath / 'funcArgInit)(numsca.rand(1, typeDim) * 0.01)
-      val attentionKernel = pc.getVar(typePath / 'attentionKernel)(
+      val attentionFieldKernel = pc.getVar(typePath / 'attentionFieldKernel)(
         numsca.rand(fieldDim, fieldDim) * 0.001
       )
       val attentionVec = pc
@@ -160,8 +168,8 @@ object TypeConstraintGraph {
                   case FieldAggregation.Attention =>
                     // see the paper 'Graph Attention Networks'
                     if (fieldEncodings.nonEmpty) {
-                      val transformedThis = typeMap(tyName) dot attentionKernel
-                      val transformedFields = fieldEncodings.map { _ dot attentionKernel }
+                      val transformedThis = typeMap(tyName) dot attentionFieldKernel //fixme
+                      val transformedFields = fieldEncodings.map { _ dot attentionFieldKernel }
                       val attentionLogits = transformedFields.map { ft =>
                         val w = transformedThis
                           .concat(ft, axis = 1)
@@ -217,9 +225,10 @@ object TypeConstraintGraph {
         (t1, t2) -> typeContext.isSubType(symbolToType(t1), symbolToType(t2))
       }
 
+    val reflexivity = types.map(t => (t, t))
     val posExamples = groundTruths.filter(_._2).map(_._1)
     val negExamples = groundTruths.filterNot(_._2).map(_._1)
-    posExamples -> negExamples
+    (reflexivity, posExamples, negExamples)
   }
 
   object Examples {
@@ -284,25 +293,24 @@ object TypeConstraintGraph {
       val posExamples = random.shuffle(posRelations).take(relationNum)
       val negExamples = random.shuffle(negRelations).take(relationNum)
 
-      val target = numsca.concatenate(posExamples.map { _ =>
-        posVec
-      }
-        ++ negExamples.map { _ =>
-          negVec
-        }, axis = 0)
+      val target = numsca.concatenate(posExamples.map(_ => posVec)
+                                        ++ negExamples.map(_ => negVec),
+                                      axis = 0)
 
       val typeEncoding = encoder.encode(symbolDefMap, iterations = 5)
+      val examples = posExamples ++ negExamples
       val predictions =
-        encoder.subtypePredict(typeEncoding, posExamples ++ negExamples)
-      (target, predictions)
+        encoder.subtypePredict(typeEncoding, examples)
+      (target, predictions, examples)
     }
 
-    val trainingSet = List("JSExamples" -> JSExamples.typeContext)
+    val trainingSet = List("JSExamples" -> JSExamples.trainingTypeContext)
 
     val devSet = {
       val typeDefs = typeContextToConstraints(Examples.pointExample)
       val typeContext = typeDefsToContext(typeDefs)
       val rels = Vector(
+        'number -> 'number,
         'point -> 'point2D,
         'point2D -> 'point,
         'point -> 'point,
@@ -329,11 +337,13 @@ object TypeConstraintGraph {
       case (name, context) =>
         val symbolDefMap = typeContextToConstraints(context)
         symbolDefMap.foreach(println)
-        val (posRelations, negRelations) = exampleToGroundTruths(symbolDefMap)
+        val (reflexivity, posRelations, negRelations) = exampleToGroundTruths(symbolDefMap)
+
         println(
-          s"pos relations: ${posRelations.length}, neg relations: ${negRelations.length}"
+          s"pos relations: ${posRelations.length}, neg relations: ${negRelations.length}, " +
+            s"reflexivity: ${reflexivity.length}"
         )
-        (name, symbolDefMap, (posRelations, negRelations))
+        (name, symbolDefMap, (posRelations ++ reflexivity, negRelations))
     }
 
     val optimizer = Adam(learningRate = 0.005)
@@ -341,7 +351,7 @@ object TypeConstraintGraph {
     for (step <- 0 until 1000;
          (exampleName, symbolDefMap, (posRelations, negRelations)) <- preComputes) {
 
-      val (target, predictions) =
+      val (target, predictions, _) =
         forwardPredict(symbolDefMap, posRelations, negRelations)
       val loss = crossEntropyOnSoftmax(predictions, target)
 
@@ -355,15 +365,15 @@ object TypeConstraintGraph {
       if (step % 10 == 0) {
         val posDev = devSet._2.collect { case (r, b) if b  => r }
         val negDev = devSet._2.collect { case (r, b) if !b => r }
-        val (target, pred) = forwardPredict(devSet._1, posDev, negDev)
+        val (target, predictions, examples) = forwardPredict(devSet._1, posDev, negDev)
         val (correct, wrong) =
-          correctWrongSets(pred.value, target(:>, 1).data.map(_.toInt))
+          correctWrongSets(predictions.value, target(:>, 1).data.map(_.toInt))
         val accuracy = correct.size.toDouble / (correct.size + wrong.size)
         println("dev set accuracy = " + accuracy)
         println("=== correct ===")
-        correct.foreach(i => println(devSet._2(i)))
+        correct.foreach(i => println(examples(i)))
         println("=== wrong ===")
-        wrong.foreach(i => println(devSet._2(i)))
+        wrong.foreach(i => println(examples(i)))
       }
 
       optimizer.minimize(loss, encoder.pc.allParams, weightDecay = Some(1e-4))

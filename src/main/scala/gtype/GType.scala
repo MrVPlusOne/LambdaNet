@@ -77,7 +77,12 @@ sealed trait CompoundType extends GType
 
 case class FuncType(from: List[GType], to: GType) extends CompoundType
 
-case class ObjectType(fields: Map[Symbol, GType]) extends CompoundType
+case class ObjectType(fields: Map[Symbol, GType]) extends CompoundType {
+  def extended(methods: (Symbol, CompoundType)*): ObjectType = {
+    ObjectType(fields ++ methods.toMap)
+  }
+
+}
 
 /**
   * A context used for checking consistent-subtyping relation

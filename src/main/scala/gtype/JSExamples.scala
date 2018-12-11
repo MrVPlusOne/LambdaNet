@@ -1,6 +1,5 @@
 package gtype
 
-import gtype.GExpr.boolType
 import gtype.GStmt.API._
 import SamplePrograms.Example
 
@@ -10,7 +9,7 @@ object JSExamples {
 
   val number = 'number
   val string = 'string
-  val boolean: Symbol = boolType.id
+  val boolean: Symbol = GExpr.boolType.id
   val void = 'void
   val anyArray = 'anyArray
   val numArray = 'numberArray
@@ -69,7 +68,7 @@ object JSExamples {
         'length -> number
       ),
       'Comparator -> obj(
-        'equal -> (List(any, any) -: boolType)
+        'equal -> (List(any, any) -: boolean)
       )
     ) ++ Seq[GroundType](boolean, number, string, any)
       .map(mkArrayType)
@@ -80,10 +79,10 @@ object JSExamples {
 
   val exprContext: ExprContext = {
     val varAssign = Map[Symbol, GType](
-      'eq -> (List(any, any) -: boolType),
-      'not -> (List(any) -: boolType),
-      'OP_And -> (List(any, any) -: boolType),
-      'toBool -> (List(any) -: boolType),
+      'eq -> (List(any, any) -: boolean),
+      'not -> (List(any) -: boolean),
+      'OP_And -> (List(any, any) -: boolean),
+      'toBool -> (List(any) -: boolean),
       'emptyArray -> anyArray,
       'Math -> obj(
         'floor -> (List(number) -: number),
@@ -282,4 +281,86 @@ object JSExamples {
   }
   // @formatter:on
 
+  val trainingTypeContext = {
+    val binaryTreeNodeObj = obj(
+      'leftHeight -> number,
+      'rightHeight -> number,
+      'height -> number,
+      'balanceFactor -> number,
+      'uncle -> 'BinaryTreeNode,
+      'setValue -> (List(any) -: 'BinaryTreeNode),
+      'setLeft -> (List('BinaryTreeNode) -: 'BinaryTreeNode),
+      'setRight -> (List('BinaryTreeNode) -: 'BinaryTreeNode),
+      'removeChild -> (List('BinaryTreeNode) -: boolean),
+      'replaceChild -> (List('BinaryTreeNode, 'BinaryTreeNode) -: boolean),
+      'traverseInOrder -> (List() -: anyArray),
+      'toString -> (List() -: string)
+    )
+
+    val heapObj = obj(
+      'getLeftChildIndex -> (List(number) -: number),
+      'getRightChildIndex -> (List(number) -: number),
+      'getParentIndex -> (List(number) -: number),
+      'hasParent -> (List(number) -: boolean),
+      'hasLeftChild -> (List(number) -: boolean),
+      'hasRightChild -> (List(number) -: boolean),
+      'leftChild -> (List(number) -: any),
+      'rightChild -> (List(number) -: any),
+      'parent -> (List(number) -: any),
+      'swap ->(List(number, number) -: void),
+      'peak -> (List() -: void),
+      'poll -> (List() -: void),
+      'add -> (List(any) -: 'Heap),
+      'remove -> (List(any, TyVar('Comparator)) -: 'Heap),
+      'find -> (List(any, TyVar('Comparator)) -: numArray),
+      'isEmpty -> (List() -: boolean),
+      'toString -> (List() -: string),
+    )
+
+    val newUnfold = typeContext.typeUnfold ++ Map[Symbol, CompoundType](
+      'BinarySearchTree -> obj(
+        'insert -> (List(any) -: 'BinarySearchTreeNode),
+        'contains -> (List(any) -: boolean),
+        'remove -> (List(any) -: boolean),
+        'toString -> (List() -: string)
+      ),
+      'BinaryTreeNode -> binaryTreeNodeObj,
+      'BinarySearchTreeNode -> binaryTreeNodeObj.extended(
+        'insert -> (List(any) -: 'BinarySearchTreeNode),
+        'find -> (List(any) -: 'BinarySearchTreeNode),
+        'contains -> (List(any) -: boolean),
+        'remove -> (List(any) -: boolean),
+        'findMin -> (List() -: 'BinarySearchTreeNode)
+      ),
+      'RedBlackTree -> obj(
+        'insert -> (List(any) -: 'BinarySearchTreeNode),
+        'remove -> (List(any) -: boolean),
+        'balance -> (List('BinarySearchTreeNode) -: void),
+        'leftLeftRotation ->  (List('BinarySearchTreeNode) -: 'BinarySearchTreeNode),
+        'leftRightRotation -> (List('BinarySearchTreeNode) -: 'BinarySearchTreeNode),
+        'rightRightRotation -> (List('BinarySearchTreeNode) -: 'BinarySearchTreeNode),
+        'rightLeftRotation -> (List('BinarySearchTreeNode) -: 'BinarySearchTreeNode),
+        'isNodeRed -> (List('BinarySearchTreeNode) -: boolean),
+        'isNodeBlack -> (List('BinarySearchTreeNode) -: boolean),
+        'isNodeColored -> (List('BinarySearchTreeNode) -: boolean),
+      ),
+      'FenwickTree -> obj(
+        'increase -> (List(number, number ) -: 'FenwickTree),
+        'query -> (List(number) -: number),
+        'queryRange -> (List(number, number) -: number)
+      ),
+      'AvlTree -> obj(
+        'insert -> (List(number) -: void),
+        'remove -> (List(any) -: boolean),
+        'balance -> (List('BinarySearchTreeNode) -: void),
+        'rotateLeftLeft -> (List('BinarySearchTreeNode) -: void),
+        'rotateLeftRight -> (List('BinarySearchTreeNode) -: void),
+        'rotateRightLeft -> (List('BinarySearchTreeNode) -: void),
+        'rotateRightRight -> (List('BinarySearchTreeNode) -: void)
+      ),
+      'Heap -> heapObj
+    )
+
+    typeContext.copy(typeUnfold = newUnfold)
+  }
 }
