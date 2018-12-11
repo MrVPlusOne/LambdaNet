@@ -38,6 +38,8 @@ object API {
 
   def relu(x1: CompNode): CompNode = funcNode(Threshold(x1, 0))
 
+  def leakyRelu(x1: CompNode, slope: Double = 0.01): CompNode = funcNode(LeakyRelu(x1, slope))
+
   def sum(x1: CompNode): CompNode = funcNode(Sum(x1))
 
   def sum(x1: CompNode, axis: Int): CompNode = funcNode(SumByAxis(x1, axis))

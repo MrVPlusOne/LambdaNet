@@ -152,6 +152,16 @@ object DiffFunc {
     def name: String = s"threshold{t=$threshold}"
   }
 
+  case class LeakyRelu(x1: CompNode, slope: Double) extends UnaryFunc {
+    val value: Tensor = ns.maximum(x1.value, 0.0) + ns.minimum(x1.value, 0.0) * slope
+
+    def backprop1(grad: Gradient): Gradient = {
+      grad * ((x1.value > 0) + (x1.value < 0) * slope)
+    }
+
+    def name: String = s"leakyRelu{slope=$slope}"
+  }
+
   case class Slice(x1: CompNode, ranges: Seq[NumscaRange]) extends UnaryFunc {
     require(x1.shape.zip(ranges).forall{case (s, r) => r.to.forall{_ <= s}},
     s"slice out of range. x1 shape: ${showShape(x1.shape)}, ranges: ${showRanges(ranges)}")

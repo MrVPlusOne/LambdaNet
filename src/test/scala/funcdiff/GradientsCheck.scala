@@ -192,6 +192,7 @@ class GradientMatrixTest extends TestUtils {
       "x => sum(x,0)" -> (x => sum(x,0)),
       "x => sum(x,1)" -> (x => sum(x,1)),
       "relu" -> relu,
+      "leakyRelu" -> (x => leakyRelu(x, 0.1)),
       "softmax" -> softmax,
       "x => log(abs(x) + 0.1)" -> (x => log(abs(x) + 0.1)),
       "sigmoid" -> sigmoid,
