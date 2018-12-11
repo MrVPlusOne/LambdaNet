@@ -11,14 +11,11 @@ import scala.util.Random
   */
 object TypeConstraintGraph {
 
-  val anySymbol = 'ANY
-
   sealed trait TypeDef
 
   case class FuncDef(argTypes: List[Symbol], returnType: Symbol) extends TypeDef
 
   case class ObjectDef(fields: Map[Symbol, Symbol]) extends TypeDef
-
 
   def typeDefsToContext(typeDefs: Map[Symbol, TypeDef]): TypeContext = {
     import GroundType.symbolToType
@@ -42,19 +39,23 @@ object TypeConstraintGraph {
       ty match {
         case g: GroundType => g.id
         case ty: CompoundType =>
-          typeNameMap.getOrElseUpdate(ty, {
-            val tDef = ty match {
-              case ObjectType(fields) =>
-                ObjectDef(fields.mapValues(f => getTypeName(f, None)))
-              case FuncType(from, to) =>
-                FuncDef(from.map { x => getTypeName(x, None) }, getTypeName(to, None))
-            }
+          typeNameMap.getOrElseUpdate(
+            ty, {
+              val tDef = ty match {
+                case ObjectType(fields) =>
+                  ObjectDef(fields.mapValues(f => getTypeName(f, None)))
+                case FuncType(from, to) =>
+                  FuncDef(from.map { x =>
+                    getTypeName(x, None)
+                  }, getTypeName(to, None))
+              }
 
-            val newSymbol = useName.getOrElse(Symbol("$" + tDef.toString))
-            tConstraints(newSymbol) = tDef
-            println(s"update: $newSymbol: $tDef")
-            newSymbol
-          })
+              val newSymbol = useName.getOrElse(Symbol("$" + tDef.toString))
+              tConstraints(newSymbol) = tDef
+              println(s"update: $newSymbol: $tDef")
+              newSymbol
+            }
+          )
       }
     }
 
@@ -64,11 +65,26 @@ object TypeConstraintGraph {
     tConstraints.toMap
   }
 
-  case class EncoderParams(labelDim: Int, fieldDim: Int, typeDim: Int, constraintDim: Int)
+  //noinspection TypeAnnotation
+  object FieldAggregation extends Enumeration {
+    val Sum = Value
+    val Attention = Value
+  }
+
+  case class EncoderParams(labelDim: Int,
+                           typeDim: Int,
+                           fieldDim: Int,
+                           fieldAggregation: FieldAggregation.Value,
+                           activation: CompNode => CompNode)
 
   object EncoderParams {
-    val small = EncoderParams(labelDim = 20, fieldDim = 30, typeDim = 40,
-      constraintDim = 40)
+    val small = EncoderParams(
+      labelDim = 30,
+      typeDim = 40,
+      fieldDim = 40,
+      fieldAggregation = FieldAggregation.Attention,
+      activation = x => funcdiff.API.leakyRelu(x)
+    )
   }
 
   import funcdiff.API._
@@ -77,61 +93,94 @@ object TypeConstraintGraph {
 
   case class TypeEncoding(labelMap: Map[Symbol, CompNode], typeMap: Map[Symbol, CompNode])
 
-  class TypeEncoder(encoderParams: EncoderParams
-                   ) {
+  class TypeEncoder(encoderParams: EncoderParams) {
 
     import encoderParams._
 
     val pc = ParamCollection()
-    val labelPath: SymbolPath = SymbolPath.empty / 'label
-    val fieldPath: SymbolPath = SymbolPath.empty / 'field
     val typePath: SymbolPath = SymbolPath.empty / 'type
     val subtypePath: SymbolPath = SymbolPath.empty / 'subtype
 
-
-    def encode(symbolDefMap: Map[Symbol, TypeDef],
-               iterations: Int): TypeEncoding = {
+    def encode(symbolDefMap: Map[Symbol, TypeDef], iterations: Int): TypeEncoding = {
       import collection.mutable
       val labelMap = mutable.HashMap[Symbol, CompNode]()
 
       def getFieldLabel(label: Symbol): CompNode = {
-        labelMap.getOrElseUpdate(label, const(TensorExtension.randomUnitVec(labelDim)))
+        labelMap.getOrElseUpdate(
+          label,
+          const(TensorExtension.randomUnitVec(labelDim))
+        )
       }
 
-      val anyInit = pc.getVar(typePath / 'anyInit)(
-        numsca.randn(1, typeDim) * 0.01
+      val anyInit =
+        pc.getVar(typePath / 'anyInit)(numsca.randn(1, typeDim) * 0.01)
+      val fieldZeroInit = const(numsca.zeros(1, fieldDim))
+      val funcArgInit =
+        pc.getVar(typePath / 'funcArgInit)(numsca.rand(1, typeDim) * 0.01)
+      val attentionKernel = pc.getVar(typePath / 'attentionKernel)(
+        numsca.rand(fieldDim, fieldDim) * 0.001
       )
-      var typeMap: Map[Symbol, CompNode] = symbolDefMap.keys.map { tyName =>
-        tyName -> pc.getVar(typePath / 'typeInit)(
-          numsca.randn(1, typeDim) * 0.01
-        )
-      }.toMap.updated(AnyType.id, anyInit)
+      val attentionVec = pc
+        .getVar(typePath / 'attentionVec)(numsca.rand(1, 2 * fieldDim) * 0.01)
+        .t
+
+      var typeMap: Map[Symbol, CompNode] = symbolDefMap.keys
+        .map { tyName =>
+          tyName -> pc.getVar(typePath / 'typeInit)(
+            numsca.randn(1, typeDim) * 0.01
+          )
+        }
+        .toMap
+        .updated(AnyType.id, anyInit)
 
       for (_ <- 0 until iterations) {
-        val newTypeMap = symbolDefMap.map { case (tyName, typeDef) =>
-          val typeFactory = LayerFactory(typePath, pc)
-          import typeFactory._
+        val newTypeMap = symbolDefMap.map {
+          case (tyName, typeDef) =>
+            val typeFactory = LayerFactory(typePath, pc)
+            import typeFactory._
 
-          val constraintInit = pc.getVar(typePath / 'constraintInit)(
-            numsca.rand(1, constraintDim) * 0.01
-          )
+            val aggregated = typeDef match {
+              case FuncDef(argTypes, returnType) =>
+                val argsEncoding = argTypes
+                  .map(typeMap)
+                  .foldLeft(funcArgInit: CompNode)(gru('FuncArgsGru))
+                val x = argsEncoding.concat(typeMap(returnType), axis = 1)
+                activation(linear('FuncDefLinear, nOut = fieldDim)(x))
+              case ObjectDef(fields) =>
+                val fieldEncodings = fields.map {
+                  case (fieldName, fieldType) =>
+                    val x = getFieldLabel(fieldName)
+                      .concat(typeMap(fieldType), axis = 1)
+                    activation(linear('ContainsFieldLinear, nOut = fieldDim)(x))
+                }.toVector
+                fieldAggregation match {
+                  case FieldAggregation.Sum =>
+                    if (fieldEncodings.nonEmpty) total(fieldEncodings)
+                    else fieldZeroInit
+                  case FieldAggregation.Attention =>
+                    // see the paper 'Graph Attention Networks'
+                    if (fieldEncodings.nonEmpty) {
+                      val transformedThis = typeMap(tyName) dot attentionKernel
+                      val transformedFields = fieldEncodings.map { _ dot attentionKernel }
+                      val attentionLogits = transformedFields.map { ft =>
+                        val w = transformedThis
+                          .concat(ft, axis = 1)
+                          .dot(attentionVec)
+                        assert(w.shape.product == 1)
+                        leakyRelu(w, 0.2)
+                      }
+                      val aWeights = softmax(concatN(attentionLogits, axis = 1))
+                      total((0 until aWeights.shape(1)).map { i =>
+                        aWeights.slice(0, i :> (i + 1)) * transformedFields(i)
+                      })
+                    } else fieldZeroInit
+                }
+            }
 
-          val aggregated = typeDef match {
-            case FuncDef(argTypes, returnType) =>
-              val funcArgInit = pc.getVar(typePath / 'funcArgInit)(
-                numsca.rand(1, typeDim) * 0.01
-              )
-              val argsEncoding = argTypes.map(typeMap).foldLeft(funcArgInit: CompNode)(gru('FuncArgsGru))
-              val x = argsEncoding.concat(typeMap(returnType), axis = 1)
-              relu(linear('FuncDefLinear, nOut = constraintDim)(x))
-            case ObjectDef(fields) =>
-              total(fields.map { case (fieldName, fieldType) =>
-                val x = getFieldLabel(fieldName).concat(typeMap(fieldType), axis = 1)
-                relu(linear('ContainsFieldLinear, nOut = constraintDim)(x))
-              }.toVector :+ constraintInit)
-          }
-
-          tyName -> gru('UpdateGRU)(state = typeMap(tyName), input = aggregated)
+            tyName -> gru('UpdateGRU)(
+              state = typeMap(tyName),
+              input = aggregated
+            )
         }
 
         typeMap = newTypeMap.updated(AnyType.id, anyInit)
@@ -144,13 +193,14 @@ object TypeConstraintGraph {
       val t1 = concatN(t1s.map(encoding.typeMap).toVector, axis = 0)
       val t2 = concatN(t2s.map(encoding.typeMap).toVector, axis = 0)
 
-
       val modelFactory = LayerFactory(subtypePath, pc)
       import modelFactory._
 
-      val layer1 = relu(linear('linear1, nOut = typeDim)(t1.concat(t2, axis = 1)))
-      val layer2 = relu(linear('linear2, nOut = typeDim / 2)(layer1))
-      relu(linear('linear3, nOut = 2)(layer2))
+      val layer1 = activation(
+        linear('linear1, nOut = typeDim)(t1.concat(t2, axis = 1))
+      )
+      val layer2 = activation(linear('linear2, nOut = typeDim / 2)(layer1))
+      activation(linear('linear3, nOut = 2)(layer2))
 
       //      linear('linear1, nOut = 2)((t1 * t2).concat(t1, axis = 1))
     }
@@ -193,18 +243,13 @@ object TypeConstraintGraph {
         'charAt -> (List(number) -: string),
         'length -> number
       ),
-      'Comparator -> obj(
-        'equal -> (List(any, any) -: boolean)
-      )
+      'Comparator -> obj('equal -> (List(any, any) -: boolean))
     ) ++ Seq[GroundType](boolean, number, string, any).map(mkArrayType).toMap
 
     val pointExample = {
       val typeUnfold = basicTypes ++
         Map[Symbol, CompoundType](
-          'point -> obj(
-            'x -> 'number,
-            'moveX -> (List('number) -: 'point)
-          ),
+          'point -> obj('x -> 'number, 'moveX -> (List('number) -: 'point)),
           'point2D -> obj(
             'x -> 'number,
             'y -> 'number,
@@ -239,56 +284,80 @@ object TypeConstraintGraph {
       val posExamples = random.shuffle(posRelations).take(relationNum)
       val negExamples = random.shuffle(negRelations).take(relationNum)
 
-      val target = numsca.concatenate(posExamples.map { _ => posVec }
-        ++ negExamples.map { _ => negVec }, axis = 0)
+      val target = numsca.concatenate(posExamples.map { _ =>
+        posVec
+      }
+        ++ negExamples.map { _ =>
+          negVec
+        }, axis = 0)
 
       val typeEncoding = encoder.encode(symbolDefMap, iterations = 5)
-      val predictions = encoder.subtypePredict(typeEncoding, posExamples ++ negExamples)
+      val predictions =
+        encoder.subtypePredict(typeEncoding, posExamples ++ negExamples)
       (target, predictions)
     }
 
-    val trainingSet = List(
-      "JSExamples" -> JSExamples.typeContext,
-    )
+    val trainingSet = List("JSExamples" -> JSExamples.typeContext)
 
     val devSet = {
       val typeDefs = typeContextToConstraints(Examples.pointExample)
       val typeContext = typeDefsToContext(typeDefs)
-      val rels = Vector('point -> 'point2D, 'point2D -> 'point, 'point -> 'point,
-        'A -> 'point, 'A -> 'B, 'B -> 'A, 'A -> 'C, 'C -> 'B, 'C -> 'C,
-        'stringPoint -> 'point, 'stringPoint -> 'point2D)
-      typeDefs -> rels.map { case (l, r) => (l, r) ->
-        typeContext.isSubType(GroundType.symbolToType(l), GroundType.symbolToType(r))
+      val rels = Vector(
+        'point -> 'point2D,
+        'point2D -> 'point,
+        'point -> 'point,
+        'A -> 'point,
+        'A -> 'B,
+        'B -> 'A,
+        'A -> 'C,
+        'C -> 'B,
+        'C -> 'C,
+        'stringPoint -> 'point,
+        'stringPoint -> 'point2D
+      )
+      typeDefs -> rels.map {
+        case (l, r) =>
+          (l, r) ->
+            typeContext.isSubType(
+              GroundType.symbolToType(l),
+              GroundType.symbolToType(r)
+            )
       }
     }
 
-    val preComputes = trainingSet.map { case (name, context) =>
-      val symbolDefMap = typeContextToConstraints(context)
-      symbolDefMap.foreach(println)
-      val (posRelations, negRelations) = exampleToGroundTruths(symbolDefMap)
-      println(s"pos relations: ${posRelations.length}, neg relations: ${negRelations.length}")
-      (name, symbolDefMap, (posRelations, negRelations))
+    val preComputes = trainingSet.map {
+      case (name, context) =>
+        val symbolDefMap = typeContextToConstraints(context)
+        symbolDefMap.foreach(println)
+        val (posRelations, negRelations) = exampleToGroundTruths(symbolDefMap)
+        println(
+          s"pos relations: ${posRelations.length}, neg relations: ${negRelations.length}"
+        )
+        (name, symbolDefMap, (posRelations, negRelations))
     }
 
     val optimizer = Adam(learningRate = 0.005)
 
-
     for (step <- 0 until 1000;
          (exampleName, symbolDefMap, (posRelations, negRelations)) <- preComputes) {
 
-
-      val (target, predictions) = forwardPredict(symbolDefMap, posRelations, negRelations)
+      val (target, predictions) =
+        forwardPredict(symbolDefMap, posRelations, negRelations)
       val loss = crossEntropyOnSoftmax(predictions, target)
 
       println(s"[$exampleName][$step] average loss: ${mean(loss).value}")
-      val (correct, wrong) = correctWrongSets(predictions.value, target(:>, 1).data.map(_.toInt))
-      println(s"[$exampleName] accuracy = ${correct.size.toDouble / (correct.size + wrong.size)}")
+      val (correct, wrong) =
+        correctWrongSets(predictions.value, target(:>, 1).data.map(_.toInt))
+      println(
+        s"[$exampleName] accuracy = ${correct.size.toDouble / (correct.size + wrong.size)}"
+      )
 
       if (step % 10 == 0) {
-        val posDev = devSet._2.collect{ case (r, b) if b => r}
-        val negDev = devSet._2.collect{ case (r, b) if !b => r}
+        val posDev = devSet._2.collect { case (r, b) if b  => r }
+        val negDev = devSet._2.collect { case (r, b) if !b => r }
         val (target, pred) = forwardPredict(devSet._1, posDev, negDev)
-        val (correct, wrong) = correctWrongSets(pred.value, target(:>, 1).data.map(_.toInt))
+        val (correct, wrong) =
+          correctWrongSets(pred.value, target(:>, 1).data.map(_.toInt))
         val accuracy = correct.size.toDouble / (correct.size + wrong.size)
         println("dev set accuracy = " + accuracy)
         println("=== correct ===")
