@@ -11,28 +11,36 @@ import scala.util.Random
   */
 object TypeConstraintGraph {
 
-  sealed trait TypeDef
+  sealed trait TypeRewrite
 
-  case class FuncDef(argTypes: List[Symbol], returnType: Symbol) extends TypeDef
+  case class FuncRewrite(argTypes: List[Symbol], returnType: Symbol) extends TypeRewrite {
+    override def toString: String = {
+      argTypes.mkString("(", ",",")") + "->" + returnType
+    }
+  }
 
-  case class ObjectDef(fields: Map[Symbol, Symbol]) extends TypeDef
+  case class ObjectRewrite(fields: Map[Symbol, Symbol]) extends TypeRewrite{
+    override def toString: String = {
+      fields.map{ case (f, t) => s"$f: $t"}.mkString("{", ",", "}")
+    }
+  }
 
-  def typeDefsToContext(typeDefs: Map[Symbol, TypeDef]): TypeContext = {
+  def typeRewritesToContext(typeRewrites: Map[Symbol, TypeRewrite]): TypeContext = {
     import GroundType.symbolToType
 
-    val typeUnfold = typeDefs.mapValues {
-      case ObjectDef(fields) => ObjectType(fields.mapValues(symbolToType))
-      case FuncDef(argTypes, returnType) =>
+    val typeUnfold = typeRewrites.mapValues {
+      case ObjectRewrite(fields) => ObjectType(fields.mapValues(symbolToType))
+      case FuncRewrite(argTypes, returnType) =>
         FuncType(argTypes.map(symbolToType), symbolToType(returnType))
     }
 
     TypeContext(baseTypes = Set(), typeUnfold = typeUnfold, subRel = Set())
   }
 
-  def typeContextToConstraints(context: TypeContext): Map[Symbol, TypeDef] = {
+  def typeContextToRewrites(context: TypeContext): Map[Symbol, TypeRewrite] = {
 
     import collection.mutable
-    val tConstraints = mutable.HashMap[Symbol, TypeDef]()
+    val tConstraints = mutable.HashMap[Symbol, TypeRewrite]()
     val typeNameMap = mutable.HashMap[CompoundType, Symbol]()
 
     def getTypeName(ty: GType, useName: Option[Symbol]): Symbol = {
@@ -43,14 +51,14 @@ object TypeConstraintGraph {
             ty, {
               val tDef = ty match {
                 case ObjectType(fields) =>
-                  ObjectDef(fields.mapValues(f => getTypeName(f, None)))
+                  ObjectRewrite(fields.mapValues(f => getTypeName(f, None)))
                 case FuncType(from, to) =>
-                  FuncDef(from.map { x =>
+                  FuncRewrite(from.map { x =>
                     getTypeName(x, None)
                   }, getTypeName(to, None))
               }
 
-              val newSymbol = useName.getOrElse(Symbol("$" + tDef.toString))
+              val newSymbol = useName.getOrElse(Symbol("$<" + tDef.toString + ">"))
               tConstraints(newSymbol) = tDef
               println(s"update: $newSymbol: $tDef")
               newSymbol
@@ -75,14 +83,16 @@ object TypeConstraintGraph {
                            typeDim: Int,
                            fieldDim: Int,
                            fieldAggregation: FieldAggregation.Value,
+                           updateWithRNN: Boolean,
                            activation: CompNode => CompNode)
 
   object EncoderParams {
     val small = EncoderParams(
-      labelDim = 30,
+      labelDim = 40,
       typeDim = 40,
       fieldDim = 40,
       fieldAggregation = FieldAggregation.Attention,
+      updateWithRNN = false,
       activation = x => funcdiff.API.leakyRelu(x)
     )
 
@@ -91,6 +101,7 @@ object TypeConstraintGraph {
       typeDim = 80,
       fieldDim = 120,
       fieldAggregation = FieldAggregation.Attention,
+      updateWithRNN = false,
       activation = x => funcdiff.API.leakyRelu(x)
     )
   }
@@ -109,7 +120,7 @@ object TypeConstraintGraph {
     val typePath: SymbolPath = SymbolPath.empty / 'type
     val subtypePath: SymbolPath = SymbolPath.empty / 'subtype
 
-    def encode(symbolDefMap: Map[Symbol, TypeDef], iterations: Int): TypeEncoding = {
+    def encode(symbolDefMap: Map[Symbol, TypeRewrite], iterations: Int): TypeEncoding = {
       import collection.mutable
       val labelMap = mutable.HashMap[Symbol, CompNode]()
 
@@ -148,13 +159,13 @@ object TypeConstraintGraph {
             import typeFactory._
 
             val aggregated = typeDef match {
-              case FuncDef(argTypes, returnType) =>
+              case FuncRewrite(argTypes, returnType) =>
                 val argsEncoding = argTypes
                   .map(typeMap)
                   .foldLeft(funcArgInit: CompNode)(gru('FuncArgsGru))
                 val x = argsEncoding.concat(typeMap(returnType), axis = 1)
                 activation(linear('FuncDefLinear, nOut = fieldDim)(x))
-              case ObjectDef(fields) =>
+              case ObjectRewrite(fields) =>
                 val fieldEncodings = fields.map {
                   case (fieldName, fieldType) =>
                     val x = getFieldLabel(fieldName)
@@ -185,10 +196,13 @@ object TypeConstraintGraph {
                 }
             }
 
-            tyName -> gru('UpdateGRU)(
-              state = typeMap(tyName),
-              input = aggregated
-            )
+            val newTypeEnc = if(updateWithRNN) {
+              gru('UpdateGRU)(
+                state = typeMap(tyName),
+                input = aggregated
+              )
+            } else aggregated
+            tyName -> newTypeEnc
         }
 
         typeMap = newTypeMap.updated(AnyType.id, anyInit)
@@ -204,19 +218,20 @@ object TypeConstraintGraph {
       val modelFactory = LayerFactory(subtypePath, pc)
       import modelFactory._
 
-      val layer1 = activation(
-        linear('linear1, nOut = typeDim)(t1.concat(t2, axis = 1))
-      )
-      val layer2 = activation(linear('linear2, nOut = typeDim / 2)(layer1))
-      activation(linear('linear3, nOut = 2)(layer2))
+//      val layer1 = activation(
+//        linear('linear1, nOut = typeDim)(t1.concat(t2, axis = 1))
+//      )
+//      val layer2 = activation(linear('linear2, nOut = typeDim / 2)(layer1))
+//      activation(linear('linear3, nOut = 2)(layer2))
 
-      //      linear('linear1, nOut = 2)((t1 * t2).concat(t1, axis = 1))
+
+      linear('simpleLinear, nOut = 2)((t1 * t2).concat(t1 + t2, axis = 1).concat(t2 - t1, axis = 1))
     }
 
   }
 
-  def exampleToGroundTruths(typeDefs: Map[Symbol, TypeDef]) = {
-    val typeContext = typeDefsToContext(typeDefs)
+  def exampleToGroundTruths(typeRewrites: Map[Symbol, TypeRewrite]) = {
+    val typeContext = typeRewritesToContext(typeRewrites)
     val types = typeContext.typeUnfold.keys.toList
     import GroundType.symbolToType
 
@@ -286,7 +301,7 @@ object TypeConstraintGraph {
     val posVec = Tensor(1, 0).reshape(1, -1)
     val negVec = Tensor(0, 1).reshape(1, -1)
 
-    def forwardPredict(symbolDefMap: Map[Symbol, TypeDef],
+    def forwardPredict(symbolDefMap: Map[Symbol, TypeRewrite],
                        posRelations: Seq[(Symbol, Symbol)],
                        negRelations: Seq[(Symbol, Symbol)]) = {
       val relationNum = math.min(posRelations.length, negRelations.length)
@@ -307,8 +322,8 @@ object TypeConstraintGraph {
     val trainingSet = List("JSExamples" -> JSExamples.trainingTypeContext)
 
     val devSet = {
-      val typeDefs = typeContextToConstraints(Examples.pointExample)
-      val typeContext = typeDefsToContext(typeDefs)
+      val typeRewrites = typeContextToRewrites(Examples.pointExample)
+      val typeContext = typeRewritesToContext(typeRewrites)
       val rels = Vector(
         'number -> 'number,
         'point -> 'point2D,
@@ -323,7 +338,7 @@ object TypeConstraintGraph {
         'stringPoint -> 'point,
         'stringPoint -> 'point2D
       )
-      typeDefs -> rels.map {
+      typeRewrites -> rels.map {
         case (l, r) =>
           (l, r) ->
             typeContext.isSubtype(
@@ -335,7 +350,7 @@ object TypeConstraintGraph {
 
     val preComputes = trainingSet.map {
       case (name, context) =>
-        val symbolDefMap = typeContextToConstraints(context)
+        val symbolDefMap = typeContextToRewrites(context)
         symbolDefMap.foreach(println)
         val (reflexivity, posRelations, negRelations) = exampleToGroundTruths(symbolDefMap)
 
