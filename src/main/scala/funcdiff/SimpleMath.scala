@@ -51,7 +51,7 @@ object SimpleMath {
     math.pow(2,-math.pow(x/halfPoint,4))
   }
 
-  def randomSelect[A](random: Random)(xs: IndexedSeq[A]): A = {
+  def randomSelect[A](xs: IndexedSeq[A])(implicit random: Random): A = {
     val i = random.nextInt(xs.length)
     xs(i)
   }

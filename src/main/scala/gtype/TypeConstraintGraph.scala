@@ -15,13 +15,13 @@ object TypeConstraintGraph {
 
   case class FuncRewrite(argTypes: List[Symbol], returnType: Symbol) extends TypeRewrite {
     override def toString: String = {
-      argTypes.mkString("(", ",",")") + "->" + returnType
+      argTypes.mkString("(", ",", ")") + "->" + returnType
     }
   }
 
-  case class ObjectRewrite(fields: Map[Symbol, Symbol]) extends TypeRewrite{
+  case class ObjectRewrite(fields: Map[Symbol, Symbol]) extends TypeRewrite {
     override def toString: String = {
-      fields.map{ case (f, t) => s"$f: $t"}.mkString("{", ",", "}")
+      fields.map { case (f, t) => s"$f: $t" }.mkString("{", ",", "}")
     }
   }
 
@@ -47,23 +47,24 @@ object TypeConstraintGraph {
       ty match {
         case g: GroundType => g.id
         case ty: CompoundType =>
-          typeNameMap.getOrElseUpdate(
-            ty, {
-              val tDef = ty match {
-                case ObjectType(fields) =>
-                  ObjectRewrite(fields.mapValues(f => getTypeName(f, None)))
-                case FuncType(from, to) =>
-                  FuncRewrite(from.map { x =>
-                    getTypeName(x, None)
-                  }, getTypeName(to, None))
-              }
+          if(useName.isEmpty && typeNameMap.contains(ty)){
+            return typeNameMap(ty)
+          }
 
-              val newSymbol = useName.getOrElse(Symbol("$<" + tDef.toString + ">"))
-              tConstraints(newSymbol) = tDef
-              println(s"update: $newSymbol: $tDef")
-              newSymbol
-            }
-          )
+          val tDef = ty match {
+            case ObjectType(fields) =>
+              ObjectRewrite(fields.mapValues(f => getTypeName(f, None)))
+            case FuncType(from, to) =>
+              FuncRewrite(from.map { x =>
+                getTypeName(x, None)
+              }, getTypeName(to, None))
+          }
+
+          val newSymbol = useName.getOrElse(Symbol("$<" + tDef.toString + ">"))
+          tConstraints(newSymbol) = tDef
+          typeNameMap(ty) = newSymbol
+          println(s"update: $newSymbol: $tDef")
+          newSymbol
       }
     }
 
@@ -196,7 +197,7 @@ object TypeConstraintGraph {
                 }
             }
 
-            val newTypeEnc = if(updateWithRNN) {
+            val newTypeEnc = if (updateWithRNN) {
               gru('UpdateGRU)(
                 state = typeMap(tyName),
                 input = aggregated
@@ -224,13 +225,12 @@ object TypeConstraintGraph {
 //      val layer2 = activation(linear('linear2, nOut = typeDim / 2)(layer1))
 //      activation(linear('linear3, nOut = 2)(layer2))
 
-
       linear('simpleLinear, nOut = 2)((t1 * t2).concat(t1 + t2, axis = 1).concat(t2 - t1, axis = 1))
     }
 
   }
 
-  def exampleToGroundTruths(typeRewrites: Map[Symbol, TypeRewrite]) = {
+  def typeRewritesToGroundTruths(typeRewrites: Map[Symbol, TypeRewrite]) = {
     val typeContext = typeRewritesToContext(typeRewrites)
     val types = typeContext.typeUnfold.keys.toList
     import GroundType.symbolToType
@@ -319,7 +319,9 @@ object TypeConstraintGraph {
       (target, predictions, examples)
     }
 
-    val trainingSet = List("JSExamples" -> JSExamples.trainingTypeContext)
+    val extendedJSContext =
+      TrainingTypeGeneration.augmentWithRandomTypes(JSExamples.trainingTypeContext)
+    val trainingSet = List("JSExamples" -> extendedJSContext)
 
     val devSet = {
       val typeRewrites = typeContextToRewrites(Examples.pointExample)
@@ -351,8 +353,10 @@ object TypeConstraintGraph {
     val preComputes = trainingSet.map {
       case (name, context) =>
         val symbolDefMap = typeContextToRewrites(context)
+        println("Symbol rewrites map:")
         symbolDefMap.foreach(println)
-        val (reflexivity, posRelations, negRelations) = exampleToGroundTruths(symbolDefMap)
+        assert(symbolDefMap.contains(JSExamples.boolean))
+        val (reflexivity, posRelations, negRelations) = typeRewritesToGroundTruths(symbolDefMap)
 
         println(
           s"pos relations: ${posRelations.length}, neg relations: ${negRelations.length}, " +
