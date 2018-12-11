@@ -71,8 +71,11 @@ object JSExamples {
       'Comparator -> obj(
         'equal -> (List(any, any) -: boolType)
       )
-    ) ++ Seq[GroundType](boolean, number, string, any).map(mkArrayType).toMap // create array types for basic types
-    , subRel = Set()
+    ) ++ Seq[GroundType](boolean, number, string, any)
+      .map(mkArrayType)
+      .toMap // create array types for basic types
+    ,
+    subRel = Set()
   )
 
   val exprContext: ExprContext = {
@@ -91,6 +94,7 @@ object JSExamples {
     ExprContext(varAssign, typeContext)
   }
 
+  // @formatter:off
   object Collection {
 
     import collection.mutable
@@ -276,5 +280,6 @@ object JSExamples {
       )
     }
   }
+  // @formatter:on
 
 }

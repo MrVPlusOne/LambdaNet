@@ -60,14 +60,14 @@ case class ExprContext(varAssign: Map[Symbol, GType], typeContext: TypeContext) 
 
   def newVar(arg: Symbol, argT: GType): ExprContext = {
     copy(varAssign = {
-      assert(!varAssign.contains(arg),
+      assert(
+        !varAssign.contains(arg),
         s"new definition (${arg.name}: $argT) shadows outer definition of type ${varAssign(arg)}")
       varAssign.updated(arg, argT)
     })
   }
 
 }
-
 
 object GExpr {
 
@@ -100,19 +100,22 @@ object GExpr {
 
     expr match {
       case Var(name) => varAssign(name) -> Set()
-      case c: Const => c.ty -> Set()
+      case c: Const  => c.ty -> Set()
       case FuncCall(f, args) =>
         val (fT, e1) = typeCheckInfer(f, context)
-        val (xTs, e2s) = args.map { x => typeCheckInfer(x, context) }.unzip
+        val (xTs, e2s) = args.map { x =>
+          typeCheckInfer(x, context)
+        }.unzip
         val e2 = e2s.fold(Set[TypeCheckError]()) {
           _ ++ _
         }
         fT match {
-          case AnyType => AnyType -> (e1 ++ e2)
+          case AnyType            => AnyType -> (e1 ++ e2)
           case FuncType(from, to) =>
             // allow some arguments to be omitted, as in Typescript
-            val e3 = xTs.zip(from).foldLeft(Set[TypeCheckError]()) { case (errors, (cT, pT)) =>
-              errors ++ typeContext.mkSubTypeError(cT, pT)
+            val e3 = xTs.zip(from).foldLeft(Set[TypeCheckError]()) {
+              case (errors, (cT, pT)) =>
+                errors ++ typeContext.mkSubTypeError(cT, pT)
             }
             to -> (e1 ++ e2 ++ e3)
           case _ =>
@@ -125,17 +128,18 @@ object GExpr {
         t -> (errors ++ e1)
       case Constructor(fields) =>
         var errors = Set[TypeCheckError]()
-        val fieldTypes = fields.map { case (name, e) =>
-          val (et, err) = typeCheckInfer(e, context)
-          errors ++= err
-          name -> et
+        val fieldTypes = fields.map {
+          case (name, e) =>
+            val (et, err) = typeCheckInfer(e, context)
+            errors ++= err
+            name -> et
         }
         ObjectType(fieldTypes) -> errors
       case Access(e, field) =>
         val (et, errors) = typeCheckInfer(e, context)
         val et1 = et match {
           case TyVar(id) => typeContext.typeUnfold(id)
-          case _ => et
+          case _         => et
         }
         et1 match {
           case AnyType => AnyType -> errors

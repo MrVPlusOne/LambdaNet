@@ -5,13 +5,13 @@ import gtype.GStmt.API._
 
 object SamplePrograms {
   /*
-      * let Point = { x: int, moveX: int => Point }
-      *
-      * let mkPoint: int -> Point =
-      *   (x: int) => { x: x0, moveX: (dx: int) => mkPoint (x0 + dx) }
-      *
-      * let Point2D = { x: int, moveX: int => Point2D, y: int, moveY: int => Point2D }
-      * */
+   * let Point = { x: int, moveX: int => Point }
+   *
+   * let mkPoint: int -> Point =
+   *   (x: int) => { x: x0, moveX: (dx: int) => mkPoint (x0 + dx) }
+   *
+   * let Point2D = { x: int, moveX: int => Point2D, y: int, moveY: int => Point2D }
+   * */
 
   val point = 'Point
   val point2D = 'Point2D
@@ -23,8 +23,11 @@ object SamplePrograms {
       point -> obj('x -> 'int, 'moveX -> (List('int) -: point)),
       'PointAlias -> obj('x -> 'int, 'moveX -> (List('int) -: 'PointAlias)),
       point2D -> obj(
-        'x -> 'int, 'moveX -> (List('int) -: point2D),
-        'y -> 'int, 'moveY -> (List('int) -: point2D)),
+        'x -> 'int,
+        'moveX -> (List('int) -: point2D),
+        'y -> 'int,
+        'moveY -> (List('int) -: point2D)
+      ),
       numArray -> obj(
         'length -> 'int,
         'slice -> (List('int, 'int) -: numArray),
@@ -34,9 +37,11 @@ object SamplePrograms {
       'Comparator -> obj(
         'equal -> (List(any, any) -: boolType)
       )
-    ), subRel = Set(
+    ),
+    subRel = Set(
       ('int: GType) -> 'number
-    ))
+    )
+  )
 
   val exprContext: ExprContext = {
     val varAssign = Map[Symbol, GType](
@@ -58,6 +63,7 @@ object SamplePrograms {
 
   def wellFormed(stmts: GStmt*) = Example(BLOCK(stmts: _*), Set())
 
+  // @formatter:off
   //noinspection TypeAnnotation
   object Collection {
 
@@ -66,10 +72,10 @@ object SamplePrograms {
     )
 
     /*
-      *  function fact(x: int): int {
-      *    if (x < 0) return 1 else return x * fact (x-1)
-      *  }
-      */
+     *  function fact(x: int): int {
+     *    if (x < 0) return 1 else return x * fact (x-1)
+     *  }
+     */
     val factExample: Example = wellFormed {
       FUNC('fact, 'int)('x -> 'int) {
         IF('lt.call('x, C(0, 'int)))(
@@ -81,15 +87,15 @@ object SamplePrograms {
     }
 
     /*
-      *  type Point = { x: int, moveX: (int) -> Point }
-      *
-      *  function mkPoint(x: int): Point {
-      *    function moveX(dx: int): Point {
-      *      return mkPoint(x + dx)
-      *    };
-      *    return { x: x, moveX: moveX }
-      *  }
-      */
+     *  type Point = { x: int, moveX: (int) -> Point }
+     *
+     *  function mkPoint(x: int): Point {
+     *    function moveX(dx: int): Point {
+     *      return mkPoint(x + dx)
+     *    };
+     *    return { x: x, moveX: moveX }
+     *  }
+     */
     val mkPointExample: Example = wellFormed {
       FUNC('mkPoint, point)('x -> 'int)(
         FUNC('moveX, point)('dx -> 'int)(
@@ -100,23 +106,23 @@ object SamplePrograms {
     }
 
     /*
-      *  function mkPoint2D(x: int, y: int): Point2D {
-      *    function moveX(dx: int): Point2D {
-      *      return mkPoint2D(x + dx, y)
-      *    };
-      *
-      *    // forward reference
-      *    function moveY(dy: int): Point2D {
-      *      return moveBoth(0, dy)
-      *    };
-      *
-      *    function moveBoth(dx: int, dy: int): Point2D {
-      *      return mkPoint2D(x + dx, y + dy)
-      *    }
-      *
-      *    return { x: x, moveX: moveX, y: y, moveY: moveY, moveBoth: moveBoth }
-      *  }
-      */
+     *  function mkPoint2D(x: int, y: int): Point2D {
+     *    function moveX(dx: int): Point2D {
+     *      return mkPoint2D(x + dx, y)
+     *    };
+     *
+     *    // forward reference
+     *    function moveY(dy: int): Point2D {
+     *      return moveBoth(0, dy)
+     *    };
+     *
+     *    function moveBoth(dx: int, dy: int): Point2D {
+     *      return mkPoint2D(x + dx, y + dy)
+     *    }
+     *
+     *    return { x: x, moveX: moveX, y: y, moveY: moveY, moveBoth: moveBoth }
+     *  }
+     */
     val mkPoint2DExample: Example = wellFormed {
       FUNC('mkPoint2D, point2D)('x -> 'int, 'y -> 'int)(
         FUNC('moveX, point2D)('dx -> 'int)(
@@ -292,5 +298,5 @@ object SamplePrograms {
       ("linkedListExample", linkedListExample)
     )
   }
-
+  // @formatter:on
 }

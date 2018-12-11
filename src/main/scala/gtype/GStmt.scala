@@ -26,7 +26,6 @@ import gtype.GExpr.GExprAPI
 // @formatter:on
 sealed trait GStmt
 
-
 // === Start of Statement definitions ====
 
 case class VarDef(x: Symbol, ty: GTMark, init: GExpr) extends GStmt
@@ -41,12 +40,15 @@ case class WhileStmt(cond: GExpr, body: GStmt) extends GStmt
 
 case class BlockStmt(stmts: Vector[GStmt]) extends GStmt
 
-case class FuncDef(name: Symbol, args: List[(Symbol, GTMark)],
-                   returnType: GTMark, body: GStmt) extends GStmt
+case class FuncDef(name: Symbol, args: List[(Symbol, GTMark)], returnType: GTMark, body: GStmt)
+    extends GStmt
 
-case class ClassDef(name: Symbol, superType: Option[Symbol] = None,
+case class ClassDef(name: Symbol,
+                    superType: Option[Symbol] = None,
                     constructor: FuncDef,
-                    vars: Map[Symbol, GType], funcDefs: Vector[FuncDef]) extends GStmt {
+                    vars: Map[Symbol, GType],
+                    funcDefs: Vector[FuncDef])
+    extends GStmt {
   require(constructor.name == name)
   require(constructor.returnType == any)
 }
@@ -97,8 +99,8 @@ object GStmt {
       FuncDef(name, args.toList, returnType, BLOCK(body: _*))
     }
 
-    def CLASS(name: Symbol, superType: Option[Symbol] = None)
-             (vars: (Symbol, GType)*)(constructor: FuncDef, methods: FuncDef*): ClassDef = {
+    def CLASS(name: Symbol, superType: Option[Symbol] = None)(
+        vars: (Symbol, GType)*)(constructor: FuncDef, methods: FuncDef*): ClassDef = {
       ClassDef(name, superType, constructor, vars.toMap, methods.toVector)
     }
   }
@@ -119,14 +121,17 @@ object GStmt {
         val signatureType = extractSignature(f)
         currentCtx = currentCtx.newVar(f.name, signatureType)
       case ClassDef(name, superType, constructor, vars, funcDefs) =>
-        val sT = superType.map { s => currentCtx.typeContext.typeUnfold(s).asInstanceOf[ObjectType] }.getOrElse(obj())
+        val sT = superType
+          .map { s =>
+            currentCtx.typeContext.typeUnfold(s).asInstanceOf[ObjectType]
+          }
+          .getOrElse(obj())
         var fields = sT.fields ++ vars
         funcDefs.foreach { f =>
           fields = fields.updated(f.name, extractSignature(f))
         }
         val constructorType = extractSignature(constructor).copy(to = name)
-        currentCtx = currentCtx.newTypeVar(name, ObjectType(fields)).
-          newVar(name, constructorType)
+        currentCtx = currentCtx.newTypeVar(name, ObjectType(fields)).newVar(name, constructorType)
       case _ =>
     }
     var currentErrs = Set[TypeCheckError]()
@@ -141,7 +146,9 @@ object GStmt {
   /**
     * Allows forward reference to function definitions, but they will not escape their scope.
     **/
-  private def typeCheckStmt(stmt: GStmt, ctx: ExprContext, returnType: GType): (ExprContext, Set[TypeCheckError]) = {
+  private def typeCheckStmt(stmt: GStmt,
+                            ctx: ExprContext,
+                            returnType: GType): (ExprContext, Set[TypeCheckError]) = {
     import ctx.typeContext.mkSubTypeError
     stmt match {
       case VarDef(x, ty, init) =>
@@ -174,17 +181,20 @@ object GStmt {
         val (_, e1) = typeCheckStmt(body, ctx, returnType)
         ctx -> (e0 ++ e1 ++ mkSubTypeError(condT, GExpr.boolType))
       case FuncDef(_, args, newReturn: GType, body) =>
-        val ctxWithArgs = ctx.copy(varAssign =
-          ctx.varAssign ++ args.toMap.mapValues(_.asInstanceOf[GType]))
+        val ctxWithArgs = ctx.copy(
+          varAssign =
+            ctx.varAssign ++ args.toMap.mapValues(_.asInstanceOf[GType]))
         val (_, errs) = typeCheckStmt(body, ctxWithArgs, newReturn)
         ctx -> errs
       case block: BlockStmt =>
         ctx -> typeCheckBlock(block, ctx, returnType)
       case ClassDef(name, superType, constructor, _, funcDefs) =>
-        val ctxWithThis = ctx.newVar(ClassDef.thisSymbol, ctx.typeContext.typeUnfold(name))
-          .newVar(ClassDef.superSymbol, superType.map {
-            ctx.typeContext.typeUnfold
-          }.getOrElse(obj()))
+        val ctxWithThis = ctx
+          .newVar(ClassDef.thisSymbol, ctx.typeContext.typeUnfold(name))
+          .newVar(ClassDef.superSymbol,
+                  superType
+                    .map(ctx.typeContext.typeUnfold)
+                    .getOrElse(obj()))
         var errors = Set[TypeCheckError]()
         (funcDefs :+ constructor).foreach { stmt =>
           val (_, e) = typeCheckStmt(stmt, ctxWithThis, returnType)
