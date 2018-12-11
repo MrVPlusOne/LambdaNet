@@ -197,7 +197,7 @@ object SamplePrograms {
         RETURN(I(0))
       )
     ),
-      errors = Set(SubTypeError('int, numArray))
+      errors = Set(SubtypeError('int, numArray))
     )
 
     val polygonExample = wellFormed(

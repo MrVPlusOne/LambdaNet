@@ -149,14 +149,14 @@ object GStmt {
   private def typeCheckStmt(stmt: GStmt,
                             ctx: ExprContext,
                             returnType: GType): (ExprContext, Set[TypeCheckError]) = {
-    import ctx.typeContext.mkSubTypeError
+    import ctx.typeContext.mkSubtypeError
     stmt match {
       case VarDef(x, ty, init) =>
         ty match {
           case ty: GType =>
             val ctx1 = ctx.newVar(x, ty)
             val (initT, es) = typeCheckInfer(init, ctx1)
-            ctx1 -> (es ++ mkSubTypeError(initT, ty))
+            ctx1 -> (es ++ mkSubtypeError(initT, ty))
           case GTHole =>
             val ctx0 = ctx.newVar(x, any)
             val (initT, es) = typeCheckInfer(init, ctx0)
@@ -167,19 +167,19 @@ object GStmt {
       case AssignStmt(lhs, rhs) =>
         val (lT, e1) = typeCheckInfer(lhs, ctx)
         val (rT, e2) = typeCheckInfer(rhs, ctx)
-        ctx -> (e1 ++ e2 ++ mkSubTypeError(rT, lT))
+        ctx -> (e1 ++ e2 ++ mkSubtypeError(rT, lT))
       case ExprStmt(e, isReturn) =>
         val (eT, es) = typeCheckInfer(e, ctx)
-        ctx -> (if (isReturn) es ++ mkSubTypeError(eT, returnType) else es)
+        ctx -> (if (isReturn) es ++ mkSubtypeError(eT, returnType) else es)
       case IfStmt(cond, branch1, branch2) =>
         val (condT, e0) = typeCheckInfer(cond, ctx)
         val (_, e1) = typeCheckStmt(branch1, ctx, returnType)
         val (_, e2) = typeCheckStmt(branch2, ctx, returnType)
-        ctx -> (e0 ++ e1 ++ e2 ++ mkSubTypeError(condT, GExpr.boolType))
+        ctx -> (e0 ++ e1 ++ e2 ++ mkSubtypeError(condT, GExpr.boolType))
       case WhileStmt(cond, body) =>
         val (condT, e0) = typeCheckInfer(cond, ctx)
         val (_, e1) = typeCheckStmt(body, ctx, returnType)
-        ctx -> (e0 ++ e1 ++ mkSubTypeError(condT, GExpr.boolType))
+        ctx -> (e0 ++ e1 ++ mkSubtypeError(condT, GExpr.boolType))
       case FuncDef(_, args, newReturn: GType, body) =>
         val ctxWithArgs = ctx.copy(
           varAssign =

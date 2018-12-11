@@ -115,7 +115,7 @@ object GExpr {
             // allow some arguments to be omitted, as in Typescript
             val e3 = xTs.zip(from).foldLeft(Set[TypeCheckError]()) {
               case (errors, (cT, pT)) =>
-                errors ++ typeContext.mkSubTypeError(cT, pT)
+                errors ++ typeContext.mkSubtypeError(cT, pT)
             }
             to -> (e1 ++ e2 ++ e3)
           case _ =>
@@ -124,7 +124,7 @@ object GExpr {
         }
       case Cast(e, t) =>
         val (et, errors) = typeCheckInfer(e, context)
-        val e1 = typeContext.mkSubTypeError(et, t)
+        val e1 = typeContext.mkSubtypeError(et, t)
         t -> (errors ++ e1)
       case Constructor(fields) =>
         var errors = Set[TypeCheckError]()
@@ -153,9 +153,9 @@ object GExpr {
         val (e1T, errs1) = typeCheckInfer(e1, context)
         val (e2T, errs2) = typeCheckInfer(e2, context)
         val allErrors = errs0 ++ errs1 ++ errs2 ++
-          typeContext.mkSubTypeError(condT, boolType) ++
-          typeContext.mkSubTypeError(e1T, resultType) ++
-          typeContext.mkSubTypeError(e2T, resultType)
+          typeContext.mkSubtypeError(condT, boolType) ++
+          typeContext.mkSubtypeError(e1T, resultType) ++
+          typeContext.mkSubtypeError(e2T, resultType)
         resultType -> allErrors
       case _ => throw new NotImplementedError("Expressions with GTHoles not supported.")
     }

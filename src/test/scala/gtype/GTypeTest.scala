@@ -26,7 +26,7 @@ class GTypeTest extends WordSpec with MyTest {
     "be reflexive" in {
       checkProp(
         forAll(typeGen, contextGen) { (t, context) =>
-          checkSubType(t, t, context).nonEmpty
+          checkSubtype(t, t, context).nonEmpty
         })
     }
 
@@ -34,11 +34,11 @@ class GTypeTest extends WordSpec with MyTest {
       import SamplePrograms._
       val context = typeContext
 
-      assert(context.isSubType(point2D, point))
-      assert(context.isSubType(point, 'PointAlias))
-      assert(!context.isSubType(point, point2D))
-      assert(!context.isSubType(obj('x -> "int", 'y -> "int"), point2D))
-      assert(context.isSubType(point2D, obj('x -> "int", 'y -> "int")))
+      assert(context.isSubtype(point2D, point))
+      assert(context.isSubtype(point, 'PointAlias))
+      assert(!context.isSubtype(point, point2D))
+      assert(!context.isSubtype(obj('x -> "int", 'y -> "int"), point2D))
+      assert(context.isSubtype(point2D, obj('x -> "int", 'y -> "int")))
     }
   }
 }

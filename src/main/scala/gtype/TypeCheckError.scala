@@ -4,7 +4,7 @@ sealed trait TypeCheckError {
 
 }
 
-case class SubTypeError(child: GType, parent: GType) extends TypeCheckError
+case class SubtypeError(child: GType, parent: GType) extends TypeCheckError
 
 case class ApplyError(expr: GExpr, inferredType: GType) extends TypeCheckError
 

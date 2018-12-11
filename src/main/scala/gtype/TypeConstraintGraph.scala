@@ -222,7 +222,7 @@ object TypeConstraintGraph {
 
     val groundTruths = for (t1 <- types; t2 <- types if t1 != t2)
       yield {
-        (t1, t2) -> typeContext.isSubType(symbolToType(t1), symbolToType(t2))
+        (t1, t2) -> typeContext.isSubtype(symbolToType(t1), symbolToType(t2))
       }
 
     val reflexivity = types.map(t => (t, t))
@@ -326,7 +326,7 @@ object TypeConstraintGraph {
       typeDefs -> rels.map {
         case (l, r) =>
           (l, r) ->
-            typeContext.isSubType(
+            typeContext.isSubtype(
               GroundType.symbolToType(l),
               GroundType.symbolToType(r)
             )

@@ -95,13 +95,13 @@ case class TypeContext(baseTypes: Set[Symbol],
                        typeUnfold: Map[Symbol, CompoundType],
                        subRel: Set[(GType, GType)]) {
 
-  def isSubType(child: GType, parent: GType): Boolean = {
-    GType.checkSubType(child, parent, this).nonEmpty
+  def isSubtype(child: GType, parent: GType): Boolean = {
+    GType.checkSubtype(child, parent, this).nonEmpty
   }
 
-  def mkSubTypeError(child: GType, parent: GType): Set[SubTypeError] = {
-    if (!isSubType(child, parent)) {
-      Set(SubTypeError(child, parent))
+  def mkSubtypeError(child: GType, parent: GType): Set[SubtypeError] = {
+    if (!isSubtype(child, parent)) {
+      Set(SubtypeError(child, parent))
     } else Set()
   }
 
@@ -128,7 +128,7 @@ object GType {
   object API extends GTypeAPI
 
   /** the consistent-subtyping relation */
-  def checkSubType(child: GType, parent: GType, context: TypeContext): Option[TypeContext] = {
+  def checkSubtype(child: GType, parent: GType, context: TypeContext): Option[TypeContext] = {
     import context._
 
     if (child == AnyType || parent == AnyType || subRel.contains(child -> parent))
@@ -144,14 +144,14 @@ object GType {
       case (TyVar(id), _) =>
         if (typeUnfold.contains(id)) {
           if (child == parent) Some(context1)
-          else checkSubType(typeUnfold(id), parent, context1)
+          else checkSubtype(typeUnfold(id), parent, context1)
         } else {
           assert(baseTypes.contains(id), s"unknown type: $id"); None
         }
       case (_, TyVar(id)) =>
         if (typeUnfold.contains(id)) {
           if (child == parent) Some(context1)
-          else checkSubType(child, typeUnfold(id), context1)
+          else checkSubtype(child, typeUnfold(id), context1)
         } else {
           assert(baseTypes.contains(id), s"unknown type: $id"); None
         }
@@ -162,18 +162,18 @@ object GType {
         var currentContext = context1
         pFrom.zip(cFrom).foreach {
           case (p, c) =>
-            checkSubType(p, c, currentContext) match {
+            checkSubtype(p, c, currentContext) match {
               case None      => return None // arg type mismatch
               case Some(ctx) => currentContext = ctx
             }
         }
-        checkSubType(c2, p2, currentContext)
+        checkSubtype(c2, p2, currentContext)
       case (ObjectType(fields1), ObjectType(fields2)) =>
         var currentContext = context1
         fields2.foreach {
           case (l, lt) =>
             fields1.get(l).flatMap { lt1 =>
-              checkSubType(lt1, lt, currentContext)
+              checkSubtype(lt1, lt, currentContext)
             } match {
               case None    => return None // filed missing, not subtype
               case Some(c) => currentContext = c
