@@ -108,7 +108,18 @@ object TrainingTypeGeneration {
           addSubtypeRel(baseTy, newTy)
         } else {
           val field = if (prob(0.6)) newField() else fieldSet.sample()
-          val fieldTy = if (prob(0.85)) funcSet.sample() else objectSet.sample() //todo: generate recursive types
+          val fieldTy = if (prob(0.85)) {
+            val f = funcSet.sample()
+            if(prob(0.2)){
+              // generate recursive types
+              val rewrite = typeRewrites(f).asInstanceOf[FuncRewrite].copy(returnType = newTy)
+              val newFTy = newType()
+              addTypeRewrite(newFTy, rewrite)
+              newFTy
+            } else {
+              f
+            }
+          } else objectSet.sample() //todo: generate recursive types
           val baseFields = objRewrite.fields
           val newFields = baseFields.updated(field, fieldTy)
           addTypeRewrite(newTy, ObjectRewrite(newFields))
@@ -172,12 +183,12 @@ object TrainingTypeGeneration {
     }
   }
 
-  def augmentWithRandomTypes(context: TypeContext): TypeContext = {
+  def augmentWithRandomTypes(context: TypeContext, newTypeNum: Int): TypeContext = {
     implicit val random: Random = new Random()
 
     val data = TrainingData.fromTypeContext(context)
 
-    for (_ <- 0 until 200) {
+    for (_ <- 0 until newTypeNum) {
       data.tryUntilGenerate(10)
     }
 

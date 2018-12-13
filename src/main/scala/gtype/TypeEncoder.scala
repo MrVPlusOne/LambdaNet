@@ -12,25 +12,39 @@ import scala.util.Random
 case class TypeEncoding(labelMap: Map[Symbol, CompNode], typeMap: Map[Symbol, CompNode])
 
 //noinspection TypeAnnotation
-object FieldAggregation extends Enumeration {
+object FieldCombineMethod extends Enumeration {
+
+  /** Sum all field encodings together */
   val Sum = Value
+
+  /** Weighted average field encodings using an attention mechanism */
   val Attention = Value
 }
 
-case class EncoderParams(labelDim: Int,
-                         typeDim: Int,
-                         fieldDim: Int,
-                         fieldAggregation: FieldAggregation.Value,
-                         updateWithRNN: Boolean,
-                         activation: CompNode => CompNode)
+//noinspection TypeAnnotation
+object ArgsEncodingMethod extends Enumeration {
+
+  /** Encode arg types and return type separately and combine them using a linear layer */
+  val Separate = Value
+
+  /** Use the return type as the initial state of an RNN, then feed all arg types to it */
+  val Unified = Value
+}
+
+case class EncoderParams(
+    labelDim: Int,
+    typeDim: Int,
+    fieldDim: Int,
+    fieldCombineMethod: FieldCombineMethod.Value = FieldCombineMethod.Attention,
+    argsEncodingMethod: ArgsEncodingMethod.Value = ArgsEncodingMethod.Unified,
+    updateWithRNN: Boolean = false,
+    activation: CompNode => CompNode)
 
 object EncoderParams {
   val small = EncoderParams(
     labelDim = 40,
     typeDim = 40,
     fieldDim = 40,
-    fieldAggregation = FieldAggregation.Attention,
-    updateWithRNN = false,
     activation = x => funcdiff.API.leakyRelu(x)
   )
 
@@ -38,8 +52,6 @@ object EncoderParams {
     labelDim = 40,
     typeDim = 80,
     fieldDim = 120,
-    fieldAggregation = FieldAggregation.Attention,
-    updateWithRNN = false,
     activation = x => funcdiff.API.leakyRelu(x)
   )
 }
@@ -63,13 +75,14 @@ class TypeEncoder(encoderParams: EncoderParams) {
       )
     }
 
-    val anyInit =
-      pc.getVar(typePath / 'anyInit)(numsca.randn(1, typeDim) * 0.01)
+    val anyInit = pc.getVar(typePath / 'anyInit)(numsca.randn(1, typeDim) * 0.01)
     val fieldZeroInit = const(numsca.zeros(1, fieldDim))
-    val funcArgInit =
-      pc.getVar(typePath / 'funcArgInit)(numsca.rand(1, typeDim) * 0.01)
+    val typeInit = pc.getVar(typePath / 'typeInit)(numsca.randn(1, typeDim) * 0.01)
+    val attentionTypeKernel = pc.getVar(typePath / 'attentionTypeKernel)(
+      numsca.rand(typeDim, typeDim) * 0.001
+    )
     val attentionFieldKernel = pc.getVar(typePath / 'attentionFieldKernel)(
-      numsca.rand(fieldDim, fieldDim) * 0.001
+      numsca.rand(fieldDim, typeDim) * 0.001
     )
     val attentionVec = pc
       .getVar(typePath / 'attentionVec)(numsca.rand(1, 2 * fieldDim) * 0.01)
@@ -77,9 +90,7 @@ class TypeEncoder(encoderParams: EncoderParams) {
 
     var typeMap: Map[Symbol, CompNode] = symbolDefMap.keys
       .map { tyName =>
-        tyName -> pc.getVar(typePath / 'typeInit)(
-          numsca.randn(1, typeDim) * 0.01
-        )
+        tyName -> typeInit
       }
       .toMap
       .updated(AnyType.id, anyInit)
@@ -92,11 +103,21 @@ class TypeEncoder(encoderParams: EncoderParams) {
 
           val aggregated = typeDef match {
             case FuncRewrite(argTypes, returnType) =>
-              val argsEncoding = argTypes
-                .map(typeMap)
-                .foldLeft(funcArgInit: CompNode)(gru('FuncArgsGru))
-              val x = argsEncoding.concat(typeMap(returnType), axis = 1)
-              activation(linear('FuncDefLinear, nOut = fieldDim)(x))
+              argsEncodingMethod match {
+                case ArgsEncodingMethod.Separate =>
+                  val funcArgInit: CompNode =
+                    pc.getVar(typePath / 'funcArgInit)(numsca.rand(1, typeDim) * 0.01)
+                  val argsEncoding = argTypes
+                    .map(typeMap)
+                    .foldLeft(funcArgInit)(gru('FuncArgsGru))
+                  val x = argsEncoding.concat(typeMap(returnType), axis = 1)
+                  activation(linear('FuncDefLinear, nOut = fieldDim)(x))
+                case ArgsEncodingMethod.Unified =>
+                  argTypes
+                    .map(typeMap)
+                    .foldRight(typeMap(returnType))(gru('FuncArgsGru))
+              }
+
             case ObjectRewrite(fields) =>
               val fieldEncodings = fields.map {
                 case (fieldName, fieldType) =>
@@ -104,27 +125,27 @@ class TypeEncoder(encoderParams: EncoderParams) {
                     .concat(typeMap(fieldType), axis = 1)
                   activation(linear('ContainsFieldLinear, nOut = fieldDim)(x))
               }.toVector
-              fieldAggregation match {
-                case FieldAggregation.Sum =>
+              fieldCombineMethod match {
+                case FieldCombineMethod.Sum =>
                   if (fieldEncodings.nonEmpty) total(fieldEncodings)
                   else fieldZeroInit
-                case FieldAggregation.Attention =>
+                case FieldCombineMethod.Attention =>
                   // see the paper 'Graph Attention Networks'
-                  if (fieldEncodings.nonEmpty) {
-                    val transformedThis = typeMap(tyName) dot attentionFieldKernel //fixme
-                    val transformedFields = fieldEncodings.map { _ dot attentionFieldKernel }
-                    val attentionLogits = transformedFields.map { ft =>
-                      val w = transformedThis
-                        .concat(ft, axis = 1)
-                        .dot(attentionVec)
-                      assert(w.shape.product == 1)
-                      leakyRelu(w, 0.2)
-                    }
-                    val aWeights = softmax(concatN(attentionLogits, axis = 1))
-                    total((0 until aWeights.shape(1)).map { i =>
-                      aWeights.slice(0, i :> (i + 1)) * transformedFields(i)
-                    })
-                  } else fieldZeroInit
+                  val transformedThis = typeMap(tyName) dot attentionTypeKernel
+                  assert(transformedThis.shape(1) == typeDim)
+                  val transformedFields = fieldEncodings.map { _ dot attentionFieldKernel }
+                  val allTransformed = transformedFields :+ transformedThis
+                  val attentionLogits = allTransformed.map { ft =>
+                    val w = transformedThis
+                      .concat(ft, axis = 1)
+                      .dot(attentionVec)
+                    assert(w.shape.product == 1)
+                    leakyRelu(w, 0.2)
+                  }
+                  val aWeights = softmax(concatN(attentionLogits, axis = 1))
+                  total(allTransformed.indices.map { i =>
+                    aWeights.slice(0, i :> (i + 1)) * allTransformed(i)
+                  })
               }
           }
 
@@ -189,19 +210,31 @@ object TypeEncoder {
       (target, predictions, examples)
     }
 
-    val extendedJSContext =
-      TrainingTypeGeneration.augmentWithRandomTypes(JSExamples.trainingTypeContext)
-    val trainingSet = List("JSExamples" -> extendedJSContext)
+    import TrainingTypeGeneration.augmentWithRandomTypes
+
+    val trainingSet = {
+      List(
+        "JSTraining100" -> augmentWithRandomTypes(JSExamples.trainingTypeContext, 100),
+        "JSTraining90" -> augmentWithRandomTypes(JSExamples.trainingTypeContext, 90),
+        "JSCore100" -> augmentWithRandomTypes(JSExamples.typeContext, 100),
+        "JSCore110" -> augmentWithRandomTypes(JSExamples.typeContext, 110),
+      )
+    }
 
     val devSet = {
-      val typeRewrites = typeContextToRewrites(Examples.pointExample)
+      val context = augmentWithRandomTypes(Examples.pointExample, 50)
+      val typeRewrites = typeContextToRewrites(context)
       val typeContext = typeRewritesToContext(typeRewrites)
+
       val rels = Vector(
         'number -> 'number,
         'point -> 'point2D,
         'point2D -> 'point,
         'point -> 'point,
+        'A -> 'A,
+        'point2D -> 'point2D,
         'A -> 'point,
+        'A -> 'point2D,
         'A -> 'B,
         'B -> 'A,
         'A -> 'C,
@@ -235,21 +268,24 @@ object TypeEncoder {
         (name, symbolDefMap, (posRelations ++ reflexivity, negRelations))
     }
 
-    val optimizer = Adam(learningRate = 0.005)
+    val optimizer = Adam(learningRate = 0.003)
 
-    for (step <- 0 until 1000;
-         (exampleName, symbolDefMap, (posRelations, negRelations)) <- preComputes) {
+    for (step <- 0 until 1000) {
+      for ((exampleName, symbolDefMap, (posRelations, negRelations)) <- preComputes) {
 
-      val (target, predictions, _) =
-        forwardPredict(symbolDefMap, posRelations, negRelations)
-      val loss = crossEntropyOnSoftmax(predictions, target)
+        val (target, predictions, _) =
+          forwardPredict(symbolDefMap, posRelations, negRelations)
+        val loss = crossEntropyOnSoftmax(predictions, target)
 
-      println(s"[$exampleName][$step] average loss: ${mean(loss).value}")
-      val (correct, wrong) =
-        correctWrongSets(predictions.value, target(:>, 1).data.map(_.toInt))
-      println(
-        s"[$exampleName] accuracy = ${correct.size.toDouble / (correct.size + wrong.size)}"
-      )
+        println(s"[$exampleName][$step] average loss: ${mean(loss).value}")
+        val (correct, wrong) =
+          correctWrongSets(predictions.value, target(:>, 1).data.map(_.toInt))
+        println(
+          s"[$exampleName] accuracy = ${correct.size.toDouble / (correct.size + wrong.size)}"
+        )
+
+        optimizer.minimize(loss, encoder.pc.allParams, weightDecay = Some(1e-4))
+      }
 
       if (step % 10 == 0) {
         val posDev = devSet._2.collect { case (r, b) if b  => r }
@@ -264,8 +300,6 @@ object TypeEncoder {
         println("=== wrong ===")
         wrong.foreach(i => println(examples(i)))
       }
-
-      optimizer.minimize(loss, encoder.pc.allParams, weightDecay = Some(1e-4))
     }
   }
 }
