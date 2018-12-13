@@ -62,15 +62,18 @@ object API {
 
   def crossEntropyOnSoftmaxIneff(logits: CompNode, targets: Tensor): CompNode = -sum(log(softmax(logits) + 1e-7) * targets, axis = 1)
 
-  def correctWrongSets(logits: Tensor, targets: Seq[Int]): (Set[Int], Set[Int]) = {
-    require(logits.shape(0) == targets.length)
-    val predicts = TensorExtension.argmax(logits, axis = 1)
+  def correctWrongSets(probabilities: Tensor, targets: Seq[Int], predictionGroupSize: Int): (Set[Int], Set[Int]) = {
+    require(probabilities.shape(0) / predictionGroupSize == targets.length)
+
     var correct = Set[Int]()
     var wrong = Set[Int]()
-    targets.indices.foreach{ i =>
-      if(predicts.data(i) == targets(i)){
+
+    for(i <- targets.indices) {
+      val groupSum = numsca.sum(probabilities(i * predictionGroupSize :> (i + 1) * predictionGroupSize, :>), axis = 0)
+      val prediction = TensorExtension.argmax(groupSum, axis = 1).squeeze()
+      if (prediction == targets(i)) {
         correct += i
-      }else{
+      } else {
         wrong += i
       }
     }
@@ -78,9 +81,15 @@ object API {
     (correct, wrong)
   }
 
-  def accuracy(logits: Tensor, targets: Seq[Int]): Double = {
-    val (correct, wrong) = correctWrongSets(logits, targets)
-    correct.size.toDouble / (correct.size + wrong.size)
+  def accuracy(logits: Tensor, targets: Seq[Int], predictionGroupSize: Int = 1)
+      :(Double, (Set[Int], Set[Int])) = {
+    val effectiveTargets = targets.grouped(predictionGroupSize).map{ group =>
+      assert(group.forall(p => p == group.head))
+      group.head
+    }.toSeq
+
+    val (correct, wrong) = correctWrongSets(numsca.softmax(logits), effectiveTargets, predictionGroupSize)
+    (correct.size.toDouble / (correct.size + wrong.size), (correct, wrong))
   }
 
   implicit def doubleToNode(d: Double): CompNode = const(Tensor(d))
@@ -114,6 +123,11 @@ object API {
     def dot(x2: CompNode): CompNode = funcNode(Dot(x1,x2))
 
     def ~> [B <: CompNode](f: CompNode => B): B = f(x1)
+
+    def repeat(number: Int, axis: Int): CompNode = {
+      if(number == 1) x1
+      else concatN(Vector.fill(number)(x1), axis)
+    }
   }
 
   /** convenient import for NumscaRange */

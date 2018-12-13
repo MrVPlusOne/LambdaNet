@@ -291,9 +291,9 @@ class GradientMatrixTest extends TestUtils {
   }
 
   "accuracy" should "pass examples" in {
-    accuracy(Tensor(1,0 ,1,0, 0,1).reshape(-1,2), Seq(0,0,1)) shouldBe 1.0
-    accuracy(Tensor(1,0 ,1,0, 0,1).reshape(-1,2), Seq(1,1,0)) shouldBe 0.0
-    accuracy(Tensor(1,0 ,1,0, 0,1, 0,1).reshape(-1,2), Seq(0,0,0,0)) shouldBe 0.5
+    accuracy(Tensor(1,0 ,1,0, 0,1).reshape(-1,2), Seq(0,0,1))._1 shouldBe 1.0
+    accuracy(Tensor(1,0 ,1,0, 0,1).reshape(-1,2), Seq(1,1,0))._1 shouldBe 0.0
+    accuracy(Tensor(1,0 ,1,0, 0,1, 0,1).reshape(-1,2), Seq(0,0,0,0))._1 shouldBe 0.5
   }
 
 //

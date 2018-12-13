@@ -49,9 +49,9 @@ object EncoderParams {
   )
 
   val large = EncoderParams(
-    labelDim = 40,
+    labelDim = 80,
     typeDim = 80,
-    fieldDim = 120,
+    fieldDim = 80,
     activation = x => funcdiff.API.leakyRelu(x)
   )
 }
@@ -64,20 +64,40 @@ class TypeEncoder(encoderParams: EncoderParams) {
   val typePath: SymbolPath = SymbolPath.empty / 'type
   val subtypePath: SymbolPath = SymbolPath.empty / 'subtype
 
-  def encode(symbolDefMap: Map[Symbol, TypeAliasing], iterations: Int): TypeEncoding = {
+  /**
+    * Encodes a type aliasing graph into type vectors
+    * @param symbolDefMap the type aliasing graph
+    * @param iterations how many iterations of information propagation should be used
+    * @param batchSize how many batches should be used.
+    *                  In each batch, the field vectors are sampled with uniformly random directions.
+    *                  But we want these vectors to change frequently enough during training to
+    *                  prevent the encoding network from
+    *                  overfitting to any particular set of field vectors.
+    */
+  def encode(symbolDefMap: Map[Symbol, TypeAliasing],
+             iterations: Int,
+             batchSize: Int): TypeEncoding = {
     import collection.mutable
     val labelMap = mutable.HashMap[Symbol, CompNode]()
 
     def getFieldLabel(label: Symbol): CompNode = {
       labelMap.getOrElseUpdate(
         label,
-        const(TensorExtension.randomUnitVec(labelDim))
+        const {
+          numsca.concatenate(Vector.fill(batchSize) { TensorExtension.randomUnitVec(labelDim) },
+                             axis = 0)
+        }
       )
     }
 
-    val anyInit = pc.getVar(typePath / 'anyInit)(numsca.randn(1, typeDim) * 0.01)
-    val fieldZeroInit = const(numsca.zeros(1, fieldDim))
-    val typeInit = pc.getVar(typePath / 'typeInit)(numsca.randn(1, typeDim) * 0.01)
+    val anyInit =
+      pc.getVar(typePath / 'anyInit)(numsca.randn(1, typeDim) * 0.01).repeat(batchSize, axis = 0)
+    val fieldZeroInit = const(numsca.zeros(batchSize, fieldDim))
+    val typeInit =
+      pc.getVar(typePath / 'typeInit)(numsca.randn(1, typeDim) * 0.01).repeat(batchSize, axis = 0)
+    val funcArgInit: CompNode =
+      pc.getVar(typePath / 'funcArgInit)(numsca.rand(1, typeDim) * 0.01).repeat(batchSize, axis = 0)
+
     val attentionTypeKernel = pc.getVar(typePath / 'attentionTypeKernel)(
       numsca.rand(typeDim, typeDim) * 0.001
     )
@@ -105,8 +125,6 @@ class TypeEncoder(encoderParams: EncoderParams) {
             case FuncAliasing(argTypes, returnType) =>
               argsEncodingMethod match {
                 case ArgsEncodingMethod.Separate =>
-                  val funcArgInit: CompNode =
-                    pc.getVar(typePath / 'funcArgInit)(numsca.rand(1, typeDim) * 0.01)
                   val argsEncoding = argTypes
                     .map(typeMap)
                     .foldLeft(funcArgInit)(gru('FuncArgsGru))
@@ -139,12 +157,12 @@ class TypeEncoder(encoderParams: EncoderParams) {
                     val w = transformedThis
                       .concat(ft, axis = 1)
                       .dot(attentionVec)
-                    assert(w.shape.product == 1)
+                    assert(w.shape.product == batchSize)
                     leakyRelu(w, 0.2)
                   }
                   val aWeights = softmax(concatN(attentionLogits, axis = 1))
                   total(allTransformed.indices.map { i =>
-                    aWeights.slice(0, i :> (i + 1)) * allTransformed(i)
+                    aWeights.slice(:>, i :> (i + 1)) * allTransformed(i)
                   })
               }
           }
@@ -187,118 +205,124 @@ object TypeEncoder {
 
     implicit val random: Random = new Random()
 
-    val encoder = new TypeEncoder(EncoderParams.small)
+    val encoder = new TypeEncoder(EncoderParams.large)
 
     val posVec = Tensor(1, 0).reshape(1, -1)
     val negVec = Tensor(0, 1).reshape(1, -1)
 
-    def forwardPredict(symbolDefMap: Map[Symbol, TypeAliasing],
-                       posRelations: Seq[(Symbol, Symbol)],
-                       negRelations: Seq[(Symbol, Symbol)]) = {
-      val relationNum = math.min(posRelations.length, negRelations.length)
-      val posExamples = random.shuffle(posRelations).take(relationNum)
-      val negExamples = random.shuffle(negRelations).take(relationNum)
+    val trainingBatch = 250
+    val encodingIterations = 8
+    val trainingEncodingBatch = 1
 
-      val target = numsca.concatenate(posExamples.map(_ => posVec)
-                                        ++ negExamples.map(_ => negVec),
+    val optimizer = Adam(learningRate = 0.002)
+
+
+    def forwardPredict(symbolDefMap: Map[Symbol, TypeAliasing],
+                       posExamples: Seq[(Symbol, Symbol)],
+                       negExamples: Seq[(Symbol, Symbol)],
+                       encodingBatch: Int) = {
+      val target = numsca.concatenate(Vector.fill(posExamples.length * encodingBatch)(posVec)
+                                        ++ Vector.fill(posExamples.length * encodingBatch)(negVec),
                                       axis = 0)
 
-      val typeEncoding = encoder.encode(symbolDefMap, iterations = 5)
+      val typeEncoding = encoder.encode(symbolDefMap, encodingIterations, encodingBatch)
       val examples = posExamples ++ negExamples
-      val predictions =
-        encoder.subtypePredict(typeEncoding, examples)
-      (target, predictions, examples)
+      val predictions = encoder.subtypePredict(typeEncoding, examples)
+      (target, predictions)
     }
 
     import TrainingTypeGeneration.augmentWithRandomTypes
 
-    val trainingSet = {
-      List(
-        "JSTraining100" -> augmentWithRandomTypes(JSExamples.trainingTypeContext, 100),
-        "JSTraining90" -> augmentWithRandomTypes(JSExamples.trainingTypeContext, 90),
-        "JSCore100" -> augmentWithRandomTypes(JSExamples.typeContext, 100),
-        "JSCore110" -> augmentWithRandomTypes(JSExamples.typeContext, 110),
+    val devData: (Map[Symbol, TypeAliasing], List[(Symbol, Symbol)], List[(Symbol, Symbol)]) = {
+      val (dataSetName, context) = "JSCore200" -> augmentWithRandomTypes(JSExamples.typeContext, 200)
+
+      val symbolDefMap = typeContextToAliasings(context)
+      println(s"dev set graph size: " + symbolDefMap.size)
+      val (reflexivity, posRelations, negRelations) = typeAliasingsToGroundTruths(symbolDefMap)
+      println(
+        s"pos relations: ${posRelations.length}, neg relations: ${negRelations.length}, " +
+          s"reflexivity: ${reflexivity.length}"
       )
+
+      val posData = random.shuffle(posRelations).take(320)
+      val reflData = random.shuffle(reflexivity).take(80)
+      val negData = random.shuffle(negRelations).take(400)
+      (symbolDefMap, posData ++ reflData, negData)
     }
 
-    val devSet = {
-      val context = augmentWithRandomTypes(Examples.pointExample, 50)
-      val typeRewrites = typeContextToAliasings(context)
-      val typeContext = typeAliasingsToContext(typeRewrites)
+    val testData = {
+      val (dataSetName, context) = "JSReal200" -> augmentWithRandomTypes(JSExamples.realWorldExamples, 200)
 
-      val rels = Vector(
-        'number -> 'number,
-        'point -> 'point2D,
-        'point2D -> 'point,
-        'point -> 'point,
-        'A -> 'A,
-        'point2D -> 'point2D,
-        'A -> 'point,
-        'A -> 'point2D,
-        'A -> 'B,
-        'B -> 'A,
-        'A -> 'C,
-        'C -> 'B,
-        'C -> 'C,
-        'stringPoint -> 'point,
-        'stringPoint -> 'point2D
+      val symbolDefMap = typeContextToAliasings(context)
+      println(s"test set graph size: " + symbolDefMap.size)
+      val (reflexivity, posRelations, negRelations) = typeAliasingsToGroundTruths(symbolDefMap)
+      println(
+        s"pos relations: ${posRelations.length}, neg relations: ${negRelations.length}, " +
+          s"reflexivity: ${reflexivity.length}"
       )
-      typeRewrites -> rels.map {
-        case (l, r) =>
-          (l, r) ->
-            typeContext.isSubtype(
-              GroundType.symbolToType(l),
-              GroundType.symbolToType(r)
-            )
-      }
+
+      val posData = random.shuffle(posRelations).take(320)
+      val reflData = random.shuffle(reflexivity).take(80)
+      val negData = random.shuffle(negRelations).take(400)
+      (symbolDefMap, posData ++ reflData, negData)
     }
 
-    val preComputes = trainingSet.map {
-      case (name, context) =>
-        val symbolDefMap = typeContextToAliasings(context)
-        println("Symbol rewrites map:")
-        symbolDefMap.foreach(println)
-        assert(symbolDefMap.contains(JSExamples.boolean))
-        val (reflexivity, posRelations, negRelations) = typeAliasingsToGroundTruths(symbolDefMap)
-
-        println(
-          s"pos relations: ${posRelations.length}, neg relations: ${negRelations.length}, " +
-            s"reflexivity: ${reflexivity.length}"
-        )
-        (name, symbolDefMap, (posRelations ++ reflexivity, negRelations))
-    }
-
-    val optimizer = Adam(learningRate = 0.003)
-
-    for (step <- 0 until 1000) {
-      for ((exampleName, symbolDefMap, (posRelations, negRelations)) <- preComputes) {
-
-        val (target, predictions, _) =
-          forwardPredict(symbolDefMap, posRelations, negRelations)
-        val loss = crossEntropyOnSoftmax(predictions, target)
-
-        println(s"[$exampleName][$step] average loss: ${mean(loss).value}")
-        val (correct, wrong) =
-          correctWrongSets(predictions.value, target(:>, 1).data.map(_.toInt))
-        println(
-          s"[$exampleName] accuracy = ${correct.size.toDouble / (correct.size + wrong.size)}"
-        )
-
-        optimizer.minimize(loss, encoder.pc.allParams, weightDecay = Some(1e-4))
+    // === training loop ===
+    for (epoch <- 0 until 1000) {
+      val trainingSet = {
+        val (name, context) = SimpleMath.randomSelect(
+          Vector(
+            "Training" -> TrainingTypeGeneration.trainingContext,
+            "JSCore  " -> JSExamples.typeContext))
+        val newTypeNum = 100 + random.nextInt(101)
+        s"$name$newTypeNum" -> augmentWithRandomTypes(context, newTypeNum)
       }
 
-      if (step % 10 == 0) {
-        val posDev = devSet._2.collect { case (r, b) if b  => r }
-        val negDev = devSet._2.collect { case (r, b) if !b => r }
-        val (target, predictions, examples) = forwardPredict(devSet._1, posDev, negDev)
-        val (correct, wrong) =
-          correctWrongSets(predictions.value, target(:>, 1).data.map(_.toInt))
-        val accuracy = correct.size.toDouble / (correct.size + wrong.size)
-        println("dev set accuracy = " + accuracy)
-        println("=== correct ===")
-        correct.foreach(i => println(examples(i)))
-        println("=== wrong ===")
-        wrong.foreach(i => println(examples(i)))
+      val (dataSetName, context) = trainingSet
+      val symbolDefMap = typeContextToAliasings(context)
+//        println(s"[$dataSetName] graph size: " + symbolDefMap.size)
+      val (reflexivity, posRelations, negRelations) = typeAliasingsToGroundTruths(symbolDefMap)
+
+//        println(
+//          s"pos relations: ${posRelations.length}, neg relations: ${negRelations.length}, " +
+//            s"reflexivity: ${reflexivity.length}"
+//        )
+
+      val posData = random.shuffle(posRelations)
+      val reflData = random.shuffle(reflexivity).take(posData.length/4)
+      val negData = random.shuffle(negRelations).take(posData.length + reflData.length)
+
+      val (target, predictions) =
+        forwardPredict(symbolDefMap, posData ++ reflData, negData, trainingEncodingBatch)
+//        println(s"expanded batch size: ${predictions.shape(0)}")
+      val loss = mean(crossEntropyOnSoftmax(predictions, target))
+
+      val accuracy =
+        API.accuracy(predictions.value, target(:>, 1).data.map(_.toInt), trainingEncodingBatch)._1
+      println(
+        s"[$epoch] $dataSetName \t loss: ${loss.value},\t accuracy = %.4f".format(accuracy)
+      )
+
+      optimizer.minimize(loss, encoder.pc.allParams, weightDecay = Some(1e-4))
+
+      if (epoch % 20 == 0) {
+        val testEncodingBatch = 5
+
+        def evaluate(dataName: String,
+                     dataSet: (Map[Symbol, TypeAliasing], List[(Symbol, Symbol)], List[(Symbol, Symbol)])): Unit ={
+          val (symbolDefMap, posData, negData) = dataSet
+          val (target, predictions) = forwardPredict(symbolDefMap, posData, negData, testEncodingBatch)
+          val loss = mean(crossEntropyOnSoftmax(predictions, target))
+
+          val (accuracy, (correct, wrong)) = {
+            API.accuracy(predictions.value, target(:>, 1).data.map(_.toInt), testEncodingBatch)
+          }
+          println(s"[$epoch] $dataName \t loss: ${loss.value},\t accuracy = %.4f".format(accuracy))
+
+        }
+
+        evaluate("dev set ", devData)
+        evaluate("test set", testData)
       }
     }
   }
