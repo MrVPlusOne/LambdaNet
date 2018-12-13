@@ -57,7 +57,7 @@ object TypeAliasGraph {
           val newSymbol = useName.getOrElse(Symbol("$<" + tDef.toString + ">"))
           tConstraints(newSymbol) = tDef
           typeNameMap(ty) = newSymbol
-          println(s"update: $newSymbol: $tDef")
+          tDef.toString //todo: report this compiler bug
           newSymbol
       }
     }
@@ -67,6 +67,31 @@ object TypeAliasGraph {
     }
     tConstraints.toMap
   }
+
+  /** Count the maximum reachable path length of each type on the type graph. (Useful for determining
+    * the graph propagation number needed in [[TypeEncoder]].
+    * If there is a circle in the aliasing graph, the length of that circle is
+    * used as the its depth. */
+  def typeDepth(node: Symbol, graph: Map[Symbol, TypeAliasing]): Int = {
+    import collection.mutable
+    val depthMap = mutable.Map[Symbol, Int](AnyType.id -> 0)
+
+    def rec(node: Symbol): Int = {
+      depthMap.get(node).foreach{ d => return d}
+      depthMap(node) = 0
+      val d = graph(node) match {
+        case FuncAliasing(args, ret) =>
+          (args :+ ret).map(rec).max + 1
+        case ObjectAliasing(fields) =>
+          fields.values.map(rec).max + 1
+      }
+      depthMap(node) = d
+      d
+    }
+
+    rec(node)
+  }
+
 
   def typeAliasingsToGroundTruths(typeAliasings: Map[Symbol, TypeAliasing]) = {
     val typeContext = typeAliasingsToContext(typeAliasings)

@@ -1,7 +1,7 @@
 package gtype
 
 import funcdiff.SimpleMath
-import gtype.TypeAliasGraph.{FuncAliasing, ObjectAliasing, TypeAliasing}
+import gtype.TypeAliasGraph.{FuncAliasing, ObjectAliasing, TypeAliasing, typeContextToAliasings}
 
 import scala.util.Random
 import collection.mutable
@@ -119,7 +119,7 @@ object TrainingTypeGeneration {
             } else {
               f
             }
-          } else objectSet.sample() //todo: generate recursive types
+          } else objectSet.sample()
           val baseFields = objRewrite.fields
           val newFields = baseFields.updated(field, fieldTy)
           addTypeRewrite(newTy, ObjectAliasing(newFields))
@@ -192,15 +192,25 @@ object TrainingTypeGeneration {
       data.tryUntilGenerate(10)
     }
 
-    data.typeAliasings.foreach(println)
     println(s"==== subtype relations (amount: ${data.subtypeRelations.size}) ====")
-    data.subtypeRelations.foreach(println)
 
     val aliasings = data.typeAliasings.toMap
     val (_, posRels, _) = TypeAliasGraph.typeAliasingsToGroundTruths(aliasings)
-    println(s"true subtype relation amount: ${posRels.size}")
+    println(s"==== true subtype relation amount: ${posRels.size} ====")
 
     TypeAliasGraph.typeAliasingsToContext(aliasings)
+  }
+
+  def main(args: Array[String]): Unit = {
+    val context = augmentWithRandomTypes(JSExamples.trainingTypeContext, 400)
+    val aliasings = typeContextToAliasings(context)
+    val depths = aliasings.keys.map{ TypeAliasGraph.typeDepth(_, aliasings) }.toVector
+    val avgDepth = depths.sum / depths.length
+    val maxDepth = depths.max
+    val minDepth = depths.min
+    println(s"avgDepth = $avgDepth")
+    println(s"maxDepth = $maxDepth")
+    println(s"minDepth = $minDepth")
   }
 }
 
