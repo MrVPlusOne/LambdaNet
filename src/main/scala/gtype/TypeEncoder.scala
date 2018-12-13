@@ -5,7 +5,7 @@ import funcdiff._
 import botkop.numsca
 import botkop.numsca.Tensor
 import funcdiff.Optimizers.Adam
-import gtype.TypeConstraintGraph._
+import gtype.TypeAliasGraph._
 
 import scala.util.Random
 
@@ -64,7 +64,7 @@ class TypeEncoder(encoderParams: EncoderParams) {
   val typePath: SymbolPath = SymbolPath.empty / 'type
   val subtypePath: SymbolPath = SymbolPath.empty / 'subtype
 
-  def encode(symbolDefMap: Map[Symbol, TypeRewrite], iterations: Int): TypeEncoding = {
+  def encode(symbolDefMap: Map[Symbol, TypeAliasing], iterations: Int): TypeEncoding = {
     import collection.mutable
     val labelMap = mutable.HashMap[Symbol, CompNode]()
 
@@ -102,7 +102,7 @@ class TypeEncoder(encoderParams: EncoderParams) {
           import typeFactory._
 
           val aggregated = typeDef match {
-            case FuncRewrite(argTypes, returnType) =>
+            case FuncAliasing(argTypes, returnType) =>
               argsEncodingMethod match {
                 case ArgsEncodingMethod.Separate =>
                   val funcArgInit: CompNode =
@@ -118,7 +118,7 @@ class TypeEncoder(encoderParams: EncoderParams) {
                     .foldRight(typeMap(returnType))(gru('FuncArgsGru))
               }
 
-            case ObjectRewrite(fields) =>
+            case ObjectAliasing(fields) =>
               val fieldEncodings = fields.map {
                 case (fieldName, fieldType) =>
                   val x = getFieldLabel(fieldName)
@@ -192,7 +192,7 @@ object TypeEncoder {
     val posVec = Tensor(1, 0).reshape(1, -1)
     val negVec = Tensor(0, 1).reshape(1, -1)
 
-    def forwardPredict(symbolDefMap: Map[Symbol, TypeRewrite],
+    def forwardPredict(symbolDefMap: Map[Symbol, TypeAliasing],
                        posRelations: Seq[(Symbol, Symbol)],
                        negRelations: Seq[(Symbol, Symbol)]) = {
       val relationNum = math.min(posRelations.length, negRelations.length)
@@ -223,8 +223,8 @@ object TypeEncoder {
 
     val devSet = {
       val context = augmentWithRandomTypes(Examples.pointExample, 50)
-      val typeRewrites = typeContextToRewrites(context)
-      val typeContext = typeRewritesToContext(typeRewrites)
+      val typeRewrites = typeContextToAliasings(context)
+      val typeContext = typeAliasingsToContext(typeRewrites)
 
       val rels = Vector(
         'number -> 'number,
@@ -255,11 +255,11 @@ object TypeEncoder {
 
     val preComputes = trainingSet.map {
       case (name, context) =>
-        val symbolDefMap = typeContextToRewrites(context)
+        val symbolDefMap = typeContextToAliasings(context)
         println("Symbol rewrites map:")
         symbolDefMap.foreach(println)
         assert(symbolDefMap.contains(JSExamples.boolean))
-        val (reflexivity, posRelations, negRelations) = typeRewritesToGroundTruths(symbolDefMap)
+        val (reflexivity, posRelations, negRelations) = typeAliasingsToGroundTruths(symbolDefMap)
 
         println(
           s"pos relations: ${posRelations.length}, neg relations: ${negRelations.length}, " +

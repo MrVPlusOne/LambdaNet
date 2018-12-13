@@ -1,7 +1,7 @@
 package gtype
 
 import funcdiff.SimpleMath
-import gtype.TypeConstraintGraph.{FuncRewrite, ObjectRewrite, TypeRewrite}
+import gtype.TypeAliasGraph.{FuncAliasing, ObjectAliasing, TypeAliasing}
 
 import scala.util.Random
 import collection.mutable
@@ -9,7 +9,7 @@ import collection.mutable
 object TrainingTypeGeneration {
 
   class TrainingData() {
-    val typeRewrites: mutable.HashMap[Symbol, TypeRewrite] = mutable.HashMap()
+    val typeAliasings: mutable.HashMap[Symbol, TypeAliasing] = mutable.HashMap()
     val childMap: mutable.HashMap[Symbol, IndexedHashSet[Symbol]] = mutable.HashMap()
     val parentMap: mutable.HashMap[Symbol, IndexedHashSet[Symbol]] = mutable.HashMap()
     val fieldSet: IndexedHashSet[Symbol] = IndexedHashSet()
@@ -41,16 +41,16 @@ object TrainingTypeGeneration {
       s
     }
 
-    def addTypeRewrite(ty: Symbol, tR: TypeRewrite): Unit = {
-      require(!typeRewrites.contains(ty))
+    def addTypeRewrite(ty: Symbol, tR: TypeAliasing): Unit = {
+      require(!typeAliasings.contains(ty))
 
       tR match {
-        case _: FuncRewrite => funcSet += ty
-        case oR: ObjectRewrite =>
+        case _: FuncAliasing => funcSet += ty
+        case oR: ObjectAliasing =>
           objectSet += ty
           oR.fields.keys.foreach(addFiled)
       }
-      typeRewrites(ty) = tR
+      typeAliasings(ty) = tR
     }
 
     def addSubtypeRel(child: Symbol, parent: Symbol): Unit = {
@@ -97,14 +97,14 @@ object TrainingTypeGeneration {
       if (prob(0.75)) {
         // extend or delete field
         val baseTy = objectSet.sample()
-        val objRewrite = typeRewrites(baseTy).asInstanceOf[ObjectRewrite]
+        val objRewrite = typeAliasings(baseTy).asInstanceOf[ObjectAliasing]
         val newTy = newType()
         if (objRewrite.fields.size >= 2 && prob(0.4)) {
           val fields = objRewrite.fields
           val k = SimpleMath.randomSelect(fields.keys.toIndexedSeq)
           // delete some field
           val newFields = fields - k
-          addTypeRewrite(newTy, ObjectRewrite(newFields))
+          addTypeRewrite(newTy, ObjectAliasing(newFields))
           addSubtypeRel(baseTy, newTy)
         } else {
           val field = if (prob(0.6)) newField() else fieldSet.sample()
@@ -112,9 +112,9 @@ object TrainingTypeGeneration {
             val f = funcSet.sample()
             if(prob(0.2)){
               // generate recursive types
-              val rewrite = typeRewrites(f).asInstanceOf[FuncRewrite].copy(returnType = newTy)
+              val aliasing = typeAliasings(f).asInstanceOf[FuncAliasing].copy(returnType = newTy)
               val newFTy = newType()
-              addTypeRewrite(newFTy, rewrite)
+              addTypeRewrite(newFTy, aliasing)
               newFTy
             } else {
               f
@@ -122,13 +122,13 @@ object TrainingTypeGeneration {
           } else objectSet.sample() //todo: generate recursive types
           val baseFields = objRewrite.fields
           val newFields = baseFields.updated(field, fieldTy)
-          addTypeRewrite(newTy, ObjectRewrite(newFields))
+          addTypeRewrite(newTy, ObjectAliasing(newFields))
           addSubtypeRel(newTy, baseTy)
         }
       } else {
         // mutate a function
         val baseF = funcSet.sample()
-        val rewrite = typeRewrites(baseF).asInstanceOf[FuncRewrite]
+        val rewrite = typeAliasings(baseF).asInstanceOf[FuncAliasing]
         if (prob(0.5) && rewrite.argTypes.nonEmpty) {
           // mutate arg type
           val argId = random.nextInt(rewrite.argTypes.length)
@@ -166,8 +166,8 @@ object TrainingTypeGeneration {
 
   object TrainingData {
     def fromTypeContext(typeContext: TypeContext): TrainingData = {
-      val typeRewrites = TypeConstraintGraph.typeContextToRewrites(typeContext)
-      val (_, posExamples, _) = TypeConstraintGraph.typeRewritesToGroundTruths(typeRewrites)
+      val typeRewrites = TypeAliasGraph.typeContextToAliasings(typeContext)
+      val (_, posExamples, _) = TypeAliasGraph.typeAliasingsToGroundTruths(typeRewrites)
 
       val data = new TrainingData()
       typeRewrites.foreach {
@@ -192,15 +192,15 @@ object TrainingTypeGeneration {
       data.tryUntilGenerate(10)
     }
 
-    data.typeRewrites.foreach(println)
+    data.typeAliasings.foreach(println)
     println(s"==== subtype relations (amount: ${data.subtypeRelations.size}) ====")
     data.subtypeRelations.foreach(println)
 
-    val rewrites = data.typeRewrites.toMap
-    val (_, posRels, _) = TypeConstraintGraph.typeRewritesToGroundTruths(rewrites)
+    val aliasings = data.typeAliasings.toMap
+    val (_, posRels, _) = TypeAliasGraph.typeAliasingsToGroundTruths(aliasings)
     println(s"true subtype relation amount: ${posRels.size}")
 
-    TypeConstraintGraph.typeRewritesToContext(rewrites)
+    TypeAliasGraph.typeAliasingsToContext(aliasings)
   }
 }
 

@@ -1,40 +1,40 @@
 package gtype
 
 /**
-  * Turn type definitions into a constraint graph over literals
+  * Convert a typing environment into an type alias graph.
   */
-object TypeConstraintGraph {
+object TypeAliasGraph {
 
-  sealed trait TypeRewrite
+  sealed trait TypeAliasing
 
-  case class FuncRewrite(argTypes: List[Symbol], returnType: Symbol) extends TypeRewrite {
+  case class FuncAliasing(argTypes: List[Symbol], returnType: Symbol) extends TypeAliasing {
     override def toString: String = {
       argTypes.mkString("(", ",", ")") + "->" + returnType
     }
   }
 
-  case class ObjectRewrite(fields: Map[Symbol, Symbol]) extends TypeRewrite {
+  case class ObjectAliasing(fields: Map[Symbol, Symbol]) extends TypeAliasing {
     override def toString: String = {
       fields.map { case (f, t) => s"$f: $t" }.mkString("{", ",", "}")
     }
   }
 
-  def typeRewritesToContext(typeRewrites: Map[Symbol, TypeRewrite]): TypeContext = {
+  def typeAliasingsToContext(typeAliasings: Map[Symbol, TypeAliasing]): TypeContext = {
     import GroundType.symbolToType
 
-    val typeUnfold = typeRewrites.mapValues {
-      case ObjectRewrite(fields) => ObjectType(fields.mapValues(symbolToType))
-      case FuncRewrite(argTypes, returnType) =>
+    val typeUnfold = typeAliasings.mapValues {
+      case ObjectAliasing(fields) => ObjectType(fields.mapValues(symbolToType))
+      case FuncAliasing(argTypes, returnType) =>
         FuncType(argTypes.map(symbolToType), symbolToType(returnType))
     }
 
     TypeContext(baseTypes = Set(), typeUnfold = typeUnfold, subRel = Set())
   }
 
-  def typeContextToRewrites(context: TypeContext): Map[Symbol, TypeRewrite] = {
+  def typeContextToAliasings(context: TypeContext): Map[Symbol, TypeAliasing] = {
 
     import collection.mutable
-    val tConstraints = mutable.HashMap[Symbol, TypeRewrite]()
+    val tConstraints = mutable.HashMap[Symbol, TypeAliasing]()
     val typeNameMap = mutable.HashMap[CompoundType, Symbol]()
 
     def getTypeName(ty: GType, useName: Option[Symbol]): Symbol = {
@@ -47,9 +47,9 @@ object TypeConstraintGraph {
 
           val tDef = ty match {
             case ObjectType(fields) =>
-              ObjectRewrite(fields.mapValues(f => getTypeName(f, None)))
+              ObjectAliasing(fields.mapValues(f => getTypeName(f, None)))
             case FuncType(from, to) =>
-              FuncRewrite(from.map { x =>
+              FuncAliasing(from.map { x =>
                 getTypeName(x, None)
               }, getTypeName(to, None))
           }
@@ -68,8 +68,8 @@ object TypeConstraintGraph {
     tConstraints.toMap
   }
 
-  def typeRewritesToGroundTruths(typeRewrites: Map[Symbol, TypeRewrite]) = {
-    val typeContext = typeRewritesToContext(typeRewrites)
+  def typeAliasingsToGroundTruths(typeAliasings: Map[Symbol, TypeAliasing]) = {
+    val typeContext = typeAliasingsToContext(typeAliasings)
     val types = typeContext.typeUnfold.keys.toList
     import GroundType.symbolToType
 
