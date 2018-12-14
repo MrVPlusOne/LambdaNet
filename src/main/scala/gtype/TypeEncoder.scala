@@ -38,31 +38,43 @@ case class EncoderParams(
     fieldCombineMethod: FieldCombineMethod.Value = FieldCombineMethod.Attention,
     argsEncodingMethod: ArgsEncodingMethod.Value = ArgsEncodingMethod.Separate,
     updateWithRNN: Boolean = false,
-    activation: CompNode => CompNode)
+    activationName: Symbol
+)
 
 object EncoderParams {
+
+  def getActivation(activation: Symbol): CompNode => CompNode = {
+    activation match {
+      case 'leakyRelu =>
+        x =>
+          funcdiff.API.leakyRelu(x)
+      case 'relu => funcdiff.API.relu
+    }
+  }
+
   val small = EncoderParams(
     labelDim = 40,
     typeDim = 40,
     fieldDim = 40,
-    activation = x => funcdiff.API.leakyRelu(x)
+    activationName = 'leakyRelu,
   )
 
   val large = EncoderParams(
     labelDim = 80,
     typeDim = 80,
     fieldDim = 80,
-    activation = x => funcdiff.API.leakyRelu(x)
+    activationName = 'leakyRelu,
   )
 }
 
-class TypeEncoder(encoderParams: EncoderParams) {
+class TypeEncoder(val encoderParams: EncoderParams,
+                  val pc: ParamCollection = ParamCollection()) {
 
   import encoderParams._
 
-  val pc = ParamCollection()
   val typePath: SymbolPath = SymbolPath.empty / 'type
   val subtypePath: SymbolPath = SymbolPath.empty / 'subtype
+  val activation: CompNode => CompNode = EncoderParams.getActivation(activationName)
 
   /**
     * Encodes a type aliasing graph into type vectors
@@ -196,25 +208,45 @@ class TypeEncoder(encoderParams: EncoderParams) {
 //    linear('simpleLinear, nOut = 2)((t1 * t2).concat(t1 + t2, axis = 1).concat(t2 - t1, axis = 1))
   }
 
+  def saveToPath(dir: ammonite.ops.Path, name: String): Unit ={
+    pc.saveToFile((dir / s"$name.pc").toIO)
+    ParamCollection.saveObjectToFile((dir / s"$name.params").toIO)(encoderParams)
+  }
+
 }
 
 object TypeEncoder {
-  def display[T](name: String)(x: T): T = {
-    println(s"$name: $x")
-    x
+
+  def readEncoderFromFiles(dir: ammonite.ops.Path, name: String): TypeEncoder ={
+    val pc = ParamCollection.fromFile((dir / s"$name.pc").toIO)
+    val params = ParamCollection.readObjectFromFile[EncoderParams]((dir / s"$name.params").toIO)
+    new TypeEncoder(params, pc)
   }
 
   def main(args: Array[String]): Unit = {
+    val experimentName = "test"
+
+    import ammonite.ops._
+    val loggerDir = pwd / 'results / experimentName
+    val fileLogger = new FileLogger(loggerDir / "log.txt", printToConsole = true)
+    require(!exists(loggerDir), s"The directory $loggerDir already exists!")
+    mkdir(loggerDir)
+    import fileLogger.{println, print}
+
+    def describe[T](name: String)(x: T): T = {
+      println(s"$name: $x")
+      x
+    }
 
     implicit val random: Random = new Random()
 
-    val encParams = display("Encoder params")(EncoderParams.large)
+    val encParams = describe("Encoder params")(EncoderParams.large)
     val encoder = new TypeEncoder(encParams)
 
-    val encodingIterations = display("encodingIterations")(10)
-    val trainingEncodingBatch = display("trainingEncodingBatch")(1)
+    val encodingIterations = describe("encodingIterations")(10)
+    val trainingEncodingBatch = describe("trainingEncodingBatch")(1)
 
-    val optimizer = display("optimizer")(Adam(learningRate = 0.002))
+    val optimizer = describe("optimizer")(Adam(learningRate = 0.002))
 
     val posVec = Tensor(1, 0).reshape(1, -1)
     val negVec = Tensor(0, 1).reshape(1, -1)
@@ -234,12 +266,11 @@ object TypeEncoder {
 
     import TrainingTypeGeneration.augmentWithRandomTypes
 
-    val devData: (Map[Symbol, TypeAliasing], List[(Symbol, Symbol)], List[(Symbol, Symbol)]) = {
-      val (dataSetName, context) = "JSCore200" -> augmentWithRandomTypes(JSExamples.typeContext,
-                                                                         200)
-
+    def generateTestData(baseContext: TypeContext, sampleNum: Int)
+      : (Map[Symbol, TypeAliasing], List[(Symbol, Symbol)], List[(Symbol, Symbol)]) = {
+      val context = augmentWithRandomTypes(baseContext, sampleNum)
       val symbolDefMap = typeContextToAliasings(context)
-      println(s"dev set graph size: " + symbolDefMap.size)
+      println(s"data set graph size: " + symbolDefMap.size)
       val (reflexivity, posRelations, negRelations) = typeAliasingsToGroundTruths(symbolDefMap)
       println(
         s"pos relations: ${posRelations.length}, neg relations: ${negRelations.length}, " +
@@ -252,24 +283,11 @@ object TypeEncoder {
       (symbolDefMap, posData ++ reflData, negData)
     }
 
-    val testData = {
-      val (dataSetName, context) = "JSReal200" -> augmentWithRandomTypes(
-        JSExamples.realWorldExamples,
-        200)
+    describe("dev set name")("JSCore200")
+    val devData = generateTestData(JSExamples.typeContext, 200)
 
-      val symbolDefMap = typeContextToAliasings(context)
-      println(s"test set graph size: " + symbolDefMap.size)
-      val (reflexivity, posRelations, negRelations) = typeAliasingsToGroundTruths(symbolDefMap)
-      println(
-        s"pos relations: ${posRelations.length}, neg relations: ${negRelations.length}, " +
-          s"reflexivity: ${reflexivity.length}"
-      )
-
-      val posData = random.shuffle(posRelations).take(250)
-      val reflData = random.shuffle(reflexivity).take(50)
-      val negData = random.shuffle(negRelations).take(300)
-      (symbolDefMap, posData ++ reflData, negData)
-    }
+    describe("test set name")("JSReal200")
+    val testData = generateTestData(JSExamples.realWorldExamples, 200)
 
     // === training loop ===
     for (epoch <- 0 until 1000) {
@@ -283,13 +301,8 @@ object TypeEncoder {
 
       val (dataSetName, context) = trainingSet
       val symbolDefMap = typeContextToAliasings(context)
-//        println(s"[$dataSetName] graph size: " + symbolDefMap.size)
-      val (reflexivity, posRelations, negRelations) = typeAliasingsToGroundTruths(symbolDefMap)
 
-//        println(
-//          s"pos relations: ${posRelations.length}, neg relations: ${negRelations.length}, " +
-//            s"reflexivity: ${reflexivity.length}"
-//        )
+      val (reflexivity, posRelations, negRelations) = typeAliasingsToGroundTruths(symbolDefMap)
 
       val posData = random.shuffle(posRelations)
       val reflData = random.shuffle(reflexivity).take(posData.length / 4)
@@ -297,7 +310,7 @@ object TypeEncoder {
 
       val (target, predictions) =
         forwardPredict(symbolDefMap, posData ++ reflData, negData, trainingEncodingBatch)
-//        println(s"expanded batch size: ${predictions.shape(0)}")
+
       val loss = mean(crossEntropyOnSoftmax(predictions, target))
 
       val accuracy =
@@ -329,6 +342,11 @@ object TypeEncoder {
 
         evaluate("dev set ", devData)
         evaluate("test set", testData)
+      }
+
+      if (epoch == 0) {
+        // save model
+        encoder.saveToPath(loggerDir, s"model$epoch")
       }
     }
   }
