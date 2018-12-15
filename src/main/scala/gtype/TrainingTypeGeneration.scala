@@ -251,11 +251,13 @@ object TrainingTypeGeneration {
   def main(args: Array[String]): Unit = {
 //    val context = augmentWithRandomTypes(JSExamples.trainingTypeContext, 1)
 
-    for(i <- 0 until 100) {
+    for(i <- 0 until 1) {
       println(s"step: $i")
-      val context = augmentWithRandomTypes(trainingContext, 200)(new Random())
+//      val context = augmentWithRandomTypes(trainingContext, 200)(new Random())
+      val context = JSExamples.realWorldExamples
 
       val aliasings = typeContextToAliasings(context)
+      println(s"node number: ${aliasings.size}")
       aliasings.foreach(println)
       val depths = aliasings.keys.map {
         TypeAliasGraph.typeDepth(_, aliasings)

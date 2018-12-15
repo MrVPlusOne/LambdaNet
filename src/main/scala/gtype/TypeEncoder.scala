@@ -31,6 +31,7 @@ object ArgsEncodingMethod extends Enumeration {
   val Unified = Value
 }
 
+@SerialVersionUID(0)
 case class EncoderParams(
     labelDim: Int,
     typeDim: Int,
@@ -52,10 +53,33 @@ object EncoderParams {
     }
   }
 
+  def ofDimension(dim: Int) = {
+    EncoderParams(
+      labelDim = dim,
+      typeDim = dim,
+      fieldDim = dim,
+      activationName = 'leakyRelu,
+    )
+  }
+
+  val tiny = EncoderParams(
+    labelDim = 20,
+    typeDim = 20,
+    fieldDim = 20,
+    activationName = 'leakyRelu,
+  )
+
   val small = EncoderParams(
     labelDim = 40,
     typeDim = 40,
     fieldDim = 40,
+    activationName = 'leakyRelu,
+  )
+
+  val medium = EncoderParams(
+    labelDim = 60,
+    typeDim = 60,
+    fieldDim = 60,
     activationName = 'leakyRelu,
   )
 
@@ -200,8 +224,10 @@ class TypeEncoder(val encoderParams: EncoderParams,
     val modelFactory = LayerFactory(subtypePath, pc)
     import modelFactory._
 
+    val classifierNeurons = 40 // lets fix this to 40
+
     val layer1 = activation(
-      linear('linear1, nOut = typeDim / 2)(t1.concat(t2, axis = 1).concat(t1 * t2, axis = 1))
+      linear('linear1, nOut = classifierNeurons)(t1.concat(t2, axis = 1).concat(t1 * t2, axis = 1))
     )
     activation(linear('linear2, nOut = 2)(layer1))
 
@@ -224,7 +250,8 @@ object TypeEncoder {
   }
 
   def main(args: Array[String]): Unit = {
-    val experimentName = "test"
+    val experimentName = "i10-d10"
+    println(s"Experiment Name: $experimentName")
 
     import ammonite.ops._
     val loggerDir = pwd / 'results / experimentName
@@ -240,7 +267,7 @@ object TypeEncoder {
 
     implicit val random: Random = new Random()
 
-    val encParams = describe("Encoder params")(EncoderParams.large)
+    val encParams = describe("Encoder params")(EncoderParams.ofDimension(10))
     val encoder = new TypeEncoder(encParams)
 
     val encodingIterations = describe("encodingIterations")(10)
@@ -340,13 +367,9 @@ object TypeEncoder {
 
         }
 
+        encoder.saveToPath(loggerDir, s"model$epoch")
         evaluate("dev set ", devData)
         evaluate("test set", testData)
-      }
-
-      if (epoch == 0) {
-        // save model
-        encoder.saveToPath(loggerDir, s"model$epoch")
       }
     }
   }
