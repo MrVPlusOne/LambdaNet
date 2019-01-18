@@ -9,8 +9,8 @@ object JSExamples {
 
   val number = 'number
   val string = 'string
-  val boolean: Symbol = GExpr.boolType.id
-  val void = 'void
+  val boolean: Symbol = GType.boolType.id
+  val void = GType.voidType.id
   val anyArray = 'anyArray
   val numArray = 'numberArray
 
@@ -42,9 +42,13 @@ object JSExamples {
     def ===(other: GExpr): GExpr = 'eq.call(expr, other)
 
     def &&(other: GExpr): GExpr = 'OP_And.call(expr, other)
+
+    def unary_! : GExpr = 'OP_Not.call(expr)
   }
 
   def I(i: Int): Const = Const(i, number)
+
+  def B(b: Boolean) = Const(b, boolean)
 
   val THIS: Symbol = ClassDef.thisSymbol
 
@@ -60,7 +64,7 @@ object JSExamples {
         'OP_Minus -> (List(number) -: number),
         'OP_Times -> (List(number) -: number),
         'OP_Divide -> (List(number) -: number),
-        'OP_LessThan -> (List(number) -: boolean),
+        'OP_LessThan -> (List(number) -: boolean)
       ),
       string -> obj(
         'OP_Plus -> (List(any) -: string),
@@ -117,6 +121,13 @@ object JSExamples {
       }
     }
 
+    val whileExample: Example = wellFormed("while")(
+      VAR('x, number)( I(3) + I(4)),
+      WHILE('x < I(10))(
+        'x := 'x + I(1)
+      )
+    )
+
     val mergeSortExample: Example = wellFormed("mergeSort")(
       FUNC('mergeSort, numArray)('array -> numArray)(
         IF('array.m('length) < I(2))(
@@ -167,7 +178,7 @@ object JSExamples {
           'tail -> linkedListNode,
           'compare -> 'Comparator
         )(
-          FUNC(linkedList, any)('compare -> 'Comparator)(
+          CONSTRUCTOR('compare -> 'Comparator)(
             THIS.m('head) := undefined,
             THIS.m('tail) := undefined,
             THIS.m('compare) := 'compare
@@ -246,7 +257,7 @@ object JSExamples {
           'value -> any,
           'next -> linkedListNode
         )(
-          FUNC(linkedListNode, any)(('value, any), ('next, linkedListNode))(
+          CONSTRUCTOR(('value, any), ('next, linkedListNode))(
             THIS.m('value) := 'value,
             THIS.m('next) := 'next
           ),
@@ -255,6 +266,64 @@ object JSExamples {
               THIS.m('value),
               'callback.call(THIS.m('value)),
               any))
+          )
+        )
+      )
+    }
+
+    val doublyLinkedList: Example = {
+      val linkedList = 'LinkedList
+      val node = 'Node
+
+      wellFormed("DoublyLinkedList")(
+        CLASS(node)(
+          'element -> any,
+          'next -> node,
+          'prev -> node
+        )(
+          CONSTRUCTOR('element -> any)(
+            THIS.m('element) := 'element
+          )
+        ),
+
+        CLASS(linkedList)(
+          '_first -> node,
+          '_last -> node,
+          '_size -> number
+        )(
+          CONSTRUCTOR()(
+            THIS.m('_size) := I(0)
+          ),
+          FUNC('size, number)()(
+            RETURN(THIS.m('_size))
+          ),
+          FUNC('isEmpty, boolean)()(
+            RETURN(! THIS.m('_first) )
+          ),
+          FUNC('push, List() -: void)('element -> any)(
+            RETURN(THIS.m('_insert).call('element, B(true)))
+          ),
+          FUNC('_insert, List() -: void)(
+            'element -> any,
+            'atTheEnd -> boolean
+          )(
+            VAR('newNode)(NEW(node)('element)),
+            IF(!THIS.m('_first))(
+              THIS.m('_first) := 'newNode,
+              THIS.m('_last) := 'newNode
+            ).EIF('atTheEnd)(
+              VAR('oldLast)(THIS.m('_last)),
+              THIS.m('_last) := 'newNode,
+              'newNode.m('prev) := 'oldLast,
+              'oldLast.m('next) := 'newNode
+            ).ELSE(
+              VAR('oldFirst)(THIS.m('_first)),
+              THIS.m('_first) := 'newNode,
+              'newNode.m('next) := 'oldFirst,
+              'oldFirst.m('prev) := 'newNode
+            ),
+            THIS.m('_size) := THIS.m('_size) + I(1),
+            RETURN(THIS.m('_remove).m('bind).call(THIS, 'newNode))
           )
         )
       )
@@ -300,13 +369,13 @@ object JSExamples {
       'hasParent -> (List(number) -: boolean),
       'hasRightChild -> (List(number) -: boolean),
       'leftChild -> (List(number) -: any),
-      'swap ->(List(number, number) -: void),
+      'swap -> (List(number, number) -: void),
       'poll -> (List() -: void),
       'add -> (List(any) -: 'Heap),
       'remove -> (List(any, TyVar('Comparator)) -: 'Heap),
       'find -> (List(any, TyVar('Comparator)) -: numArray),
       'isEmpty -> (List() -: boolean),
-      'toString -> (List() -: string),
+      'toString -> (List() -: string)
     )
 
     val newUnfold = typeContext.typeUnfold ++ Map[Symbol, CompoundType](
@@ -325,18 +394,18 @@ object JSExamples {
         'insert -> (List(any) -: 'BinarySearchTreeNode),
         'remove -> (List(any) -: boolean),
         'balance -> (List('BinarySearchTreeNode) -: void),
-        'leftLeftRotation ->  (List('BinarySearchTreeNode) -: 'BinarySearchTreeNode),
-        'isNodeRed -> (List('BinarySearchTreeNode) -: boolean),
+        'leftLeftRotation -> (List('BinarySearchTreeNode) -: 'BinarySearchTreeNode),
+        'isNodeRed -> (List('BinarySearchTreeNode) -: boolean)
       ),
       'FenwickTree -> obj(
-        'increase -> (List(number, number ) -: 'FenwickTree),
+        'increase -> (List(number, number) -: 'FenwickTree),
         'query -> (List(number) -: number),
         'queryRange -> (List(number, number) -: number)
       ),
       'AvlTree -> obj(
         'insert -> (List(number) -: void),
         'remove -> (List(any) -: boolean),
-        'balance -> (List('BinarySearchTreeNode) -: void),
+        'balance -> (List('BinarySearchTreeNode) -: void)
       ),
       'Heap -> heapObj
     )

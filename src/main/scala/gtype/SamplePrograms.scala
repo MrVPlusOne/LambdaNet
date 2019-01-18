@@ -1,6 +1,6 @@
 package gtype
 
-import gtype.GExpr.boolType
+import gtype.GType.boolType
 import gtype.GStmt.API._
 
 object SamplePrograms {
@@ -18,7 +18,7 @@ object SamplePrograms {
   val numArray = 'NumArray
 
   val typeContext = TypeContext(
-    baseTypes = Set('int, 'number, 'string, GExpr.boolType.id),
+    baseTypes = Set('int, 'number, 'string, boolType.id),
     typeUnfold = Map(
       point -> obj('x -> 'int, 'moveX -> (List('int) -: point)),
       'PointAlias -> obj('x -> 'int, 'moveX -> (List('int) -: 'PointAlias)),

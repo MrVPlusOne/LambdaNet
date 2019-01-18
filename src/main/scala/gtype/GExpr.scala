@@ -12,8 +12,8 @@ import scala.language.implicitConversions
   *     | x                       ([[Var]])
   *     | c                       ([[Const]])
   *     | e(e,...,e)              ([[FuncCall]])
-  *     | e[t]                    ([[Cast]])
-  *     | { l: e, ..., l: e }     ([[Constructor]])
+  *     | e as t                  ([[Cast]])
+  *     | { l: e, ..., l: e }     ([[ObjLiteral]])
   *     | e.l                     ([[Access]])
   *     | if[α] e then e else e   ([[IfExpr]])
   *
@@ -42,7 +42,7 @@ case class FuncCall(f: GExpr, args: List[GExpr]) extends GExpr
 
 case class Cast(expr: GExpr, ty: GType) extends GExpr
 
-case class Constructor(fields: Map[Symbol, GExpr]) extends GExpr
+case class ObjLiteral(fields: Map[Symbol, GExpr]) extends GExpr
 
 case class Access(expr: GExpr, field: Symbol) extends GExpr
 
@@ -62,7 +62,8 @@ case class ExprContext(varAssign: Map[Symbol, GType], typeContext: TypeContext) 
     copy(varAssign = {
       assert(
         !varAssign.contains(arg),
-        s"new definition (${arg.name}: $argT) shadows outer definition of type ${varAssign(arg)}")
+        s"new definition (${arg.name}: $argT) shadows outer definition of type ${varAssign(arg)}"
+      )
       varAssign.updated(arg, argT)
     })
   }
@@ -71,12 +72,10 @@ case class ExprContext(varAssign: Map[Symbol, GType], typeContext: TypeContext) 
 
 object GExpr {
 
-  val boolType = TyVar(Symbol("𝔹"))
-
   trait GExprAPI extends GTypeAPI {
     implicit def symbol2Var(name: Symbol): Var = Var(name)
 
-    def mkObj(fields: (Symbol, GExpr)*) = Constructor(fields.toMap)
+    def mkObj(fields: (Symbol, GExpr)*) = ObjLiteral(fields.toMap)
 
     def C(v: Any, ty: GType) = Const(v, ty)
 
@@ -85,6 +84,8 @@ object GExpr {
     def N(n: Double) = Const(n, 'number)
 
     val undefined = Const("undefined", any)
+
+    def NEW(name: Symbol)(args: GExpr*): GExpr = FuncCall(name, args.toList)
   }
 
   object API extends GExprAPI
@@ -126,7 +127,7 @@ object GExpr {
         val (et, errors) = typeCheckInfer(e, context)
         val e1 = typeContext.mkSubtypeError(et, t)
         t -> (errors ++ e1)
-      case Constructor(fields) =>
+      case ObjLiteral(fields) =>
         var errors = Set[TypeCheckError]()
         val fieldTypes = fields.map {
           case (name, e) =>
@@ -153,7 +154,7 @@ object GExpr {
         val (e1T, errs1) = typeCheckInfer(e1, context)
         val (e2T, errs2) = typeCheckInfer(e2, context)
         val allErrors = errs0 ++ errs1 ++ errs2 ++
-          typeContext.mkSubtypeError(condT, boolType) ++
+          typeContext.mkSubtypeError(condT, GType.boolType) ++
           typeContext.mkSubtypeError(e1T, resultType) ++
           typeContext.mkSubtypeError(e2T, resultType)
         resultType -> allErrors

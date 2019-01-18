@@ -16,4 +16,5 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-actor" % "2.5.12",
   "com.typesafe.akka" %% "akka-testkit" % "2.5.12" % Test,
   "com.lihaoyi" %% "ammonite-ops" % "1.0.3",
+  "org.json4s" %% "json4s-native" % "3.6.3",
 )
