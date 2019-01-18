@@ -101,7 +101,7 @@ object IRTranslation {
             translateFunc(constructor),
             vars.mapValues { mark =>
               env.getTyMark(mark)
-            },
+            }.view.force,
             funcDefs.map(translateFunc)
           )
         )
@@ -158,7 +158,7 @@ object IRTranslation {
         IR.FuncCall(fVar, argsVars)
       case _: gtype.Cast => ???
       case gtype.ObjLiteral(fields) =>
-        ObjLiteral(fields.mapValues(e => asVar(translateExpr(e))))
+        ObjLiteral(fields.mapValues(e => asVar(translateExpr(e))).view.force)
       case gtype.Access(receiver, field) =>
         val v = asVar(translateExpr(receiver))
         FieldAccess(v, field)
@@ -172,7 +172,7 @@ object IRTranslation {
 
   def main(args: Array[String]): Unit = {
     val env = new TranslationEnv()
-    val example = JSExamples.Collection.whileExample
+    val example = JSExamples.Collection.doublyLinkedList
     translateStmt(example.program)(env).foreach(println)
   }
 }

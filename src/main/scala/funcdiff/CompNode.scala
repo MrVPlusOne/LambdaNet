@@ -62,7 +62,7 @@ object CompNode {
 
     assert(grads.any(_.isZero) || !gradients.values.any(_.retrieve.isZero),
       "nonempty gradients after backprop created empty gradients!")
-    gradients.mapValues(_.retrieve).toMap
+    gradients.mapValues(_.retrieve).toMap.view.force
   }
 
   def backprop(node: CompNode): Map[CompNode, Gradient] = {
