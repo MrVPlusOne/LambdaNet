@@ -3,6 +3,27 @@ package funcdiff
 import scala.util.Random
 
 object SimpleMath {
+
+  object Extensions {
+
+    implicit class CollectionExtension[T](xs: Iterable[T]) {
+      def any(p: T => Boolean): Boolean = {
+        for (x <- xs) {
+          if (p(x)) return true
+        }
+        false
+      }
+    }
+
+    implicit class MapExtension[K, V](map: Map[K, V]) {
+      def mapValuesNow[T](f: V => T): Map[K, T] = {
+        map.mapValues(f).view.force
+      }
+    }
+  }
+
+  import SimpleMath.Extensions._
+
   def relu(x: Double): Double = if(x<0) 0.0 else x
 
   def wrapInRange(i: Int, range: Int): Int = {
@@ -334,7 +355,7 @@ object SimpleMath {
       (xs.toIndexedSeq.distinct, ys.toIndexedSeq.distinct)
     }
 
-    val pxy = frequencies.mapValues(_.toDouble / totalCount)
+    val pxy = frequencies.mapValuesNow(_.toDouble / totalCount)
 
     val (px, py) = {
       val countX = mutable.HashMap(xDomain.map(x => x -> 0): _*)
@@ -345,7 +366,7 @@ object SimpleMath {
           countX(x) += n
           countY(y) += n
       }
-      (countX.mapValues(_.toDouble / totalCount), countY.mapValues(_.toDouble / totalCount))
+      (countX.toMap.mapValuesNow(_.toDouble / totalCount), countY.toMap.mapValuesNow(_.toDouble / totalCount))
     }
 
     (for(x <- xDomain; y <- yDomain; pxy0 <- pxy.get(x -> y)) yield {
@@ -425,15 +446,6 @@ object SimpleMath {
   //    val variance = (0 until n).map(i => square(ys(i) - staticMean) * weights(i)).sum
   //    1 - vSum / variance
   //  }
-
-  implicit class CollectionExtension[T](xs: Iterable[T]){
-    def any(p: T => Boolean): Boolean = {
-      for (x <- xs) {
-        if(p(x)) return true
-      }
-      false
-    }
-  }
 
   def main(args: Array[String]): Unit = {
     val counts = Map(

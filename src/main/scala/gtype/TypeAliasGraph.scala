@@ -1,5 +1,7 @@
 package gtype
 
+import funcdiff.SimpleMath.Extensions._
+
 /**
   * Convert a typing environment into an type alias graph.
   */
@@ -22,8 +24,8 @@ object TypeAliasGraph {
   def typeAliasingsToContext(typeAliasings: Map[Symbol, TypeAliasing]): TypeContext = {
     import GroundType.symbolToType
 
-    val typeUnfold = typeAliasings.mapValues {
-      case ObjectAliasing(fields) => ObjectType(fields.mapValues(symbolToType))
+    val typeUnfold = typeAliasings.mapValuesNow {
+      case ObjectAliasing(fields) => ObjectType(fields.mapValuesNow(symbolToType))
       case FuncAliasing(argTypes, returnType) =>
         FuncType(argTypes.map(symbolToType), symbolToType(returnType))
     }
@@ -47,7 +49,7 @@ object TypeAliasGraph {
 
           val tDef = ty match {
             case ObjectType(fields) =>
-              ObjectAliasing(fields.mapValues(f => getTypeName(f, None)))
+              ObjectAliasing(fields.mapValuesNow(f => getTypeName(f, None)))
             case FuncType(from, to) =>
               FuncAliasing(from.map { x =>
                 getTypeName(x, None)

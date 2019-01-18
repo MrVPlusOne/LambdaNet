@@ -3,6 +3,7 @@ package gtype
 import scala.language.implicitConversions
 import GType.API._
 import gtype.GExpr.GExprAPI
+import funcdiff.SimpleMath.Extensions._
 
 // @formatter:off
 /** a program statement
@@ -139,7 +140,7 @@ object GStmt {
           fields = fields.updated(f.name, extractSignature(f))
         }
         val constructorType = extractSignature(constructor).copy(to = name)
-        val objT = ObjectType(fields.mapValues(_.asInstanceOf[GType]))
+        val objT = ObjectType(fields.mapValuesNow(_.asInstanceOf[GType]))
         currentCtx = currentCtx.newTypeVar(name, objT).newVar(name, constructorType)
       case _ =>
     }
@@ -194,7 +195,7 @@ object GStmt {
       case FuncDef(_, args, newReturn: GType, body) =>
         val ctxWithArgs = ctx.copy(
           varAssign =
-            ctx.varAssign ++ args.toMap.mapValues(_.asInstanceOf[GType])
+            ctx.varAssign ++ args.toMap.mapValuesNow(_.asInstanceOf[GType])
         )
         val (_, errs) = typeCheckStmt(body, ctxWithArgs, newReturn)
         ctx -> errs

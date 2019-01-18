@@ -1,9 +1,8 @@
 package funcdiff
 
 import botkop.numsca._
-import SimpleMath.CollectionExtension
-import botkop.numsca
 import funcdiff.DiffFunc.ConstFunc
+import SimpleMath.Extensions._
 
 class CompNode(val func: DiffFunc){
   def value: Tensor = func.value
@@ -60,9 +59,9 @@ object CompNode {
       aG.add(grad)
     }
 
-    assert(grads.any(_.isZero) || !gradients.values.any(_.retrieve.isZero),
+    assert(grads.any(_.isZero) || !gradients.values.exists(_.retrieve.isZero),
       "nonempty gradients after backprop created empty gradients!")
-    gradients.mapValues(_.retrieve).toMap
+    gradients.toMap.mapValuesNow(_.retrieve)
   }
 
   def backprop(node: CompNode): Map[CompNode, Gradient] = {
