@@ -67,6 +67,21 @@ object GStmt {
 
   import GExpr.typeCheckInfer
 
+  /** An context used for constructing programs written in [[GStmt]] */
+  class SurfaceContext(){
+    var typeHoleId: Int = 0
+
+    def newTHole(): GTHole = {
+      val h = GTHole(typeHoleId)
+      typeHoleId += 1
+      h
+    }
+
+    def reset(): Unit ={
+      typeHoleId = 0
+    }
+  }
+
   trait GStmtAPI extends GExprAPI {
     implicit def expr2Stmt(expr: GExpr): GStmt = ExprStmt(expr, isReturn = false)
 
@@ -74,7 +89,9 @@ object GStmt {
 
     def VAR(x: Symbol, ty: GTMark)(init: GExpr) = VarDef(x, ty, init)
 
-    def VAR(x: Symbol)(init: GExpr) = VarDef(x, GTHole, init)
+    def VAR(x: Symbol)(init: GExpr)(implicit ctx: SurfaceContext) = {
+      VarDef(x, ctx.newTHole(), init)
+    }
 
     def BLOCK(stmts: GStmt*): BlockStmt = {
       BlockStmt(stmts.toVector)
@@ -169,7 +186,7 @@ object GStmt {
             val ctx1 = ctx.newVar(x, ty)
             val (initT, es) = typeCheckInfer(init, ctx1)
             ctx1 -> (es ++ mkSubtypeError(initT, ty))
-          case GTHole =>
+          case _: GTHole =>
             val ctx0 = ctx.newVar(x, any)
             val (initT, es) = typeCheckInfer(init, ctx0)
             val ctx1 = ctx.newVar(x, initT)

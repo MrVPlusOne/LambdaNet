@@ -1,6 +1,6 @@
 package infer
 
-import gtype.JSExamples
+import gtype.{GTHole, JSExamples}
 
 object IRTranslation {
   import IR._
@@ -10,9 +10,9 @@ object IRTranslation {
     var varIdx: Int = 0
     var tyVarIdx: Int = 0
 
-    def newTyVar(): TyVar = {
+    def newTyVar(origin: Option[GTHole]): TyVar = {
       assert(tyVarIdx >= 0)
-      val tv = TyVar(tyVarIdx)
+      val tv = TyVar(tyVarIdx, origin)
       tyVarIdx += 1
       tv
     }
@@ -27,7 +27,7 @@ object IRTranslation {
     //fixme: Add labels to GTHoles (so that we can map tyVars back to the original source code)
     def getTyMark(gMark: gtype.GTMark): TyMark = {
       gMark match {
-        case gtype.GTHole    => mark(newTyVar())
+        case h: gtype.GTHole => mark(newTyVar(Some(h)))
         case ty: gtype.GType => mark(ty)
       }
     }
@@ -39,7 +39,7 @@ object IRTranslation {
       case _ =>
         val v = env.newVar()
         Vector(
-          VarDef(v, mark(env.newTyVar())),
+          VarDef(v, mark(env.newTyVar(None))),
           Assign(v, expr)
         ) -> v
     }

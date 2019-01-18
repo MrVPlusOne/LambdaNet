@@ -2,6 +2,7 @@ package gtype
 
 import gtype.GType.boolType
 import gtype.GStmt.API._
+import gtype.GStmt.SurfaceContext
 
 object SamplePrograms {
   /*
@@ -61,11 +62,19 @@ object SamplePrograms {
 
   case class Example(program: BlockStmt, errors: Set[TypeCheckError])
 
-  def wellFormed(stmts: GStmt*) = Example(BLOCK(stmts: _*), Set())
+
 
   // @formatter:off
   //noinspection TypeAnnotation
   object Collection {
+
+    implicit val ctx: SurfaceContext = new SurfaceContext()
+
+    def wellFormed(stmts: GStmt*): Example = {
+      val e = Example(BLOCK(stmts: _*), Set())
+      ctx.reset()
+      e
+    }
 
     val ltExample: Example = wellFormed(
       'lt.call(C(1, 'int), C(2, 'int))

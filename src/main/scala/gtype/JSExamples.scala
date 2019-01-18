@@ -2,6 +2,7 @@ package gtype
 
 import gtype.GStmt.API._
 import SamplePrograms.Example
+import gtype.GStmt.SurfaceContext
 
 import scala.collection.mutable.ListBuffer
 
@@ -104,9 +105,12 @@ object JSExamples {
 
     val all: ListBuffer[(String, Example)] = mutable.ListBuffer()
 
+    implicit val surfaceContext: SurfaceContext = new SurfaceContext()
+
     def wellFormed(name: String)(stmts: GStmt*): Example = {
       val ex = Example(BLOCK(stmts: _*), Set())
       all += (name -> ex)
+      surfaceContext.reset()
       ex
     }
 

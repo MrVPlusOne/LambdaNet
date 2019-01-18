@@ -4,8 +4,6 @@
 
 Todo:
 
-- [ ] trace type variables back into source code
-
 - [ ] generate inference graph from IR
 
 Done:
@@ -14,3 +12,5 @@ Done:
 
 - [X] translate programs ([GStmt](src/main/scala/gtype/GStmt.scala)) 
 into IR
+
+- [X] trace type variables back into source code

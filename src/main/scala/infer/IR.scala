@@ -1,6 +1,6 @@
 package infer
 
-import gtype.{GType}
+import gtype.{GTHole, GType}
 
 /**
   * An intermediate program representation useful for type inference
@@ -55,7 +55,7 @@ object IR {
     override def toString: String = ty.toString
   }
 
-  case class TyVar(id: Int) extends TyMark {
+  case class TyVar(id: Int, origin: Option[GTHole]) extends TyMark {
     override def toString: String = s"𝒯$id"
   }
 
