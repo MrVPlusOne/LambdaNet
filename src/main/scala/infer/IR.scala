@@ -12,7 +12,7 @@ object IR {
     *
     *  e :=                         ([[IRExpr]])
     *     | x                       ([[Var]])
-    *     | c as t                  ([[Const]])
+    *     | c: t                    ([[Const]])
     *     | x(x,...,x)              ([[FuncCall]])
     *     | { l: x, ..., l: x }     ([[ObjLiteral]])
     *     | e.l                     ([[FieldAccess]])
@@ -69,10 +69,10 @@ object IR {
     *
     * S :=                                  ([[IRStmt]])
     *   | var x: α                          ([[VarDef]])
-    *   | x := x                            ([[Assign]])
+    *   | x := e                            ([[Assign]])
     *   | [return] x                        ([[ReturnStmt]])
-    *   | if x then S else S                ([[IfStmt]])
-    *   | while x do S                      ([[WhileStmt]])
+    *   | if(x) S else S                    ([[IfStmt]])
+    *   | while(x) S                        ([[WhileStmt]])
     *   | { S; ...; S }                     ([[BlockStmt]])
     *   | function x (x: α, ..., x:α): α    ([[FuncDef]])
     *   | class x (l: α, ..., l:α)          ([[ClassDef]])
