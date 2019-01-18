@@ -12,7 +12,7 @@ case object GTHole extends GTMark
 // @formatter:off
 /**
   * T :=                  ([[GType]])
-  * | *                   ([[AnyType]])
+  * | any                 ([[AnyType]])
   * | tv                  ([[TyVar]])
   * | (T, ..., T) -> T    ([[FuncType]])
   * | {l: T, ..., l: T}   ([[ObjectType]])
@@ -31,7 +31,7 @@ sealed trait GType extends GTMark {
     }
 
     this match {
-      case AnyType       => "*"
+      case AnyType       => "any"
       case TyVar(symbol) => symbol.name
       case FuncType(from, to) =>
         wrap(0)(from.map(_.pPrint(1)).mkString("(", ",", ")") + "->" + to.pPrint(0))
