@@ -139,7 +139,7 @@ object GStmt {
           fields = fields.updated(f.name, extractSignature(f))
         }
         val constructorType = extractSignature(constructor).copy(to = name)
-        val objT = ObjectType(fields.mapValues(_.asInstanceOf[GType]).view.force)
+        val objT = ObjectType(fields.mapValues(_.asInstanceOf[GType]))
         currentCtx = currentCtx.newTypeVar(name, objT).newVar(name, constructorType)
       case _ =>
     }
@@ -194,7 +194,7 @@ object GStmt {
       case FuncDef(_, args, newReturn: GType, body) =>
         val ctxWithArgs = ctx.copy(
           varAssign =
-            ctx.varAssign ++ args.toMap.mapValues(_.asInstanceOf[GType]).view.force
+            ctx.varAssign ++ args.toMap.mapValues(_.asInstanceOf[GType])
         )
         val (_, errs) = typeCheckStmt(body, ctxWithArgs, newReturn)
         ctx -> errs

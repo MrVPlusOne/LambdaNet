@@ -7,7 +7,7 @@ import GType._
 
 class GTypeTest extends WordSpec with MyTest {
   "GType pretty print test cases" in {
-    (List("a", "b") -: (List('c) -: any)).prettyPrint shouldBe "(a,b)->(c)->any"
+    (List("a", "b") -: (List('c) -: any)).prettyPrint shouldBe "(a,b)->(c)->*"
     val abcd = List('a) -: List('b) -: List('c) -: 'd
     abcd.prettyPrint shouldBe "(a)->(b)->(c)->d"
     obj('f -> abcd).prettyPrint shouldBe "{f: (a)->(b)->(c)->d}"

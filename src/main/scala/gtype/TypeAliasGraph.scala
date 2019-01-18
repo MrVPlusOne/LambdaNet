@@ -23,10 +23,10 @@ object TypeAliasGraph {
     import GroundType.symbolToType
 
     val typeUnfold = typeAliasings.mapValues {
-      case ObjectAliasing(fields) => ObjectType(fields.mapValues(symbolToType).view.force)
+      case ObjectAliasing(fields) => ObjectType(fields.mapValues(symbolToType))
       case FuncAliasing(argTypes, returnType) =>
         FuncType(argTypes.map(symbolToType), symbolToType(returnType))
-    }.view.force
+    }
 
     TypeContext(baseTypes = Set(), typeUnfold = typeUnfold, subRel = Set())
   }
@@ -47,7 +47,7 @@ object TypeAliasGraph {
 
           val tDef = ty match {
             case ObjectType(fields) =>
-              ObjectAliasing(fields.mapValues(f => getTypeName(f, None)).view.force)
+              ObjectAliasing(fields.mapValues(f => getTypeName(f, None)))
             case FuncType(from, to) =>
               FuncAliasing(from.map { x =>
                 getTypeName(x, None)
@@ -57,6 +57,7 @@ object TypeAliasGraph {
           val newSymbol = useName.getOrElse(Symbol("$<" + tDef.toString + ">"))
           tConstraints(newSymbol) = tDef
           typeNameMap(ty) = newSymbol
+          tDef.toString //todo: report this compiler bug
           newSymbol
       }
     }

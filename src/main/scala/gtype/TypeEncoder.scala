@@ -250,7 +250,7 @@ object TypeEncoder {
   }
 
   def main(args: Array[String]): Unit = {
-    val experimentName = "quickTest"
+    val experimentName = "i10-d10"
     println(s"Experiment Name: $experimentName")
 
     import ammonite.ops._
