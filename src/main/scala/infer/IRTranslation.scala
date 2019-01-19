@@ -1,6 +1,6 @@
 package infer
 
-import gtype.{GTHole, JSExamples}
+import gtype.{GTHole, JSExamples, GType}
 
 object IRTranslation {
   import IR._
@@ -10,9 +10,9 @@ object IRTranslation {
     var varIdx: Int = 0
     var tyVarIdx: Int = 0
 
-    def newTyVar(origin: Option[GTHole]): TyVar = {
+    def newTyVar(ty: Option[GType], origin: Option[GTHole]): TyVar = {
       assert(tyVarIdx >= 0)
-      val tv = TyVar(tyVarIdx, origin)
+      val tv = TyVar(tyVarIdx, ty, origin)
       tyVarIdx += 1
       tv
     }
@@ -24,11 +24,10 @@ object IRTranslation {
       v
     }
 
-    //fixme: Add labels to GTHoles (so that we can map tyVars back to the original source code)
-    def getTyMark(gMark: gtype.GTMark): TyMark = {
+    def getTyVar(gMark: gtype.GTMark): TyVar = {
       gMark match {
-        case h: gtype.GTHole => mark(newTyVar(Some(h)))
-        case ty: gtype.GType => mark(ty)
+        case h: gtype.GTHole => newTyVar(None, Some(h))
+        case ty: gtype.GType => newTyVar(Some(ty), None)
       }
     }
   }
@@ -39,8 +38,7 @@ object IRTranslation {
       case _ =>
         val v = env.newVar()
         Vector(
-          VarDef(v, mark(env.newTyVar(None))),
-          Assign(v, expr)
+          VarDef(v, env.newTyVar(None, None), expr)
         ) -> v
     }
 
@@ -62,15 +60,28 @@ object IRTranslation {
      *     ↳ [extends x]{ f, ..., f }
      */
     stmt match {
-      case gtype.VarDef(x, ty, init) =>
+      case gtype.VarDef(x, ty, init, isConst) =>
         val v = Var(x)
-        val (defs, initV) = translateExpr2(init)
-        defs ++ Vector(VarDef(v, env.getTyMark(ty)), Assign(v, initV))
+        val (defs, initE) = translateExpr2(init)
+        if (isConst) {
+          defs ++ Vector(VarDef(v, env.getTyVar(ty), initE))
+        } else {
+          val (defs2, initV) = exprAsVar(initE)
+          defs ++ defs2 ++ Vector(
+            VarDef(
+              v,
+              env.getTyVar(ty),
+              Const("undefined", gtype.AnyType)
+            ),
+            Assign(v, initV)
+          )
+        }
       case gtype.AssignStmt(lhs, rhs) =>
         val (lDefs, lE) = translateExpr2(lhs)
         val (rDefs, rE) = translateExpr2(rhs)
         val (defs3, lV) = exprAsVar(lE)
-        (lDefs ++ rDefs ++ defs3) :+ Assign(lV, rE)
+        val (defs4, rV) = exprAsVar(rE)
+        (lDefs ++ rDefs ++ defs3 ++ defs4) :+ Assign(lV, rV)
       case gtype.ExprStmt(expr, isReturn) =>
         val (defs, e) = translateExpr2(expr)
         val (defs2, r) = exprAsVar(e)
@@ -99,9 +110,7 @@ object IRTranslation {
             Var(name),
             superType.map(Var),
             translateFunc(constructor),
-            vars.mapValues { mark =>
-              env.getTyMark(mark)
-            },
+            vars.mapValues(mark => env.getTyVar(mark)),
             funcDefs.map(translateFunc)
           )
         )
@@ -117,9 +126,9 @@ object IRTranslation {
     val fV = Var(name)
     val args1 = args.map {
       case (argName, mark) =>
-        Var(argName) -> env.getTyMark(mark)
+        Var(argName) -> env.getTyVar(mark)
     }
-    FuncDef(fV, args1, env.getTyMark(returnType), translateStmt(body))
+    FuncDef(fV, args1, env.getTyVar(returnType), translateStmt(body))
   }
 
   import collection.mutable

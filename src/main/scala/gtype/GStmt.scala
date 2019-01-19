@@ -29,7 +29,7 @@ sealed trait GStmt
 
 // === Start of Statement definitions ====
 
-case class VarDef(x: Symbol, ty: GTMark, init: GExpr) extends GStmt
+case class VarDef(x: Symbol, ty: GTMark, init: GExpr, isConst: Boolean) extends GStmt
 
 case class AssignStmt(lhs: GExpr, rhs: GExpr) extends GStmt
 
@@ -87,10 +87,12 @@ object GStmt {
 
     def RETURN(expr: GExpr) = ExprStmt(expr, isReturn = true)
 
-    def VAR(x: Symbol, ty: GTMark)(init: GExpr) = VarDef(x, ty, init)
+    // todo: Fix the isConst part
+    def VAR(x: Symbol, ty: GTMark)(init: GExpr) = VarDef(x, ty, init, isConst = false)
 
+    // todo: Fix the isConst part
     def VAR(x: Symbol)(init: GExpr)(implicit ctx: SurfaceContext) = {
-      VarDef(x, ctx.newTHole(), init)
+      VarDef(x, ctx.newTHole(), init, isConst = false)
     }
 
     def BLOCK(stmts: GStmt*): BlockStmt = {
@@ -180,7 +182,7 @@ object GStmt {
   ): (ExprContext, Set[TypeCheckError]) = {
     import ctx.typeContext.mkSubtypeError
     stmt match {
-      case VarDef(x, ty, init) =>
+      case VarDef(x, ty, init, _) =>
         ty match {
           case ty: GType =>
             val ctx1 = ctx.newVar(x, ty)

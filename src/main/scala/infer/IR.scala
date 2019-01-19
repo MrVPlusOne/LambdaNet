@@ -49,18 +49,11 @@ object IR {
     def prettyPrint: String = s"($cond ? $e1 : $e2)"
   }
 
-  sealed trait TyMark
-
-  case class Annotated(ty: GType) extends TyMark {
-    override def toString: String = ty.toString
+  case class TyVar(id: Int, freezeToType: Option[GType], origin: Option[GTHole]) {
+    override def toString: String = {
+      freezeToType.map(_.toString).getOrElse(s"𝒯$id")
+    }
   }
-
-  case class TyVar(id: Int, origin: Option[GTHole]) extends TyMark {
-    override def toString: String = s"𝒯$id"
-  }
-
-  def mark(tyVar: TyVar): TyMark = tyVar
-  def mark(ty: GType): TyMark = Annotated(ty)
 
   // @formatter:off
   /**
@@ -68,8 +61,8 @@ object IR {
     * a statement in Single Assignment Form
     *
     * S :=                                  ([[IRStmt]])
-    *   | var x: α                          ([[VarDef]])
-    *   | x := e                            ([[Assign]])
+    *   | var x: τ = e                      ([[VarDef]])
+    *   | x := x                            ([[Assign]])
     *   | [return] x                        ([[ReturnStmt]])
     *   | if(x) S else S                    ([[IfStmt]])
     *   | while(x) S                        ([[WhileStmt]])
@@ -80,7 +73,7 @@ object IR {
     *
     * where x is [[Var]]
     *       l is [[Symbol]],
-    *       α is [[TyMark]],
+    *       τ is [[TyVar]],
     *       e is [[IRExpr]],
     *       f is [[FuncDef]]
     * */
@@ -98,10 +91,22 @@ object IR {
     override def toString: String = prettyPrint()
   }
 
+  case class VarDef(v: Var, tyVar: TyVar, rhs: IRExpr) extends IRStmt
+
+  case class Assign(lhs: Var, rhs: Var) extends IRStmt
+
+  case class ReturnStmt(v: Var) extends IRStmt
+
+  case class IfStmt(cond: Var, e1: IRStmt, e2: IRStmt) extends IRStmt
+
+  case class WhileStmt(cond: Var, body: IRStmt) extends IRStmt
+
+  case class BlockStmt(stmts: Vector[IRStmt]) extends IRStmt
+
   object IRStmt {
     def prettyPrintHelper(indent: Int, stmt: IRStmt): Vector[(Int, String)] = {
       stmt match {
-        case VarDef(v, ty)    => Vector(indent -> s"let $v: $ty;")
+        case VarDef(v, ty, rhs)    => Vector(indent -> s"let $v: $ty = $rhs;")
         case Assign(lhs, rhs) => Vector(indent -> s"$lhs = $rhs;")
         case ReturnStmt(v)    => Vector(indent -> s"return $v;")
         case IfStmt(cond, e1, e2) =>
@@ -116,12 +121,12 @@ object IR {
           ) :+ (indent -> "}")
         case FuncDef(funcV, args, returnType, body) =>
           val argList = args
-            .map { case (v, tyMark) => s"$v: $tyMark" }
+            .map { case (v, tv) => s"$v: $tv" }
             .mkString("(", ", ", ")")
           val funcKeyword =
             if (funcV.symbol == gtype.ClassDef.constructorSymbol) ""
             else "function "
-          val returnMark = if (returnType == Annotated(GType.voidType)) "" else s": $returnType"
+          val returnMark = if (returnType.freezeToType.contains(GType.voidType)) "" else s": $returnType"
           Vector(indent -> s"$funcKeyword$funcV$argList$returnMark {") ++
             body.flatMap(s => prettyPrintHelper(indent + 1, s)) ++ Vector(
             indent -> "}"
@@ -132,8 +137,8 @@ object IR {
             .getOrElse("")
           Vector(indent -> s"class $name $superPart {") ++
             vars.toList.map {
-              case (fieldName, tyMark) =>
-                (indent + 1, s"${fieldName.name}: $tyMark;")
+              case (fieldName, tv) =>
+                (indent + 1, s"${fieldName.name}: $tv;")
             } ++
             (constructor +: funcDefs).flatMap(
               fDef => prettyPrintHelper(indent + 1, fDef)
@@ -142,19 +147,6 @@ object IR {
       }
     }
   }
-
-  case class VarDef(v: Var, ty: TyMark) extends IRStmt
-
-  case class Assign(lhs: Var, rhs: IRExpr) extends IRStmt
-
-  case class ReturnStmt(v: Var) extends IRStmt
-
-  case class IfStmt(cond: Var, e1: IRStmt, e2: IRStmt) extends IRStmt
-
-  case class WhileStmt(cond: Var, body: IRStmt) extends IRStmt
-
-  case class BlockStmt(stmts: Vector[IRStmt]) extends IRStmt
-
   def tryToBlock(stmts: Vector[IRStmt]): IRStmt = {
     if (stmts.length == 1) {
       stmts.head
@@ -165,8 +157,8 @@ object IR {
 
   case class FuncDef(
     funcV: Var,
-    args: List[(Var, TyMark)],
-    returnType: TyMark,
+    args: List[(Var, TyVar)],
+    returnType: TyVar,
     body: Vector[IRStmt]
   ) extends IRStmt
 
@@ -174,11 +166,11 @@ object IR {
     name: Var,
     superType: Option[Var] = None,
     constructor: FuncDef,
-    vars: Map[Symbol, TyMark],
+    vars: Map[Symbol, TyVar],
     funcDefs: Vector[FuncDef]
   ) extends IRStmt {
-    //    require(constructor.v == name)
-    //    require(constructor.returnType == any)
+//    require(constructor.funcV == name)
+//    require(constructor.returnType == any)
   }
 
 }
