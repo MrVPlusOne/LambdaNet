@@ -23,3 +23,15 @@ Maximize the number of correct (user-annotated) type annotations.
 
 ### Current Progress
 See [Agenda](Agenda.md).
+
+
+### Where are things
+**Surface Language**: [GStmt](src/main/scala/gtype/GStmt.scala), [GExpr]([GStmt](src/main/scala/gtype/GExpr.scala))
+
+**Intermediate Language**: [IR]([GStmt](src/main/scala/infer/IR.scala)), [IRTranslation]([GStmt](src/main/scala/infer/IRTranslation.scala))
+
+**Relation Graph**: [RelationGraph](src/main/scala/infer/RelationGraph.scala)
+
+**Graph Neural Network Embedding**: TODO
+
+**Type Decoding**: TODO
