@@ -19,12 +19,22 @@ object SimpleMath {
       def mapValuesNow[T](f: V => T): Map[K, T] = {
         map.mapValues(f).view.force
       }
+
+      def compose(that: Map[K, V])(
+        implicit subRule: SubstituteRule[K, V]
+      ): Map[K, V] = {
+        that ++ this.mapValuesNow(v => subRule.substitute(v, that))
+      }
+    }
+
+    trait SubstituteRule[K, V] {
+      def substitute(v: V, sub: Map[K, V]): V
     }
   }
 
   import SimpleMath.Extensions._
 
-  def relu(x: Double): Double = if(x<0) 0.0 else x
+  def relu(x: Double): Double = if (x < 0) 0.0 else x
 
   def wrapInRange(i: Int, range: Int): Int = {
     val m = i % range
@@ -33,15 +43,15 @@ object SimpleMath {
 
   def wrapInRange(x: Double, size: Double): Double = {
     val m = x % size
-    if(m < 0) m + size else m
+    if (m < 0) m + size else m
   }
 
   def wrapInRange(x: Double, low: Double, high: Double): Double = {
-    wrapInRange(x - low, high-low) + low
+    wrapInRange(x - low, high - low) + low
   }
 
   def clapInRange(from: Double, to: Double)(x: Double): Double = {
-    if(x < from) from
+    if (x < from) from
     else if (x > to) to
     else x
   }
@@ -52,13 +62,13 @@ object SimpleMath {
   }
 
   def meanOrElse(xs: Seq[Double], default: Double): Double = {
-    if(xs.nonEmpty){
+    if (xs.nonEmpty) {
       xs.sum / xs.length
-    }else default
+    } else default
   }
 
   def meanOpt(xs: Seq[Double]): Option[Double] = {
-    if(xs.isEmpty) None
+    if (xs.isEmpty) None
     else Some(xs.sum / xs.length)
   }
 
@@ -66,10 +76,10 @@ object SimpleMath {
   def square(x: Double): Double = x * x
 
   @inline
-  def cubic(x: Double): Double = x*x*x
+  def cubic(x: Double): Double = x * x * x
 
   def gaussianForthOrder(halfPoint: Double)(x: Double): Double = {
-    math.pow(2,-math.pow(x/halfPoint,4))
+    math.pow(2, -math.pow(x / halfPoint, 4))
   }
 
   def randomSelect[A](xs: IndexedSeq[A])(implicit random: Random): A = {
@@ -81,37 +91,41 @@ object SimpleMath {
     random.nextDouble() < pTrue
   }
 
-  def safeAbs(x: Int): Int = math.max(0, if(x<0) -x else x)
+  def safeAbs(x: Int): Int = math.max(0, if (x < 0) -x else x)
 
-  def expChoppedGaussian(chopMargin: (Double, Double), base: Double, powerE: Double)(random: Random): Double = {
+  def expChoppedGaussian(chopMargin: (Double, Double), base: Double, powerE: Double)(
+    random: Random
+  ): Double = {
     val x = random.nextGaussian()
-    if(x< chopMargin._1 || x > chopMargin._2){
+    if (x < chopMargin._1 || x > chopMargin._2) {
       expChoppedGaussian(chopMargin, base, powerE)(random)
-    }else{
+    } else {
       math.pow(base, x * powerE)
     }
   }
 
   def natToList(n: Int, base: Int): List[Int] = {
-    require(n>=0)
+    require(n >= 0)
     require(base > 0)
     def rec(n: Int): List[Int] = {
-      if(n==0) List()
-      else{
+      if (n == 0) List()
+      else {
         val residual = n % base
-        residual :: rec(n/base)
+        residual :: rec(n / base)
       }
     }
     val r = rec(n).reverse
-    if(r.isEmpty) List(0) else r
+    if (r.isEmpty) List(0) else r
   }
 
   def aggressiveSigmoid(aggressiveness: Double): Real => Real = (x: Double) => {
-    val a = math.pow(50, 2*(0.5 - aggressiveness))
-    math.pow(x,a)
+    val a = math.pow(50, 2 * (0.5 - aggressiveness))
+    math.pow(x, a)
   }
 
-  def aggressiveInterpolate(aggressiveness: Double, from: Double, to: Double)(x: Double): Real = {
+  def aggressiveInterpolate(aggressiveness: Double, from: Double, to: Double)(
+    x: Double
+  ): Real = {
     linearInterpolate(from, to)(aggressiveSigmoid(aggressiveness)(x))
   }
 
@@ -120,25 +134,27 @@ object SimpleMath {
   }
 
   def expInterpolate(from: Double, to: Double, base: Double)(x: Double): Double = {
-    val ratio = to/from
+    val ratio = to / from
     val l = math.log(ratio) / math.log(base)
     from * math.pow(base, linearInterpolate(0, l)(x))
   }
 
-  def sigmoid(x: Double): Real = 1.0/(1+math.exp(-x))
+  def sigmoid(x: Double): Real = 1.0 / (1 + math.exp(-x))
 
-  def parallelMap[A,B](seq: Seq[A], threadNum: Int)(f: A => B): Seq[B] = {
-    require(threadNum>0)
+  def parallelMap[A, B](seq: Seq[A], threadNum: Int)(f: A => B): Seq[B] = {
+    require(threadNum > 0)
     import scala.collection.parallel
     import parallel._
 
-    val taskSupport = new ForkJoinTaskSupport(new scala.concurrent.forkjoin.ForkJoinPool(threadNum))
+    val taskSupport = new ForkJoinTaskSupport(
+      new scala.concurrent.forkjoin.ForkJoinPool(threadNum)
+    )
 
-    if(threadNum>1) {
+    if (threadNum > 1) {
       val p = seq.par
       p.tasksupport = taskSupport
       p.map(f).toIndexedSeq
-    }else{
+    } else {
       seq.map(f).toIndexedSeq
     }
   }
@@ -170,10 +186,12 @@ object SimpleMath {
 
   /**
     * Perform a map on a [[Seq]] in parallel. The order of starting each task is preserved as the [[Seq]].  */
-  def parallelMapOrdered[A,B](seq: Seq[A], threadNum: Int, timeoutSec: Int = 20474834)(f: A => B): Seq[B] = {
-    require(threadNum>0)
+  def parallelMapOrdered[A, B](seq: Seq[A], threadNum: Int, timeoutSec: Int = 20474834)(
+    f: A => B
+  ): Seq[B] = {
+    require(threadNum > 0)
 
-    if(threadNum>1) {
+    if (threadNum > 1) {
       import akka.actor._
 
       import scala.concurrent.duration._
@@ -183,7 +201,8 @@ object SimpleMath {
       case class EvalResult(content: B)
 
       class MasterClass(supervisor: ActorRef, system: ActorSystem) extends Actor {
-        val slaves: IS[ActorRef] = IS.fill(threadNum)(system.actorOf(Props(new SlaveActor())))
+        val slaves: IS[ActorRef] =
+          IS.fill(threadNum)(system.actorOf(Props(new SlaveActor())))
         var started = 0
         var finished = 0
         val tasks: IS[A] = seq.toIndexedSeq
@@ -197,15 +216,15 @@ object SimpleMath {
 
         def receive: PartialFunction[Any, Unit] = {
           case StartTask =>
-            (0 until math.min(threadNum, tasks.length)).foreach(i =>
-              slaves(i) ! getNextTask())
+            (0 until math.min(threadNum, tasks.length))
+              .foreach(i => slaves(i) ! getNextTask())
           case EvalResult(b) =>
             results = b :: results
             finished += 1
-            if(started < tasks.length){
+            if (started < tasks.length) {
               sender() ! getNextTask()
             }
-            if(finished == tasks.length)
+            if (finished == tasks.length)
               supervisor ! results.reverse
         }
       }
@@ -225,21 +244,25 @@ object SimpleMath {
       val result = inbox.receive(timeoutSec.seconds).asInstanceOf[Seq[B]]
       system.terminate().value
       result
-    }else{
+    } else {
       seq.map(f).toIndexedSeq
     }
   }
 
-  def processMap(args: Array[String], tasks: IS[Int], processNum: Int, mainClass: Object)(f: Int => Unit): Unit = {
-    if(args.isEmpty){
-      parallelMapOrdered(tasks, processNum){ i =>
+  def processMap(args: Array[String], tasks: IS[Int], processNum: Int, mainClass: Object)(
+    f: Int => Unit
+  ): Unit = {
+    if (args.isEmpty) {
+      parallelMapOrdered(tasks, processNum) { i =>
         println(s"[JOB STARTED] id = $i")
 
         import java.io.File
         import java.nio.file.Paths
-        val javaPath = Paths.get(System.getProperty("java.home"), "bin", "java").toFile.getAbsolutePath
-        val jarPath = new File(this.getClass.getProtectionDomain.getCodeSource.getLocation.toURI.getPath).getAbsolutePath
-
+        val javaPath =
+          Paths.get(System.getProperty("java.home"), "bin", "java").toFile.getAbsolutePath
+        val jarPath = new File(
+          this.getClass.getProtectionDomain.getCodeSource.getLocation.toURI.getPath
+        ).getAbsolutePath
 
         val mainClassName = {
           val s = mainClass.getClass.getName
@@ -255,28 +278,32 @@ object SimpleMath {
 
         println(s"[JOB FINISHED] id = $i")
       }
-    }else{
+    } else {
       f(args.head.toInt)
     }
   }
 
-  def parallelMap[A,B](threadNum: Int): Seq[A] => (A => B) => IS[B] = {
+  def parallelMap[A, B](threadNum: Int): Seq[A] => (A => B) => IS[B] = {
     import scala.collection.parallel
     import parallel._
-    val taskSupport = new ForkJoinTaskSupport(new scala.concurrent.forkjoin.ForkJoinPool(threadNum))
+    val taskSupport = new ForkJoinTaskSupport(
+      new scala.concurrent.forkjoin.ForkJoinPool(threadNum)
+    )
     def parExecute(seq: Seq[A])(f: A => B): IS[B] = {
-      if(threadNum>1) {
+      if (threadNum > 1) {
         val p = seq.par
         p.tasksupport = taskSupport
         p.map(f).toIndexedSeq
-      }else{
+      } else {
         seq.map(f).toIndexedSeq
       }
     }
     parExecute
   }
 
-  def parallelMapWithResource[A,B,R](threadNum: Int)(xs: Seq[A], resources: IS[R])(f: (A, R) => B): IS[B] = {
+  def parallelMapWithResource[A, B, R](
+    threadNum: Int
+  )(xs: Seq[A], resources: IS[R])(f: (A, R) => B): IS[B] = {
     require(threadNum == resources.length)
     import collection.mutable
 
@@ -303,7 +330,7 @@ object SimpleMath {
     xs.map(_ / sum)
   }
 
-  case class PCF(pdf: IS[Double]){
+  case class PCF(pdf: IS[Double]) {
     val pcf: IS[Double] = {
       val normalizeFactor = pdf.sum
       var acc = 0.0
@@ -316,19 +343,21 @@ object SimpleMath {
     def sample(random: Random): Int = {
       val x = random.nextDouble()
 
-      val i = pcf.indexWhere { pAcc => x <= pAcc }
-      if(i == -1) pcf.length-1 else i
+      val i = pcf.indexWhere { pAcc =>
+        x <= pAcc
+      }
+      if (i == -1) pcf.length - 1 else i
     }
   }
 
-  case class Distribution[T](values: IS[T], pcf: PCF){
+  case class Distribution[T](values: IS[T], pcf: PCF) {
     require(values.length == pcf.pdf.length)
     def sample(implicit random: Random): T = {
       values(pcf.sample(random))
     }
   }
 
-  object Distribution{
+  object Distribution {
     def fromPdf[T](ps: (T, Double)*): Distribution[T] = {
       val (ts, p) = ps.toIndexedSeq.unzip
       Distribution(ts, PCF(p))
@@ -337,16 +366,15 @@ object SimpleMath {
 
   def maxwellDistribution(xPoints: IS[Double], temperature: Double): IS[Double] = {
     require(temperature > 0)
-    normalizeDistribution(
-      xPoints.map { x =>
-        square(x) * math.exp(-x * x / temperature)
-      })
+    normalizeDistribution(xPoints.map { x =>
+      square(x) * math.exp(-x * x / temperature)
+    })
   }
 
   /** measure the mutual information between two random variable `X` `Y`
     * @param frequencies a mapping given the number of each X,Y pair sampled from your distribution
     * */
-  def mutualInformation[X,Y](frequencies: Map[(X,Y), Int]): Double = {
+  def mutualInformation[X, Y](frequencies: Map[(X, Y), Int]): Double = {
     import collection.mutable
 
     val totalCount = frequencies.values.sum
@@ -366,11 +394,18 @@ object SimpleMath {
           countX(x) += n
           countY(y) += n
       }
-      (countX.toMap.mapValuesNow(_.toDouble / totalCount), countY.toMap.mapValuesNow(_.toDouble / totalCount))
+      (
+        countX.toMap.mapValuesNow(_.toDouble / totalCount),
+        countY.toMap.mapValuesNow(_.toDouble / totalCount)
+      )
     }
 
-    (for(x <- xDomain; y <- yDomain; pxy0 <- pxy.get(x -> y)) yield {
-       pxy0 * math.log(pxy0 / (px(x) * py(y)))
+    (for {
+      x <- xDomain
+      y <- yDomain
+      pxy0 <- pxy.get(x -> y)
+    } yield {
+      pxy0 * math.log(pxy0 / (px(x) * py(y)))
     }).sum / math.log(2)
   }
 
@@ -384,14 +419,16 @@ object SimpleMath {
     } else {
       val xs = {
         var dataPointsLeft = maxPoints
-        val filtered = values.indices.filter{i =>
-          val keep = SimpleMath.randomGuess(random)(dataPointsLeft.toDouble/(values.length-i))
-          if(keep){
+        val filtered = values.indices.filter { i =>
+          val keep =
+            SimpleMath.randomGuess(random)(dataPointsLeft.toDouble / (values.length - i))
+          if (keep) {
             dataPointsLeft -= 1
           }
           keep
         }
-        if (filtered.last != (values.length - 1)) filtered :+ (values.length - 1) else filtered
+        if (filtered.last != (values.length - 1)) filtered :+ (values.length - 1)
+        else filtered
       }
       xs.map(values.apply)
     }
@@ -400,7 +437,7 @@ object SimpleMath {
   /** In statistics, the coefficient of determination, denoted R2 or r2 and pronounced "R squared", is the proportion of the variance in the dependent variable that is predictable from the independent variable(s) */
   def rSquared(ys: IS[Double], predictions: IS[Double], weights: IS[Double]): Double = {
     val n = ys.length
-    val mean = (0 until n).map(i => ys(i) * weights(i)).sum/n
+    val mean = (0 until n).map(i => ys(i) * weights(i)).sum / n
     val resSquared = (0 until n).map(i => square(ys(i) - predictions(i)) * weights(i)).sum
     val variance = (0 until n).map(i => square(ys(i) - mean) * weights(i)).sum
     1 - resSquared / variance
@@ -418,15 +455,18 @@ object SimpleMath {
 
     def mix(x: Double): Unit = {
       t += 1
-      val m = if(t <= window) 1.0/t else 1.0/window
-      value = value * (1-m) + x * m
+      val m = if (t <= window) 1.0 / t else 1.0 / window
+      value = value * (1 - m) + x * m
     }
   }
 
-  def mapSetZipWith[K, A, B, C](ms1: Map[K, Set[A]], ms2: Map[K, Set[B]])
-                            (f: (Set[A], Set[B]) => Set[C]): Map[K, Set[C]] = {
+  def mapSetZipWith[K, A, B, C](ms1: Map[K, Set[A]], ms2: Map[K, Set[B]])(
+    f: (Set[A], Set[B]) => Set[C]
+  ): Map[K, Set[C]] = {
     val keys = ms1.keySet ++ ms2.keySet
-    keys.map { k => k -> f(ms1.getOrElse(k, Set()), ms2.getOrElse(k, Set())) }.toMap
+    keys.map { k =>
+      k -> f(ms1.getOrElse(k, Set()), ms2.getOrElse(k, Set()))
+    }.toMap
   }
 
   //  /** use exponentially weighted moving variance to calculate rSquared
@@ -449,14 +489,13 @@ object SimpleMath {
 
   def main(args: Array[String]): Unit = {
     val counts = Map(
-      (1,1) -> 1,
-      (2,2) -> 1,
-      (1,2) -> 1,
-      (2,1) -> 1
+      (1, 1) -> 1,
+      (2, 2) -> 1,
+      (1, 2) -> 1,
+      (2, 1) -> 1
     )
-    println{
+    println {
       mutualInformation(counts)
     }
   }
 }
-
