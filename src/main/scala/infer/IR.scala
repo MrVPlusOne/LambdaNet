@@ -30,9 +30,17 @@ object IR {
     override def toString: String = prettyPrint
   }
 
-  case class Var(symbol: Symbol) extends IRExpr {
-    def prettyPrint: String = symbol.name
+  case class Var(content: Either[Int, Symbol]) extends IRExpr {
+    val nameOpt: Option[Symbol] = content.right.toOption
+
+    def prettyPrint: String = content match {
+      case Left(id)    => s"𝓥$id"
+      case Right(name) => name.name
+    }
   }
+
+  def namedVar(name: Symbol) = Var(Right(name))
+
   case class Const(value: Any, ty: GType) extends IRExpr {
     def prettyPrint: String = s"($value: $ty)"
   }
@@ -50,12 +58,20 @@ object IR {
     def prettyPrint: String = s"($cond ? $e1 : $e2)"
   }
 
-  sealed trait IRMark
+  sealed trait IRType
 
-  case class Known(ty: GType) extends IRMark
+  case class KnownType(ty: GType) extends IRType{
+    override def toString: String = s"[$ty]"
+  }
 
-  case class Unknown(id: Int, origin: Option[GTHole]) extends IRMark {
-    override def toString: String = s"𝒯$id"
+  case class UnknownType(id: Int, origin: Option[GTHole], name: Option[Symbol])
+      extends IRType {
+    override def toString: String =
+      name
+        .map { n =>
+          s"𝒯${n.name}"
+        }
+        .getOrElse(s"𝒯$id")
   }
 
   // @formatter:off
@@ -76,7 +92,7 @@ object IR {
     *
     * where x is [[Var]]
     *       l is [[Symbol]],
-    *       τ is [[IRMark]],
+    *       τ is [[IRType]],
     *       e is [[IRExpr]],
     *       f is [[FuncDef]]
     * */
@@ -94,7 +110,7 @@ object IR {
     override def toString: String = prettyPrint()
   }
 
-  case class VarDef(v: Var, mark: IRMark, rhs: IRExpr) extends IRStmt
+  case class VarDef(v: Var, mark: IRType, rhs: IRExpr) extends IRStmt
 
   case class Assign(lhs: Var, rhs: Var) extends IRStmt
 
@@ -107,27 +123,27 @@ object IR {
   case class BlockStmt(stmts: Vector[IRStmt]) extends IRStmt
 
   case class FuncDef(
-    name: Symbol,
-    args: List[(Var, IRMark)],
-    returnType: IRMark,
-    body: Vector[IRStmt],
-    funcT: Unknown
+                      name: Symbol,
+                      args: List[(Var, IRType)],
+                      returnType: IRType,
+                      body: Vector[IRStmt],
+                      funcT: UnknownType
   ) extends IRStmt
 
   case class ClassDef(
-    name: Symbol,
-    superType: Option[Symbol] = None,
-    constructor: FuncDef,
-    vars: Map[Symbol, IRMark],
-    funcDefs: Vector[FuncDef],
-    classT: Unknown
+                       name: Symbol,
+                       superType: Option[Symbol] = None,
+                       constructor: FuncDef,
+                       vars: Map[Symbol, IRType],
+                       funcDefs: Vector[FuncDef],
+                       classT: UnknownType
   ) extends IRStmt {
-//    require(constructor.funcV == name)
-//    require(constructor.returnType == any)
+    require(constructor.name == gtype.ClassDef.constructorName(name))
+    require(constructor.returnType == classT)
   }
 
   object ClassDef {
-    val thisVar = Var(gtype.ClassDef.thisSymbol)
+    val thisVar = namedVar(gtype.ClassDef.thisSymbol)
 //    val superVar = Var(gtype.ClassDef.superSymbol)
   }
 
@@ -152,7 +168,7 @@ object IR {
             .map { case (v, tv) => s"$v: $tv" }
             .mkString("(", ", ", ")")
           val returnMark =
-            if (returnType == Known(GType.voidType)) "" else s": $returnType"
+            if (returnType == KnownType(GType.voidType)) "" else s": $returnType"
           Vector(indent -> s"function $funcName:$funcT $argList$returnMark {") ++
             body.flatMap(s => prettyPrintHelper(indent + 1, s)) ++ Vector(
             indent -> "}"

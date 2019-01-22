@@ -9,35 +9,35 @@ object RelationGraph {
 
   sealed trait TyVarRelation
 
-  case class EqualityRel(v1: IRMark, v2: IRMark) extends TyVarRelation
-  case class FreezeType(v: IRMark, ty: GType) extends TyVarRelation
-  case class SubtypeRel(sub: IRMark, sup: IRMark) extends TyVarRelation
-  case class AssignRel(lhs: IRMark, rhs: IRMark) extends TyVarRelation
-  case class UsedAsBoolean(tyVar: IRMark) extends TyVarRelation
-  case class InheritanceRel(child: IRMark, parent: IRMark) extends TyVarRelation
-  case class DefineRel(v: IRMark, expr: TypeExpr) extends TyVarRelation
+  case class EqualityRel(v1: IRType, v2: IRType) extends TyVarRelation
+  case class FreezeType(v: IRType, ty: GType) extends TyVarRelation
+  case class SubtypeRel(sub: IRType, sup: IRType) extends TyVarRelation
+  case class AssignRel(lhs: IRType, rhs: IRType) extends TyVarRelation
+  case class UsedAsBoolean(tyVar: IRType) extends TyVarRelation
+  case class InheritanceRel(child: IRType, parent: IRType) extends TyVarRelation
+  case class DefineRel(v: IRType, expr: TypeExpr) extends TyVarRelation
 
   sealed trait TypeExpr
-  case class FuncTypeExpr(argTypes: List[IRMark], returnType: IRMark) extends TypeExpr
-  case class CallTypeExpr(f: IRMark, args: List[IRMark]) extends TypeExpr
-  case class ObjLiteralTypeExpr(fields: Map[Symbol, IRMark]) extends TypeExpr
-  case class FieldAccessTypeExpr(objType: IRMark, field: Symbol) extends TypeExpr
+  case class FuncTypeExpr(argTypes: List[IRType], returnType: IRType) extends TypeExpr
+  case class CallTypeExpr(f: IRType, args: List[IRType]) extends TypeExpr
+  case class ObjLiteralTypeExpr(fields: Map[Symbol, IRType]) extends TypeExpr
+  case class FieldAccessTypeExpr(objType: IRType, field: Symbol) extends TypeExpr
 
   case class EncodingCtx(
-    typeMap: Map[Var, IRMark],
-    returnType: IRMark,
-    objectMap: Map[Symbol, IRMark]
+                          typeMap: Map[Var, IRType],
+                          returnType: IRType,
+                          objectMap: Map[Symbol, IRType]
   )
 
   object EncodingCtx {
     val empty: EncodingCtx =
-      EncodingCtx(Map(), Known(GType.voidType), Map())
+      EncodingCtx(Map(), KnownType(GType.voidType), Map())
     val jsCtx: EncodingCtx = {
       val typeMap = JSExamples.exprContext.varAssign.map {
-        case (s, t) => Var(s) -> Known(t)
+        case (s, t) => namedVar(s) -> KnownType(t)
       }
-      val objDef = JSExamples.typeContext.typeUnfold.mapValuesNow(Known)
-      EncodingCtx(typeMap, Known(GType.voidType), objDef)
+      val objDef = JSExamples.typeContext.typeUnfold.mapValuesNow(KnownType)
+      EncodingCtx(typeMap, KnownType(GType.voidType), objDef)
     }
   }
 
@@ -61,8 +61,8 @@ object RelationGraph {
 
       val defs = stmts.collect {
         case VarDef(v, tyVar, _) => v -> tyVar
-        case f: FuncDef          => Var(f.name) -> f.funcT
-        case c: ClassDef         => Var(c.constructor.name) -> c.constructor.funcT
+        case f: FuncDef          => namedVar(f.name) -> f.funcT
+        case c: ClassDef         => namedVar(c.constructor.name) -> c.constructor.funcT
       }
 
       ctx.copy(typeMap = ctx.typeMap ++ defs, objectMap = ctx.objectMap ++ classDefs)

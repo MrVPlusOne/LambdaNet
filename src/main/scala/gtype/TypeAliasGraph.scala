@@ -59,7 +59,6 @@ object TypeAliasGraph {
           val newSymbol = useName.getOrElse(Symbol("$<" + tDef.toString + ">"))
           tConstraints(newSymbol) = tDef
           typeNameMap(ty) = newSymbol
-          tDef.toString //todo: report this compiler bug
           newSymbol
       }
     }

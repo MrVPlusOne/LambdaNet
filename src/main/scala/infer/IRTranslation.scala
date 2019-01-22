@@ -10,24 +10,24 @@ object IRTranslation {
     var varIdx: Int = 0
     var tyVarIdx: Int = 0
 
-    def newTyVar(origin: Option[GTHole]): Unknown = {
+    def newTyVar(origin: Option[GTHole], name: Option[Symbol]): UnknownType = {
       assert(tyVarIdx >= 0)
-      val tv = Unknown(tyVarIdx, origin)
+      val tv = UnknownType(tyVarIdx, origin, name)
       tyVarIdx += 1
       tv
     }
 
     def newVar(): Var = {
       assert(varIdx >= 0)
-      val v = Var(Symbol(s"𝓥$varIdx"))
+      val v = Var(Left(varIdx))
       varIdx += 1
       v
     }
 
-    def getTyVar(gMark: gtype.GTMark): IRMark = {
+    def getTyVar(gMark: gtype.GTMark, name: Option[Symbol]): IRType = {
       gMark match {
-        case h: gtype.GTHole => newTyVar(Some(h))
-        case ty: gtype.GType => Known(ty)
+        case h: gtype.GTHole => newTyVar(Some(h), name)
+        case ty: gtype.GType => KnownType(ty)
       }
     }
   }
@@ -38,7 +38,7 @@ object IRTranslation {
       case _ =>
         val v = env.newVar()
         Vector(
-          VarDef(v, env.newTyVar(None), expr)
+          VarDef(v, env.newTyVar(None, None), expr)
         ) -> v
     }
 
@@ -61,16 +61,16 @@ object IRTranslation {
      */
     stmt match {
       case gtype.VarDef(x, ty, init, isConst) =>
-        val v = Var(x)
+        val v = namedVar(x)
         val (defs, initE) = translateExpr2(init)
         if (isConst) {
-          defs ++ Vector(VarDef(v, env.getTyVar(ty), initE))
+          defs ++ Vector(VarDef(v, env.getTyVar(ty, v.nameOpt), initE))
         } else {
           val (defs2, initV) = exprAsVar(initE)
           defs ++ defs2 ++ Vector(
             VarDef(
               v,
-              env.getTyVar(ty),
+              env.getTyVar(ty, v.nameOpt),
               Const("undefined", gtype.AnyType)
             ),
             Assign(v, initV)
@@ -105,14 +105,15 @@ object IRTranslation {
         stmts.flatMap(translateStmt)
       case f: gtype.FuncDef => Vector(translateFunc(f))
       case gtype.ClassDef(name, superType, constructor, vars, funcDefs) =>
+        val classT = env.newTyVar(None, Some(name))
         Vector(
           ClassDef(
             name,
             superType,
-            translateFunc(constructor),
-            vars.mapValues(mark => env.getTyVar(mark)),
+            translateFunc(constructor).copy(returnType = classT),
+            vars.map{case (v, mark) => v -> env.getTyVar(mark, Some(v))},
             funcDefs.map(translateFunc),
-            env.newTyVar(None)
+            classT
           )
         )
     }
@@ -126,9 +127,9 @@ object IRTranslation {
     import func._
     val args1 = args.map {
       case (argName, mark) =>
-        Var(argName) -> env.getTyVar(mark)
+        namedVar(argName) -> env.getTyVar(mark, Some(argName))
     }
-    FuncDef(name, args1, env.getTyVar(returnType), translateStmt(body), env.newTyVar(None))
+    FuncDef(name, args1, env.getTyVar(returnType, None), translateStmt(body), env.newTyVar(None, Some(name)))
   }
 
   import collection.mutable
@@ -158,7 +159,7 @@ object IRTranslation {
     }
 
     expr match {
-      case gtype.Var(name) => Var(name)
+      case gtype.Var(name) => namedVar(name)
       case gtype.Const(value, ty) =>
         Const(value, ty)
       case gtype.FuncCall(f, args) =>
