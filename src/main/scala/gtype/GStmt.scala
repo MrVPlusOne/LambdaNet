@@ -51,14 +51,14 @@ case class ClassDef(
   vars: Map[Symbol, GTMark],
   funcDefs: Vector[FuncDef]
 ) extends GStmt {
-  require(constructor.name == ClassDef.constructorSymbol)
+  require(constructor.name == ClassDef.constructorName(name))
   require(constructor.returnType == GType.voidType)
 }
 
 object ClassDef {
   val thisSymbol = 'this
   val superSymbol = 'super
-  val constructorSymbol = 'constructor
+  def constructorName(className: Symbol): Symbol = Symbol("NEW-" + className.name)
 }
 
 // === End of Statement definitions ====
@@ -121,8 +121,8 @@ object GStmt {
       FuncDef(name, args.toList, returnType, BLOCK(body: _*))
     }
 
-    def CONSTRUCTOR(args: (Symbol, GTMark)*)(body: GStmt*): FuncDef = {
-      FuncDef(ClassDef.constructorSymbol, args.toList, GType.voidType, BLOCK(body: _*))
+    def CONSTRUCTOR(className: Symbol, args: (Symbol, GTMark)*)(body: GStmt*): FuncDef = {
+      FuncDef(ClassDef.constructorName(className), args.toList, GType.voidType, BLOCK(body: _*))
     }
 
     def CLASS(name: Symbol, superType: Option[Symbol] = None)(

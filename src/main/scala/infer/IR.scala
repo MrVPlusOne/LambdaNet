@@ -1,6 +1,7 @@
 package infer
 
-import gtype.{GTHole, GType}
+import gtype.{GTHole, GType, JSExamples}
+import funcdiff.SimpleMath.Extensions._
 
 /**
   * An intermediate program representation useful for type inference
@@ -49,9 +50,57 @@ object IR {
     def prettyPrint: String = s"($cond ? $e1 : $e2)"
   }
 
-  case class TyVar(id: Int, freezeToType: Option[GType], origin: Option[GTHole]) {
-    override def toString: String = {
-      freezeToType.map(_.toString).getOrElse(s"𝒯$id")
+  /**
+    * T :=                      ([[IRType]])
+    *   | v                     ([[VarIRType]])
+    *   | t                     ([[ConcreteIRType]])
+    *   | (T,..., T) -> T       ([[FuncIRType]])
+    *   | {l: T, ..., l: T}     ([[ObjectIRType]])
+    *
+    *   where t is a concrete type [[GType]].
+    */
+  sealed trait IRType {
+    def replaceLeaves(sub: VarIRType => IRType): IRType = IRType.replaceLeaves(this, sub)
+  }
+
+  sealed trait BaseIRType extends IRType
+
+  case class ConcreteIRType(ty: GType) extends BaseIRType
+
+  case class VarIRType(id: Int, origin: Option[GTHole]) extends BaseIRType {
+    override def toString: String = s"𝒯$id"
+  }
+
+  case class FuncIRType(args: List[IRType], to: IRType) extends IRType
+
+  case class ObjectIRType(fields: Map[Symbol, IRType]) extends IRType
+
+  object IRType {
+    def replaceLeaves(ty: IRType, sub: VarIRType => IRType): IRType = ty match {
+      case c: ConcreteIRType => c
+      case v: VarIRType      => sub(v)
+      case FuncIRType(args, to) =>
+        FuncIRType(args.map(replaceLeaves(_, sub)), replaceLeaves(to, sub))
+      case ObjectIRType(fields) =>
+        ObjectIRType(fields.mapValuesNow(t => replaceLeaves(t, sub)))
+    }
+  }
+
+  case class IRCtx(
+    typeMap: Map[Var, IRType],
+    returnType: IRType,
+    objectDefs: Map[Symbol, Either[ObjectIRType, gtype.ObjectType]]
+  )
+
+  object IRCtx {
+    val empty: IRCtx = IRCtx(Map(), ConcreteIRType(GType.voidType), Map())
+    val jsCtx: IRCtx = {
+      val typeMap = JSExamples.exprContext.varAssign.map {
+        case (s, t) => Var(s) -> ConcreteIRType(t)
+      }
+      val objDef = JSExamples.typeContext.typeUnfold
+        .mapValuesNow(x => Right(x.asInstanceOf[gtype.ObjectType]))
+      IRCtx(typeMap, ConcreteIRType(GType.voidType), objDef)
     }
   }
 
@@ -73,7 +122,7 @@ object IR {
     *
     * where x is [[Var]]
     *       l is [[Symbol]],
-    *       τ is [[TyVar]],
+    *       τ is [[IRType]],
     *       e is [[IRExpr]],
     *       f is [[FuncDef]]
     * */
@@ -91,7 +140,7 @@ object IR {
     override def toString: String = prettyPrint()
   }
 
-  case class VarDef(v: Var, tyVar: TyVar, rhs: IRExpr) extends IRStmt
+  case class VarDef(v: Var, mark: BaseIRType, rhs: IRExpr) extends IRStmt
 
   case class Assign(lhs: Var, rhs: Var) extends IRStmt
 
@@ -103,12 +152,37 @@ object IR {
 
   case class BlockStmt(stmts: Vector[IRStmt]) extends IRStmt
 
+  case class FuncDef(
+    name: Symbol,
+    args: List[(Var, BaseIRType)],
+    returnType: BaseIRType,
+    body: Vector[IRStmt]
+  ) extends IRStmt {
+    val funcT = FuncIRType(args.map(_._2), returnType)
+  }
+
+  case class ClassDef(
+    name: Symbol,
+    superType: Option[Symbol] = None,
+    constructor: FuncDef,
+    vars: Map[Symbol, BaseIRType],
+    funcDefs: Vector[FuncDef]
+  ) extends IRStmt {
+//    require(constructor.funcV == name)
+//    require(constructor.returnType == any)
+  }
+
+  object ClassDef {
+    val thisVar = Var(gtype.ClassDef.thisSymbol)
+//    val superVar = Var(gtype.ClassDef.superSymbol)
+  }
+
   object IRStmt {
     def prettyPrintHelper(indent: Int, stmt: IRStmt): Vector[(Int, String)] = {
       stmt match {
-        case VarDef(v, ty, rhs)    => Vector(indent -> s"let $v: $ty = $rhs;")
-        case Assign(lhs, rhs) => Vector(indent -> s"$lhs = $rhs;")
-        case ReturnStmt(v)    => Vector(indent -> s"return $v;")
+        case VarDef(v, ty, rhs) => Vector(indent -> s"let $v: $ty = $rhs;")
+        case Assign(lhs, rhs)   => Vector(indent -> s"$lhs = $rhs;")
+        case ReturnStmt(v)      => Vector(indent -> s"return $v;")
         case IfStmt(cond, e1, e2) =>
           Vector(indent -> s"if ($cond)") ++
             prettyPrintHelper(indent, e1) ++ Vector(indent -> "else") ++
@@ -119,15 +193,13 @@ object IR {
           (indent -> "{") +: stmts.flatMap(
             s => prettyPrintHelper(indent + 1, s)
           ) :+ (indent -> "}")
-        case FuncDef(funcV, args, returnType, body) =>
+        case FuncDef(funcName, args, returnType, body) =>
           val argList = args
             .map { case (v, tv) => s"$v: $tv" }
             .mkString("(", ", ", ")")
-          val funcKeyword =
-            if (funcV.symbol == gtype.ClassDef.constructorSymbol) ""
-            else "function "
-          val returnMark = if (returnType.freezeToType.contains(GType.voidType)) "" else s": $returnType"
-          Vector(indent -> s"$funcKeyword$funcV$argList$returnMark {") ++
+          val returnMark =
+            if (returnType == ConcreteIRType(GType.voidType)) "" else s": $returnType"
+          Vector(indent -> s"function $funcName$argList$returnMark {") ++
             body.flatMap(s => prettyPrintHelper(indent + 1, s)) ++ Vector(
             indent -> "}"
           )
@@ -153,24 +225,6 @@ object IR {
     } else {
       BlockStmt(stmts)
     }
-  }
-
-  case class FuncDef(
-    funcV: Var,
-    args: List[(Var, TyVar)],
-    returnType: TyVar,
-    body: Vector[IRStmt]
-  ) extends IRStmt
-
-  case class ClassDef(
-    name: Var,
-    superType: Option[Var] = None,
-    constructor: FuncDef,
-    vars: Map[Symbol, TyVar],
-    funcDefs: Vector[FuncDef]
-  ) extends IRStmt {
-//    require(constructor.funcV == name)
-//    require(constructor.returnType == any)
   }
 
 }

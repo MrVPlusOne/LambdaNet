@@ -4,7 +4,7 @@
 
 Todo:
 
-- [ ] generate inference graph from IR
+- [ ] generate relation graph from IR
 
 Done:
 

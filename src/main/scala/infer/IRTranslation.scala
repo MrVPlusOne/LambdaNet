@@ -1,6 +1,6 @@
 package infer
 
-import gtype.{GTHole, JSExamples, GType}
+import gtype.{GTHole, JSExamples}
 
 object IRTranslation {
   import IR._
@@ -10,9 +10,9 @@ object IRTranslation {
     var varIdx: Int = 0
     var tyVarIdx: Int = 0
 
-    def newTyVar(ty: Option[GType], origin: Option[GTHole]): TyVar = {
+    def newTyVar(origin: Option[GTHole]): VarIRType = {
       assert(tyVarIdx >= 0)
-      val tv = TyVar(tyVarIdx, ty, origin)
+      val tv = VarIRType(tyVarIdx, origin)
       tyVarIdx += 1
       tv
     }
@@ -24,10 +24,10 @@ object IRTranslation {
       v
     }
 
-    def getTyVar(gMark: gtype.GTMark): TyVar = {
+    def getTyVar(gMark: gtype.GTMark): BaseIRType = {
       gMark match {
-        case h: gtype.GTHole => newTyVar(None, Some(h))
-        case ty: gtype.GType => newTyVar(Some(ty), None)
+        case h: gtype.GTHole => newTyVar(Some(h))
+        case ty: gtype.GType => ConcreteIRType(ty)
       }
     }
   }
@@ -38,7 +38,7 @@ object IRTranslation {
       case _ =>
         val v = env.newVar()
         Vector(
-          VarDef(v, env.newTyVar(None, None), expr)
+          VarDef(v, env.newTyVar(None), expr)
         ) -> v
     }
 
@@ -107,8 +107,8 @@ object IRTranslation {
       case gtype.ClassDef(name, superType, constructor, vars, funcDefs) =>
         Vector(
           ClassDef(
-            Var(name),
-            superType.map(Var),
+            name,
+            superType,
             translateFunc(constructor),
             vars.mapValues(mark => env.getTyVar(mark)),
             funcDefs.map(translateFunc)
@@ -123,12 +123,11 @@ object IRTranslation {
     implicit env: TranslationEnv
   ): IR.FuncDef = {
     import func._
-    val fV = Var(name)
     val args1 = args.map {
       case (argName, mark) =>
         Var(argName) -> env.getTyVar(mark)
     }
-    FuncDef(fV, args1, env.getTyVar(returnType), translateStmt(body))
+    FuncDef(name, args1, env.getTyVar(returnType), translateStmt(body))
   }
 
   import collection.mutable
@@ -181,7 +180,10 @@ object IRTranslation {
 
   def main(args: Array[String]): Unit = {
     val env = new TranslationEnv()
-    val example = JSExamples.Collection.whileExample
-    translateStmt(example.program)(env).foreach(println)
+    val example = JSExamples.Collection.doublyLinkedList
+    val stmts = translateStmt(example.program)(env)
+    stmts.foreach(println)
+
+    RelationGraph.encodeIR(stmts, IRCtx.jsCtx).foreach(println)
   }
 }

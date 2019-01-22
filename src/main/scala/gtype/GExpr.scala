@@ -85,7 +85,8 @@ object GExpr {
 
     val undefined = Const("undefined", any)
 
-    def NEW(name: Symbol)(args: GExpr*): GExpr = FuncCall(name, args.toList)
+    def NEW(name: Symbol)(args: GExpr*): GExpr =
+      FuncCall(ClassDef.constructorName(name), args.toList)
   }
 
   object API extends GExprAPI

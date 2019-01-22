@@ -85,7 +85,7 @@ object JSExamples {
   val exprContext: ExprContext = {
     val varAssign = Map[Symbol, GType](
       'eq -> (List(any, any) -: boolean),
-      'not -> (List(any) -: boolean),
+      'OP_Not -> (List(any) -: boolean),
       'OP_And -> (List(any, any) -: boolean),
       'toBool -> (List(any) -: boolean),
       'emptyArray -> anyArray,
@@ -182,7 +182,7 @@ object JSExamples {
           'tail -> linkedListNode,
           'compare -> 'Comparator
         )(
-          CONSTRUCTOR('compare -> 'Comparator)(
+          CONSTRUCTOR(linkedList, 'compare -> 'Comparator)(
             THIS.m('head) := undefined,
             THIS.m('tail) := undefined,
             THIS.m('compare) := 'compare
@@ -191,7 +191,7 @@ object JSExamples {
           FUNC('prepend, linkedList)(('value, any))(
             VAR('newNode)(linkedListNode.call('value, THIS.m('head))),
             THIS.m('head) := 'newNode,
-            IF('not.call(THIS.m('tail)))(
+            IF('OP_Not.call(THIS.m('tail)))(
               THIS.m('tail) := 'newNode
             ).NoElse,
             RETURN(THIS)
@@ -199,7 +199,7 @@ object JSExamples {
 
           FUNC('append, linkedList)(('value, any))(
             VAR('newNode)(linkedListNode.call('value)),
-            IF('not.call(THIS.m('head)))(
+            IF('OP_Not.call(THIS.m('head)))(
               THIS.m('head) := 'newNode,
               THIS.m('tail) := 'newNode,
               RETURN(THIS)
@@ -210,7 +210,7 @@ object JSExamples {
           ),
 
           FUNC('delete, linkedListNode)(('value, any))(
-            IF('not.call(THIS.m('head)))(
+            IF('OP_Not.call(THIS.m('head)))(
               RETURN(undefined)
             ).NoElse,
 
@@ -261,12 +261,12 @@ object JSExamples {
           'value -> any,
           'next -> linkedListNode
         )(
-          CONSTRUCTOR(('value, any), ('next, linkedListNode))(
+          CONSTRUCTOR(linkedListNode, ('value, any), ('next, linkedListNode))(
             THIS.m('value) := 'value,
             THIS.m('next) := 'next
           ),
           FUNC('toString, any)('callback -> (List(any) -: any))(
-            RETURN(IfExpr('not.call('callback),
+            RETURN(IfExpr('OP_Not.call('callback),
               THIS.m('value),
               'callback.call(THIS.m('value)),
               any))
@@ -285,7 +285,7 @@ object JSExamples {
           'next -> node,
           'prev -> node
         )(
-          CONSTRUCTOR('element -> any)(
+          CONSTRUCTOR(node, 'element -> any)(
             THIS.m('element) := 'element
           )
         ),
@@ -295,7 +295,7 @@ object JSExamples {
           '_last -> node,
           '_size -> number
         )(
-          CONSTRUCTOR()(
+          CONSTRUCTOR(linkedList)(
             THIS.m('_size) := I(0)
           ),
           FUNC('size, number)()(
