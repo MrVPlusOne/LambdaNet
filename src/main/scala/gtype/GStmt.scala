@@ -52,7 +52,7 @@ case class ClassDef(
   funcDefs: Vector[FuncDef]
 ) extends GStmt {
   require(constructor.name == ClassDef.constructorName(name))
-  require(constructor.returnType == GType.voidType)
+  require(constructor.returnType == TyVar(name))
 }
 
 object ClassDef {
@@ -122,7 +122,7 @@ object GStmt {
     }
 
     def CONSTRUCTOR(className: Symbol, args: (Symbol, GTMark)*)(body: GStmt*): FuncDef = {
-      FuncDef(ClassDef.constructorName(className), args.toList, GType.voidType, BLOCK(body: _*))
+      FuncDef(ClassDef.constructorName(className), args.toList, TyVar(className), BLOCK(body: _*))
     }
 
     def CLASS(name: Symbol, superType: Option[Symbol] = None)(

@@ -1,7 +1,7 @@
 package infer
 
 import funcdiff.SimpleMath.Extensions._
-import gtype.GType
+import gtype.{GType, JSExamples}
 import infer.IR._
 
 /** Encodes the relationships between different type variables */
@@ -9,59 +9,40 @@ object RelationGraph {
 
   sealed trait TyVarRelation
 
-  case class EqualityRel(v1: IRType, v2: IRType) extends TyVarRelation
-  case class FreezeType(v: IRType, ty: GType) extends TyVarRelation
-  case class SubtypeRel(sub: IRType, sup: IRType) extends TyVarRelation
-  case class AssignRel(lhs: IRType, rhs: IRType) extends TyVarRelation
-  case class UsedAsBoolean(tyVar: IRType) extends TyVarRelation
-  case class DefineRel(v: IRType, expr: TypeExpr) extends TyVarRelation
+  case class EqualityRel(v1: IRMark, v2: IRMark) extends TyVarRelation
+  case class FreezeType(v: IRMark, ty: GType) extends TyVarRelation
+  case class SubtypeRel(sub: IRMark, sup: IRMark) extends TyVarRelation
+  case class AssignRel(lhs: IRMark, rhs: IRMark) extends TyVarRelation
+  case class UsedAsBoolean(tyVar: IRMark) extends TyVarRelation
+  case class InheritanceRel(child: IRMark, parent: IRMark) extends TyVarRelation
+  case class DefineRel(v: IRMark, expr: TypeExpr) extends TyVarRelation
 
   sealed trait TypeExpr
-  case class CallTypeExpr(f: IRType, args: List[IRType]) extends TypeExpr
-  case class ObjLiteralTypeExpr(fields: Map[Symbol, IRType]) extends TypeExpr
-  case class FieldAccessTypeExpr(objType: IRType, field: Symbol) extends TypeExpr
+  case class FuncTypeExpr(argTypes: List[IRMark], returnType: IRMark) extends TypeExpr
+  case class CallTypeExpr(f: IRMark, args: List[IRMark]) extends TypeExpr
+  case class ObjLiteralTypeExpr(fields: Map[Symbol, IRMark]) extends TypeExpr
+  case class FieldAccessTypeExpr(objType: IRMark, field: Symbol) extends TypeExpr
 
-  def encodeIR(stmts: Vector[IRStmt], ctx: IRCtx): List[TyVarRelation] = {
-    import collection.mutable
+  case class EncodingCtx(
+    typeMap: Map[Var, IRMark],
+    returnType: IRMark,
+    objectMap: Map[Symbol, IRMark]
+  )
 
-    /** Collect the variable and function definitions declared in a
-      * block and return a new context */
-    def collectDefinitions(stmts: Vector[IRStmt])(implicit ctx: IRCtx): IRCtx = {
-      val classDefs = mutable.Map[Symbol, ObjectIRType]()
-      def parseClassDef(c: ClassDef): Unit = {
-        // fixme: need to handle cases where the child type's definition being processed first
-        val superFields = c.superType
-          .map { n =>
-            classDefs.get(n).map(ir => Left(ir)).getOrElse(ctx.objectDefs(n)) match {
-              case Left(ir)   => ir.fields
-              case Right(obj) => obj.fields.mapValuesNow { ConcreteIRType }
-            }
-          }
-          .getOrElse(Map())
-        val methods = c.funcDefs.map { f =>
-          f.name -> f.funcT
-        }
-        classDefs(c.name) = ObjectIRType(superFields ++ c.vars ++ methods)
+  object EncodingCtx {
+    val empty: EncodingCtx =
+      EncodingCtx(Map(), Known(GType.voidType), Map())
+    val jsCtx: EncodingCtx = {
+      val typeMap = JSExamples.exprContext.varAssign.map {
+        case (s, t) => Var(s) -> Known(t)
       }
-
-      stmts.collect {
-        case c: ClassDef => parseClassDef(c)
-      }
-
-      val defs = stmts.collect {
-        case VarDef(v, tyVar, _) => v -> tyVar
-        case f: FuncDef          => Var(f.name) -> f.funcT
-        case c: ClassDef =>
-          val constructor =
-            FuncIRType(c.constructor.args.map(_._2), ConcreteIRType(gtype.TyVar(c.name)))
-          Var(c.constructor.name) -> constructor
-      }
-
-      ctx.copy(
-        typeMap = ctx.typeMap ++ defs,
-        objectDefs = ctx.objectDefs ++ classDefs.toMap.mapValuesNow(Left(_))
-      )
+      val objDef = JSExamples.typeContext.typeUnfold.mapValuesNow(Known)
+      EncodingCtx(typeMap, Known(GType.voidType), objDef)
     }
+  }
+
+  def encodeIR(stmts: Vector[IRStmt], ctx: EncodingCtx): List[TyVarRelation] = {
+    import collection.mutable
 
     val relations = mutable.ListBuffer[TyVarRelation]()
 
@@ -69,14 +50,25 @@ object RelationGraph {
       relations += rel
     }
 
-    var substitution = Map[VarIRType, IRType]()
-    //noinspection TypeAnnotation
-    implicit val substituteRule = new SubstituteRule[VarIRType, IRType] {
-      def substitute(v: IRType, sub: Map[VarIRType, IRType]): IRType =
-        IRType.replaceLeaves(v, sub.getOrElse(_, v))
+    /** Collect the variable, function, and class definitions declared in a
+      * block and return a new context */
+    def collectDefinitions(
+      stmts: Vector[IRStmt]
+    )(implicit ctx: EncodingCtx): EncodingCtx = {
+      val classDefs = stmts.collect {
+        case c: ClassDef => c.name -> c.classT
+      }
+
+      val defs = stmts.collect {
+        case VarDef(v, tyVar, _) => v -> tyVar
+        case f: FuncDef          => Var(f.name) -> f.funcT
+        case c: ClassDef         => Var(c.constructor.name) -> c.constructor.funcT
+      }
+
+      ctx.copy(typeMap = ctx.typeMap ++ defs, objectMap = ctx.objectMap ++ classDefs)
     }
 
-    def encodeStmt(stmt: IRStmt)(implicit ctx: IRCtx): Unit = {
+    def encodeStmt(stmt: IRStmt)(implicit ctx: EncodingCtx): Unit = {
       import ctx._
 
       stmt match {
@@ -114,18 +106,26 @@ object RelationGraph {
           val innerCtx = collectDefinitions(block.stmts)
 //          println(s"Inner context: $innerCtx")
           block.stmts.foreach(s => encodeStmt(s)(innerCtx))
-        case FuncDef(_, args, newReturnType, body) =>
+        case FuncDef(_, args, newReturnType, body, funcT) =>
           val innerCtx =
             collectDefinitions(body)(
               ctx.copy(typeMap = ctx.typeMap ++ args, returnType = newReturnType)
             )
+          add(DefineRel(funcT, FuncTypeExpr(args.map(_._2), newReturnType)))
           body.foreach(s => encodeStmt(s)(innerCtx))
-        case ClassDef(name, _, constructor, _, funcDefs) =>
+        case ClassDef(_, superType, constructor, vars, funcDefs, classT) =>
+          superType.foreach { n =>
+            val parentType = ctx.objectMap(n)
+            add(InheritanceRel(classT, parentType))
+          }
+          val methods = funcDefs.map(f => f.name -> f.funcT)
+          val objExpr = ObjLiteralTypeExpr(vars ++ methods)
+
+          add(DefineRel(classT, objExpr))
+
           val innerCtx =
             ctx.copy(
-              typeMap = ctx.typeMap + (ClassDef.thisVar -> ConcreteIRType(
-                gtype.TyVar(name)
-              ))
+              typeMap = ctx.typeMap + (ClassDef.thisVar -> classT)
             )
           (constructor +: funcDefs).foreach(s => encodeStmt(s)(innerCtx))
       }

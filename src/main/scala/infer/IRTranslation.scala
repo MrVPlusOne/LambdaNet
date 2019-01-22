@@ -10,9 +10,9 @@ object IRTranslation {
     var varIdx: Int = 0
     var tyVarIdx: Int = 0
 
-    def newTyVar(origin: Option[GTHole]): VarIRType = {
+    def newTyVar(origin: Option[GTHole]): Unknown = {
       assert(tyVarIdx >= 0)
-      val tv = VarIRType(tyVarIdx, origin)
+      val tv = Unknown(tyVarIdx, origin)
       tyVarIdx += 1
       tv
     }
@@ -24,10 +24,10 @@ object IRTranslation {
       v
     }
 
-    def getTyVar(gMark: gtype.GTMark): BaseIRType = {
+    def getTyVar(gMark: gtype.GTMark): IRMark = {
       gMark match {
         case h: gtype.GTHole => newTyVar(Some(h))
-        case ty: gtype.GType => ConcreteIRType(ty)
+        case ty: gtype.GType => Known(ty)
       }
     }
   }
@@ -111,7 +111,8 @@ object IRTranslation {
             superType,
             translateFunc(constructor),
             vars.mapValues(mark => env.getTyVar(mark)),
-            funcDefs.map(translateFunc)
+            funcDefs.map(translateFunc),
+            env.newTyVar(None)
           )
         )
     }
@@ -127,7 +128,7 @@ object IRTranslation {
       case (argName, mark) =>
         Var(argName) -> env.getTyVar(mark)
     }
-    FuncDef(name, args1, env.getTyVar(returnType), translateStmt(body))
+    FuncDef(name, args1, env.getTyVar(returnType), translateStmt(body), env.newTyVar(None))
   }
 
   import collection.mutable
@@ -184,6 +185,8 @@ object IRTranslation {
     val stmts = translateStmt(example.program)(env)
     stmts.foreach(println)
 
-    RelationGraph.encodeIR(stmts, IRCtx.jsCtx).foreach(println)
+    import infer.RelationGraph._
+
+    RelationGraph.encodeIR(stmts, EncodingCtx.jsCtx).foreach(println)
   }
 }
