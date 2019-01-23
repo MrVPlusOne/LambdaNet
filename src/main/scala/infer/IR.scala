@@ -60,7 +60,7 @@ object IR {
 
   sealed trait IRType
 
-  case class KnownType(ty: GType) extends IRType{
+  case class KnownType(ty: GType) extends IRType {
     override def toString: String = s"[$ty]"
   }
 
@@ -86,7 +86,7 @@ object IR {
     *   | if(x) S else S                    ([[IfStmt]])
     *   | while(x) S                        ([[WhileStmt]])
     *   | { S; ...; S }                     ([[BlockStmt]])
-    *   | function x (x: α, ..., x:α): α    ([[FuncDef]])
+    *   | function x (x: τ, ..., x:τ): τ S  ([[FuncDef]])
     *   | class x (l: α, ..., l:α)          ([[ClassDef]])
     *     ↳ [extends x]{ f, ..., f }
     *
@@ -123,20 +123,20 @@ object IR {
   case class BlockStmt(stmts: Vector[IRStmt]) extends IRStmt
 
   case class FuncDef(
-                      name: Symbol,
-                      args: List[(Var, IRType)],
-                      returnType: IRType,
-                      body: Vector[IRStmt],
-                      funcT: UnknownType
+    name: Symbol,
+    args: List[(Var, IRType)],
+    returnType: IRType,
+    body: Vector[IRStmt],
+    funcT: UnknownType
   ) extends IRStmt
 
   case class ClassDef(
-                       name: Symbol,
-                       superType: Option[Symbol] = None,
-                       constructor: FuncDef,
-                       vars: Map[Symbol, IRType],
-                       funcDefs: Vector[FuncDef],
-                       classT: UnknownType
+    name: Symbol,
+    superType: Option[Symbol] = None,
+    constructor: FuncDef,
+    vars: Map[Symbol, IRType],
+    funcDefs: Vector[FuncDef],
+    classT: UnknownType
   ) extends IRStmt {
     require(constructor.name == gtype.ClassDef.constructorName(name))
     require(constructor.returnType == classT)

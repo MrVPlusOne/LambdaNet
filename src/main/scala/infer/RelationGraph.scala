@@ -24,9 +24,9 @@ object RelationGraph {
   case class FieldAccessTypeExpr(objType: IRType, field: Symbol) extends TypeExpr
 
   case class EncodingCtx(
-                          typeMap: Map[Var, IRType],
-                          returnType: IRType,
-                          objectMap: Map[Symbol, IRType]
+    typeMap: Map[Var, IRType],
+    returnType: IRType,
+    objectMap: Map[Symbol, IRType]
   )
 
   object EncodingCtx {
