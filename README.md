@@ -24,6 +24,9 @@ Maximize the number of correct (user-annotated) type annotations.
 ### Current Progress
 See [Agenda](Agenda.md).
 
+### Formalizations
+See [typingNet-Formalizations.pdf](typingNet-Formalizations.pdf).
+
 
 ### Where are things
 **Surface Language**: [GStmt](src/main/scala/gtype/GStmt.scala), [GExpr]([GStmt](src/main/scala/gtype/GExpr.scala))
