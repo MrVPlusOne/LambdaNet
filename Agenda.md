@@ -4,9 +4,13 @@
 
 Todo:
 
-- [ ] generate relation graph from IR
+- [ ] implement graph embedding of predicate graphs
+
+- [ ] implement type decoding from predicate graphs
 
 Done:
+
+- [X] generate predicate graph from IR
 
 - [X] implement an IR in single assignment form (SAF)
 
