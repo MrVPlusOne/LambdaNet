@@ -202,7 +202,7 @@ object DiffFunc {
 
     def backprop1(grad: Gradient): Gradient = {
       val y = value
-      val dy = grad.toTensor(y.shape)
+      val dy = grad.toTensor()
       val dx = dy * y
       val s = ns.sum(dx, axis = dx.shape.length - 1)
       dx -= y * s
@@ -318,7 +318,7 @@ object DiffFunc {
     val value: Tensor = x1.value dot x2.value
 
     def backProp2(grad: Gradient): (Gradient, Gradient) = {
-      val gradTensor = grad.toTensor(value.shape)
+      val gradTensor = grad.toTensor()
       DenseGradient(gradTensor.dot(x2.value.T)) ->
       DenseGradient(x1.value.T.dot(gradTensor))
     }

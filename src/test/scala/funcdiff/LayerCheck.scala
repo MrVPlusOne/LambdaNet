@@ -55,7 +55,7 @@ class LayerCheck extends TestUtils {
       println("create y2")
       val y2 = f2.linear('linear1, 4)(input) ~> f2.linear('linear2,6)
 
-      val gradients = y2.backpropForParams
+      val gradients = y2.backpropForParams(None)
 
 
 

@@ -5,6 +5,8 @@ import botkop.{numsca => ns}
 import API._
 import funcdiff.ParameterAttribute.NeedRegularization
 
+import scala.concurrent.ExecutionContext
+
 trait Optimizer {
 
   /** Given gradients, how much each gradient should change when maximizing the objective? */
@@ -17,7 +19,8 @@ trait Optimizer {
   def maximize(objective: CompNode,
                params: Seq[Param],
                weightDecay: Option[Double] = None,
-               gradientTransform: Gradient => Gradient = identity): Unit = {
+               gradientTransform: Gradient => Gradient = identity,
+               backPropInParallel: Option[ExecutionContext] = None): Unit = {
 
     if(warnEmptyUpdates && params.isEmpty){
       println("Warning: optimizer's param list is empty.")
@@ -34,7 +37,7 @@ trait Optimizer {
     }
 
     val paramMap = params.map(p => p.path -> p).toMap
-    val gradients = objective.backpropForParams
+    val gradients = objective.backpropForParams(backPropInParallel)
     for((path, g0) <- gradients;
         p <- paramMap.get(path);
         g = parameterChangeAmount(p, gradientTransform(g0))){
@@ -56,8 +59,9 @@ trait Optimizer {
   def minimize(objective: CompNode,
                params: Seq[Param],
                weightDecay: Option[Double] = None,
-               gradientTransform: Gradient => Gradient = identity): Unit = {
-    maximize(-objective, params, weightDecay, gradientTransform)
+               gradientTransform: Gradient => Gradient = identity,
+               backPropInParallel: Option[ExecutionContext] = None): Unit = {
+    maximize(-objective, params, weightDecay, gradientTransform, backPropInParallel)
   }
 }
 

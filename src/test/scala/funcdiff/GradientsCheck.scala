@@ -7,6 +7,9 @@ import org.nd4j.linalg.factory.Nd4j
 import org.scalactic.{Equality, TolerantNumerics}
 import API._
 
+import scala.language.postfixOps
+import scala.util.Random
+
 class GradientScalarCheck extends TestUtils {
 
   "Divide" should "throw error when divided by zero" in {
@@ -30,7 +33,6 @@ class GradientScalarCheck extends TestUtils {
 
     val gradients = CompNode.backprop(f)
 
-
     gradients(x).toDouble shouldBe -4
     gradients(y).toDouble shouldBe -4
     gradients(z).toDouble shouldBe 3
@@ -51,7 +53,6 @@ class GradientScalarCheck extends TestUtils {
     val out = (1: CompNode) / (exp(-dot) + 1.0)
 
     val gradients = CompNode.backprop(out)
-
 
     implicit val doubleEquality: Equality[Double] =
       TolerantNumerics.tolerantDoubleEquality(0.01)
@@ -77,14 +78,13 @@ class GradientScalarCheck extends TestUtils {
     assert(gradients(x).toDouble == 6)
   }
 
-
   it should "derive the mean" in {
     val x = const(ns.ones(2, 2))
     val y = x + 2
     val z = y * y * 3
     val out = mean(z)
     val gradients = out.backprop
-    assert(ns.arrayEqual(gradients(x).toTensor(x.shape), ns.full(x.shape, 4.5)))
+    assert(ns.arrayEqual(gradients(x).toTensor(), ns.full(x.shape, 4.5)))
   }
 
   it should "do crazy stuff" in {
@@ -94,8 +94,11 @@ class GradientScalarCheck extends TestUtils {
     def acc(v: CompNode): CompNode = if (ns.sum(v.value) < 100) acc(v * 2) else v
 
     val z = acc(y)
-    val gradients = CompNode.backprop(List(z), List(DenseGradient(Tensor(0.1, 1.0, 0.0001).reshape(3,1))))
-    assert(ns.arrayEqual(gradients(x).toTensor(x.shape), Tensor(6.4, 64, 0.0064).reshape(3, 1)))
+    val gradients = CompNode.backprop(
+      List(z),
+      List(DenseGradient(Tensor(0.1, 1.0, 0.0001).reshape(3, 1)))
+    )
+    assert(ns.arrayEqual(gradients(x).toTensor(), Tensor(6.4, 64, 0.0064).reshape(3, 1)))
   }
 }
 
@@ -110,13 +113,13 @@ class GradientMatrixTest extends TestUtils {
   }
 
   def gateLike(x: CompNode, y: CompNode): CompNode = {
-    val s = x.shape(1)/2
+    val s = x.shape(1) / 2
     val updateGate = x.slice(:>, 0 :> s)
     val restGate = x.slice(:>, s :>)
 
     val state: CompNode = ns.ones(restGate.shape)
 
-    state * restGate * ((1:CompNode) - updateGate)
+    state * restGate * ((1: CompNode) - updateGate)
   }
 
   def sharedWeights(x: CompNode, y: CompNode): CompNode = {
@@ -124,36 +127,37 @@ class GradientMatrixTest extends TestUtils {
   }
 
   val broadCastingOps = Seq[(CompNode, CompNode) => CompNode](
-     _ + _,
-     _ - _,
-     _ * _,
-     _ / _,
-     (x1,x2) => x1.concat(x2, axis = 0),
-     (x1,x2) => x1.t.concat(x2.t, axis = 1),
-     (x1,x2) => x1.concat(x2, axis = 0).slice(1 :> 3, 3 :>),
-     (x1,x2) => x1.concat(x2, axis = 0).slice(4 :> 5, 3 :>),
-     (x1,x2) => x1.concat(x2, axis = 0).slice(1 :> 5, 3 :> 6),
-     max,
-     (x, y) => total(IS(x, y)),
-     (x, y) => gruModule(gruModule(x, y), y),
+    _ + _,
+    _ - _,
+    _ * _,
+    _ / _,
+    (x1, x2) => x1.concat(x2, axis = 0),
+    (x1, x2) => x1.t.concat(x2.t, axis = 1),
+    (x1, x2) => x1.concat(x2, axis = 0).slice(1 :> 3, 3 :>),
+    (x1, x2) => x1.concat(x2, axis = 0).slice(4 :> 5, 3 :>),
+    (x1, x2) => x1.concat(x2, axis = 0).slice(1 :> 5, 3 :> 6),
+    max,
+    (x, y) => total(IS(x, y)),
+    (x, y) => gruModule(gruModule(x, y), y),
     gateLike,
     sharedWeights
   )
 
   "Binary broadcasting operators" should "pass numerical gradient checks" in {
-    broadCastingOps.zipWithIndex.foreach { case (op, i) =>
-      val a = const(ns.randn(4, 6))
-      val b = const(ns.randn(4, 6))
+    broadCastingOps.zipWithIndex.foreach {
+      case (op, i) =>
+        val a = const(ns.randn(4, 6))
+        val b = const(ns.randn(4, 6))
 
-      val b1 = const(ns.randn(1, 6))
+        val b1 = const(ns.randn(1, 6))
 
-      nOpGradientCheck(f = {
-              case Seq(n1, n2) => op(n1, n2)
-            }, IS(a, b), s"Binary case $i A")
+        nOpGradientCheck(f = {
+          case Seq(n1, n2) => op(n1, n2)
+        }, IS(a, b), s"Binary case $i A")
 
-      nOpGradientCheck(f = {
-              case Seq(n1, n2) => op(n1, n2)
-            }, IS(a, b1), s"Binary case $i B")
+        nOpGradientCheck(f = {
+          case Seq(n1, n2) => op(n1, n2)
+        }, IS(a, b1), s"Binary case $i B")
     }
   }
 
@@ -162,8 +166,8 @@ class GradientMatrixTest extends TestUtils {
     val b = const(ns.randn(6, 3))
 
     nOpGradientCheck(f = {
-          case Seq(n1, n2) => n1 dot n2
-        }, IS(a, b), s"Dot case")
+      case Seq(n1, n2) => n1 dot n2
+    }, IS(a, b), s"Dot case")
   }
 
   "Concat[axis=1]" should "pass numerical gradient checks" in {
@@ -171,14 +175,14 @@ class GradientMatrixTest extends TestUtils {
     val b = const(ns.randn(4, 7))
 
     nOpGradientCheck(f = {
-          case Seq(n1, n2) => n1.concat(n2, axis = 1)
-        }, IS(a, b), s"Concat case")
+      case Seq(n1, n2) => n1.concat(n2, axis = 1)
+    }, IS(a, b), s"Concat case")
   }
 
-  val unaryTestInputShape = Seq(4,6)
+  val unaryTestInputShape = Seq(4, 6)
 
   val unaryOps = {
-    val t = ns.softmax(ns.randn(unaryTestInputShape :_*))
+    val t = ns.softmax(ns.randn(unaryTestInputShape: _*))
 
     Seq[(String, CompNode => CompNode)](
       "exp" -> exp,
@@ -189,8 +193,8 @@ class GradientMatrixTest extends TestUtils {
       "x => mean(x, 1)" -> (x => mean(x, 1)),
       "x => mean(x, 0)" -> (x => mean(x, 0)),
       "sum" -> sum,
-      "x => sum(x,0)" -> (x => sum(x,0)),
-      "x => sum(x,1)" -> (x => sum(x,1)),
+      "x => sum(x,0)" -> (x => sum(x, 0)),
+      "x => sum(x,1)" -> (x => sum(x, 1)),
       "relu" -> relu,
       "leakyRelu" -> (x => leakyRelu(x, 0.1)),
       "softmax" -> softmax,
@@ -198,32 +202,34 @@ class GradientMatrixTest extends TestUtils {
       "sigmoid" -> sigmoid,
       "tanh" -> tanh,
       "_.slice(:>, :>)" -> (_.slice(:>, :>)),
-      "_.slice(1,1)" -> (_.slice(1,1)),
-      "_.slice(2:>3, 0:>5)" -> (_.slice(2:>3, 0:>5)),
-      "_.slice(1:>2, :>)" -> (_.slice(1:>2, :>)),
-      "_.slice(1:>3, 1:>).slice(1:>2, 1:>3)" -> (_.slice(1:>3, 1:>).slice(1:>2, 1:>3)),
+      "_.slice(1,1)" -> (_.slice(1, 1)),
+      "_.slice(2:>3, 0:>5)" -> (_.slice(2 :> 3, 0 :> 5)),
+      "_.slice(1:>2, :>)" -> (_.slice(1 :> 2, :>)),
+      "_.slice(1:>3, 1:>).slice(1:>2, 1:>3)" -> (_.slice(1 :> 3, 1 :>)
+        .slice(1 :> 2, 1 :> 3)),
       "square" -> square,
       "x => sqrt(abs(x) + 0.1)" -> (x => sqrt(abs(x) + 0.1)),
-      "x => total(IS(x,x,x,x))" -> (x => total(IS(x,x,x,x))),
-      "x => concatN(IS(x,x,x,x), axis = 0)" -> (x => concatN(IS(x,x,x,x), axis = 0)),
-      "x => concatN(IS(x,x,x,x), axis = 1)" -> (x => concatN(IS(x,x,x,x), axis = 1)),
+      "x => total(IS(x,x,x,x))" -> (x => total(IS(x, x, x, x))),
+      "x => concatN(IS(x,x,x,x), axis = 0)" -> (x => concatN(IS(x, x, x, x), axis = 0)),
+      "x => concatN(IS(x,x,x,x), axis = 1)" -> (x => concatN(IS(x, x, x, x), axis = 1)),
       "crossEntropyOnSoftmax(x, t)" -> (x => crossEntropyOnSoftmax(x, t))
     )
   }
 
   "Unary broadcasting operators" should "pass numerical gradient checks" in {
 
-    unaryOps.foreach { case (name, op) =>
-      val a = const(ns.randn(unaryTestInputShape:_*))
-      nOpGradientCheck(f = {
-              case Seq(x1) => op(x1)
-            }, IS(a), name)
+    unaryOps.foreach {
+      case (name, op) =>
+        val a = const(ns.randn(unaryTestInputShape: _*))
+        nOpGradientCheck(f = {
+          case Seq(x1) => op(x1)
+        }, IS(a), name)
     }
   }
 
   "Softmax with masked logits" should "has the same value" in {
-    val x = ns.randn(20,10)
-    val mask = ns.randn(20,10) > 0
+    val x = ns.randn(20, 10)
+    val mask = ns.randn(20, 10) > 0
 
     val original = {
       val y = ns.softmax(x) * mask
@@ -245,9 +251,9 @@ class GradientMatrixTest extends TestUtils {
 
       val factory = new LayerFactory(SymbolPath.empty / 'testNet, pc)
 
-      val data = ns.randn(3,3)
-      val w1 = ns.randn(3,3)
-      val b1 = ns.randn(3,1)
+      val data = ns.randn(3, 3)
+      val w1 = ns.randn(3, 3)
+      val b1 = ns.randn(3, 1)
       val y1 = w1 * data + b1
 
       val y = factory.linear('linear1, nOut = data.shape(1))(data)
@@ -263,7 +269,9 @@ class GradientMatrixTest extends TestUtils {
       ns.rand.setSeed(1)
 
       val nState = 5
-      val inputs = (0 until nState).map { i => TensorExtension.oneHot(Seq(i), nState) }
+      val inputs = (0 until nState).map { i =>
+        TensorExtension.oneHot(Seq(i), nState)
+      }
 
       val targets = inputs.scanLeft(ns.zeros(1, nState))(_ + _).tail
 
@@ -272,8 +280,9 @@ class GradientMatrixTest extends TestUtils {
         ns.rand(nState).reshape(1, nState)
       }
 
-      val states = inputs.zip(targets).scanLeft(initState: CompNode) { case (s, (input, t)) =>
-        factory.gru('TestGRU)(s, input)
+      val states = inputs.zip(targets).scanLeft(initState: CompNode) {
+        case (s, (input, t)) =>
+          factory.gru('TestGRU)(s, input)
       }
       sum(total(states.zip(targets).map { case (s, t) => square(s - t): CompNode }))
     }
@@ -283,68 +292,70 @@ class GradientMatrixTest extends TestUtils {
   }
 
   "randomUnitVec" should "have unit norm" in {
-    for(_ <- 0 until 100) {
+    for (_ <- 0 until 100) {
       val n = TensorExtension.normL2(TensorExtension.randomUnitVec(10))
-      assert(relError(n, Tensor(1.0)) < 1e5,
-        s"norm = $n")
+      assert(relError(n, Tensor(1.0)) < 1e5, s"norm = $n")
     }
   }
 
   "accuracy" should "pass examples" in {
-    accuracy(Tensor(1,0 ,1,0, 0,1).reshape(-1,2), Seq(0,0,1))._1 shouldBe 1.0
-    accuracy(Tensor(1,0 ,1,0, 0,1).reshape(-1,2), Seq(1,1,0))._1 shouldBe 0.0
-    accuracy(Tensor(1,0 ,1,0, 0,1, 0,1).reshape(-1,2), Seq(0,0,0,0))._1 shouldBe 0.5
+    accuracy(Tensor(1, 0, 1, 0, 0, 1).reshape(-1, 2), Seq(0, 0, 1))._1 shouldBe 1.0
+    accuracy(Tensor(1, 0, 1, 0, 0, 1).reshape(-1, 2), Seq(1, 1, 0))._1 shouldBe 0.0
+    accuracy(Tensor(1, 0, 1, 0, 0, 1, 0, 1).reshape(-1, 2), Seq(0, 0, 0, 0))._1 shouldBe 0.5
   }
 
-//
-//  "Parallel version of Backprop" should "be consistent with old version" in {
-//    import API._
-//
-//    val x = const(ns.randn(20,30))
-//    val y = const(ns.randn(20,30))
-//
-//    val z = square(x * x + ((x - y) * 10) * exp(x * 3 + x * y ))
-//
-//    val (dx, dy) = {
-//      z.backprop
-//      x.gradient() -> y.gradient()
-//    }
-//    val (dx1, dy1) = {
-//      implicit val system = ParallelBackPropSystem(parallelism = 8)
-//      x.backPropParallel()
-//      println{
-//        x.gradient()
-//      }
-//
-//      z.backPropParallel()
-//      system.stop()
-//      x.gradient() -> y.gradient()
-//    }
-//
-//    assert(relError(dx, dx1) < 1e-4)
-//    assert(relError(dy, dy1) < 1e-4)
-//  }
+  "Parallel version of Backprop" should "be consistent with old version" in {
+    import API._
+    import org.scalatest.concurrent.ScalaFutures._
+
+    val x = const(ns.randn(20, 30))
+    val y = const(ns.randn(20, 30))
+
+    val z = square(x * x + ((x - y) * 10) * exp(x * 3 + x * y))
+
+    val (dx, dy) = {
+      val grads = z.backprop
+      grads(x) -> grads(y)
+    }
+    val (dx1, dy1) = {
+      val ctx = concurrent.ExecutionContext.global
+      val grads = z.backpropParallel(ctx).futureValue
+
+      grads(x) -> grads(y)
+    }
+
+    assert(relError(dx, dx1) < 1e-4)
+    assert(relError(dy, dy1) < 1e-4)
+  }
+
+  "Parallel version of Backprop" should "be faster" in {
+    import API._
+    import scala.concurrent._
+    import duration._
+
+    val random = new Random(1)
+    val x = const(ns.randn(50, 50))
+
+    def branch(depth: Int): CompNode = {
+      if (depth == 0) {
+        if(random.nextDouble() < 0.2) x else const(ns.randn(50, 50))
+      }
+      else sigmoid(branch(depth - 1) + branch(depth - 1))
+    }
+
+    val z = branch(11)
+
+    val (g1, t1) = SimpleMath.measureTime(z.backprop.apply(x))
+    println("T1 = %e".format(t1.toDouble))
+
+    implicit val ctx = ExecutionContext.global
+    val (g2, t2) = SimpleMath.measureTime(
+      Await.result(z.backpropParallel.map(_.apply(x)), 10 seconds)
+    )
+    println("T2 = %e".format(t2.toDouble))
+
+
+    assert(relError(g1, g2) < 1e-4)
+    assert(t2 < t1)
+  }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

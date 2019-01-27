@@ -18,6 +18,12 @@ trait TestUtils extends FlatSpec with Matchers with LazyLogging {
   def relError(x: Tensor, y: Tensor): Double =
     ns.max(ns.abs(x - y) / ns.maximum(ns.abs(x) + ns.abs(y), 1e-8)).squeeze()
 
+  def relError(dx: Gradient, dy: Gradient): Double = {
+    val x = dx.toTensor()
+    val y = dy.toTensor()
+    ns.max(ns.abs(x - y) / ns.maximum(ns.abs(x) + ns.abs(y), 1e-8)).squeeze()
+  }
+
   /**
     * Evaluate a numeric gradient for a function that accepts an array and returns an array.
     */
@@ -98,7 +104,7 @@ trait TestUtils extends FlatSpec with Matchers with LazyLogging {
 
       val s = dOut.shape
       val t = ns.rand(s)
-      assert(relError((dOut * t).toTensor(s), dOut.toTensor(s) * t) < 1e-5,
+      assert(relError((dOut * t).toTensor(), dOut.toTensor() * t) < 1e-5,
         s"gradient $dOut failed to passed consistency test")
 
 
@@ -113,12 +119,12 @@ trait TestUtils extends FlatSpec with Matchers with LazyLogging {
           f(newArgs).value
         }
 
-        val numerical = evalNumericalGradientArray(fi, x(i).value, dOut.toTensor(out.shape))
+        val numerical = evalNumericalGradientArray(fi, x(i).value, dOut.toTensor())
         println(s"[$testName]: numerical[$i] = $numerical")
 
         gradients.get(n) match {
           case Some(calculated) =>
-            val calcTensor = calculated.toTensor(n.value.shape)
+            val calcTensor = calculated.toTensor()
             println(s"[$testName]: calculated[$i] = ${calculated}")
             val diError = relError(calcTensor, numerical)
             println(s"[$testName]: Difference: ${calcTensor - numerical}")
@@ -138,7 +144,7 @@ trait TestUtils extends FlatSpec with Matchers with LazyLogging {
     println(s"Test Layer: $name")
 
     val dOut = DenseGradient(ns.ones(out.shape :_*))
-    val gradients = out.backpropForParams
+    val gradients = out.backpropForParams(None)
 
     pc.allParams.foreach{ p =>
       def fi(t: Tensor): Tensor = {
@@ -146,11 +152,11 @@ trait TestUtils extends FlatSpec with Matchers with LazyLogging {
         f(pc).value
       }
 
-      val numerical = evalNumericalGradientArray(fi, p.node.value, dOut.toTensor(out.shape))
+      val numerical = evalNumericalGradientArray(fi, p.node.value, dOut.toTensor())
       println(s"numerical[$p] = $numerical")
       gradients.get(p.path) match {
         case Some(calculated) =>
-          val calcTensor = calculated.toTensor(p.node.shape)
+          val calcTensor = calculated.toTensor()
           println(s"calculated[$p] = ${calculated}")
           val diError = relError(calcTensor, numerical)
           println(s"Difference: ${calcTensor - numerical}")

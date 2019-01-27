@@ -4,6 +4,9 @@ import botkop.numsca
 import numsca._
 import TensorExtension._
 
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, ExecutionContext, Future}
+
 /**
   * The gradient of a scalar w.r.t a tensor
   */
@@ -44,14 +47,14 @@ sealed trait Gradient{
 
   def subGradient(subRegion: Seq[Range]): Gradient
 
-  def toTensor(shape: Array[Int]): Tensor = {
+  def toTensor(): Tensor = {
     val r = numsca.zeros(shape)
     addToTensor(r)
     r
   }
 
   def toDouble: Double = {
-    toTensor(Array(1)).squeeze()
+    toTensor().squeeze()
   }
 
   def transpose: Gradient
@@ -270,7 +273,7 @@ case class InflatedGradient(core: Tensor, ranges: List[NumscaRange], shape: Arra
 /** Mutable buffer used to accumulate gradients */
 class GradientBuilder (private var value: Gradient, private var needCopy: Boolean){
 
-  def add(grad: Gradient): Unit = {
+  def add(grad: Gradient): Unit = this synchronized {
     value match {
       case _: ZeroGradient =>
         value = grad
@@ -311,5 +314,52 @@ class GradientBuilder (private var value: Gradient, private var needCopy: Boolea
   def retrieve: Gradient = {
     needCopy = true
     value
+  }
+}
+
+
+/** Mutable buffer used to accumulate gradients using delayed parallel summation */
+class ParallelGradBuilder(shape: Array[Int]){
+  import collection.mutable
+  private val grads = mutable.ListBuffer[Gradient]()
+  private var value: Option[Future[Gradient]] = None
+
+  def add(grad: Gradient): Unit = this synchronized {
+    require(value.isEmpty)
+    grads += grad
+  }
+
+
+  def retrieve(implicit ctx: ExecutionContext): Future[Gradient] = this synchronized {
+    val fut = value.getOrElse {
+      val zeroGrad = ZeroGradient(shape)
+      if (grads.length < 8) {
+        Future {
+          val builder = new GradientBuilder(zeroGrad, needCopy = false)
+          grads.foreach(g => builder.add(g))
+          grads.clear()
+          builder.retrieve
+        }
+      } else {
+        val m = new SimpleMath.Monoid[Gradient] {
+          def zero: Gradient = zeroGrad
+
+          def op(x1: Gradient, x2: Gradient): Gradient = {
+            val b = new GradientBuilder(x1, needCopy = true) {
+              add(x2)
+            }
+            b.retrieve
+          }
+        }
+        for{
+          g <- SimpleMath.parallelReduce(grads.toArray, m)
+        } yield {
+          grads.clear()
+          g
+        }
+      }
+    }
+    value = Some(fut)
+    fut
   }
 }

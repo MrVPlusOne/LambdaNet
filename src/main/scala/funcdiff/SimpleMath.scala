@@ -487,15 +487,46 @@ object SimpleMath {
   //    1 - vSum / variance
   //  }
 
-  def main(args: Array[String]): Unit = {
-    val counts = Map(
-      (1, 1) -> 1,
-      (2, 2) -> 1,
-      (1, 2) -> 1,
-      (2, 1) -> 1
-    )
-    println {
-      mutualInformation(counts)
+  def measureTime[R](block: => R): (R, Long) = {
+    val t0 = System.nanoTime()
+    val result = block
+    val t1 = System.nanoTime()
+    result -> (t1 - t0)
+  }
+
+  trait Monoid[T] {
+    def zero: T
+    def op (x1: T, x2: T): T
+  }
+
+
+  import scala.concurrent._
+  def parallelReduce[T](xs: Array[T], m: Monoid[T]
+                       )(implicit ctx: ExecutionContext): Future[T] = {
+    def rec(range: Range): Future[T] = {
+      val span = range.length
+      span match {
+        case 0 => Future.successful(m.zero)
+        case 1 => Future.successful(xs(range.start))
+        case _ =>
+          Future(range.splitAt(span/2)).flatMap{ case (l, r) =>
+            val lF = rec(l)
+            val rF = rec(r)
+            lF.zip(rF).map { p =>
+              m.op(p._1, p._2)
+            }
+          }
+      }
     }
+    rec(xs.indices)
+  }
+
+  def main(args: Array[String]): Unit = {
+    val r = Await.result(parallelReduce((0 until 10000).toArray, new Monoid[Int] {
+      def zero: Int = 0
+
+      def op(x1: Int, x2: Int): Int = x1 + x2
+    })(ExecutionContext.global), duration.Duration.Inf)
+    println{r}
   }
 }
