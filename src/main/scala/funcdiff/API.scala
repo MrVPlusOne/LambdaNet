@@ -8,6 +8,8 @@ import scala.language.{implicitConversions, reflectiveCalls}
 
 object API {
 
+  implicit def symbol2Path(symbol: Symbol): SymbolPath = SymbolPath(Vector(symbol))
+
   def const(value: Tensor): CompNode = {
     new CompNode(ConstFunc(value))
   }

@@ -1,6 +1,6 @@
 package funcdiff
 
-import botkop.numsca.{Tensor}
+import botkop.numsca.Tensor
 import botkop.{numsca => ns}
 import API._
 import funcdiff.LayerFactory.WeightsInitializer
@@ -17,13 +17,13 @@ object LayerFactory {
 case class LayerFactory(nameSpace: SymbolPath, params: ParamCollection) {
   import params._
 
-  def withPrefix[A](name: Symbol)(f: SymbolPath => A): A = {
-    val prefix = nameSpace / name
-    f(prefix)
+  def withPrefix[A](prefix: SymbolPath)(f: SymbolPath => A): A = {
+    val p = nameSpace ++ prefix
+    f(p)
   }
 
   def linear(
-    name: Symbol,
+    name: SymbolPath,
     nOut: Int,
     useBias: Boolean = true,
     initializer: WeightsInitializer = LayerFactory.xavier
@@ -50,7 +50,7 @@ case class LayerFactory(nameSpace: SymbolPath, params: ParamCollection) {
   }
 
   def batchNorm(
-    name: Symbol,
+    name: SymbolPath,
     inTraining: Boolean,
     momentum: Double = 0.9,
     eps: Double = 1e-5
@@ -79,7 +79,7 @@ case class LayerFactory(nameSpace: SymbolPath, params: ParamCollection) {
     * Gated recurrent unit: [https://en.wikipedia.org/wiki/Gated_recurrent_unit]
     */
   def gru(
-    name: Symbol,
+    name: SymbolPath,
     initializer: WeightsInitializer = LayerFactory.xavier
   )(state: CompNode, input: CompNode): CompNode = withPrefix(name) { prefix =>
     val inputSize = input.shape(1)
@@ -116,7 +116,7 @@ case class LayerFactory(nameSpace: SymbolPath, params: ParamCollection) {
   /**
     * Long short-term memory unit: [https://en.wikipedia.org/wiki/Long_short-term_memory]
     */
-  def lstm(name: Symbol, initializer: WeightsInitializer = LayerFactory.xavier)(
+  def lstm(name: SymbolPath, initializer: WeightsInitializer = LayerFactory.xavier)(
     hAndC: (CompNode, CompNode),
     input: CompNode
   ): (CompNode, CompNode) = withPrefix(name) { prefix =>
@@ -161,6 +161,28 @@ case class LayerFactory(nameSpace: SymbolPath, params: ParamCollection) {
     def iterate(state: CompNode, input: CompNode): CompNode
   }
 
+  /**
+    * Run an RNN unit both forwardly and backwardly over the inputs, and then combine the
+    * intermediate states
+    */
+  def bidirectionalGru(
+    name: SymbolPath,
+    stateShape: Array[Int],
+    combiner: (CompNode, CompNode) => CompNode
+  )(inputs: IS[CompNode]): IS[CompNode] = withPrefix(name){ prefix =>
+
+    val leftInit: CompNode = getVar(prefix / 'leftInit) {
+      ns.randn(stateShape)
+    }
+    val states1 = inputs.scanLeft(leftInit)(gru(name / 'leftRNN))
+    val rightInit: CompNode = getVar(prefix / 'rightInit) {
+      ns.randn(stateShape)
+    }
+    val states2 = inputs.reverse.scanLeft(rightInit)(gru(name / 'rightRNN)).reverse
+    states1.zip(states2).map {
+      case (l, r) => combiner(l,r)
+    }
+  }
 
   //  def cnn2D(name: Symbol, kernelSize: (Int, Int))(input: CompNode): CompNode = withPrefix(name) { prefix =>
   //    val w = getVar(prefix / 'kernel, attributes = Set(NeedRegularization)){ ns.randn(kernelSize._1, kernelSize._2) }

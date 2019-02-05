@@ -21,8 +21,10 @@ class Param(var node: ParamNode, val attributes: Set[ParameterAttribute] = Set()
 }
 
 @SerialVersionUID(0)
-case class SymbolPath(path: List[Symbol]){
-  def / (symbol: Symbol): SymbolPath = SymbolPath(symbol +: path)
+case class SymbolPath(path: Vector[Symbol]){
+  def / (symbol: Symbol): SymbolPath = SymbolPath(path :+ symbol)
+
+  def ++ (other: SymbolPath) = SymbolPath(path ++ other.path)
 
   override def toString: String = {
     path.reverse.mkString("(", "/", ")")
@@ -30,7 +32,7 @@ case class SymbolPath(path: List[Symbol]){
 }
 
 object SymbolPath{
-  val empty = SymbolPath(List())
+  val empty = SymbolPath(Vector())
 }
 
 object ParamCollection {
