@@ -4,11 +4,17 @@
 
 Todo:
 
-- [ ] implement graph embedding of predicate graphs
+- [ ] Properly handle library types
 
-- [ ] implement type decoding from predicate graphs
+- [ ] Verify predicates correctness
 
 Done:
+
+- [X] implement type decoding from predicate graphs
+
+- [X] implement user-defined type encoding
+
+- [X] implement graph embedding of predicate graphs
 
 - [X] generate predicate graph from IR
 

@@ -4,6 +4,7 @@ import scala.language.implicitConversions
 import GType.API._
 import gtype.GExpr.GExprAPI
 import funcdiff.SimpleMath.Extensions._
+import collection.mutable
 
 // @formatter:off
 /** a program statement
@@ -40,8 +41,12 @@ case class WhileStmt(cond: GExpr, body: GStmt) extends GStmt
 
 case class BlockStmt(stmts: Vector[GStmt]) extends GStmt
 
-case class FuncDef(name: Symbol, args: List[(Symbol, GTMark)], returnType: GTMark, body: GStmt)
-    extends GStmt
+case class FuncDef(
+  name: Symbol,
+  args: List[(Symbol, GTMark)],
+  returnType: GTMark,
+  body: GStmt
+) extends GStmt
 
 case class ClassDef(
   name: Symbol,
@@ -66,36 +71,94 @@ object GStmt {
 
   import GExpr.typeCheckInfer
 
-  /** An context used for constructing programs written in [[GStmt]] */
-  class SurfaceContext(){
-    var typeHoleId: Int = 0
+  val returnSymbol = 'return
 
-    def newTHole(): GTHole = {
-      val h = GTHole(typeHoleId)
-      typeHoleId += 1
-      h
+  /**
+    * @param f is required to has the same return statement type as its input
+    * */
+  def modifyChildren(stmt: GStmt)(f: GStmt => GStmt): GStmt = {
+    def rec(stmt: GStmt): GStmt = stmt match {
+      case IfStmt(cond, branch1, branch2) => f(IfStmt(cond, rec(branch1), rec(branch2)))
+      case WhileStmt(cond, body)          => f(WhileStmt(cond, rec(body)))
+      case BlockStmt(stmts)               => f(BlockStmt(stmts.map(rec)))
+      case fDef: FuncDef                  => f(fDef.copy(body = rec(fDef.body)))
+      case cDef: ClassDef =>
+        val c1 = cDef.copy(
+          constructor = rec(cDef.constructor).asInstanceOf[FuncDef],
+          funcDefs = cDef.funcDefs.map(x => rec(x).asInstanceOf[FuncDef])
+        )
+        f(c1)
+      case other => f(other)
+    }
+    rec(stmt)
+  }
+
+  def assertAllTypesStripped(stmt: GStmt): Unit = {
+    def fail(s: GStmt): Nothing = {
+      throw new AssertionError(s"Type annotation appears in: $s")
     }
 
-    def reset(): Unit ={
-      typeHoleId = 0
+    modifyChildren(stmt) {
+      case s @ VarDef(_, _: GType, _, _) => fail(s)
+      case s @ FuncDef(_, args, returnType, _) =>
+        if (args.exists(_._2.isInstanceOf[GType]) ||
+          returnType.isInstanceOf[GType] && returnType != GType.voidType) fail(s)
+        else s
+      case s: ClassDef =>
+        if (s.vars.exists(_._2.isInstanceOf[GType])) fail(s)
+        else s
+      case other => other
     }
   }
 
+  /** An context used for constructing programs written in [[GStmt]] */
+  class TypeHoleContext {
+    var typeHoleId: Int = 0
+    val holeTypeMap: mutable.HashMap[GTHole, GType] = mutable.HashMap[GTHole, GType]()
+
+    def newTHole(ty: Option[GType]): GTHole = {
+      val h = GTHole(typeHoleId)
+      typeHoleId += 1
+      ty.foreach{t =>
+        assert(!holeTypeMap.contains(h))
+        holeTypeMap(h) = t
+      }
+      h
+    }
+
+    def reset(): Unit = {
+      typeHoleId = 0
+      holeTypeMap.clear()
+    }
+  }
+
+  /** Replace all the type annotations with [[GTHole]]s */
   trait GStmtAPI extends GExprAPI {
+    val typeHoleContext: TypeHoleContext = new TypeHoleContext()
+
     implicit def expr2Stmt(expr: GExpr): GStmt = ExprStmt(expr, isReturn = false)
 
     def RETURN(expr: GExpr) = ExprStmt(expr, isReturn = true)
 
     // todo: Fix the isConst part
-    def VAR(x: Symbol, ty: GTMark)(init: GExpr) = VarDef(x, ty, init, isConst = false)
+    def VAR(x: Symbol, ty: GType)(init: GExpr): VarDef = {
+      VarDef(x, typeHoleContext.newTHole(Some(ty)), init, isConst = false)
+    }
 
     // todo: Fix the isConst part
-    def VAR(x: Symbol)(init: GExpr)(implicit ctx: SurfaceContext) = {
-      VarDef(x, ctx.newTHole(), init, isConst = false)
+    def VAR(x: Symbol)(init: GExpr): VarDef = {
+      VarDef(x, typeHoleContext.newTHole(None), init, isConst = false)
     }
 
     def BLOCK(stmts: GStmt*): BlockStmt = {
       BlockStmt(stmts.toVector)
+    }
+
+    def TryBLOCK(stmt: GStmt): BlockStmt = {
+      stmt match {
+        case b: BlockStmt => b
+        case _            => BlockStmt(Vector(stmt))
+      }
     }
 
     def WHILE(cond: GExpr)(stmts: GStmt*): WhileStmt = {
@@ -116,19 +179,35 @@ object GStmt {
 
     def IF(b: GExpr)(branch1: GStmt*) = IFBuild(b, BLOCK(branch1: _*), identity)
 
-    def FUNC(name: Symbol, returnType: GTMark)(args: (Symbol, GTMark)*)(body: GStmt*): FuncDef = {
-      FuncDef(name, args.toList, returnType, BLOCK(body: _*))
+    def stripArgs(args: Seq[(Symbol, GType)]): List[(Symbol, GTHole)] = {
+      args.toList.map { case (s, t) => s -> typeHoleContext.newTHole(Some(t)) }
     }
 
-    def CONSTRUCTOR(className: Symbol, args: (Symbol, GTMark)*)(body: GStmt*): FuncDef = {
-      FuncDef(ClassDef.constructorName(className), args.toList, GType.voidType, BLOCK(body: _*))
+    def stripType(t: GType): GTHole = {
+      typeHoleContext.newTHole(Some(t))
+    }
+
+    def FUNC(name: Symbol, returnType: GType)(
+      args: (Symbol, GType)*
+    )(body: GStmt*): FuncDef = {
+      val a1s = stripArgs(args)
+      FuncDef(name, a1s, stripType(returnType), BLOCK(body: _*))
+    }
+
+    def CONSTRUCTOR(className: Symbol, args: (Symbol, GType)*)(body: GStmt*): FuncDef = {
+      FuncDef(
+        ClassDef.constructorName(className),
+        stripArgs(args),
+        GType.voidType,
+        BLOCK(body: _*)
+      )
     }
 
     def CLASS(name: Symbol, superType: Option[Symbol] = None)(
-      vars: (Symbol, GTMark)*
+      vars: (Symbol, GType)*
     )(constructor: FuncDef, methods: FuncDef*): ClassDef = {
       assert(vars.length == vars.toMap.size)
-      ClassDef(name, superType, constructor, vars.toMap, methods.toVector)
+      ClassDef(name, superType, constructor, stripArgs(vars).toMap, methods.toVector)
     }
   }
 
@@ -141,7 +220,11 @@ object GStmt {
   /**
     * Allows forward reference to function definitions, but they will not escape their scope.
     **/
-  def typeCheckBlock(block: BlockStmt, ctx: ExprContext, returnType: GType): Set[TypeCheckError] = {
+  def typeCheckBlock(
+    block: BlockStmt,
+    ctx: ExprContext,
+    returnType: GType
+  ): Set[TypeCheckError] = {
     var currentCtx = ctx
     block.stmts.foreach {
       case f: FuncDef =>

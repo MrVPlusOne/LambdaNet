@@ -8,6 +8,8 @@ import funcdiff.SimpleMath.Extensions._
   */
 object IR {
 
+  type Id = Int
+
   // @formatter:off
   /** a simple expression
     *
@@ -58,20 +60,15 @@ object IR {
     def prettyPrint: String = s"($cond ? $e1 : $e2)"
   }
 
-  sealed trait IRType
-
-  case class KnownType(ty: GType) extends IRType {
-    override def toString: String = s"[$ty]"
-  }
-
-  case class UnknownType(id: Int, origin: Option[GTHole], name: Option[Symbol])
-      extends IRType {
-    override def toString: String =
-      name
-        .map { n =>
-          s"𝒯${n.name}"
-        }
+  case class IRType(id: Int, name: Option[Symbol], freezeToType: Option[GType]) {
+    override def toString: String = {
+      val s = name
+        .map(n => s"𝒯${n.name}")
         .getOrElse(s"𝒯$id")
+      freezeToType
+        .map(t => s"[$s=$t]")
+        .getOrElse(s)
+    }
   }
 
   // @formatter:off
@@ -127,7 +124,7 @@ object IR {
     args: List[(Var, IRType)],
     returnType: IRType,
     body: Vector[IRStmt],
-    funcT: UnknownType
+    funcT: IRType
   ) extends IRStmt
 
   case class ClassDef(
@@ -136,7 +133,7 @@ object IR {
     constructor: FuncDef,
     vars: Map[Symbol, IRType],
     funcDefs: Vector[FuncDef],
-    classT: UnknownType
+    classT: IRType
   ) extends IRStmt {
     require(constructor.name == gtype.ClassDef.constructorName(name))
     require(constructor.returnType == classT)
@@ -168,7 +165,7 @@ object IR {
             .map { case (v, tv) => s"$v: $tv" }
             .mkString("(", ", ", ")")
           val returnMark =
-            if (returnType == KnownType(GType.voidType)) "" else s": $returnType"
+            if (returnType.freezeToType.contains(GType.voidType)) "" else s": $returnType"
           Vector(indent -> s"function $funcName:$funcT $argList$returnMark {") ++
             body.flatMap(s => prettyPrintHelper(indent + 1, s)) ++ Vector(
             indent -> "}"
@@ -196,5 +193,4 @@ object IR {
       BlockStmt(stmts)
     }
   }
-
 }

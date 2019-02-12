@@ -1,18 +1,30 @@
 package infer
 
+import gtype.GStmt.TypeHoleContext
 import gtype.{GTHole, JSExamples}
 
 object IRTranslation {
   import IR._
 
   class TranslationEnv() {
+    import collection.mutable
 
     var varIdx: Int = 0
-    var tyVarIdx: Int = 0
+    var tyVarIdx: Id = 0
+    //noinspection TypeAnnotation
+    val idTypeMap = mutable.HashMap[Id, IRType]()
+    //noinspection TypeAnnotation
+    val holeTyVarMap = mutable.HashMap[GTHole, IRType]()
 
-    def newTyVar(origin: Option[GTHole], name: Option[Symbol]): UnknownType = {
+    def newTyVar(
+      origin: Option[GTHole],
+      name: Option[Symbol],
+      freezeToType: Option[gtype.GType] = None
+    ): IRType = {
       assert(tyVarIdx >= 0)
-      val tv = UnknownType(tyVarIdx, origin, name)
+      val tv = IRType(tyVarIdx, name, freezeToType)
+      idTypeMap(tv.id) = tv
+      origin.foreach(h => holeTyVarMap(h) = tv)
       tyVarIdx += 1
       tv
     }
@@ -27,7 +39,7 @@ object IRTranslation {
     def getTyVar(gMark: gtype.GTMark, name: Option[Symbol]): IRType = {
       gMark match {
         case h: gtype.GTHole => newTyVar(Some(h), name)
-        case ty: gtype.GType => KnownType(ty)
+        case ty: gtype.GType => newTyVar(None, name, Some(ty))
       }
     }
   }
@@ -47,18 +59,6 @@ object IRTranslation {
   )(
     implicit env: TranslationEnv
   ): Vector[IR.IRStmt] = {
-    /*
-     * S :=                                  ([[GStmt]])
-     *   | var x: α = e                      ([[VarDef]])
-     *   | e := e                            ([[AssignStmt]])
-     *   | [return] e                        ([[ExprStmt]])
-     *   | if e then e else e                ([[IfStmt]])
-     *   | while e do e                      ([[WhileStmt]])
-     *   | { S; ...; S }                     ([[BlockStmt]])
-     *   | function x (x: α, ..., x:α): α    ([[FuncDef]])
-     *   | class x (l: α, ..., l:α)          ([[ClassDef]])
-     *     ↳ [extends x]{ f, ..., f }
-     */
     stmt match {
       case gtype.VarDef(x, ty, init, isConst) =>
         val v = namedVar(x)
@@ -111,7 +111,7 @@ object IRTranslation {
             name,
             superType,
             translateFunc(constructor).copy(returnType = classT),
-            vars.map{case (v, mark) => v -> env.getTyVar(mark, Some(v))},
+            vars.map { case (v, mark) => v -> env.getTyVar(mark, Some(v)) },
             funcDefs.map(translateFunc),
             classT
           )
@@ -129,7 +129,13 @@ object IRTranslation {
       case (argName, mark) =>
         namedVar(argName) -> env.getTyVar(mark, Some(argName))
     }
-    FuncDef(name, args1, env.getTyVar(returnType, None), translateStmt(body), env.newTyVar(None, Some(name)))
+    FuncDef(
+      name,
+      args1,
+      env.getTyVar(returnType, None),
+      translateStmt(body),
+      env.newTyVar(None, Some(name))
+    )
   }
 
   import collection.mutable
@@ -186,8 +192,9 @@ object IRTranslation {
     val stmts = translateStmt(example.program)(env)
     stmts.foreach(println)
 
-    import infer.RelationGraph._
+    import infer.PredicateGraph._
+    val ctx = EncodingCtx.jsCtx(env)
 
-    RelationGraph.encodeIR(stmts, EncodingCtx.jsCtx).foreach(println)
+    PredicateGraph.encodeIR(stmts, ctx).foreach(println)
   }
 }

@@ -32,6 +32,22 @@ object SimpleMath {
     }
   }
 
+  object BufferedTotalMap {
+    def apply[K, V](partialMap: K => Option[V])(default: K => V) =
+      new BufferedTotalMap[K, V](partialMap, default)
+  }
+
+  class BufferedTotalMap[K, V](partialMap: K => Option[V], default: K => V) extends Function[K,V]{
+    import collection.mutable
+    val map: mutable.HashMap[K, V] = mutable.HashMap[K, V]()
+
+    def apply(k: K): V = {
+      partialMap(k).getOrElse {
+        map.getOrElseUpdate(k, default(k))
+      }
+    }
+  }
+
   import SimpleMath.Extensions._
 
   def relu(x: Double): Double = if (x < 0) 0.0 else x
@@ -496,25 +512,26 @@ object SimpleMath {
 
   trait Monoid[T] {
     def zero: T
-    def op (x1: T, x2: T): T
+    def op(x1: T, x2: T): T
   }
 
-
   import scala.concurrent._
-  def parallelReduce[T](xs: Array[T], m: Monoid[T]
-                       )(implicit ctx: ExecutionContext): Future[T] = {
+  def parallelReduce[T](xs: Array[T], m: Monoid[T])(
+    implicit ctx: ExecutionContext
+  ): Future[T] = {
     def rec(range: Range): Future[T] = {
       val span = range.length
       span match {
         case 0 => Future.successful(m.zero)
         case 1 => Future.successful(xs(range.start))
         case _ =>
-          Future(range.splitAt(span/2)).flatMap{ case (l, r) =>
-            val lF = rec(l)
-            val rF = rec(r)
-            lF.zip(rF).map { p =>
-              m.op(p._1, p._2)
-            }
+          Future(range.splitAt(span / 2)).flatMap {
+            case (l, r) =>
+              val lF = rec(l)
+              val rF = rec(r)
+              lF.zip(rF).map { p =>
+                m.op(p._1, p._2)
+              }
           }
       }
     }
@@ -527,6 +544,6 @@ object SimpleMath {
 
       def op(x1: Int, x2: Int): Int = x1 + x2
     })(ExecutionContext.global), duration.Duration.Inf)
-    println{r}
+    println { r }
   }
 }

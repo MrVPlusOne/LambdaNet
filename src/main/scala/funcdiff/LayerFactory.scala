@@ -169,8 +169,7 @@ case class LayerFactory(nameSpace: SymbolPath, params: ParamCollection) {
     name: SymbolPath,
     stateShape: Array[Int],
     combiner: (CompNode, CompNode) => CompNode
-  )(inputs: IS[CompNode]): IS[CompNode] = withPrefix(name){ prefix =>
-
+  )(inputs: IS[CompNode]): IS[CompNode] = withPrefix(name) { prefix =>
     val leftInit: CompNode = getVar(prefix / 'leftInit) {
       ns.randn(stateShape)
     }
@@ -180,9 +179,38 @@ case class LayerFactory(nameSpace: SymbolPath, params: ParamCollection) {
     }
     val states2 = inputs.reverse.scanLeft(rightInit)(gru(name / 'rightRNN)).reverse
     states1.zip(states2).map {
-      case (l, r) => combiner(l,r)
+      case (l, r) => combiner(l, r)
     }
   }
+
+  //todo: implement multi-head attention
+  def attentionLayer(
+    name: SymbolPath,
+    attentionDim: Int
+  )(x: (CompNode, CompNode), ys: IS[(CompNode, CompNode)]): CompNode =
+    withPrefix(name) { prefix =>
+      val attentionVec = params
+        .getVar(prefix / 'attentionVec)(
+          ns.rand(2 * attentionDim, 1) * 0.01
+        )
+      val attentionLogits = ys.map {
+        case (k, _) =>
+          val w = x._1
+            .concat(k, axis = 1)
+            .dot(attentionVec)
+          leakyRelu(w, 0.2)
+      }
+      val aWeights = softmax(concatN(attentionLogits, axis = 1))
+      if (aWeights.shape.head == 1) {
+        val yMat = concatN(ys.map(_._2), axis = 0)
+        aWeights.dot(yMat)
+      } else {
+        total(ys.indices.map { i =>
+          aWeights.slice(:>, i :> (i + 1)) * ys(i)._2
+        })
+      }
+    }
+
 
   //  def cnn2D(name: Symbol, kernelSize: (Int, Int))(input: CompNode): CompNode = withPrefix(name) { prefix =>
   //    val w = getVar(prefix / 'kernel, attributes = Set(NeedRegularization)){ ns.randn(kernelSize._1, kernelSize._2) }

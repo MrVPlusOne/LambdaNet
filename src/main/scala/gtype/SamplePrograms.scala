@@ -2,7 +2,7 @@ package gtype
 
 import gtype.GType.boolType
 import gtype.GStmt.API._
-import gtype.GStmt.SurfaceContext
+import gtype.GStmt.TypeHoleContext
 
 object SamplePrograms {
   /*
@@ -60,7 +60,7 @@ object SamplePrograms {
     ExprContext(varAssign, typeContext)
   }
 
-  case class Example(program: BlockStmt, errors: Set[TypeCheckError])
+  case class Example(program: BlockStmt, holeTypeMap: Map[GTHole, GType])
 
 
 
@@ -68,11 +68,10 @@ object SamplePrograms {
   //noinspection TypeAnnotation
   object Collection {
 
-    implicit val ctx: SurfaceContext = new SurfaceContext()
-
-    def wellFormed(stmts: GStmt*): Example = {
-      val e = Example(BLOCK(stmts: _*), Set())
-      ctx.reset()
+    def wellFormed(stmt: => GStmt): Example = {
+      typeHoleContext.reset()
+      val b = TryBLOCK(stmt)
+      val e = Example(b, typeHoleContext.holeTypeMap.toMap)
       e
     }
 
@@ -147,7 +146,7 @@ object SamplePrograms {
       )
     }
 
-    val mergeSortExample: Example = Example(BLOCK(
+    val mergeSortExample: Example = wellFormed(BLOCK(
       //    function mergeSort(array: number[]): number[] {
       //      if (array.length < 2) {
       //      return array;
@@ -205,11 +204,9 @@ object SamplePrograms {
         ),
         RETURN(I(0))
       )
-    ),
-      errors = Set(SubtypeError('int, numArray))
-    )
+    ))
 
-    val polygonExample = wellFormed(
+    val polygonExample = wellFormed(BLOCK(
       CLASS('Polygon)(
         'name -> 'string,
         'height -> 'int,
@@ -227,12 +224,12 @@ object SamplePrograms {
           'this.m('name) := Const("Square", 'string)
         )
       )
-    )
+    ))
 
     val linkedListExample = {
       val linkedList = 'LinkedList
       val linkedListNode = 'LinkedListNode
-      wellFormed(
+      wellFormed(BLOCK(
         CLASS(linkedList)(
           'head -> linkedListNode,
           'tail -> linkedListNode,
@@ -294,7 +291,7 @@ object SamplePrograms {
               any))
           )
         )
-      )
+      ))
     }
 
     val all: Seq[(String, Example)] = Seq(

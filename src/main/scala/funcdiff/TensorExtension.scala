@@ -5,6 +5,7 @@ import botkop.numsca.{NumscaRange, Tensor}
 import botkop.{numsca => ns}
 import org.nd4j.linalg.api.ops.impl.indexaccum.{IMax, IMin}
 import org.nd4j.linalg.factory.Nd4j
+import org.nd4j.linalg.ops.transforms.Transforms
 
 
 object TensorExtension {
@@ -143,6 +144,10 @@ object TensorExtension {
       x / n
     }
   }
+
+  def sin(t: Tensor): Tensor = new Tensor(Transforms.sin(t.array))
+  def cos(t: Tensor): Tensor = new Tensor(Transforms.cos(t.array))
+
 
   def matrix(rows: Seq[Array[Float]]): Tensor = {
     val ndArray = Nd4j.create(rows.toArray)

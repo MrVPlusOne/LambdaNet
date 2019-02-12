@@ -2,7 +2,6 @@ package gtype
 
 import gtype.GStmt.API._
 import SamplePrograms.Example
-import gtype.GStmt.SurfaceContext
 
 import scala.collection.mutable.ListBuffer
 
@@ -100,18 +99,16 @@ object JSExamples {
 
   // @formatter:off
   object Collection {
-
     import collection.mutable
 
     val all: ListBuffer[(String, Example)] = mutable.ListBuffer()
 
-    implicit val surfaceContext: SurfaceContext = new SurfaceContext()
-
-    def wellFormed(name: String)(stmts: GStmt*): Example = {
-      val ex = Example(BLOCK(stmts: _*), Set())
-      all += (name -> ex)
-      surfaceContext.reset()
-      ex
+    def wellFormed(name: String)(stmt: => GStmt): Example = {
+      typeHoleContext.reset()
+      val b = TryBLOCK(stmt)
+      val e = Example(b, typeHoleContext.holeTypeMap.toMap)
+      all += (name -> e)
+      e
     }
 
 
@@ -125,14 +122,14 @@ object JSExamples {
       }
     }
 
-    val whileExample: Example = wellFormed("while")(
+    val whileExample: Example = wellFormed("while")(BLOCK(
       VAR('x, number)( I(3) + I(4)),
       WHILE('x < I(10))(
         'x := 'x + I(1)
       )
-    )
+    ))
 
-    val mergeSortExample: Example = wellFormed("mergeSort")(
+    val mergeSortExample: Example = wellFormed("mergeSort")(BLOCK(
       FUNC('mergeSort, numArray)('array -> numArray)(
         IF('array.m('length) < I(2))(
           RETURN('array)
@@ -168,7 +165,7 @@ object JSExamples {
         ),
         RETURN('array)
       )
-    )
+    ))
 
     val linkedListExample: Example = {
       val linkedList = 'LinkedList
@@ -176,7 +173,7 @@ object JSExamples {
 
       val currentNode = 'currentNode
 
-      wellFormed("LinkedList")(
+      wellFormed("LinkedList")(BLOCK(
         CLASS(linkedList)(
           'head -> linkedListNode,
           'tail -> linkedListNode,
@@ -272,14 +269,14 @@ object JSExamples {
               any))
           )
         )
-      )
+      ))
     }
 
     val doublyLinkedList: Example = {
       val linkedList = 'LinkedList
       val node = 'Node
 
-      wellFormed("DoublyLinkedList")(
+      wellFormed("DoublyLinkedList")(BLOCK(
         CLASS(node)(
           'element -> any,
           'next -> node,
@@ -304,10 +301,10 @@ object JSExamples {
           FUNC('isEmpty, boolean)()(
             RETURN(! THIS.m('_first) )
           ),
-          FUNC('push, List() -: void)('element -> any)(
+          FUNC('push, void)('element -> any)(
             RETURN(THIS.m('_insert).call('element, B(true)))
           ),
-          FUNC('_insert, List() -: void)(
+          FUNC('_insert, void)(
             'element -> any,
             'atTheEnd -> boolean
           )(
@@ -330,26 +327,27 @@ object JSExamples {
             RETURN(THIS.m('_remove).m('bind).call(THIS, 'newNode))
           )
         )
-      )
+      ))
     }
 
     val mutualRecursionExample: Example = {
       val XY = obj(('x, 'number), ('y, 'number))
 
       wellFormed("mutual recursion")(
-        FUNC('f1, number)(('p, XY))(
-          IF(('p m 'x) === I(0))(
-            RETURN('p m 'y)
-          ).ELSE(
-            ('p m 'x) := ('p m 'x) - I(1),
-            RETURN('f2.call('p))
+        BLOCK(
+          FUNC('f1, number)(('p, XY))(
+            IF(('p m 'x) === I(0))(
+              RETURN('p m 'y)
+            ).ELSE(
+              ('p m 'x) := ('p m 'x) - I(1),
+              RETURN('f2.call('p))
+            )
+          ),
+          FUNC('f2, number)(('p, XY))(
+            ('p m 'y) := (('p m 'y) + I(1)),
+            RETURN('f1 call 'p)
           )
-        ),
-        FUNC('f2, number)(('p, XY))(
-          ('p m 'y) := (('p m 'y) + I(1)),
-          RETURN('f1 call 'p)
-        )
-      )
+      ))
     }
   }
   // @formatter:on
