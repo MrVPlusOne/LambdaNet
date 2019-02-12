@@ -21,9 +21,6 @@ Maximize the number of correct (user-annotated) type annotations.
  * Decode Typescript types from the vector embedding output by the GNN.
 
 
-### Current Progress
-See [Agenda](Agenda.md).
-
 ### Formalizations
 See [typingNet-Formalizations.pdf](typingNet-Formalizations.pdf).
 
@@ -35,6 +32,33 @@ See [typingNet-Formalizations.pdf](typingNet-Formalizations.pdf).
 
 **Relation Graph**: [RelationGraph](src/main/scala/infer/RelationGraph.scala)
 
-**Graph Neural Network Embedding**: TODO
+**Graph Neural Network Embedding/Decoding**: [GraphEmbedding](src/main/scala/infer/GraphEmbedding.scala)
 
-**Type Decoding**: TODO
+**Training Loop**: [TrainingCenter](src/main/scala/infer/TrainingCenter.scala)
+
+### Current Progress
+
+#### Inference Graph Construction
+
+Todo:
+
+- [ ] Properly handle library types
+
+- [ ] Verify predicates correctness
+
+Done:
+
+- [X] implement type decoding from predicate graphs
+
+- [X] implement user-defined type encoding
+
+- [X] implement graph embedding of predicate graphs
+
+- [X] generate predicate graph from IR
+
+- [X] implement an IR in single assignment form (SAF)
+
+- [X] translate programs ([GStmt](src/main/scala/gtype/GStmt.scala)) 
+into IR
+
+- [X] trace type variables back into source code
