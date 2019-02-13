@@ -184,11 +184,13 @@ case class LayerFactory(nameSpace: SymbolPath, params: ParamCollection) {
   }
 
   //todo: implement multi-head attention
+  //todo: try other kinds of attention
   def attentionLayer(
     name: SymbolPath,
     attentionDim: Int
   )(x: (CompNode, CompNode), ys: IS[(CompNode, CompNode)]): CompNode =
     withPrefix(name) { prefix =>
+      val sqrtN = math.sqrt(x._1.shape(1))
       val attentionVec = params
         .getVar(prefix / 'attentionVec)(
           ns.rand(2 * attentionDim, 1) * 0.01
@@ -200,7 +202,7 @@ case class LayerFactory(nameSpace: SymbolPath, params: ParamCollection) {
             .dot(attentionVec)
           leakyRelu(w, 0.2)
       }
-      val aWeights = softmax(concatN(attentionLogits, axis = 1))
+      val aWeights = softmax(concatN(attentionLogits, axis = 1) / sqrtN)
       if (aWeights.shape.head == 1) {
         val yMat = concatN(ys.map(_._2), axis = 0)
         aWeights.dot(yMat)
