@@ -10,6 +10,10 @@ import org.nd4j.linalg.ops.transforms.Transforms
 
 object TensorExtension {
 
+  def mamFormat(t: Tensor): String = {
+    t.squeeze().toString //fixme: support tensors
+  }
+
   /** set this to true to turn on NaN checking */
   var checkNaN = true
   var zeroTolerance = 1e-8

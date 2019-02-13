@@ -5,6 +5,7 @@ import funcdiff.SimpleMath.BufferedTotalMap
 import funcdiff.{CompNode, ParamCollection, Optimizers, TensorExtension}
 import gtype._
 import infer.IRTranslation.TranslationEnv
+import infer.PredicateGraph._
 
 object TrainingCenter {
 
@@ -18,7 +19,6 @@ object TrainingCenter {
       case (h, t) => transEnv.holeTyVarMap(h).id -> t
     }.toIndexedSeq
 
-    import infer.PredicateGraph._
     val predicateCtx = PredicateContext.jsCtx(transEnv)
 
     val predicates = {
@@ -31,6 +31,15 @@ object TrainingCenter {
 
     val pc = ParamCollection()
     val dimMessage = 64
+
+    val eventLogger = {
+      import ammonite.ops._
+      new EventLogger(
+        pwd / "running-result" / "log.txt",
+        printToConsole = true,
+        overrideMode = true
+      )
+    }
 
     import GraphEmbedding._
     import funcdiff.API._
@@ -92,8 +101,10 @@ object TrainingCenter {
       println("Ground truths: ===")
       println(annotatedPlaces.map(_._2))
 
-      val loss = mean(crossEntropyOnSoftmax(logits, oneHot(targets, decodingCtx.maxIndex)))
-      println(s"[$step] loss: " + loss.value) //todo: replace with event logger
+      val loss = mean(
+        crossEntropyOnSoftmax(logits, oneHot(targets, decodingCtx.maxIndex))
+      )
+      eventLogger.log("loss", step, loss.value)
       // minimize the loss
       optimizer.minimize(loss, pc.allParams, weightDecay = Some(1e-4))
     }
