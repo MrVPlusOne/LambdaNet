@@ -3,13 +3,15 @@ package infer
 import botkop.numsca
 import funcdiff._
 import funcdiff.SimpleMath.Extensions._
-import gtype.GType
+import gtype.{GType, TyVar}
 import infer.IR.{IRType, Id}
 import infer.PredicateGraph._
 
 import scala.collection.mutable
 
 object GraphEmbedding {
+
+  val unknownTypeSymbol = 'UNKNOWN
 
   case class EmbeddingCtx(
     idTypeMap: Map[IR.Id, IRType],
@@ -22,8 +24,19 @@ object GraphEmbedding {
 
   case class DecodingCtx(
     concreteTypes: IS[GType],
-    projectTypes: IS[IR.Id]
-  )
+    projectTypes: IS[IRType]
+  ) {
+    private val indexMap = (concreteTypes ++ projectTypes.map { t =>
+      assert(t.name.nonEmpty, s"project type has no name: $t")
+      TyVar(t.name.get)
+    }).zipWithIndex.toMap
+
+    val maxIndex: Int = concreteTypes.length + projectTypes.length
+
+    def indexOfType(t: GType): Int = {
+      indexMap.getOrElse(t, indexMap(TyVar(unknownTypeSymbol)))
+    }
+  }
 }
 
 import GraphEmbedding._
@@ -195,7 +208,7 @@ case class GraphEmbedding(ctx: EmbeddingCtx, pc: ParamCollection, dimMessage: In
   }
 
   /**
-    * @return A prediction distribution matrix of shape (# of places) * (# of candidates)
+    * @return A prediction distribution logits matrix of shape (# of places) * (# of candidates)
     */
   def decode(
     decodingCtx: DecodingCtx,
@@ -215,12 +228,12 @@ case class GraphEmbedding(ctx: EmbeddingCtx, pc: ParamCollection, dimMessage: In
     val candidateEmbeddings = {
       val c =
         mlp(decodingCtx.concreteTypes.map(concreteTypeMap), "decode:concreteType", 2)
-      val p = mlp(decodingCtx.projectTypes.map(nodeMap), "decode:projectType", 2)
+      val p = mlp(decodingCtx.projectTypes.map(t => nodeMap(t.id)), "decode:projectType", 2)
       c.concat(p, axis = 0)
     }
 
     val transformedNodes = mlp(placesToDecode.map(embedding.nodeMap), "decode:nodes", 2)
-    softmax(transformedNodes.dot(candidateEmbeddings.t)) //todo: try multi-head attention
+    transformedNodes.dot(candidateEmbeddings.t) //todo: try multi-head attention
   }
 
 }

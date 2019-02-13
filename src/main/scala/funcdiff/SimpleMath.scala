@@ -46,6 +46,10 @@ object SimpleMath {
         map.getOrElseUpdate(k, default(k))
       }
     }
+
+    def clear(): Unit = {
+      map.clear()
+    }
   }
 
   import SimpleMath.Extensions._

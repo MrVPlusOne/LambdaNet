@@ -1,7 +1,8 @@
 package infer
 
 import botkop.numsca
-import funcdiff.{CompNode, ParamCollection, SimpleMath, TensorExtension}
+import funcdiff.SimpleMath.BufferedTotalMap
+import funcdiff.{CompNode, ParamCollection, Optimizers, TensorExtension}
 import gtype._
 import infer.IRTranslation.TranslationEnv
 
@@ -11,21 +12,14 @@ object TrainingCenter {
     val transEnv = new TranslationEnv()
     val example = JSExamples.Collection.doublyLinkedList
 
-    GStmt.assertAllTypesStripped(example.program)
-
     val stmts = IRTranslation.translateStmt(example.program)(transEnv)
-
-    println("IR Programs: ===")
-    stmts.foreach(println)
-
-    println("holeTypeMap: " + example.holeTypeMap)
+    //    println("holeTypeMap: " + example.holeTypeMap)
     val annotatedPlaces = example.holeTypeMap.map {
-      case (h, t) =>
-        transEnv.holeTyVarMap(h).id -> t
+      case (h, t) => transEnv.holeTyVarMap(h).id -> t
     }.toIndexedSeq
 
     import infer.PredicateGraph._
-    val predicateCtx = EncodingCtx.jsCtx(transEnv)
+    val predicateCtx = PredicateContext.jsCtx(transEnv)
 
     val predicates = {
       PredicateGraph.encodeIR(stmts, predicateCtx) ++ PredicateGraph
@@ -33,38 +27,44 @@ object TrainingCenter {
           transEnv.idTypeMap.values
         )
     }
-
     val newTypes = predicateCtx.newTypeMap.toIndexedSeq
-
-    predicates.foreach(println)
-
-    import GraphEmbedding._
-    import funcdiff.API._
 
     val pc = ParamCollection()
     val dimMessage = 64
 
-    val concreteTypeMap = {
-      val keys = JSExamples.typeContext.typeUnfold.keySet
-      keys.toList.map { k =>
-        (TyVar(k): GType) -> (pc.getVar('TyVar / k)(numsca.randn(1, dimMessage) * 0.01): CompNode)
-      }
-    }.toMap
+    import GraphEmbedding._
+    import funcdiff.API._
+    import TensorExtension.oneHot
 
-    val labelMap = {
-      val labels = List('OP_Plus, 'OP_Minus, 'OP_Times, 'OP_Divide, 'OP_LessThan, 'charAt)
-      labels.map { k =>
-        k -> (pc.getVar('labelVec / k)(numsca.randn(1, dimMessage) * 0.01): CompNode)
-      }
-    }.toMap
+    val optimizer = Optimizers.Adam(learningRate = 1e-4)
+    // training loop
+    for (step <- 0 until 100) {
 
-    for (step <- 0 until 2) {
-      val extendedTypeMap = SimpleMath.BufferedTotalMap(concreteTypeMap.get) { _ =>
-        const(TensorExtension.randomUnitVec(dimMessage)) //fixme: add encoding layer
+      val concreteTypeMap = {
+        //todo: add more structural information
+        val keys = JSExamples.typeContext.typeUnfold.keySet ++ Set(
+          AnyType.id,
+          unknownTypeSymbol
+        )
+        keys.toList.map { k =>
+          (TyVar(k): GType) -> (pc.getVar('TyVar / k)(numsca.randn(1, dimMessage) * 0.01): CompNode)
+        }
+      }.toMap
+
+      val labelMap = {
+        val labels =
+          List('OP_Plus, 'OP_Minus, 'OP_Times, 'OP_Divide, 'OP_LessThan, 'charAt)
+        labels.map { k =>
+          k -> (pc.getVar('labelVec / k)(numsca.randn(1, dimMessage) * 0.01): CompNode)
+        }.toMap
       }
 
-      val extendedLabelMap = SimpleMath.BufferedTotalMap(labelMap.get) { _ =>
-        const(TensorExtension.randomUnitVec(dimMessage)) //fixme: add encoding layer
+      val extendedTypeMap = BufferedTotalMap(concreteTypeMap.get) { _ =>
+        const(TensorExtension.randomUnitVec(dimMessage)) //todo: add encoding layer
+      }
+
+      val extendedLabelMap = BufferedTotalMap(labelMap.get) { _ =>
+        const(TensorExtension.randomUnitVec(dimMessage)) //todo: add encoding layer
       }
 
       val embedCtx = EmbeddingCtx(
@@ -75,19 +75,27 @@ object TrainingCenter {
       )
       val decodingCtx = DecodingCtx(
         concreteTypeMap.keys.toIndexedSeq,
-        newTypes.map(_._2.id)
+        newTypes.map(_._2)
       )
 
-      val ge = GraphEmbedding(embedCtx, pc, dimMessage)
-      val predictions = ge.encodeAndDecode(
-        iterations = 10,
-        decodingCtx,
-        annotatedPlaces.map(_._1)
-      )
+      val targets = annotatedPlaces.map(p => decodingCtx.indexOfType(p._2))
+
+      val logits =
+        GraphEmbedding(embedCtx, pc, dimMessage)
+          .encodeAndDecode(
+            iterations = 10,
+            decodingCtx,
+            annotatedPlaces.map(_._1)
+          )
       println("Predictions: ====")
-      println(predictions)
+      println(logits)
       println("Ground truths: ===")
       println(annotatedPlaces.map(_._2))
+
+      val loss = mean(crossEntropyOnSoftmax(logits, oneHot(targets, decodingCtx.maxIndex)))
+      println(s"[$step] loss: " + loss.value) //todo: replace with event logger
+      // minimize the loss
+      optimizer.minimize(loss, pc.allParams, weightDecay = Some(1e-4))
     }
   }
 

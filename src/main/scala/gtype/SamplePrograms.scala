@@ -72,6 +72,7 @@ object SamplePrograms {
       typeHoleContext.reset()
       val b = TryBLOCK(stmt)
       val e = Example(b, typeHoleContext.holeTypeMap.toMap)
+      GStmt.assertAllTypesStripped(b)
       e
     }
 

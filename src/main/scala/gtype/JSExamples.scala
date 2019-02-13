@@ -10,7 +10,7 @@ object JSExamples {
   val number = 'number
   val string = 'string
   val boolean: Symbol = GType.boolType.id
-  val void = GType.voidType.id
+  val void: Symbol = GType.voidType.id
   val anyArray = 'anyArray
   val numArray = 'numberArray
 
@@ -108,6 +108,7 @@ object JSExamples {
       val b = TryBLOCK(stmt)
       val e = Example(b, typeHoleContext.holeTypeMap.toMap)
       all += (name -> e)
+      GStmt.assertAllTypesStripped(b)
       e
     }
 
@@ -351,7 +352,6 @@ object JSExamples {
     }
   }
   // @formatter:on
-
   val realWorldExamples = {
     val binaryTreeNodeObj = obj(
       'leftHeight -> number,

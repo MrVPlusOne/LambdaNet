@@ -1,7 +1,7 @@
 package infer
 
 import funcdiff.SimpleMath.Extensions._
-import gtype.{GType, JSExamples}
+import gtype.{GType, JSExamples, TyVar}
 import infer.IR._
 import infer.IRTranslation.TranslationEnv
 
@@ -25,28 +25,29 @@ object PredicateGraph {
   case class ObjLiteralTypeExpr(fields: Map[Symbol, IRType]) extends TypeExpr
   case class FieldAccessTypeExpr(objType: IRType, field: Symbol) extends TypeExpr
 
-  case class EncodingCtx(
+  case class PredicateContext(
     varTypeMap: Map[Var, IRType],
     newTypeMap: Map[Symbol, IRType]
   )
 
   val returnVar: Var = namedVar(gtype.GStmt.returnSymbol)
 
-  object EncodingCtx {
-    val empty: EncodingCtx =
-      EncodingCtx(Map(), Map())
+  object PredicateContext {
+    val empty: PredicateContext =
+      PredicateContext(Map(), Map())
 
-    def jsCtx(env: TranslationEnv): EncodingCtx = {
+    def jsCtx(env: TranslationEnv): PredicateContext = {
       val typeMap = JSExamples.exprContext.varAssign.map {
         case (s, t) => namedVar(s) -> env.newTyVar(None, Some(s), Some(t))
       }
-      val objDef = JSExamples.typeContext.typeUnfold
-        .mapValuesNow(t => env.newTyVar(None, None, Some(t)))
-      EncodingCtx(typeMap, objDef)
+      val objDef = JSExamples.typeContext.typeUnfold.keys
+        .map(s => s -> env.newTyVar(None, Some(s), Some(TyVar(s))))
+        .toMap
+      PredicateContext(typeMap, objDef)
     }
   }
 
-  def encodeIR(stmts: Vector[IRStmt], ctx: EncodingCtx): Vector[TyVarPredicate] = {
+  def encodeIR(stmts: Vector[IRStmt], ctx: PredicateContext): Vector[TyVarPredicate] = {
     import collection.mutable
 
     val relations = mutable.ListBuffer[TyVarPredicate]()
@@ -59,7 +60,7 @@ object PredicateGraph {
       * block and return a new context */
     def collectDefinitions(
       stmts: Vector[IRStmt]
-    )(implicit ctx: EncodingCtx): EncodingCtx = {
+    )(implicit ctx: PredicateContext): PredicateContext = {
       val classDefs = stmts.collect {
         case c: ClassDef => c.name -> c.classT
       }
@@ -76,7 +77,7 @@ object PredicateGraph {
       )
     }
 
-    def encodeStmt(stmt: IRStmt)(implicit ctx: EncodingCtx): Unit = {
+    def encodeStmt(stmt: IRStmt)(implicit ctx: PredicateContext): Unit = {
       import ctx._
 
       stmt match {
