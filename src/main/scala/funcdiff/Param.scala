@@ -27,7 +27,7 @@ case class SymbolPath(path: Vector[Symbol]){
   def ++ (other: SymbolPath) = SymbolPath(path ++ other.path)
 
   override def toString: String = {
-    path.reverse.mkString("(", "/", ")")
+    path.mkString("(", "/", ")")
   }
 }
 

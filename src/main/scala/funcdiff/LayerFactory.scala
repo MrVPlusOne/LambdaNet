@@ -17,6 +17,15 @@ object LayerFactory {
 case class LayerFactory(nameSpace: SymbolPath, params: ParamCollection) {
   import params._
 
+  def getVar(
+    relativePath: SymbolPath,
+    attributes: Set[ParameterAttribute] = Set()
+  )(init: => Tensor): ParamNode =
+    params.getVar(nameSpace ++ relativePath, attributes)(init)
+
+  def getConst(relativePath: SymbolPath)(init: => Tensor): Tensor =
+    params.getConst(nameSpace ++ relativePath)(init)
+
   def withPrefix[A](prefix: SymbolPath)(f: SymbolPath => A): A = {
     val p = nameSpace ++ prefix
     f(p)
@@ -212,8 +221,6 @@ case class LayerFactory(nameSpace: SymbolPath, params: ParamCollection) {
         })
       }
     }
-
-
   //  def cnn2D(name: Symbol, kernelSize: (Int, Int))(input: CompNode): CompNode = withPrefix(name) { prefix =>
   //    val w = getVar(prefix / 'kernel, attributes = Set(NeedRegularization)){ ns.randn(kernelSize._1, kernelSize._2) }
   //    if(useBias){
