@@ -40,14 +40,17 @@ object PredicateGraph {
       val typeMap = JSExamples.exprContext.varAssign.map {
         case (s, t) => namedVar(s) -> env.newTyVar(None, Some(s), Some(t))
       }
-      val objDef = JSExamples.typeContext.typeUnfold.keys
-        .map(s => s -> env.newTyVar(None, Some(s), Some(TyVar(s))))
-        .toMap
-      PredicateContext(typeMap, objDef)
+//      val objDef = JSExamples.typeContext.typeUnfold.keys
+//        .map(s => s -> env.newTyVar(None, Some(s), Some(TyVar(s))))
+//        .toMap
+      PredicateContext(typeMap, Map())
     }
   }
 
-  def encodeIR(stmts: Vector[IRStmt], ctx: PredicateContext): Vector[TyVarPredicate] = {
+  def encodeIR(
+    stmts: Vector[IRStmt],
+    ctx: PredicateContext
+  ): (Vector[TyVarPredicate], PredicateContext) = {
     import collection.mutable
 
     val relations = mutable.ListBuffer[TyVarPredicate]()
@@ -143,7 +146,7 @@ object PredicateGraph {
     }
 
     encodeStmt(BlockStmt(stmts))(ctx)
-    relations.toVector
+    relations.toVector -> collectDefinitions(stmts)(ctx)
   }
 
   def encodeUnaryPredicates(vars: Iterable[IRType]): Vector[TyVarPredicate] = {

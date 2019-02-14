@@ -1,9 +1,10 @@
 package infer
 
 import botkop.numsca
+import botkop.numsca.Tensor
 import funcdiff._
 import funcdiff.SimpleMath.Extensions._
-import gtype.{GType, TyVar}
+import gtype.{AnyType, GType, TyVar}
 import infer.IR.{IRType, Id}
 import infer.PredicateGraph._
 
@@ -15,7 +16,7 @@ object GraphEmbedding {
 
   case class EmbeddingCtx(
     idTypeMap: Map[IR.Id, IRType],
-    concreteTypeMap: GType => CompNode,
+    libraryTypeMap: Symbol => CompNode,
     predicates: Seq[TyVarPredicate],
     labelMap: Symbol => CompNode
   )
@@ -26,12 +27,14 @@ object GraphEmbedding {
     concreteTypes: IS[GType],
     projectTypes: IS[IRType]
   ) {
-    private val indexMap = (concreteTypes ++ projectTypes.map { t =>
-      assert(t.name.nonEmpty, s"project type has no name: $t")
-      TyVar(t.name.get)
-    }).zipWithIndex.toMap
+    private val indexMap =
+      (concreteTypes
+        ++ projectTypes.map { t =>
+          assert(t.name.nonEmpty, s"project type has no name: $t")
+          TyVar(t.name.get)
+        }).zipWithIndex.toMap
 
-    val maxIndex: Int = concreteTypes.length + projectTypes.length
+    val maxIndex: Int = indexMap.size
 
     def indexOfType(t: GType): Int = {
       indexMap.getOrElse(t, indexMap(TyVar(unknownTypeSymbol)))
@@ -42,15 +45,17 @@ object GraphEmbedding {
 import GraphEmbedding._
 import API._
 
-case class GraphEmbedding(ctx: EmbeddingCtx, pc: ParamCollection, dimMessage: Int) {
+case class GraphEmbedding(
+  ctx: EmbeddingCtx,
+  layerFactory: LayerFactory,
+  dimMessage: Int
+) {
   import ctx._
-  val layerFactory: LayerFactory = LayerFactory('GraphEmbedding, pc)
   import layerFactory._
 
   require(dimMessage % 2 == 0, "dimMessage should be even")
 
-  val initVec: CompNode =
-    pc.getVar(nameSpace / 'initVec)(numsca.randn(1, dimMessage) * 0.01)
+  val nodeInitVec: CompNode = getVar('nodeInitVec)(randomVec())
 
   /**
     * @return A prediction distribution matrix of shape (# of places) * (# of candidates)
@@ -60,11 +65,41 @@ case class GraphEmbedding(ctx: EmbeddingCtx, pc: ParamCollection, dimMessage: In
     decodingCtx: DecodingCtx,
     placesToDecode: IS[Id]
   ): CompNode = {
-    var embed = Embedding(idTypeMap.mapValuesNow(_ => initVec))
+    var embed = Embedding(idTypeMap.mapValuesNow(_ => nodeInitVec))
     for (_ <- 0 until iterations) {
       embed = iterate(embed)
     }
     decode(decodingCtx, placesToDecode, embed)
+  }
+
+  /** Each message consists of a key-value pair */
+  type Message = (CompNode, CompNode)
+
+  def messageModel(name: SymbolPath, vec: CompNode): Message = {
+    linear(name / 'header, dimMessage)(vec) -> linear(name / 'content, dimMessage)(vec)
+  }
+
+  def messageModel2(name: SymbolPath, key: CompNode, value: CompNode): Message = {
+    linear(name / 'header, dimMessage)(key) -> linear(name / 'content, dimMessage)(
+      value
+    )
+  }
+
+  def randomVec(): Tensor = {
+    numsca.randn(1, dimMessage) * 0.01
+  }
+
+  def positionalEncoding(pos: Int): CompNode = {
+    assert(pos >= -1)
+    if (pos == -1)
+      getVar('position / 'head) { randomVec() } else {
+      getConst('position / Symbol(pos.toString)) {
+        val phases = (0 until dimMessage / 2).map { dim =>
+          pos / math.pow(1000, 2.0 * dim / dimMessage)
+        }
+        numsca.Tensor(phases.map(math.sin) ++ phases.map(math.cos): _*).reshape(1, -1)
+      }
+    }
   }
 
   def iterate(
@@ -73,31 +108,8 @@ case class GraphEmbedding(ctx: EmbeddingCtx, pc: ParamCollection, dimMessage: In
     import funcdiff.API._
     import embedding._
 
-    /** Each message consists of a key-value pair */
-    type Message = (CompNode, CompNode)
-
     val messages = mutable.HashMap[Id, mutable.ListBuffer[Message]]()
     ctx.idTypeMap.keys.foreach(id => messages(id) = mutable.ListBuffer())
-
-    def messageModel(name: SymbolPath, vec: CompNode): Message = {
-      linear(name / 'header, dimMessage)(vec) -> linear(name / 'content, dimMessage)(vec)
-    }
-
-    def messageModel2(name: SymbolPath, key: CompNode, value: CompNode): Message = {
-      linear(name / 'header, dimMessage)(key) -> linear(name / 'content, dimMessage)(
-        value
-      )
-    }
-
-    def positionalEncoding(pos: Int): CompNode = {
-      assert(pos >= 0)
-      pc.getConst('position / Symbol(pos.toString)) {
-        val phases = (0 until dimMessage / 2).map { dim =>
-          pos / math.pow(1000, 2.0 * dim / dimMessage)
-        }
-        numsca.Tensor(phases.map(math.sin) ++ phases.map(math.cos): _*).reshape(1, -1)
-      }
-    }
 
     /* for each kind of predicate, generate one or more messages */
     def sendPredicateMessages(predicate: TyVarPredicate): Unit = predicate match {
@@ -105,7 +117,7 @@ case class GraphEmbedding(ctx: EmbeddingCtx, pc: ParamCollection, dimMessage: In
         messages(v1.id) += messageModel('Equality, nodeMap(v2.id))
         messages(v2.id) += messageModel('Equality, nodeMap(v1.id))
       case FreezeType(v, ty) =>
-        messages(v.id) += messageModel('FreezeType, concreteTypeMap(ty))
+        messages(v.id) += messageModel('FreezeType, encodeGType(ty))
       case HasName(v, name) =>
         messages(v.id) += messageModel('HasName, labelMap(name))
       case SubtypeRel(sub, sup) =>
@@ -137,12 +149,12 @@ case class GraphEmbedding(ctx: EmbeddingCtx, pc: ParamCollection, dimMessage: In
 
         expr match {
           case FuncTypeExpr(argTypes, returnType) =>
-            val ids = (argTypes.toIndexedSeq :+ returnType).map(_.id)
+            val ids = (returnType +: argTypes.toIndexedSeq).map(_.id)
             ids.zipWithIndex.foreach {
               case (tId, argId) =>
                 messages(v.id) += messageModel2(
                   'FuncTypeExpr,
-                  positionalEncoding(argId),
+                  positionalEncoding(argId-1),
                   nodeMap(tId)
                 )
                 messages(tId) += messageModel('Equality, decodeArg(nodeMap(v.id), argId))
@@ -227,13 +239,55 @@ case class GraphEmbedding(ctx: EmbeddingCtx, pc: ParamCollection, dimMessage: In
 
     val candidateEmbeddings = {
       val c =
-        mlp(decodingCtx.concreteTypes.map(concreteTypeMap), "decode:concreteType", 2)
-      val p = mlp(decodingCtx.projectTypes.map(t => nodeMap(t.id)), "decode:projectType", 2)
+        mlp(decodingCtx.concreteTypes.map(encodeGType), "decode:concreteType", 2)
+      val p =
+        mlp(decodingCtx.projectTypes.map(t => nodeMap(t.id)), "decode:projectType", 2)
       c.concat(p, axis = 0)
     }
 
     val transformedNodes = mlp(placesToDecode.map(embedding.nodeMap), "decode:nodes", 2)
     transformedNodes.dot(candidateEmbeddings.t) //todo: try multi-head attention
   }
+
+  private val gTypeEmbeddingMap = mutable.HashMap[GType, CompNode]()
+  def encodeGType(t: GType): CompNode =
+    gTypeEmbeddingMap.getOrElseUpdate(
+      t, {
+        import gtype._
+        import API._
+
+        val funcInitKey = getVar('funcType / 'initKey)(randomVec())
+        val funcInitValue = getVar('funcType / 'initValue)(randomVec())
+
+        val objectInitKey = getVar('objType / 'initKey)(randomVec())
+        val objectInitValue = getVar('objType / 'initValue)(randomVec())
+
+        def rec(t: GType): CompNode = t match {
+          case AnyType     => getVar('anyType)(numsca.randn(1, dimMessage) * 0.01)
+          case TyVar(name) => libraryTypeMap(name)
+          case FuncType(args, to) =>
+            val messages = (to +: args).zipWithIndex.map {
+              case (t, i) =>
+                val pos = positionalEncoding(i - 1)
+                messageModel2('funcType / 'arg, pos, rec(t))
+            }.toIndexedSeq
+            attentionLayer('funcType / 'aggregate, dimMessage)(
+              (funcInitKey, funcInitValue),
+              messages
+            )
+          case ObjectType(fields) =>
+            val messages = fields.toIndexedSeq.map {
+              case (label, t) =>
+                labelMap(label) -> rec(t)
+            }
+            attentionLayer('objectType / 'aggregate, dimMessage)(
+              (objectInitKey, objectInitValue),
+              messages
+            )
+        }
+
+        rec(t)
+      }
+    )
 
 }
