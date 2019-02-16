@@ -166,7 +166,7 @@ object IR {
             .mkString("(", ", ", ")")
           val returnMark =
             if (returnType.freezeToType.contains(GType.voidType)) "" else s": $returnType"
-          Vector(indent -> s"function $funcName:$funcT $argList$returnMark {") ++
+          Vector(indent -> s"function ${funcName.name}:$funcT $argList$returnMark {") ++
             body.flatMap(s => prettyPrintHelper(indent + 1, s)) ++ Vector(
             indent -> "}"
           )
@@ -174,7 +174,7 @@ object IR {
           val superPart = superType
             .map(t => s"extends $t")
             .getOrElse("")
-          Vector(indent -> s"class $name: $classT $superPart {") ++
+          Vector(indent -> s"class ${name.name}: $classT $superPart {") ++
             vars.toList.map {
               case (fieldName, tv) =>
                 (indent + 1, s"${fieldName.name}: $tv;")

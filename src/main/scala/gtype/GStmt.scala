@@ -25,7 +25,18 @@ import collection.mutable
   *       e is [[GExpr]],
   * */
 // @formatter:on
-sealed trait GStmt
+sealed trait GStmt {
+  def prettyPrint(indentSpaces: Int = 2): String = {
+    GStmt
+      .prettyPrintHelper(0, this)
+      .map {
+        case (indent, text) => " " * (indent * indentSpaces) + text
+      }
+      .mkString("\n")
+  }
+
+  override def toString: String = prettyPrint()
+}
 
 // === Start of Statement definitions ====
 
@@ -73,6 +84,62 @@ object GStmt {
 
   val returnSymbol = 'return
 
+  /*
+   * S :=                                    ([[GStmt]])
+   *       var x: α = e                      ([[VarDef]])
+   *       e := e                            ([[AssignStmt]])
+   *       [return] e                        ([[ExprStmt]])
+   *       if e then S else S                ([[IfStmt]])
+   *       while e do S                      ([[WhileStmt]])
+   * B in  { S; ...; S }                     ([[BlockStmt]])
+   * f in  function x (x: α, ..., x:α): α B  ([[FuncDef]])
+   *       class x (l: α, ..., l:α)          ([[ClassDef]])
+   *       ↳ [extends x]{ f, ..., f }
+   */
+  def prettyPrintHelper(indent: Int, stmt: GStmt): Vector[(Int, String)] = {
+    stmt match {
+      case VarDef(x, ty, init, isConst) =>
+        val constModifier = if (isConst) " const" else ""
+        Vector(indent -> s"let$constModifier ${x.name}: $ty = $init;")
+      case AssignStmt(lhs, rhs) =>
+        Vector(indent -> s"$lhs = $rhs;")
+      case ExprStmt(v, isReturn) =>
+        val returnModifier = if (isReturn) "return " else ""
+        Vector(indent -> s"$returnModifier$v;")
+      case IfStmt(cond, e1, e2) =>
+        Vector(indent -> s"if ($cond)") ++
+          prettyPrintHelper(indent, e1) ++ Vector(indent -> "else") ++
+          prettyPrintHelper(indent, e2)
+      case WhileStmt(cond, body) =>
+        (indent -> s"while ($cond)") +: prettyPrintHelper(indent, body)
+      case BlockStmt(stmts) =>
+        (indent -> "{") +: stmts.flatMap(
+          s => prettyPrintHelper(indent + 1, s)
+        ) :+ (indent -> "}")
+      case FuncDef(funcName, args, returnType, body) =>
+        val argList = args
+          .map { case (v, tv) => s"${v.name}: $tv" }
+          .mkString("(", ", ", ")")
+        Vector(indent -> s"function ${funcName.name} $argList: $returnType {") ++
+          prettyPrintHelper(indent + 1, body) ++ Vector(
+          indent -> "}"
+        )
+      case ClassDef(name, superType, constructor, vars, funcDefs) =>
+        val superPart = superType
+          .map(t => s" extends $t")
+          .getOrElse("")
+        Vector(indent -> s"class ${name.name}$superPart {") ++
+          vars.toList.map {
+            case (fieldName, tv) =>
+              (indent + 1, s"${fieldName.name}: $tv;")
+          } ++
+          (constructor +: funcDefs).flatMap(
+            fDef => prettyPrintHelper(indent + 1, fDef)
+          ) ++
+          Vector(indent -> "}")
+    }
+  }
+
   /**
     * @param f is required to has the same return statement type as its input
     * */
@@ -102,7 +169,7 @@ object GStmt {
       case s @ VarDef(_, _: GType, _, _) => fail(s)
       case s @ FuncDef(_, args, returnType, _) =>
         if (args.exists(_._2.isInstanceOf[GType]) ||
-          returnType.isInstanceOf[GType] && returnType != GType.voidType) fail(s)
+            returnType.isInstanceOf[GType] && returnType != GType.voidType) fail(s)
         else s
       case s: ClassDef =>
         if (s.vars.exists(_._2.isInstanceOf[GType])) fail(s)
@@ -119,7 +186,7 @@ object GStmt {
     def newTHole(ty: Option[GType]): GTHole = {
       val h = GTHole(typeHoleId)
       typeHoleId += 1
-      ty.foreach{t =>
+      ty.foreach { t =>
         assert(!holeTypeMap.contains(h))
         holeTypeMap(h) = t
       }

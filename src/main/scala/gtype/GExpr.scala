@@ -32,6 +32,10 @@ sealed trait GExpr {
   def m(field: Symbol) = Access(this, field)
 
   def :=(expr: GExpr) = AssignStmt(this, expr)
+
+  def prettyPrint: String = GExpr.prettyPrint(this)
+
+  override def toString: String = prettyPrint
 }
 
 case class Var(name: Symbol) extends GExpr
@@ -71,6 +75,32 @@ case class ExprContext(varAssign: Map[Symbol, GType], typeContext: TypeContext) 
 }
 
 object GExpr {
+
+  def prettyPrint(expr: GExpr): String = {
+    /*
+     *  e :=                         ([[GExpr]])
+     *     | x                       ([[Var]])
+     *     | c                       ([[Const]])
+     *     | e(e,...,e)              ([[FuncCall]])
+     *     | e as t                  ([[Cast]])
+     *     | { l: e, ..., l: e }     ([[ObjLiteral]])
+     *     | e.l                     ([[Access]])
+     *     | if[α] e then e else e   ([[IfExpr]])
+     */
+    expr match {
+      case Var(s)           => s.name
+      case Const(value, ty) => s"($value: $ty)"
+      case Cast(expr, ty)   => ???
+      case FuncCall(f, args) =>
+        s"$f${args.mkString("(", ", ", ")")}"
+      case ObjLiteral(fields) =>
+        fields.map { case (f, v) => s"$f: $v" }.mkString("{", ", ", "}")
+      case Access(receiver, label) =>
+        s"$receiver.${label.name}"
+      case IfExpr(cond, e1, e2, _) =>
+        s"($cond ? $e1 : $e2)"
+    }
+  }
 
   trait GExprAPI extends GTypeAPI {
     implicit def symbol2Var(name: Symbol): Var = Var(name)

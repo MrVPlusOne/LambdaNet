@@ -189,6 +189,11 @@ object IRTranslation {
   def main(args: Array[String]): Unit = {
     val env = new TranslationEnv()
     val example = JSExamples.Collection.doublyLinkedList
+
+    println{
+      example.program.prettyPrint()
+    }
+
     val stmts = translateStmt(example.program)(env)
     stmts.foreach(println)
 
