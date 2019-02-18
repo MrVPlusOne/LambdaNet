@@ -8,7 +8,7 @@ import funcdiff.SimpleMath.Extensions._
   */
 object IR {
 
-  type Id = Int
+  type IRTypeId = Int
 
   // @formatter:off
   /** a simple expression
@@ -62,12 +62,8 @@ object IR {
 
   case class IRType(id: Int, name: Option[Symbol], freezeToType: Option[GType]) {
     override def toString: String = {
-      val s = name
-        .map(n => s"𝒯${n.name}")
-        .getOrElse(s"𝒯$id")
-      freezeToType
-        .map(t => s"[$s=$t]")
-        .getOrElse(s)
+      val parts = name.map(n => s"{${n.name}}").toList ++ freezeToType.map(t => s"[$t]").toList
+        s"𝒯$id${parts.mkString}"
     }
   }
 

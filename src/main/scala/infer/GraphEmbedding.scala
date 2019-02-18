@@ -5,7 +5,7 @@ import botkop.numsca.Tensor
 import funcdiff._
 import funcdiff.SimpleMath.Extensions._
 import gtype.{AnyType, GType, TyVar}
-import infer.IR.{IRType, Id}
+import infer.IR.{IRType, IRTypeId}
 import infer.PredicateGraph._
 
 import scala.collection.mutable
@@ -15,13 +15,13 @@ object GraphEmbedding {
   val unknownTypeSymbol = 'UNKNOWN
 
   case class EmbeddingCtx(
-    idTypeMap: Map[IR.Id, IRType],
+    idTypeMap: Map[IR.IRTypeId, IRType],
     libraryTypeMap: Symbol => CompNode,
     predicates: Seq[TyVarPredicate],
     labelMap: Symbol => CompNode
   )
 
-  case class Embedding(nodeMap: Map[IR.Id, CompNode])
+  case class Embedding(nodeMap: Map[IR.IRTypeId, CompNode])
 
   case class DecodingCtx(
     concreteTypes: IS[GType],
@@ -38,6 +38,12 @@ object GraphEmbedding {
 
     def indexOfType(t: GType): Int = {
       indexMap.getOrElse(t, indexMap(TyVar(unknownTypeSymbol)))
+    }
+
+    def typeOfIndex(i: Int): Either[GType, IRType] = {
+      if (i < concreteTypes.length)
+        Left(concreteTypes(i))
+      else Right(projectTypes(i - concreteTypes.length))
     }
   }
 }
@@ -63,7 +69,7 @@ case class GraphEmbedding(
   def encodeAndDecode(
     iterations: Int,
     decodingCtx: DecodingCtx,
-    placesToDecode: IS[Id]
+    placesToDecode: IS[IRTypeId]
   ): CompNode = {
     var embed = Embedding(idTypeMap.mapValuesNow(_ => nodeInitVec))
     for (_ <- 0 until iterations) {
@@ -108,7 +114,7 @@ case class GraphEmbedding(
     import funcdiff.API._
     import embedding._
 
-    val messages = mutable.HashMap[Id, mutable.ListBuffer[Message]]()
+    val messages = mutable.HashMap[IRTypeId, mutable.ListBuffer[Message]]()
     ctx.idTypeMap.keys.foreach(id => messages(id) = mutable.ListBuffer())
 
     /* for each kind of predicate, generate one or more messages */
@@ -133,7 +139,7 @@ case class GraphEmbedding(
         messages(child.id) += messageModel('DeclaredAsSubtype, nodeMap(parent.id))
         messages(parent.id) += messageModel('DeclaredAsSupertype, nodeMap(child.id))
       case DefineRel(v, expr) =>
-        def decodeField(tId: Id, fieldLabel: Symbol): CompNode = {
+        def decodeField(tId: IRTypeId, fieldLabel: Symbol): CompNode = {
           val input = nodeMap(tId).concat(labelMap(fieldLabel), axis = 1)
           linear('decodeField, dimMessage)(input)
         }
@@ -143,7 +149,7 @@ case class GraphEmbedding(
           linear('decodeArg, dimMessage)(input)
         }
 
-        def hasFieldMessage(name: SymbolPath, label: Symbol, tId: Id): Message = {
+        def hasFieldMessage(name: SymbolPath, label: Symbol, tId: IRTypeId): Message = {
           messageModel2(name, labelMap(label), nodeMap(tId))
         }
 
@@ -154,7 +160,7 @@ case class GraphEmbedding(
               case (tId, argId) =>
                 messages(v.id) += messageModel2(
                   'FuncTypeExpr,
-                  positionalEncoding(argId-1),
+                  positionalEncoding(argId - 1),
                   nodeMap(tId)
                 )
                 messages(tId) += messageModel('Equality, decodeArg(nodeMap(v.id), argId))
@@ -224,13 +230,16 @@ case class GraphEmbedding(
     */
   def decode(
     decodingCtx: DecodingCtx,
-    placesToDecode: IS[Id],
+    placesToDecode: IS[IRTypeId],
     embedding: Embedding
   ): CompNode = {
     def mlp(rows: IS[CompNode], layerName: String, layers: Int): CompNode = {
       var input = concatN(rows, axis = 0)
       for (i <- 0 until layers) {
-        input = input ~> linear(Symbol(s"$layerName$i"), dimMessage) ~> relu
+        input = input ~>
+//          batchNorm(Symbol(s"$layerName-BN$i"), inTraining = true) ~>
+          linear(Symbol(s"$layerName$i"), dimMessage) ~>
+          relu
       }
       input
     }
@@ -246,7 +255,8 @@ case class GraphEmbedding(
     }
 
     val transformedNodes = mlp(placesToDecode.map(embedding.nodeMap), "decode:nodes", 2)
-    transformedNodes.dot(candidateEmbeddings.t) //todo: try multi-head attention
+    val temp = getVar(Symbol("decode:certainty"))(Tensor(10.0))
+    transformedNodes.dot(candidateEmbeddings.t) * (temp * 6.0 / dimMessage) //todo: try multi-head attention
   }
 
   private val gTypeEmbeddingMap = mutable.HashMap[GType, CompNode]()

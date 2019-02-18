@@ -10,12 +10,17 @@ object IRTranslation {
     import collection.mutable
 
     var varIdx: Int = 0
-    var tyVarIdx: Id = 0
+    var tyVarIdx: IRTypeId = 0
     //noinspection TypeAnnotation
-    val idTypeMap = mutable.HashMap[Id, IRType]()
+    val idTypeMap = mutable.HashMap[IRTypeId, IRType]()
     //noinspection TypeAnnotation
     val holeTyVarMap = mutable.HashMap[GTHole, IRType]()
+    //noinspection TypeAnnotation
+    val tyVarHoleMap = mutable.HashMap[IRTypeId, GTHole]()
 
+    /**
+      * Create and register a new [[IRType]].
+      */
     def newTyVar(
       origin: Option[GTHole],
       name: Option[Symbol],
@@ -24,7 +29,10 @@ object IRTranslation {
       assert(tyVarIdx >= 0)
       val tv = IRType(tyVarIdx, name, freezeToType)
       idTypeMap(tv.id) = tv
-      origin.foreach(h => holeTyVarMap(h) = tv)
+      origin.foreach { h =>
+        holeTyVarMap(h) = tv
+        tyVarHoleMap(tv.id) = h
+      }
       tyVarIdx += 1
       tv
     }
@@ -38,7 +46,7 @@ object IRTranslation {
 
     def getTyVar(gMark: gtype.GTMark, name: Option[Symbol]): IRType = {
       gMark match {
-        case h: gtype.GTHole => newTyVar(Some(h), name)
+        case h: gtype.GTHole => newTyVar(Some(h), name, None)
         case ty: gtype.GType => newTyVar(None, name, Some(ty))
       }
     }

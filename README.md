@@ -42,6 +42,8 @@ See [typingNet-Formalizations.pdf](typingNet-Formalizations.pdf).
 
 Todo:
 
+- [ ] Investigate abnormal jumps in training loss
+
 - [ ] Implement the training loop
 
 - [ ] Replace concrete types in IR with Symbols
