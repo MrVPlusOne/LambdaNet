@@ -1,6 +1,6 @@
-# TypingNet
+# LambdaNet
 
-Deep learning-based type inference for Javascript/Typescript
+![LambdaNet-logo](images/Logo.png)
 
 
 ### Why Typescript?
