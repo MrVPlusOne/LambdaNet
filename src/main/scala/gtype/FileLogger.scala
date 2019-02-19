@@ -53,7 +53,7 @@ class EventLogger(file: Path, printToConsole: Boolean, overrideMode: Boolean) {
 
   def log(event: Event): Unit ={
     import event._
-    fLogger.println(s"$name, $iteration, ${TensorExtension.mamFormat(value)}")
+    fLogger.println(s"""{"$name", $iteration, ${TensorExtension.mamFormat(value)}}""")
     if(printToConsole){
       println(s"[$iteration]$name: $value")
     }

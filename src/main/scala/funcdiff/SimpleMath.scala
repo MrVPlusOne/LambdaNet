@@ -25,6 +25,14 @@ object SimpleMath {
       ): Map[K, V] = {
         that ++ this.mapValuesNow(v => subRule.substitute(v, that))
       }
+
+      /**
+        * Assuming the two map has the same set of keys,
+        * combines their values correspondingly.
+        */
+      def elementwiseCombine[V2, R](that: Map[K,V2])(f: (V,V2)=>R): Map[K, R] = {
+        map.keys.map{k => k -> f(map(k), that(k))}.toMap
+      }
     }
 
     trait SubstituteRule[K, V] {

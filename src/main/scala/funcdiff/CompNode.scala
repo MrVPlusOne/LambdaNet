@@ -187,4 +187,39 @@ object CompNode {
   ): Future[Map[CompNode, Gradient]] = {
     backpropParallel(List(node), List(DenseGradient(ones(node.shape))))
   }
+
+  def wrapInQuotes(s: String) = s""""$s""""
+
+  def defaultNodeName(n: CompNode): String = n match {
+    case p: ParamNode => wrapInQuotes(p.path.toString)
+    case _ => wrapInQuotes(n.func.name)
+  }
+
+  def visualize(node: CompNode,
+                nodeInfo: CompNode => String = n => wrapInQuotes(n.func.name),
+                nodeName: CompNode => String = defaultNodeName): String = {
+    var id = 0
+    val idMap = mutable.HashMap[CompNode, Int]()
+    val connectivity = mutable.HashMap[Int, Int]()
+    val nodeMessages = mutable.ListBuffer[String]()
+
+    def rec(n: CompNode): Unit = {
+      assert(!idMap.contains(n))
+      val thisId = id
+      id += 1
+      idMap(n) = thisId
+      nodeMessages += s"Labeled[$id, Tooltip[${nodeName(n)}, ${nodeInfo(n)}]]"
+      for( a <- n.func.args){
+        if(!idMap.contains(a))
+          rec(a)
+        connectivity(idMap(a)) = thisId
+      }
+    }
+    rec(node)
+
+    val edgePart = connectivity.map{case(a,b) => s"$a->$b"}.mkString("{",",","}")
+    s"""Graph[${nodeMessages.mkString("{",",","}")},$edgePart,GraphLayout -> "LayeredDigraphEmbedding"]"""
+  }
+
+
 }

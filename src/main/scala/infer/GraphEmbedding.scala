@@ -54,7 +54,8 @@ import API._
 case class GraphEmbedding(
   ctx: EmbeddingCtx,
   layerFactory: LayerFactory,
-  dimMessage: Int
+  dimMessage: Int,
+  forwardInParallel: Boolean,
 ) {
   import ctx._
   import layerFactory._
@@ -69,11 +70,14 @@ case class GraphEmbedding(
   def encodeAndDecode(
     iterations: Int,
     decodingCtx: DecodingCtx,
-    placesToDecode: IS[IRTypeId]
+    placesToDecode: IS[IRTypeId],
+    iterateLogger: Embedding => Unit = _ => ()
   ): CompNode = {
     var embed = Embedding(idTypeMap.mapValuesNow(_ => nodeInitVec))
+    iterateLogger(embed)
     for (_ <- 0 until iterations) {
       embed = iterate(embed)
+      iterateLogger(embed)
     }
     decode(decodingCtx, placesToDecode, embed)
   }
@@ -114,8 +118,17 @@ case class GraphEmbedding(
     import funcdiff.API._
     import embedding._
 
-    val messages = mutable.HashMap[IRTypeId, mutable.ListBuffer[Message]]()
-    ctx.idTypeMap.keys.foreach(id => messages(id) = mutable.ListBuffer())
+    val _messages = mutable.HashMap[IRTypeId, mutable.ListBuffer[Message]]()
+    ctx.idTypeMap.keys.foreach(id => _messages(id) = mutable.ListBuffer())
+
+    def messages(id: IRTypeId): MessageChannel = MessageChannel(_messages(id))
+
+    case class MessageChannel(receiver: mutable.ListBuffer[Message]){
+      def += (msg: Message): Unit = receiver.synchronized {
+        receiver.append(msg)
+      }
+    }
+
 
     /* for each kind of predicate, generate one or more messages */
     def sendPredicateMessages(predicate: TyVarPredicate): Unit = predicate match {
@@ -211,14 +224,16 @@ case class GraphEmbedding(
         }
     }
 
-    ctx.predicates.foreach(sendPredicateMessages)
+    if(forwardInParallel)
+      ctx.predicates.par.foreach(sendPredicateMessages)
+    else ctx.predicates.foreach(sendPredicateMessages)
 
-    val newNodeMap = messages.keys.map { id =>
+    val newNodeMap = _messages.keys.map { id =>
       val nodeVec = nodeMap(id)
       val nodeKey = linear('MessageAggregate / 'nodeKey, dimMessage)(nodeVec)
       val newEmbed = attentionLayer('MessageAggregate, dimMessage)(
         nodeKey -> nodeVec,
-        messages(id).toIndexedSeq
+        _messages(id).toIndexedSeq
       ) //todo: try if using an RNN here can stabilize training
       id -> newEmbed
     }.toMap

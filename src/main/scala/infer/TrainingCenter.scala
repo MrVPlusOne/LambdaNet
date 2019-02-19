@@ -3,18 +3,21 @@ package infer
 import botkop.numsca
 import botkop.numsca.Tensor
 import funcdiff.SimpleMath.BufferedTotalMap
+import funcdiff.SimpleMath.Extensions._
 import funcdiff._
 import gtype._
 import infer.IRTranslation.TranslationEnv
 import infer.PredicateGraph._
 import funcdiff.API._
 import infer.GraphEmbedding.DecodingCtx
+
 import collection.mutable
+import scala.collection.mutable.ListBuffer
 
 object TrainingCenter {
 
   def main(args: Array[String]): Unit = {
-    TensorExtension.checkNaN = false  // uncomment to train faster
+    TensorExtension.checkNaN = false // uncomment to train faster
 
     val example = JSExamples.Collection.doublyLinkedList
     val transEnv = new TranslationEnv()
@@ -27,11 +30,9 @@ object TrainingCenter {
 //    println("IR statements: === ")
 //    stmts.foreach(println)
 
-    val annotatedPlaces = example.holeTypeMap
-      .map {
-        case (h, t) => transEnv.holeTyVarMap(h).id -> t
-      }
-      .toIndexedSeq
+    val annotatedPlaces = example.holeTypeMap.map {
+      case (h, t) => transEnv.holeTyVarMap(h).id -> t
+    }.toIndexedSeq
 
     println("values: " + transEnv.idTypeMap)
 
@@ -107,15 +108,18 @@ object TrainingCenter {
         newTypes.map(_._2)
       )
 
+      val (diffBuffer, callback) = avgEmbedDifferences()
       val logits =
-        GraphEmbedding(embedCtx, factory, dimMessage)
+        GraphEmbedding(embedCtx, factory, dimMessage, forwardInParallel = true)
           .encodeAndDecode(
             iterations = 12,
             decodingCtx,
-            annotatedPlaces.map(_._1)
+            annotatedPlaces.map(_._1),
+            callback
           )
 //      println("Predictions: ====")
 //      println(logits)
+      eventLogger.log("embedding avg diff", step, Tensor(diffBuffer: _*))
       val accuracy = analyzeResults(annotatedPlaces, logits.value, transEnv, decodingCtx)
       eventLogger.log("accuracy", step, Tensor(accuracy))
 
@@ -124,10 +128,24 @@ object TrainingCenter {
         crossEntropyOnSoftmax(logits, oneHot(targets, decodingCtx.maxIndex))
       )
 
-      if(loss.value.squeeze() > 20){
+      if (loss.value.squeeze() > 20) {
         println(s"Abnormally large loss: ${loss.value}")
         println("logits: ")
-        println{logits.value}
+        println { logits.value }
+
+        var iter = 0
+        GraphEmbedding(embedCtx, factory, dimMessage, forwardInParallel = true)
+          .encodeAndDecode(
+            iterations = 12,
+            decodingCtx,
+            annotatedPlaces.map(_._1),
+            embed => {
+              val (maxId, maxValue) = embed.nodeMap.maxBy(_._2.value.data.max)
+              println(s"iteration $iter max: " + transEnv.idTypeMap(maxId))
+              println("value: " + maxValue.value)
+              iter += 1
+            }
+          )
       }
       eventLogger.log("loss", step, loss.value)
       // minimize the loss
@@ -176,5 +194,21 @@ object TrainingCenter {
 
     val accuracy = correct.length.toDouble / (correct.length + incorrect.length)
     accuracy
+  }
+
+  def avgEmbedDifferences(): (ListBuffer[Real], GraphEmbedding.Embedding => Unit) = {
+    //todo: also show magnitude
+    var lastEmbed: Option[GraphEmbedding.Embedding] = None
+    val differences = mutable.ListBuffer[Double]()
+    val callback = (embed: GraphEmbedding.Embedding) => {
+      lastEmbed.foreach { le =>
+        val diffMap = embed.nodeMap.elementwiseCombine(le.nodeMap) { (x, y) =>
+          math.sqrt(numsca.mean(numsca.square(x.value - y.value)).squeeze())
+        }
+        differences += SimpleMath.mean(diffMap.values.toSeq)
+      }
+      lastEmbed = Some(embed)
+    }
+    (differences, callback)
   }
 }

@@ -10,8 +10,15 @@ import org.nd4j.linalg.ops.transforms.Transforms
 
 object TensorExtension {
 
+  def mamFormat(d: Double): String = {
+    d.toString.replace("E", "*10^")
+  }
+
   def mamFormat(t: Tensor): String = {
-    t.squeeze().toString //fixme: support tensors
+    if(t.data.length == 1) mamFormat(t.squeeze())
+    else {
+      t.data.map(mamFormat).mkString("{",",","}") // fixme: support high-dimensional tensors
+    }
   }
 
   /** set this to true to turn on NaN checking */
