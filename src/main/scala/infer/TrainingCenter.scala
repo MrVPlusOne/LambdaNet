@@ -9,6 +9,7 @@ import gtype._
 import infer.IRTranslation.TranslationEnv
 import infer.PredicateGraph._
 import funcdiff.API._
+import gtype.EventLogger.PlotConfig
 import infer.GraphEmbedding.DecodingCtx
 
 import collection.mutable
@@ -61,7 +62,14 @@ object TrainingCenter {
       new EventLogger(
         pwd / "running-result" / "log.txt",
         printToConsole = true,
-        overrideMode = true
+        overrideMode = true,
+        configs = Seq(
+          "embedding-magnitudes" -> PlotConfig("ImageSize->Medium"),
+          "embedding-changes" -> PlotConfig("ImageSize->Medium"),
+          "iteration-time" -> PlotConfig("ImageSize->Medium","""AxesLabel->{"step","ms"}"""),
+          "loss" -> PlotConfig("ImageSize->Large"),
+          "accuracy" -> PlotConfig("ImageSize->Large"),
+        )
       )
     }
 
@@ -72,6 +80,7 @@ object TrainingCenter {
     val optimizer = Optimizers.Adam(learningRate = 1e-4)
     // training loop
     for (step <- 0 until 1000) {
+      val startTime = System.currentTimeMillis()
 
       val libraryTypeMap: Map[Symbol, CompNode] = {
         val keys = JSExamples.typeContext.typeUnfold.keySet
@@ -151,6 +160,8 @@ object TrainingCenter {
 
       val parallelCtx = concurrent.ExecutionContext.global
       optimizer.minimize(loss, params.allParams, backPropInParallel = Some(parallelCtx))
+
+      eventLogger.log("iteration-time", step, Tensor(System.currentTimeMillis() - startTime))
     }
   }
 

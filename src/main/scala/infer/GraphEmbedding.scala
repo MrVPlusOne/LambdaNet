@@ -145,7 +145,6 @@ case class GraphEmbedding(
       case UsedAsBoolean(tyVar) =>
         messages(tyVar.id) += messageModel('UsedAsBoolean, nodeMap(tyVar.id))
       case InheritanceRel(child, parent) =>
-        // information flow from parent to child only
         messages(child.id) += messageModel('DeclaredAsSubtype, nodeMap(parent.id))
         messages(parent.id) += messageModel('DeclaredAsSupertype, nodeMap(child.id))
       case DefineRel(v, expr) =>
@@ -160,7 +159,7 @@ case class GraphEmbedding(
         }
 
         def hasFieldMessage(name: SymbolPath, label: Symbol, tId: IRTypeId): Message = {
-          messageModel2(name, labelMap(label), nodeMap(tId))
+          messageModel2(name, labelMap(label), nodeMap(tId)) //fixme: mix key and value info
         }
 
         expr match {
@@ -221,19 +220,18 @@ case class GraphEmbedding(
         }
     }
 
-    if(forwardInParallel)
-      ctx.predicates.par.foreach(sendPredicateMessages)
-    else ctx.predicates.foreach(sendPredicateMessages)
+    ctx.predicates.par.foreach(sendPredicateMessages)
 
-    val newNodeMap = _messages.keys.map { id =>
+    val newNodeMap = _messages.keys.par.map { id =>
       val nodeVec = nodeMap(id)
       val nodeKey = linear('MessageAggregate / 'nodeKey, dimMessage)(nodeVec)
-      val newEmbed = attentionLayer('MessageAggregate, dimMessage)(
+      val change = attentionLayer('MessageAggregate, dimMessage)(
         nodeKey -> nodeVec,
         _messages(id).toIndexedSeq
-      ) //todo: try if using an RNN here can stabilize training
+      )
+      val newEmbed = gru('MessageAggregate / 'updateGru)(nodeVec, change)
       id -> newEmbed
-    }.toMap
+    }.seq.toMap
     Embedding(newNodeMap)
   }
 

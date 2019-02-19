@@ -37,15 +37,23 @@ class FileLogger(file: Path, printToConsole: Boolean) {
 
 object EventLogger{
   case class Event(name: String, iteration: Int, value: Tensor)
+
+  case class PlotConfig(options: String*)
 }
 
 import EventLogger._
 
-class EventLogger(file: Path, printToConsole: Boolean, overrideMode: Boolean) {
+class EventLogger(file: Path, printToConsole: Boolean, overrideMode: Boolean, configs: Seq[(String, PlotConfig)]) {
   if(exists(file) && overrideMode){
     rm(file)
   }
   private val fLogger = new FileLogger(file, printToConsole = false)
+
+  fLogger.println(configs.map{ case (k, v) =>
+    s""""$k"->${v.options.mkString("{",",","}")}"""
+  }.mkString("{",",","}"))
+
+  val names: Set[String] = configs.toMap.keySet
 
   def log(name: String, iteration: Int, value: Tensor): Unit = {
     log(Event(name, iteration, value))
@@ -56,6 +64,9 @@ class EventLogger(file: Path, printToConsole: Boolean, overrideMode: Boolean) {
     fLogger.println(s"""{"$name", $iteration, ${TensorExtension.mamFormat(value)}}""")
     if(printToConsole){
       println(s"[$iteration]$name: $value")
+    }
+    if(!names.contains(name)){
+      System.err.println(s"Unregistered event name: $name. You should register it in EventLogger.configs.")
     }
   }
 }

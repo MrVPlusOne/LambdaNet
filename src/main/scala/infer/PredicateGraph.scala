@@ -104,7 +104,7 @@ object PredicateGraph {
               add(UsedAsBoolean(varTypeMap(cond)))
           }
         case Assign(lhs, rhs) =>
-          add(AssignRel(varTypeMap(rhs), varTypeMap(lhs)))
+          add(AssignRel(varTypeMap(lhs), varTypeMap(rhs)))
         case ReturnStmt(v) =>
           add(SubtypeRel(varTypeMap(v), ctx.varTypeMap(returnVar)))
         case IfStmt(cond, e1, e2) =>
