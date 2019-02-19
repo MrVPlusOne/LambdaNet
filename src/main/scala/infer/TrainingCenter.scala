@@ -108,18 +108,32 @@ object TrainingCenter {
         newTypes.map(_._2)
       )
 
-      val (diffBuffer, callback) = avgEmbedDifferences()
+      def logEmbeddingMagnitudeAndChanges(embeddings: IS[GraphEmbedding.Embedding]): Unit = {
+        val magnitudes = Tensor(embeddings.map { e =>
+          SimpleMath.mean(e.nodeMap.values.map { n =>
+            numsca.std(n.value).squeeze()
+          }.toVector)
+        }: _*)
+        eventLogger.log("embedding-magnitudes", step, magnitudes)
+
+        val diffs = embeddings.zip(embeddings.tail).map{ case (e1, e0) =>
+          val diffMap = e1.nodeMap.elementwiseCombine(e0.nodeMap){ (x, y) =>
+            numsca.std(x.value - y.value).squeeze()
+          }
+          SimpleMath.mean(diffMap.values.toSeq)
+        }
+        eventLogger.log("embedding-changes", step, Tensor(diffs:_*))
+      }
       val logits =
         GraphEmbedding(embedCtx, factory, dimMessage, forwardInParallel = true)
           .encodeAndDecode(
             iterations = 12,
             decodingCtx,
             annotatedPlaces.map(_._1),
-            callback
+            logEmbeddingMagnitudeAndChanges
           )
 //      println("Predictions: ====")
 //      println(logits)
-      eventLogger.log("embedding avg diff", step, Tensor(diffBuffer: _*))
       val accuracy = analyzeResults(annotatedPlaces, logits.value, transEnv, decodingCtx)
       eventLogger.log("accuracy", step, Tensor(accuracy))
 
@@ -132,24 +146,9 @@ object TrainingCenter {
         println(s"Abnormally large loss: ${loss.value}")
         println("logits: ")
         println { logits.value }
-
-        var iter = 0
-        GraphEmbedding(embedCtx, factory, dimMessage, forwardInParallel = true)
-          .encodeAndDecode(
-            iterations = 12,
-            decodingCtx,
-            annotatedPlaces.map(_._1),
-            embed => {
-              val (maxId, maxValue) = embed.nodeMap.maxBy(_._2.value.data.max)
-              println(s"iteration $iter max: " + transEnv.idTypeMap(maxId))
-              println("value: " + maxValue.value)
-              iter += 1
-            }
-          )
       }
       eventLogger.log("loss", step, loss.value)
-      // minimize the loss
-//      println("all params: " + pc.allParams)
+
       val parallelCtx = concurrent.ExecutionContext.global
       optimizer.minimize(loss, params.allParams, backPropInParallel = Some(parallelCtx))
     }
@@ -194,21 +193,5 @@ object TrainingCenter {
 
     val accuracy = correct.length.toDouble / (correct.length + incorrect.length)
     accuracy
-  }
-
-  def avgEmbedDifferences(): (ListBuffer[Real], GraphEmbedding.Embedding => Unit) = {
-    //todo: also show magnitude
-    var lastEmbed: Option[GraphEmbedding.Embedding] = None
-    val differences = mutable.ListBuffer[Double]()
-    val callback = (embed: GraphEmbedding.Embedding) => {
-      lastEmbed.foreach { le =>
-        val diffMap = embed.nodeMap.elementwiseCombine(le.nodeMap) { (x, y) =>
-          math.sqrt(numsca.mean(numsca.square(x.value - y.value)).squeeze())
-        }
-        differences += SimpleMath.mean(diffMap.values.toSeq)
-      }
-      lastEmbed = Some(embed)
-    }
-    (differences, callback)
   }
 }

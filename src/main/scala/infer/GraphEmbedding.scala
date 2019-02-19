@@ -71,15 +71,12 @@ case class GraphEmbedding(
     iterations: Int,
     decodingCtx: DecodingCtx,
     placesToDecode: IS[IRTypeId],
-    iterateLogger: Embedding => Unit = _ => ()
+    iterateLogger: IS[Embedding] => Unit = _ => ()
   ): CompNode = {
-    var embed = Embedding(idTypeMap.mapValuesNow(_ => nodeInitVec))
-    iterateLogger(embed)
-    for (_ <- 0 until iterations) {
-      embed = iterate(embed)
-      iterateLogger(embed)
-    }
-    decode(decodingCtx, placesToDecode, embed)
+    val init = Embedding(idTypeMap.mapValuesNow(_ => nodeInitVec))
+    val embeddings = IS.iterate(init, iterations)(iterate)
+    iterateLogger(embeddings)
+    decode(decodingCtx, placesToDecode, embeddings.last)
   }
 
   /** Each message consists of a key-value pair */
