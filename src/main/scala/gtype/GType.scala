@@ -117,7 +117,7 @@ case class TypeContext(baseTypes: Set[Symbol],
 
 object GType {
 
-  val boolType = TyVar(Symbol("𝔹"))
+  val boolType = TyVar(Symbol("bool"))
   val voidType = TyVar(Symbol("void"))
 
   trait GTypeAPI {

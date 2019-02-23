@@ -120,10 +120,8 @@ object GStmt {
         val argList = args
           .map { case (v, tv) => s"${v.name}: $tv" }
           .mkString("(", ", ", ")")
-        Vector(indent -> s"function ${funcName.name} $argList: $returnType {") ++
-          prettyPrintHelper(indent + 1, body) ++ Vector(
-          indent -> "}"
-        )
+        Vector(indent -> s"function ${funcName.name} $argList: $returnType") ++
+          prettyPrintHelper(indent, body)
       case ClassDef(name, superType, constructor, vars, funcDefs) =>
         val superPart = superType
           .map(t => s" extends $t")

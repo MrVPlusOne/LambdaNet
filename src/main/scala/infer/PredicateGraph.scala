@@ -1,9 +1,11 @@
 package infer
 
+import funcdiff.SimpleMath
 import funcdiff.SimpleMath.Extensions._
-import gtype.{GType, JSExamples, TyVar}
+import gtype.{GTHole, GType, JSExamples, TyVar}
 import infer.IR._
 import infer.IRTranslation.TranslationEnv
+import SimpleMath.{LabeledGraph, wrapInQuotes}
 
 /** Encodes the relationships between different type variables */
 object PredicateGraph {
@@ -29,6 +31,96 @@ object PredicateGraph {
     varTypeMap: Map[Var, IRType],
     newTypeMap: Map[Symbol, IRType]
   )
+
+  def displayPredicateGraph(
+    correctNodes: Seq[IRType],
+    wrongNodes: Seq[IRType],
+    predicates: Seq[TyVarPredicate],
+    typeHoleMap: Map[IRTypeId, GTHole]
+  ): LabeledGraph = {
+    def typeInfo(t: IR.IRType): String = {
+      val holeInfo = typeHoleMap.get(t.id).map(h => s";Hole: ${h.id}").getOrElse("")
+      wrapInQuotes(t.toString.replace("\uD835\uDCAF", "") + holeInfo)
+    }
+
+    var nodeId = 0
+    def newNode(): Int = {
+      nodeId -= 1
+      nodeId
+    }
+
+    val graph = new SimpleMath.LabeledGraph()
+
+    def newPredicate(
+      shortName: String,
+      fullName: String,
+      connections: Seq[(Int, String)]
+    ): Unit = {
+      val n = newNode()
+      graph.addNode(n, shortName, wrapInQuotes(fullName), "Blue")
+      connections.foreach {
+        case (id, label) =>
+          graph.addEdge(n, id, wrapInQuotes(label))
+      }
+    }
+
+    correctNodes.foreach(n => {
+      graph.addNode(n.id, n.id.toString, typeInfo(n), "Green")
+    })
+    wrongNodes.foreach(n => {
+      graph.addNode(n.id, n.id.toString, typeInfo(n), "Red")
+    })
+
+    /*
+    case class AssignRel(lhs: IRType, rhs: IRType) extends TyVarPredicate
+    case class UsedAsBoolean(tyVar: IRType) extends TyVarPredicate
+    case class InheritanceRel(child: IRType, parent: IRType) extends TyVarPredicate
+    case class DefineRel(v: IRType, expr: TypeExpr) extends TyVarPredicate
+
+    sealed trait TypeExpr
+    case class FuncTypeExpr(argTypes: List[IRType], returnType: IRType) extends TypeExpr
+    case class CallTypeExpr(f: IRType, args: List[IRType]) extends TypeExpr
+    case class ObjLiteralTypeExpr(fields: Map[Symbol, IRType]) extends TypeExpr
+    case class FieldAccessTypeExpr(objType: IRType, field: Symbol) extends TypeExpr
+     */
+    predicates.foreach {
+      case EqualityRel(v1, v2) =>
+        newPredicate("=", "Equality", Seq(v1.id -> "L", v2.id -> "R"))
+      case FreezeType(v, ty) =>
+        newPredicate(s"=$ty", s"Freeze to $ty", Seq(v.id -> ""))
+      case HasName(v, name) =>
+        newPredicate(s"{${name.name}}", s"Has name $name", Seq(v.id -> ""))
+      case SubtypeRel(sub, sup) =>
+        newPredicate("<:", "Subtype", Seq(sub.id -> "sub", sup.id -> "sup"))
+      case AssignRel(lhs, rhs) =>
+        newPredicate(":=", "Assign", Seq(lhs.id -> "lhs", rhs.id -> "rhs"))
+      case UsedAsBoolean(tyVar) =>
+        newPredicate("~bool", "Use as bool", Seq(tyVar.id -> ""))
+      case InheritanceRel(child, parent) =>
+        newPredicate(
+          "extends",
+          "Extends",
+          Seq(child.id -> "child", parent.id -> "parent")
+        )
+      case DefineRel(v, expr) =>
+        val (short, long, connections) = expr match {
+          case FuncTypeExpr(argTypes, returnType) =>
+            val conn = argTypes.zipWithIndex.map { case (a, i) => a.id -> s"arg$i" } :+ (returnType.id -> "return")
+            ("Func", "FuncTypeExpr", conn)
+          case CallTypeExpr(f, args) =>
+            val conn = args.zipWithIndex.map { case (a, i) => a.id -> s"arg$i" }
+            ("Call", "CallTypeExpr", conn)
+          case ObjLiteralTypeExpr(fields) =>
+            val conn = fields.toList.map{ case (label, t) => t.id -> label.toString()}
+            ("Obj", "ObjLiteralTypeExpr", conn)
+          case FieldAccessTypeExpr(objType, field) =>
+            (s"_.${field.name}", "FieldAccessTypeExpr", Seq(objType.id -> ""))
+        }
+        newPredicate(short, long, connections :+ (v.id -> "="))
+    }
+
+    graph
+  }
 
   val returnVar: Var = namedVar(gtype.GStmt.returnSymbol)
 

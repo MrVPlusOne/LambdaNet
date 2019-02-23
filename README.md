@@ -38,21 +38,23 @@ See [typingNet-Formalizations.pdf](typingNet-Formalizations.pdf).
 
 ### Current Progress
 
-#### Inference Graph Construction
+#### Fine-tuning training loop and neural architecture
 
 Todo:
 
-- [ ] Investigate abnormal jumps in training loss
+- [ ] Make the model capable of overfitting to a single program
 
-- [ ] Implement the training loop
-
-- [ ] Replace concrete types in IR with Symbols
-
-- [ ] Properly handle library types
-
-- [ ] Verify predicates correctness
+- [ ] Implement predicate-level loss
 
 Done:
+
+- [X] Investigate abnormal jumps in training loss 
+
+(solution: updating with an RNN unit)
+
+- [X] Implement the training loop
+
+#### Inference Graph Construction
 
 - [X] implement type decoding from predicate graphs
 

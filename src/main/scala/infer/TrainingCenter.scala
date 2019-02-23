@@ -13,7 +13,6 @@ import gtype.EventLogger.PlotConfig
 import infer.GraphEmbedding.DecodingCtx
 
 import collection.mutable
-import scala.collection.mutable.ListBuffer
 
 object TrainingCenter {
 
@@ -44,7 +43,16 @@ object TrainingCenter {
     }
     println("Predicates: =====")
     predicates.foreach(println)
-//    println("newTypes: " + newTypes)
+    println {
+      val wrongNodes = Seq(GTHole(1),GTHole(16)).map(transEnv.holeTyVarMap)
+      PredicateGraph.displayPredicateGraph(
+        (transEnv.idTypeMap.values.toSet -- wrongNodes.toSet).toSeq,
+        wrongNodes,
+        predicates,
+        transEnv.tyVarHoleMap.toMap
+      ).toMamFormat("Automatic", directed = false)
+    }
+    //    println("newTypes: " + newTypes)
 
     val labels = (JSExamples.typeContext.typeUnfold.values.flatMap {
       case ObjectType(fields) => fields.keySet
@@ -66,9 +74,12 @@ object TrainingCenter {
         configs = Seq(
           "embedding-magnitudes" -> PlotConfig("ImageSize->Medium"),
           "embedding-changes" -> PlotConfig("ImageSize->Medium"),
-          "iteration-time" -> PlotConfig("ImageSize->Medium","""AxesLabel->{"step","ms"}"""),
+          "iteration-time" -> PlotConfig(
+            "ImageSize->Medium",
+            """AxesLabel->{"step","ms"}"""
+          ),
           "loss" -> PlotConfig("ImageSize->Large"),
-          "accuracy" -> PlotConfig("ImageSize->Large"),
+          "accuracy" -> PlotConfig("ImageSize->Large")
         )
       )
     }
@@ -77,9 +88,9 @@ object TrainingCenter {
     import funcdiff.API._
     import TensorExtension.oneHot
 
-    val optimizer = Optimizers.Adam(learningRate = 1e-4)
+    val optimizer = Optimizers.Adam(learningRate = 4e-4)
     // training loop
-    for (step <- 0 until 1000) {
+    for (step <- 0 until 2000) {
       val startTime = System.currentTimeMillis()
 
       val libraryTypeMap: Map[Symbol, CompNode] = {
@@ -101,7 +112,8 @@ object TrainingCenter {
       }
 
       val extendedLabelMap = BufferedTotalMap(labelMap.get) { k =>
-        const(TensorExtension.randomUnitVec(dimMessage)) //todo: add encoding layer
+        const(TensorExtension.randomUnitVec(dimMessage)) ~>
+          linear('UnknownLabel, dimMessage) ~> relu  //todo: see if this is useful
 //        pc.getVar('extraLabelVec / k)(numsca.randn(1, dimMessage) * 0.01): CompNode
       }
 
@@ -117,21 +129,24 @@ object TrainingCenter {
         newTypes.map(_._2)
       )
 
-      def logEmbeddingMagnitudeAndChanges(embeddings: IS[GraphEmbedding.Embedding]): Unit = {
+      def logEmbeddingMagnitudeAndChanges(
+        embeddings: IS[GraphEmbedding.Embedding]
+      ): Unit = {
         val magnitudes = Tensor(embeddings.map { e =>
           SimpleMath.mean(e.nodeMap.values.map { n =>
-            numsca.std(n.value).squeeze()
+            math.sqrt(numsca.sum(numsca.square(n.value)))
           }.toVector)
         }: _*)
         eventLogger.log("embedding-magnitudes", step, magnitudes)
 
-        val diffs = embeddings.zip(embeddings.tail).map{ case (e1, e0) =>
-          val diffMap = e1.nodeMap.elementwiseCombine(e0.nodeMap){ (x, y) =>
-            numsca.std(x.value - y.value).squeeze()
-          }
-          SimpleMath.mean(diffMap.values.toSeq)
+        val diffs = embeddings.zip(embeddings.tail).map {
+          case (e1, e0) =>
+            val diffMap = e1.nodeMap.elementwiseCombine(e0.nodeMap) { (x, y) =>
+              numsca.std(x.value - y.value).squeeze()
+            }
+            SimpleMath.mean(diffMap.values.toSeq)
         }
-        eventLogger.log("embedding-changes", step, Tensor(diffs:_*))
+        eventLogger.log("embedding-changes", step, Tensor(diffs: _*))
       }
       val logits =
         GraphEmbedding(embedCtx, factory, dimMessage, forwardInParallel = true)
@@ -161,7 +176,11 @@ object TrainingCenter {
       val parallelCtx = concurrent.ExecutionContext.global
       optimizer.minimize(loss, params.allParams, backPropInParallel = Some(parallelCtx))
 
-      eventLogger.log("iteration-time", step, Tensor(System.currentTimeMillis() - startTime))
+      eventLogger.log(
+        "iteration-time",
+        step,
+        Tensor(System.currentTimeMillis() - startTime)
+      )
     }
   }
 
@@ -191,15 +210,17 @@ object TrainingCenter {
     correct.foreach {
       case (hole, tId) =>
         val t = ctx.typeOfIndex(tId)
-        println(s"Hole $hole [correct]: $t")
+        val tv = transEnv.holeTyVarMap(hole)
+        println(s"[correct] \t$tv $hole: $t")
     }
 
     val holeTypeMap = annotatedPlaces.toMap
     incorrect.foreach {
       case (hole, tId) =>
+        val tv = transEnv.holeTyVarMap(hole)
         val actualType = ctx.typeOfIndex(tId)
         val expected = holeTypeMap(transEnv.holeTyVarMap(hole).id)
-        println(s"Hole $hole [incorrect]: $actualType not match $expected")
+        println(s"[incorrect] \t$tv $hole: $actualType not match $expected")
     }
 
     val accuracy = correct.length.toDouble / (correct.length + incorrect.length)

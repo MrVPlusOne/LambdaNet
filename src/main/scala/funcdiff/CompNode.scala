@@ -188,15 +188,13 @@ object CompNode {
     backpropParallel(List(node), List(DenseGradient(ones(node.shape))))
   }
 
-  def wrapInQuotes(s: String) = s""""$s""""
-
   def defaultNodeName(n: CompNode): String = n match {
-    case p: ParamNode => wrapInQuotes(p.path.toString)
-    case _ => wrapInQuotes(n.func.name)
+    case p: ParamNode => SimpleMath.wrapInQuotes(p.path.toString)
+    case _ => SimpleMath.wrapInQuotes(n.func.name)
   }
 
   def visualize(node: CompNode,
-                nodeInfo: CompNode => String = n => wrapInQuotes(n.func.name),
+                nodeInfo: CompNode => String = n => SimpleMath.wrapInQuotes(n.func.name),
                 nodeName: CompNode => String = defaultNodeName): String = {
     var id = 0
     val idMap = mutable.HashMap[CompNode, Int]()

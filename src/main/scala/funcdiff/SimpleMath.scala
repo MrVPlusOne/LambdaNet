@@ -1,6 +1,7 @@
 package funcdiff
 
 import scala.util.Random
+import collection.mutable
 
 object SimpleMath {
 
@@ -550,6 +551,44 @@ object SimpleMath {
     rec(xs.indices)
   }
 
+  class LabeledGraph(){
+    case class Edge(from: Int, to: Int, info: String)
+    case class Node(name: String, info: String)
+
+    val nodeInfo = mutable.HashMap[Int, Node]()
+    val edges = mutable.ListBuffer[Edge]()
+    val nodeStyleMap = mutable.HashMap[Int, String]()
+
+    def setNodeStyle(id: Int, style: String): Unit = {
+      nodeStyleMap(id) = style
+    }
+
+    def addNode(id: Int, name: String, info: String, style: String): Unit ={
+      nodeInfo(id) = Node(name, info)
+      setNodeStyle(id, style)
+    }
+
+    def addEdge(from: Int, to: Int, info: String): Unit = {
+      edges += Edge(from: Int, to: Int, info: String)
+    }
+
+    def toMamFormat(graphLayout: String, directed: Boolean): String = {
+      val arrow = if(directed) "->" else "\\[UndirectedEdge]"
+
+      val nodeList = nodeInfo.map{ case (id, Node(name, info)) =>
+        s"""Labeled[Tooltip[$id,$info],"$name"]"""
+      }.mkString("{",",","}")
+
+      val edgeList = edges.map{ case Edge(from, to, info) =>
+        if(info.isEmpty) s"$from$arrow$to" else s"""Labeled[$from$arrow$to, $info]"""
+      }.mkString("{",",","}")
+
+      val stylePart = nodeStyleMap.map{case (id, s) => s"$id->$s"}.mkString("{",",","}")
+
+      s"""Graph[$nodeList,$edgeList,VertexStyle->$stylePart,GraphLayout -> $graphLayout]"""
+    }
+  }
+
   def main(args: Array[String]): Unit = {
     val r = Await.result(parallelReduce((0 until 10000).toArray, new Monoid[Int] {
       def zero: Int = 0
@@ -558,4 +597,6 @@ object SimpleMath {
     })(ExecutionContext.global), duration.Duration.Inf)
     println { r }
   }
+
+  def wrapInQuotes(s: String) = s""""$s""""
 }
