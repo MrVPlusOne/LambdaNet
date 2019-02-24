@@ -290,6 +290,16 @@ object JSExamples {
           THIS.m('f4) := THIS
         )),
 
+        CLASS('FieldTest2)(
+          'f1 -> boolean,
+          'f2 -> number,
+          'f4 -> 'FieldTest2
+        )(CONSTRUCTOR('FieldTest2)(
+          THIS.m('f1) := B(true),
+          THIS.m('f2) := I(3),
+          THIS.m('f4) := THIS
+        )),
+
         CLASS(node)(
           'element -> any,
           'next -> node,

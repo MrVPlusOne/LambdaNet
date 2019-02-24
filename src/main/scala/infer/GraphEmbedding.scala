@@ -149,7 +149,7 @@ case class GraphEmbedding(
       case FreezeType(v, ty) =>
         messages(v.id) += messageModel('FreezeType, encodeGType(ty))
       case HasName(v, name) =>
-        messages(v.id) += messageModel('HasName, labelMap(name))
+//        messages(v.id) += messageModel('HasName, labelMap(name)) //todo: properly handle name info
       case SubtypeRel(sub, sup) =>
         messages(sub.id) += messageModel('HasSupertype, nodeMap(sup.id))
         messages(sup.id) += messageModel('HasSubtype, nodeMap(sub.id))
@@ -198,25 +198,19 @@ case class GraphEmbedding(
                 messages(arg.id) += argAccessMessage('CallTypeExpr / 'toArg, fEmbed, argId)
             }
           case ObjLiteralTypeExpr(fields) =>
-            val filedEmbeds = fields.toIndexedSeq.map {
+            fields.foreach {
               case (label, tv) =>
+                messages(v.id) += fieldAccessMessage(
+                  'ObjLiteralTypeExpr/'toV,
+                  nodeMap(tv.id),
+                  label
+                )
                 messages(tv.id) += fieldAccessMessage(
                   'ObjLiteralTypeExpr/'toField,
                   nodeMap(v.id),
                   label
                 )
-                fieldAccessMessage(
-                  'ObjLiteralTypeExpr/'toObject,
-                  nodeMap(tv.id),
-                  label
-                )
             }
-            val old = messageModel('ObjLiteralTypeExpr/'old, nodeMap(v.id))
-            val objEmbed = attentionLayer('ObjLiteralTypeExpr / 'attention, dimMessage)(
-              old,
-              filedEmbeds :+ old
-            )
-            messages(v.id) += messageModel('ObjLiteralTypeExpr / 'toV ,objEmbed)
           case FieldAccessTypeExpr(objType, label) =>
             messages(v.id) += fieldAccessMessage(
               'FieldAccess / 'toV,
@@ -255,16 +249,19 @@ case class GraphEmbedding(
     embedding: Embedding
   ): CompNode = {
 
-    val attentionHeads = 4
+    val attentionHeads = 16
     val concretes = decodingCtx.concreteTypes.map(encodeGType)
 
     val logits = for(head <- (0 until attentionHeads).par) yield {
+      val shrinkFactor = 2
       def mlp(rows: IS[CompNode], layerName: String, layers: Int): CompNode = {
         var input = concatN(rows, axis = 0)
+        var dim = dimMessage
         for (i <- 0 until layers) {
+          dim/= shrinkFactor
           input = input ~>
             //          batchNorm(Symbol(s"$layerName-BN$i"), inTraining = true) ~>
-            linear(Symbol(s"$layerName$i") / Symbol(s"head$head"), dimMessage) ~>
+            linear(Symbol(s"$layerName$i") / Symbol(s"head$head"), dim) ~>
             relu
         }
         input
