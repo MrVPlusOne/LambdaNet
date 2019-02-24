@@ -188,7 +188,7 @@ case class GraphEmbedding(
                 )
             }.unzip
 
-            val fEmbed = attentionLayer('decodeFunc, dimMessage)(
+            val fEmbed = attentionLayer('CallTypeExpr / 'fEmbed, dimMessage)(
               fKey -> fVec,
               (fKey -> fVec) +: (argKeys zip argVecs)
             )
@@ -198,19 +198,25 @@ case class GraphEmbedding(
                 messages(arg.id) += argAccessMessage('CallTypeExpr / 'toArg, fEmbed, argId)
             }
           case ObjLiteralTypeExpr(fields) =>
-            fields.foreach {
+            val filedEmbeds = fields.toIndexedSeq.map {
               case (label, tv) =>
-                messages(v.id) += fieldAccessMessage(
-                  'ObjLiteralTypeExpr/'toV,
-                  nodeMap(tv.id),
-                  label
-                )
                 messages(tv.id) += fieldAccessMessage(
                   'ObjLiteralTypeExpr/'toField,
                   nodeMap(v.id),
                   label
                 )
+                fieldAccessMessage(
+                  'ObjLiteralTypeExpr/'toObject,
+                  nodeMap(tv.id),
+                  label
+                )
             }
+            val old = messageModel('ObjLiteralTypeExpr/'old, nodeMap(v.id))
+            val objEmbed = attentionLayer('ObjLiteralTypeExpr / 'attention, dimMessage)(
+              old,
+              filedEmbeds :+ old
+            )
+            messages(v.id) += messageModel('ObjLiteralTypeExpr / 'toV ,objEmbed)
           case FieldAccessTypeExpr(objType, label) =>
             messages(v.id) += fieldAccessMessage(
               'FieldAccess / 'toV,
@@ -248,30 +254,37 @@ case class GraphEmbedding(
     placesToDecode: IS[IRTypeId],
     embedding: Embedding
   ): CompNode = {
-    def mlp(rows: IS[CompNode], layerName: String, layers: Int): CompNode = {
-      var input = concatN(rows, axis = 0)
-      for (i <- 0 until layers) {
-        input = input ~>
-//          batchNorm(Symbol(s"$layerName-BN$i"), inTraining = true) ~>
-          linear(Symbol(s"$layerName$i"), dimMessage) ~>
-          relu
+
+    val attentionHeads = 4
+    val concretes = decodingCtx.concreteTypes.map(encodeGType)
+
+    val logits = for(head <- (0 until attentionHeads).par) yield {
+      def mlp(rows: IS[CompNode], layerName: String, layers: Int): CompNode = {
+        var input = concatN(rows, axis = 0)
+        for (i <- 0 until layers) {
+          input = input ~>
+            //          batchNorm(Symbol(s"$layerName-BN$i"), inTraining = true) ~>
+            linear(Symbol(s"$layerName$i") / Symbol(s"head$head"), dimMessage) ~>
+            relu
+        }
+        input
       }
-      input
+
+      import embedding._
+
+      val candidateEmbeddings = {
+        val c =
+          mlp(concretes, "decode:concreteType", 2)
+        val p =
+          mlp(decodingCtx.projectTypes.map(t => nodeMap(t.id)), "decode:projectType", 2)
+        c.concat(p, axis = 0)
+      }
+
+      val transformedNodes = mlp(placesToDecode.map(embedding.nodeMap), "decode:nodes", 2)
+      val temp = getVar(Symbol("decode:certainty") / Symbol("head"+head))(Tensor(10.0))
+      transformedNodes.dot(candidateEmbeddings.t) * (temp * 6.0 / dimMessage)
     }
-
-    import embedding._
-
-    val candidateEmbeddings = {
-      val c =
-        mlp(decodingCtx.concreteTypes.map(encodeGType), "decode:concreteType", 2)
-      val p =
-        mlp(decodingCtx.projectTypes.map(t => nodeMap(t.id)), "decode:projectType", 2)
-      c.concat(p, axis = 0)
-    }
-
-    val transformedNodes = mlp(placesToDecode.map(embedding.nodeMap), "decode:nodes", 2)
-    val temp = getVar(Symbol("decode:certainty"))(Tensor(10.0))
-    transformedNodes.dot(candidateEmbeddings.t) * (temp * 6.0 / dimMessage) //todo: try multi-head attention
+    total(logits.seq.toVector) ~> relu
   }
 
   private val gTypeEmbeddingMap = mutable.HashMap[GType, CompNode]()

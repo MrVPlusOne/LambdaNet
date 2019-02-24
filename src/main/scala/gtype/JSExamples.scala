@@ -278,6 +278,18 @@ object JSExamples {
       val node = 'Node
 
       wellFormed("DoublyLinkedList")(BLOCK(
+        CLASS('FieldTest)(
+          'f1 -> number,
+          'f2 -> any,
+          'f3 -> boolean,
+          'f4 -> 'FieldTest
+        )(CONSTRUCTOR('FieldTest)(
+          THIS.m('f1) := I(1),
+          THIS.m('f2) := undefined,
+          THIS.m('f3) := B(true),
+          THIS.m('f4) := THIS
+        )),
+
         CLASS(node)(
           'element -> any,
           'next -> node,

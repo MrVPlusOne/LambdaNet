@@ -44,13 +44,16 @@ object TrainingCenter {
     println("Predicates: =====")
     predicates.foreach(println)
     println {
-      val wrongNodes = Seq(GTHole(1),GTHole(16)).map(transEnv.holeTyVarMap)
-      PredicateGraph.displayPredicateGraph(
+      val wrongNodes = Seq(GTHole(1),GTHole(2)).map(transEnv.holeTyVarMap)
+      val graphString = PredicateGraph.displayPredicateGraph(
         (transEnv.idTypeMap.values.toSet -- wrongNodes.toSet).toSeq,
         wrongNodes,
         predicates,
         transEnv.tyVarHoleMap.toMap
       ).toMamFormat("Automatic", directed = false)
+      import ammonite.ops._
+      write.over(pwd/"running-result"/"graph.txt", graphString)
+      graphString
     }
     //    println("newTypes: " + newTypes)
 
@@ -151,7 +154,7 @@ object TrainingCenter {
       val logits =
         GraphEmbedding(embedCtx, factory, dimMessage, forwardInParallel = true)
           .encodeAndDecode(
-            iterations = 12,
+            iterations = 10,
             decodingCtx,
             annotatedPlaces.map(_._1),
             logEmbeddingMagnitudeAndChanges
