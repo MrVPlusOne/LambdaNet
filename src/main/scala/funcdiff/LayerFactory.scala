@@ -199,7 +199,7 @@ case class LayerFactory(nameSpace: SymbolPath, params: ParamCollection) {
   )(xKey: CompNode, ys: IS[(CompNode, CompNode)]): CompNode =
     withPrefix(name) { _ =>
       val sqrtN = math.sqrt(xKey.shape(1))
-      val weightLogits = leakyRelu(concatN(ys.map(_._1), axis = 0).dot(xKey.t).t, 0.1)
+      val weightLogits = concatN(ys.map(_._1), axis = 0).dot(xKey.t).t
       val aWeights = softmax(weightLogits / sqrtN)
       if (aWeights.shape.head == 1) {
         val yMat = concatN(ys.map(_._2), axis = 0)

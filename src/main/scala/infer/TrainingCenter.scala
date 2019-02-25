@@ -65,8 +65,12 @@ object TrainingCenter {
 
     val dimMessage = 64
 
+
     val factory = LayerFactory('GraphEmbedding, ParamCollection())
     import factory._
+
+    def randomVar(path: SymbolPath): CompNode =
+      getVar(path)(numsca.randn(1, dimMessage) * 0.01)
 
     val eventLogger = {
       import ammonite.ops._
@@ -77,6 +81,7 @@ object TrainingCenter {
         configs = Seq(
 //          "embedding-magnitudes" -> PlotConfig("ImageSize->Medium"),
           "embedding-changes" -> PlotConfig("ImageSize->Medium"),
+          "certainty" -> PlotConfig("ImageSize->Medium"),
           "iteration-time" -> PlotConfig(
             "ImageSize->Medium",
             """AxesLabel->{"step","ms"}"""
@@ -99,32 +104,30 @@ object TrainingCenter {
       val libraryTypeMap: Map[Symbol, CompNode] = {
         val keys = JSExamples.typeContext.typeUnfold.keySet
         keys.toList.map { k =>
-          k -> (getVar('TyVar / k)(numsca.randn(1, dimMessage) * 0.01): CompNode)
+          k -> randomVar('TyVar / k)
         }
       }.toMap
 
-      val labelMap =
+      val fieldKnowledge =
         labels.map { k =>
-          k -> (getVar('labelVec / k)(numsca.randn(1, dimMessage) * 0.01): CompNode)
+          k -> (randomVar('fieldKey / k), randomVar('fieldValue / k))
         }.toMap
 
       val extendedTypeMap = BufferedTotalMap(libraryTypeMap.get) { _ =>
-        getVar('TyVar / GraphEmbedding.unknownTypeSymbol)(
-          numsca.randn(1, dimMessage) * 0.01
-        )
+        randomVar('TyVar / GraphEmbedding.unknownTypeSymbol)
       }
 
-      val extendedLabelMap = BufferedTotalMap(labelMap.get) { k =>
+      val labelEncoding = BufferedTotalMap((_: Symbol) => None) { _ =>
         const(TensorExtension.randomUnitVec(dimMessage)) ~>
           linear('UnknownLabel, dimMessage) ~> relu  //todo: see if this is useful
-//        pc.getVar('extraLabelVec / k)(numsca.randn(1, dimMessage) * 0.01): CompNode
       }
 
       val embedCtx = EmbeddingCtx(
         transEnv.idTypeMap.toMap,
         extendedTypeMap,
         predicates,
-        extendedLabelMap
+        labelEncoding,
+        fieldKnowledge
       )
       val decodingCtx = DecodingCtx(
         Vector(AnyType, TyVar(unknownTypeSymbol)) ++ libraryTypeMap.keys.toIndexedSeq
@@ -161,6 +164,8 @@ object TrainingCenter {
           )
 //      println("Predictions: ====")
 //      println(logits)
+      eventLogger.log("certainty", step, getVar(Symbol("decode:certainty"))(???).value)
+
       val accuracy = analyzeResults(annotatedPlaces, logits.value, transEnv, decodingCtx)
       eventLogger.log("accuracy", step, Tensor(accuracy))
 

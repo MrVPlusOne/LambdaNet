@@ -18,7 +18,8 @@ object GraphEmbedding {
     idTypeMap: Map[IR.IRTypeId, IRType],
     libraryTypeMap: Symbol => CompNode,
     predicates: Seq[TyVarPredicate],
-    labelMap: Symbol => CompNode
+    labelMap: Symbol => CompNode,
+    fieldKnowledge: Map[Symbol, (CompNode, CompNode)]
   )
 
   case class Embedding(nodeMap: Map[IR.IRTypeId, CompNode])
@@ -89,8 +90,13 @@ case class GraphEmbedding(
     )
   }
 
-  def singleLayer(name: SymbolPath, input: CompNode) = {
+  def singleLayer(name: SymbolPath, input: CompNode): CompNode = {
     linear(name / 'linear, dimMessage)(input) ~> relu
+  }
+
+  def binaryMessage(name: SymbolPath, v1: CompNode, v2: CompNode): Message = {
+    singleLayer(name / 'header, v1.concat(v2, axis = 1)) ->
+      singleLayer(name / 'content, v1.concat(v2, axis = 1))
   }
 
   def fieldAccessMessage(
@@ -170,11 +176,15 @@ case class GraphEmbedding(
       case HasName(v, name) =>
 //        messages(v.id) += messageModel('HasName, labelMap(name)) //todo: properly handle name info
       case SubtypeRel(sub, sup) =>
-        messages(sub.id) += messageModel('HasSupertype, nodeMap(sup.id))
-        messages(sup.id) += messageModel('HasSubtype, nodeMap(sub.id))
+//        messages(sub.id) += messageModel('HasSupertype, nodeMap(sup.id))
+//        messages(sup.id) += messageModel('HasSubtype, nodeMap(sub.id))
+        messages(sub.id) += binaryMessage('SubtypeRel, nodeMap(sub.id), nodeMap(sup.id))
+        messages(sup.id) += binaryMessage('SubtypeRel, nodeMap(sup.id), nodeMap(sub.id))
       case AssignRel(lhs, rhs) =>
-        messages(lhs.id) += messageModel('AssignedFrom, nodeMap(rhs.id))
-        messages(rhs.id) += messageModel('AssignedTo, nodeMap(lhs.id))
+//        messages(lhs.id) += messageModel('AssignedFrom, nodeMap(rhs.id))
+//        messages(rhs.id) += messageModel('AssignedTo, nodeMap(lhs.id))
+        messages(lhs.id) += binaryMessage('AssignRel, nodeMap(lhs.id), nodeMap(rhs.id))
+        messages(rhs.id) += binaryMessage('AssignRel, nodeMap(rhs.id), nodeMap(lhs.id))
       case UsedAsBoolean(tyVar) =>
         messages(tyVar.id) += messageModel('UsedAsBoolean, nodeMap(tyVar.id))
       case InheritanceRel(child, parent) =>
@@ -201,20 +211,21 @@ case class GraphEmbedding(
           case CallTypeExpr(f, args) =>
             val fVec = nodeMap(f.id)
             val fKey = singleLayer('CallTypeExpr / 'fKey, fVec)
+            val fPair = messageModel('CallTypeExpr / 'fPair, fVec)
 
-            val (argKeys, argVecs) = args.toIndexedSeq.zipWithIndex.map {
+            val argPairs = args.toIndexedSeq.zipWithIndex.map {
               case (argT, argId) =>
                 argAccessMessage(
                   'CallTypeExpr / 'toArg,
                   nodeMap(argT.id),
                   argId
                 )
-            }.unzip
+            }
 
             val fEmbed = attentionLayer('CallTypeExpr / 'fEmbed, dimMessage)(
               fKey,
-              (fKey -> fVec) +: (argKeys zip argVecs)
-            )
+              fPair +: argPairs
+            ) //todo: improve this
             messages(v.id) += messageModel('CallTypeExpr / 'toV, fEmbed)
             args.zipWithIndex.foreach {
               case (arg, argId) =>
@@ -266,7 +277,8 @@ case class GraphEmbedding(
                 val att = attentionLayer('FieldAccess / 'defs, dimMessage)(
                   nodeMap(objType.id),
                   fieldDefs(label)
-                    .map { case (k, n) => nodeMap(k.id) -> nodeMap(n.id) } //todo: add pre-knowledge
+                    .map { case (k, n) => nodeMap(k.id) -> nodeMap(n.id) } ++
+                    fieldKnowledge.get(label).toIndexedSeq
                 )
                 messageModel('FieldAccess / 'defsMessage, att)
               }
@@ -278,10 +290,12 @@ case class GraphEmbedding(
 
     val newNodeMap = _messages.keys.par
       .map { id =>
-        val nodePair = messageModel('MessageAggregate / 'node, nodeMap(id))
+        val nodeKey1 = singleLayer('MessageAggregate / 'nodeKey1, nodeMap(id))
+        val nodeKey2 = singleLayer('MessageAggregate / 'nodeKey2, nodeMap(id))
+//        val nodePair = messageModel('MessageAggregate / 'nodeMessage, nodeMap(id))
         val out = attentionLayer('MessageAggregate, dimMessage)(
-          nodePair._1,
-          _messages(id).toIndexedSeq :+ nodePair
+          nodeKey1,
+          _messages(id).toIndexedSeq :+ (nodeKey2, nodeMap(id))
         )
         val newEmbed = out / sqrt(sum(square(out)))
 //      val newEmbed = gru('MessageAggregate / 'updateGru)(nodeVec, change)
@@ -349,7 +363,7 @@ case class GraphEmbedding(
         val objectInitKey = getVar('objType / 'initKey)(randomVec())
         val objectInitValue = getVar('objType / 'initValue)(randomVec())
 
-        def rec(t: GType): CompNode = t match {
+        def rec(t: GType): CompNode = t match { //todo: need better ways
           case AnyType     => getVar('anyType)(numsca.randn(1, dimMessage) * 0.01)
           case TyVar(name) => libraryTypeMap(name)
           case FuncType(args, to) =>
