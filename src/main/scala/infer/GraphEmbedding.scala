@@ -169,27 +169,23 @@ case class GraphEmbedding(
     /* for each kind of predicate, generate one or more messages */
     def sendPredicateMessages(predicate: TyVarPredicate): Unit = predicate match {
       case EqualityRel(v1, v2) =>
-        messages(v1.id) += messageModel('Equality, nodeMap(v2.id))
-        messages(v2.id) += messageModel('Equality, nodeMap(v1.id))
+        messages(v1.id) += binaryMessage('SubtypeRel, nodeMap(v1.id), nodeMap(v2.id))
+        messages(v2.id) += binaryMessage('SubtypeRel, nodeMap(v2.id), nodeMap(v1.id))
       case FreezeType(v, ty) =>
         messages(v.id) += messageModel('FreezeType, encodeGType(ty))
       case HasName(v, name) =>
 //        messages(v.id) += messageModel('HasName, labelMap(name)) //todo: properly handle name info
       case SubtypeRel(sub, sup) =>
-//        messages(sub.id) += messageModel('HasSupertype, nodeMap(sup.id))
-//        messages(sup.id) += messageModel('HasSubtype, nodeMap(sub.id))
         messages(sub.id) += binaryMessage('SubtypeRel, nodeMap(sub.id), nodeMap(sup.id))
         messages(sup.id) += binaryMessage('SubtypeRel, nodeMap(sup.id), nodeMap(sub.id))
       case AssignRel(lhs, rhs) =>
-//        messages(lhs.id) += messageModel('AssignedFrom, nodeMap(rhs.id))
-//        messages(rhs.id) += messageModel('AssignedTo, nodeMap(lhs.id))
         messages(lhs.id) += binaryMessage('AssignRel, nodeMap(lhs.id), nodeMap(rhs.id))
         messages(rhs.id) += binaryMessage('AssignRel, nodeMap(rhs.id), nodeMap(lhs.id))
       case UsedAsBoolean(tyVar) =>
         messages(tyVar.id) += messageModel('UsedAsBoolean, nodeMap(tyVar.id))
       case InheritanceRel(child, parent) =>
-        messages(child.id) += messageModel('DeclaredAsSubtype, nodeMap(parent.id))
-        messages(parent.id) += messageModel('DeclaredAsSupertype, nodeMap(child.id))
+        messages(child.id) += binaryMessage('DeclaredAsSubtype, nodeMap(child.id), nodeMap(parent.id))
+        messages(parent.id) += binaryMessage('DeclaredAsSupertype, nodeMap(child.id), nodeMap(parent.id))
       case DefineRel(v, expr) =>
         expr match {
           case FuncTypeExpr(argTypes, returnType) =>
@@ -364,7 +360,7 @@ case class GraphEmbedding(
         val objectInitValue = getVar('objType / 'initValue)(randomVec())
 
         def rec(t: GType): CompNode = t match { //todo: need better ways
-          case AnyType     => getVar('anyType)(numsca.randn(1, dimMessage) * 0.01)
+          case AnyType     => getVar('anyType)(randomVec())
           case TyVar(name) => libraryTypeMap(name)
           case FuncType(args, to) =>
             val messages = (to +: args).zipWithIndex.map {

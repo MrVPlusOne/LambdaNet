@@ -300,6 +300,24 @@ object JSExamples {
           THIS.m('f4) := THIS
         )),
 
+        CLASS('FunctionTest)(
+        )(
+          CONSTRUCTOR('FunctionTest, ('n2, number))(
+            VAR('n)(I(1)),
+            VAR('e)(undefined),
+            IF(THIS.m('f1).call(I(1), 'n))(
+              'e := THIS.m('g1).call(NEW(node)('e))
+            ).ELSE(
+              THIS.m('id).call(I(1)) + ('n2: GExpr),
+              THIS.m('id).call(B(true)) && B(true),
+              THIS.m('id).call('emptyArray.call()).m('length)
+            )
+          ),
+          FUNC('f1, boolean)('x -> number, 'y -> number)(), //try empty methods
+          FUNC('g1, any)('x -> node)(),
+          FUNC('f1, any)('x -> any)()
+        ),
+
         CLASS(node)(
           'element -> any,
           'next -> node,

@@ -2,17 +2,16 @@ package infer
 
 import botkop.numsca
 import botkop.numsca.Tensor
+import funcdiff.API._
 import funcdiff.SimpleMath.BufferedTotalMap
 import funcdiff.SimpleMath.Extensions._
 import funcdiff._
+import gtype.EventLogger.PlotConfig
 import gtype._
+import infer.GraphEmbedding.DecodingCtx
 import infer.IRTranslation.TranslationEnv
 import infer.PredicateGraph._
-import funcdiff.API._
-import gtype.EventLogger.PlotConfig
-import infer.GraphEmbedding.DecodingCtx
-
-import collection.mutable
+import scala.collection.mutable
 
 object TrainingCenter {
 
@@ -34,37 +33,37 @@ object TrainingCenter {
       case (h, t) => transEnv.holeTyVarMap(h).id -> t
     }.toIndexedSeq
 
-    println("values: " + transEnv.idTypeMap)
-
     val (predicates, newTypes) = {
       val (ps, ctx) = PredicateGraph.encodeIR(stmts, PredicateContext.jsCtx(transEnv))
       val ups = PredicateGraph.encodeUnaryPredicates(transEnv.idTypeMap.values)
       (ps ++ ups, ctx.newTypeMap.toIndexedSeq)
     }
-    println("Predicates: =====")
-    predicates.foreach(println)
+    println("Predicate numbers:")
     println {
-      val wrongNodes = Seq(GTHole(1),GTHole(2)).map(transEnv.holeTyVarMap)
-      val graphString = PredicateGraph.displayPredicateGraph(
-        (transEnv.idTypeMap.values.toSet -- wrongNodes.toSet).toSeq,
-        wrongNodes,
-        predicates,
-        transEnv.tyVarHoleMap.toMap
-      ).toMamFormat("Automatic", directed = false)
+      predicates.groupBy(predicateCategory).mapValuesNow { _.length }
+    }
+    println {
+      val wrongNodes = Seq(GTHole(1), GTHole(2)).map(transEnv.holeTyVarMap)
+      val graphString = PredicateGraph
+        .displayPredicateGraph(
+          (transEnv.idTypeMap.values.toSet -- wrongNodes.toSet).toSeq,
+          wrongNodes,
+          predicates,
+          transEnv.tyVarHoleMap.toMap
+        )
+        .toMamFormat("Automatic", directed = false)
       import ammonite.ops._
-      write.over(pwd/"running-result"/"graph.txt", graphString)
+      write.over(pwd / "running-result" / "graph.txt", graphString)
       graphString
     }
-    //    println("newTypes: " + newTypes)
 
-    val labels = (JSExamples.typeContext.typeUnfold.values.flatMap {
+    val knownFields = (JSExamples.typeContext.typeUnfold.values.flatMap {
       case ObjectType(fields) => fields.keySet
       case _                  => Set[Symbol]()
     } ++ JSExamples.exprContext.varAssign.keySet).toIndexedSeq
-    println("labels: " + labels)
+    println("knownFields: " + knownFields)
 
     val dimMessage = 64
-
 
     val factory = LayerFactory('GraphEmbedding, ParamCollection())
     import factory._
@@ -93,12 +92,11 @@ object TrainingCenter {
     }
 
     import GraphEmbedding._
-    import funcdiff.API._
     import TensorExtension.oneHot
 
     val optimizer = Optimizers.Adam(learningRate = 4e-4)
     // training loop
-    for (step <- 0 until 2000) {
+    for (step <- 0 until 1000) {
       val startTime = System.currentTimeMillis()
 
       val libraryTypeMap: Map[Symbol, CompNode] = {
@@ -109,7 +107,7 @@ object TrainingCenter {
       }.toMap
 
       val fieldKnowledge =
-        labels.map { k =>
+        knownFields.map { k =>
           k -> (randomVar('fieldKey / k), randomVar('fieldValue / k))
         }.toMap
 
@@ -119,7 +117,7 @@ object TrainingCenter {
 
       val labelEncoding = BufferedTotalMap((_: Symbol) => None) { _ =>
         const(TensorExtension.randomUnitVec(dimMessage)) ~>
-          linear('UnknownLabel, dimMessage) ~> relu  //todo: see if this is useful
+          linear('UnknownLabel, dimMessage) ~> relu //todo: see if this is useful
       }
 
       val embedCtx = EmbeddingCtx(

@@ -32,6 +32,22 @@ object PredicateGraph {
     newTypeMap: Map[Symbol, IRType]
   )
 
+  def predicateCategory(p: TyVarPredicate): Symbol = p match {
+    case _: EqualityRel => 'equality
+    case _: FreezeType => 'freeze
+    case _: HasName => 'hasName
+    case _: SubtypeRel => 'subtype
+    case _: AssignRel => 'assign
+    case _: UsedAsBoolean => 'usedAsBool
+    case _: InheritanceRel => 'inheritance
+    case DefineRel(_, et) => et match {
+      case _: FuncTypeExpr => Symbol("define-func")
+      case _: CallTypeExpr => Symbol("define-call")
+      case _: ObjLiteralTypeExpr => Symbol("define-object")
+      case _: FieldAccessTypeExpr => Symbol("define-access")
+    }
+  }
+
   def displayPredicateGraph(
     correctNodes: Seq[IRType],
     wrongNodes: Seq[IRType],
