@@ -55,14 +55,15 @@ case class GraphEmbedding(
   ctx: EmbeddingCtx,
   layerFactory: LayerFactory,
   dimMessage: Int,
-  forwardInParallel: Boolean,
+  forwardInParallel: Boolean
 ) {
   import ctx._
   import layerFactory._
 
   require(dimMessage % 2 == 0, "dimMessage should be even")
 
-  val nodeInitVec: CompNode = getVar('nodeInitVec)(TensorExtension.randomUnitVec(dimMessage)) // randomVec()
+  val nodeInitVec: CompNode =
+    getVar('nodeInitVec)(TensorExtension.randomUnitVec(dimMessage)) // randomVec()
 
   /**
     * @return A prediction distribution matrix of shape (# of places) * (# of candidates)
@@ -83,21 +84,27 @@ case class GraphEmbedding(
   type Message = (CompNode, CompNode)
 
   def messageModel(name: SymbolPath, vec: CompNode): Message = {
-    relu(linear(name / 'header, dimMessage)(vec)) -> relu(linear(name / 'content, dimMessage)(vec))
+    relu(linear(name / 'header, dimMessage)(vec)) -> relu(
+      linear(name / 'content, dimMessage)(vec)
+    )
   }
 
   def singleLayer(name: SymbolPath, input: CompNode) = {
-    linear(name/'linear, dimMessage)(input) ~> relu
+    linear(name / 'linear, dimMessage)(input) ~> relu
   }
 
-  def fieldAccessMessage(name: SymbolPath, objEmbed: CompNode, fieldLabel: Symbol): Message = {
+  def fieldAccessMessage(
+    name: SymbolPath,
+    objEmbed: CompNode,
+    fieldLabel: Symbol
+  ): Message = {
     val input = objEmbed.concat(labelMap(fieldLabel), axis = 1)
-    messageModel(name, singleLayer(name/'compress, input))
+    messageModel(name, singleLayer(name / 'compress, input))
   }
 
   def argAccessMessage(name: SymbolPath, fEmbed: CompNode, argId: Int): Message = {
     val input = fEmbed.concat(positionalEncoding(argId), axis = 1)
-    messageModel(name, singleLayer(name/'compress, input))
+    messageModel(name, singleLayer(name / 'compress, input))
   }
 
 //  def messageModel2(name: SymbolPath, key: CompNode, value: CompNode): Message = {
@@ -134,12 +141,24 @@ case class GraphEmbedding(
 
     def messages(id: IRTypeId): MessageChannel = MessageChannel(_messages(id))
 
-    case class MessageChannel(receiver: mutable.ListBuffer[Message]){
-      def += (msg: Message): Unit = receiver.synchronized {
+    case class MessageChannel(receiver: mutable.ListBuffer[Message]) {
+      def +=(msg: Message): Unit = receiver.synchronized {
         receiver.append(msg)
       }
     }
 
+    type ObjType = IRType
+    val fieldDefs = mutable.HashMap[Symbol, IS[(ObjType, IRType)]]()
+    val fieldUsages = mutable.HashMap[Symbol, IS[(ObjType, IRType)]]()
+    ctx.predicates.collect {
+      case DefineRel(v, ObjLiteralTypeExpr(fields)) =>
+        fields.foreach {
+          case (l, t) =>
+            fieldDefs(l) = fieldDefs.getOrElse(l, IS()) :+ (v, t)
+        }
+      case DefineRel(v, FieldAccessTypeExpr(objType, l)) =>
+        fieldUsages(l) = fieldUsages.getOrElse(l, IS()) :+ (objType, v)
+    }
 
     /* for each kind of predicate, generate one or more messages */
     def sendPredicateMessages(predicate: TyVarPredicate): Unit = predicate match {
@@ -169,11 +188,15 @@ case class GraphEmbedding(
               case (tId, i) =>
                 val argId = i - 1
                 messages(v.id) += argAccessMessage(
-                  'FuncTypeExpr/'toF,
+                  'FuncTypeExpr / 'toF,
                   nodeMap(tId),
                   argId
                 )
-                messages(tId) += argAccessMessage('FuncTypeExpr/'toArg, nodeMap(v.id), argId)
+                messages(tId) += argAccessMessage(
+                  'FuncTypeExpr / 'toArg,
+                  nodeMap(v.id),
+                  argId
+                )
             }
           case CallTypeExpr(f, args) =>
             val fVec = nodeMap(f.id)
@@ -189,27 +212,43 @@ case class GraphEmbedding(
             }.unzip
 
             val fEmbed = attentionLayer('CallTypeExpr / 'fEmbed, dimMessage)(
-              fKey -> fVec,
+              fKey,
               (fKey -> fVec) +: (argKeys zip argVecs)
             )
             messages(v.id) += messageModel('CallTypeExpr / 'toV, fEmbed)
             args.zipWithIndex.foreach {
               case (arg, argId) =>
-                messages(arg.id) += argAccessMessage('CallTypeExpr / 'toArg, fEmbed, argId)
+                messages(arg.id) += argAccessMessage(
+                  'CallTypeExpr / 'toArg,
+                  fEmbed,
+                  argId
+                )
             }
           case ObjLiteralTypeExpr(fields) =>
             fields.foreach {
               case (label, tv) =>
                 messages(v.id) += fieldAccessMessage(
-                  'ObjLiteralTypeExpr/'toV,
+                  'ObjLiteralTypeExpr / 'toV,
                   nodeMap(tv.id),
                   label
                 )
                 messages(tv.id) += fieldAccessMessage(
-                  'ObjLiteralTypeExpr/'toField,
+                  'ObjLiteralTypeExpr / 'toField,
                   nodeMap(v.id),
                   label
                 )
+                if (fieldUsages.contains(label)) {
+                  messages(tv.id) += {
+                    val att =
+                      attentionLayer('ObjLiteralTypeExpr / 'fieldUsage, dimMessage)(
+                        nodeMap(v.id),
+                        fieldUsages(label).map {
+                          case (k, n) => nodeMap(k.id) -> nodeMap(n.id)
+                        }
+                      )
+                    messageModel('ObjLiteralTypeExpr / 'usageMessage, att)
+                  }
+                }
             }
           case FieldAccessTypeExpr(objType, label) =>
             messages(v.id) += fieldAccessMessage(
@@ -222,21 +261,34 @@ case class GraphEmbedding(
               nodeMap(v.id),
               label
             )
+            if (fieldDefs.contains(label)) {
+              messages(v.id) += {
+                val att = attentionLayer('FieldAccess / 'defs, dimMessage)(
+                  nodeMap(objType.id),
+                  fieldDefs(label)
+                    .map { case (k, n) => nodeMap(k.id) -> nodeMap(n.id) } //todo: add pre-knowledge
+                )
+                messageModel('FieldAccess / 'defsMessage, att)
+              }
+            }
         }
     }
 
     ctx.predicates.par.foreach(sendPredicateMessages)
 
-    val newNodeMap = _messages.keys.par.map { id =>
-      val nodePair = messageModel('MessageAggregate / 'node, nodeMap(id))
-      val out = attentionLayer('MessageAggregate, dimMessage)(
-        nodePair,
-        _messages(id).toIndexedSeq :+ nodePair
-      )
-      val newEmbed = out / sqrt(sum(square(out)))
+    val newNodeMap = _messages.keys.par
+      .map { id =>
+        val nodePair = messageModel('MessageAggregate / 'node, nodeMap(id))
+        val out = attentionLayer('MessageAggregate, dimMessage)(
+          nodePair._1,
+          _messages(id).toIndexedSeq :+ nodePair
+        )
+        val newEmbed = out / sqrt(sum(square(out)))
 //      val newEmbed = gru('MessageAggregate / 'updateGru)(nodeVec, change)
-      id -> newEmbed
-    }.seq.toMap
+        id -> newEmbed
+      }
+      .seq
+      .toMap
     Embedding(newNodeMap)
   }
 
@@ -252,13 +304,14 @@ case class GraphEmbedding(
     val attentionHeads = 16
     val concretes = decodingCtx.concreteTypes.map(encodeGType)
 
-    val logits = for(head <- (0 until attentionHeads).par) yield {
+    val certainty = getVar(Symbol("decode:certainty"))(Tensor(10.0))
+    val logits = for (head <- (0 until attentionHeads).par) yield {
       val shrinkFactor = 2
       def mlp(rows: IS[CompNode], layerName: String, layers: Int): CompNode = {
         var input = concatN(rows, axis = 0)
         var dim = dimMessage
         for (i <- 0 until layers) {
-          dim/= shrinkFactor
+          dim /= shrinkFactor
           input = input ~>
             //          batchNorm(Symbol(s"$layerName-BN$i"), inTraining = true) ~>
             linear(Symbol(s"$layerName$i") / Symbol(s"head$head"), dim) ~>
@@ -278,8 +331,7 @@ case class GraphEmbedding(
       }
 
       val transformedNodes = mlp(placesToDecode.map(embedding.nodeMap), "decode:nodes", 2)
-      val temp = getVar(Symbol("decode:certainty") / Symbol("head"+head))(Tensor(10.0))
-      transformedNodes.dot(candidateEmbeddings.t) * (temp * 6.0 / dimMessage)
+      transformedNodes.dot(candidateEmbeddings.t) * (certainty * 6.0 / dimMessage)
     }
     total(logits.seq.toVector) ~> relu
   }
@@ -303,10 +355,10 @@ case class GraphEmbedding(
           case FuncType(args, to) =>
             val messages = (to +: args).zipWithIndex.map {
               case (t, i) =>
-                argAccessMessage('funcType / 'arg, rec(t), i-1)
+                argAccessMessage('funcType / 'arg, rec(t), i - 1)
             }.toIndexedSeq
             attentionLayer('funcType / 'aggregate, dimMessage)(
-              (funcInitKey, funcInitValue),
+              funcInitKey,
               messages
             )
           case ObjectType(fields) =>
@@ -315,7 +367,7 @@ case class GraphEmbedding(
                 fieldAccessMessage('objectType / 'field, rec(t), label)
             }
             attentionLayer('objectType / 'aggregate, dimMessage)(
-              (objectInitKey, objectInitValue),
+              objectInitKey,
               messages
             )
         }

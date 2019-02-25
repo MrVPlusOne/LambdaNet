@@ -75,7 +75,7 @@ object TrainingCenter {
         printToConsole = true,
         overrideMode = true,
         configs = Seq(
-          "embedding-magnitudes" -> PlotConfig("ImageSize->Medium"),
+//          "embedding-magnitudes" -> PlotConfig("ImageSize->Medium"),
           "embedding-changes" -> PlotConfig("ImageSize->Medium"),
           "iteration-time" -> PlotConfig(
             "ImageSize->Medium",
@@ -135,12 +135,12 @@ object TrainingCenter {
       def logEmbeddingMagnitudeAndChanges(
         embeddings: IS[GraphEmbedding.Embedding]
       ): Unit = {
-        val magnitudes = Tensor(embeddings.map { e =>
-          SimpleMath.mean(e.nodeMap.values.map { n =>
-            math.sqrt(numsca.sum(numsca.square(n.value)))
-          }.toVector)
-        }: _*)
-        eventLogger.log("embedding-magnitudes", step, magnitudes)
+//        val magnitudes = Tensor(embeddings.map { e =>
+//          SimpleMath.mean(e.nodeMap.values.map { n =>
+//            math.sqrt(numsca.sum(numsca.square(n.value)))
+//          }.toVector)
+//        }: _*)
+//        eventLogger.log("embedding-magnitudes", step, magnitudes)
 
         val diffs = embeddings.zip(embeddings.tail).map {
           case (e1, e0) =>

@@ -42,11 +42,11 @@ See [typingNet-Formalizations.pdf](typingNet-Formalizations.pdf).
 
 Todo:
 
-- [ ] Make the model capable of overfitting to a single program
-
 - [ ] Implement predicate-level loss
 
 Done:
+
+- [X] Make the model capable of overfitting to a single program
 
 - [X] Investigate abnormal jumps in training loss 
 
