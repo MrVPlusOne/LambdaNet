@@ -205,14 +205,12 @@ object GStmt {
 
     def RETURN(expr: GExpr) = ExprStmt(expr, isReturn = true)
 
-    // todo: Fix the isConst part
-    def VAR(x: Symbol, ty: GType)(init: GExpr): VarDef = {
-      VarDef(x, typeHoleContext.newTHole(Some(ty)), init, isConst = false)
+    def VAR(x: Symbol, ty: GType, isConst: Boolean = false)(init: GExpr): VarDef = {
+      VarDef(x, typeHoleContext.newTHole(Some(ty)), init, isConst)
     }
 
-    // todo: Fix the isConst part
-    def VAR(x: Symbol)(init: GExpr): VarDef = {
-      VarDef(x, typeHoleContext.newTHole(None), init, isConst = false)
+    def VAR(x: Symbol, isConst: Boolean = false)(init: GExpr): VarDef = {
+      VarDef(x, typeHoleContext.newTHole(None), init, isConst)
     }
 
     def BLOCK(stmts: GStmt*): BlockStmt = {

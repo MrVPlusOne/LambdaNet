@@ -315,7 +315,7 @@ object JSExamples {
           ),
           FUNC('f1, boolean)('x -> number, 'y -> number)(), //try empty methods
           FUNC('g1, any)('x -> node)(),
-          FUNC('f1, any)('x -> any)()
+          FUNC('id, any)('x -> any)()
         ),
 
         CLASS(node)(

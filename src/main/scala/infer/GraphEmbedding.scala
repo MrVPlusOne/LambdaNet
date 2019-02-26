@@ -221,7 +221,7 @@ case class GraphEmbedding(
             val fEmbed = attentionLayer('CallTypeExpr / 'fEmbed, dimMessage)(
               fKey,
               fPair +: argPairs
-            ) //todo: improve this
+            )
             messages(v.id) += messageModel('CallTypeExpr / 'toV, fEmbed)
             args.zipWithIndex.foreach {
               case (arg, argId) =>
