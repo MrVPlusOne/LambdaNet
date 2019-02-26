@@ -95,6 +95,8 @@ object TrainingCenter {
     import TensorExtension.oneHot
 
     val optimizer = Optimizers.Adam(learningRate = 4e-4)
+
+    val parallelCtx = concurrent.ExecutionContext.global
     // training loop
     for (step <- 0 until 1000) {
       val startTime = System.currentTimeMillis()
@@ -143,13 +145,17 @@ object TrainingCenter {
 //        }: _*)
 //        eventLogger.log("embedding-magnitudes", step, magnitudes)
 
-        val diffs = embeddings.zip(embeddings.tail).map {
-          case (e1, e0) =>
-            val diffMap = e1.nodeMap.elementwiseCombine(e0.nodeMap) { (x, y) =>
-              numsca.std(x.value - y.value).squeeze()
-            }
-            SimpleMath.mean(diffMap.values.toSeq)
-        }
+        val diffs = embeddings
+          .zip(embeddings.tail)
+          .par
+          .map {
+            case (e1, e0) =>
+              val diffMap = e1.nodeMap.elementwiseCombine(e0.nodeMap) { (x, y) =>
+                math.sqrt(numsca.sum(numsca.square(x.value - y.value)))
+              }
+              SimpleMath.mean(diffMap.values.toSeq)
+          }
+          .seq
         eventLogger.log("embedding-changes", step, Tensor(diffs: _*))
       }
       val logits =
@@ -179,8 +185,10 @@ object TrainingCenter {
       }
       eventLogger.log("loss", step, loss.value)
 
-      val parallelCtx = concurrent.ExecutionContext.global
-      optimizer.minimize(loss, params.allParams, backPropInParallel = Some(parallelCtx))
+      val (_, optimizeTime) = SimpleMath.measureTimeAsSeconds {
+        optimizer.minimize(loss, params.allParams, backPropInParallel = Some(parallelCtx))
+      }
+      println("optimization time: %.3fs".format(optimizeTime))
 
       eventLogger.log(
         "iteration-time",

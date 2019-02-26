@@ -195,21 +195,32 @@ case class LayerFactory(nameSpace: SymbolPath, params: ParamCollection) {
   /** performs weighted-sum over ys using dot-product attention */
   def attentionLayer(
     name: SymbolPath,
-    attentionDim: Int
+    attentionDim: Int,
+    transformKey: Boolean = false,
+    transformValue: Boolean = false
   )(xKey: CompNode, ys: IS[(CompNode, CompNode)]): CompNode =
     withPrefix(name) { _ =>
-      val sqrtN = math.sqrt(xKey.shape(1))
-      val weightLogits = concatN(ys.map(_._1), axis = 0).dot(xKey.t).t
-      val aWeights = softmax(weightLogits / sqrtN)
-      if (aWeights.shape.head == 1) {
-        val yMat = concatN(ys.map(_._2), axis = 0)
-        aWeights.dot(yMat)
-      } else {
-        total(ys.indices.map { i =>
-          aWeights.slice(:>, i :> (i + 1)) * ys(i)._2
-        })
+      val keyDim = xKey.shape(1)
+      val valueDim = ys.head._2.shape(1)
+      val sqrtN = math.sqrt(keyDim)
+      val weightLogits = {
+        val originalKeys = concatN(ys.map(_._1), axis = 0)
+        val keys =
+          if (transformKey) relu(linear(name / 'keyTransform2, keyDim)(originalKeys))
+          else originalKeys
+        val newKey = if(transformKey) relu(linear(name / 'keyTransform1, keyDim)(xKey)) else xKey
+        keys.dot(newKey.t).t
       }
+      val aWeights = softmax(weightLogits / sqrtN)
+
+      assert(aWeights.shape.head == 1)
+      val yOrigin = concatN(ys.map(_._2), axis = 0)
+      val yMat =
+        if (transformValue) relu(linear(name / 'valueTransform, valueDim)(yOrigin))
+        else yOrigin
+      aWeights.dot(yMat)
     }
+
   //  def cnn2D(name: Symbol, kernelSize: (Int, Int))(input: CompNode): CompNode = withPrefix(name) { prefix =>
   //    val w = getVar(prefix / 'kernel, attributes = Set(NeedRegularization)){ ns.randn(kernelSize._1, kernelSize._2) }
   //    if(useBias){

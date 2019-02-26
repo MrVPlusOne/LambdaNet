@@ -209,8 +209,8 @@ object GStmt {
       VarDef(x, typeHoleContext.newTHole(Some(ty)), init, isConst)
     }
 
-    def VAR(x: Symbol, isConst: Boolean = false)(init: GExpr): VarDef = {
-      VarDef(x, typeHoleContext.newTHole(None), init, isConst)
+    def VAR(x: Symbol)(init: GExpr): VarDef = {
+      VarDef(x, typeHoleContext.newTHole(None), init, isConst = false)
     }
 
     def BLOCK(stmts: GStmt*): BlockStmt = {

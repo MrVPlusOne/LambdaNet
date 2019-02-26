@@ -523,6 +523,11 @@ object SimpleMath {
     result -> (t1 - t0)
   }
 
+  def measureTimeAsSeconds[R](block: => R): (R, Double) = {
+    val (r, long) = measureTime(block)
+    (r, long.toDouble / 1e6)
+  }
+
   trait Monoid[T] {
     def zero: T
     def op(x1: T, x2: T): T

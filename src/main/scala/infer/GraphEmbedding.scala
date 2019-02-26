@@ -75,10 +75,24 @@ case class GraphEmbedding(
     placesToDecode: IS[IRTypeId],
     iterateLogger: IS[Embedding] => Unit = _ => ()
   ): CompNode = {
-    val init = Embedding(idTypeMap.mapValuesNow(_ => nodeInitVec))
-    val embeddings = IS.iterate(init, iterations)(iterate)
-    iterateLogger(embeddings)
-    decode(decodingCtx, placesToDecode, embeddings.last)
+    import SimpleMath.measureTimeAsSeconds
+    val (embeddings, iterTime) = measureTimeAsSeconds {
+      val init = Embedding(idTypeMap.mapValuesNow(_ => nodeInitVec))
+      IS.iterate(init, iterations)(iterate)
+    }
+
+    val (_, loggingTime) = measureTimeAsSeconds {
+      iterateLogger(embeddings)
+    }
+    val (result, decodingTime) = measureTimeAsSeconds {
+      decode(decodingCtx, placesToDecode, embeddings.last)
+    }
+
+    println(
+      "iter time: %.3fs, loggingTime: %.3fs, decodingTime: %.3fs"
+        .format(iterTime, loggingTime, decodingTime)
+    )
+    result
   }
 
   /** Each message consists of a key-value pair */
@@ -105,6 +119,17 @@ case class GraphEmbedding(
     fieldLabel: Symbol
   ): Message = {
     val input = objEmbed.concat(labelMap(fieldLabel), axis = 1)
+    messageModel(name, singleLayer(name / 'compress, input))
+  }
+
+  def fieldAccessMessageBatch(
+    name: SymbolPath,
+    objEmbeds: Iterable[CompNode],
+    fieldLabels: Iterable[CompNode]
+  ): Message = {
+    val input =
+      concatN(objEmbeds.toIndexedSeq, axis = 0)
+        .concat(concatN(fieldLabels.toIndexedSeq, axis = 0), axis = 1)
     messageModel(name, singleLayer(name / 'compress, input))
   }
 
@@ -184,8 +209,16 @@ case class GraphEmbedding(
       case UsedAsBoolean(tyVar) =>
         messages(tyVar.id) += messageModel('UsedAsBoolean, nodeMap(tyVar.id))
       case InheritanceRel(child, parent) =>
-        messages(child.id) += binaryMessage('DeclaredAsSubtype, nodeMap(child.id), nodeMap(parent.id))
-        messages(parent.id) += binaryMessage('DeclaredAsSupertype, nodeMap(child.id), nodeMap(parent.id))
+        messages(child.id) += binaryMessage(
+          'DeclaredAsSubtype,
+          nodeMap(child.id),
+          nodeMap(parent.id)
+        )
+        messages(parent.id) += binaryMessage(
+          'DeclaredAsSupertype,
+          nodeMap(child.id),
+          nodeMap(parent.id)
+        )
       case DefineRel(v, expr) =>
         expr match {
           case FuncTypeExpr(argTypes, returnType) =>
@@ -212,7 +245,7 @@ case class GraphEmbedding(
             val argPairs = args.toIndexedSeq.zipWithIndex.map {
               case (argT, argId) =>
                 argAccessMessage(
-                  'CallTypeExpr / 'toArg,
+                  'CallTypeExpr / 'embedArg,
                   nodeMap(argT.id),
                   argId
                 )
@@ -247,7 +280,11 @@ case class GraphEmbedding(
                 if (fieldUsages.contains(label)) {
                   messages(tv.id) += {
                     val att =
-                      attentionLayer('ObjLiteralTypeExpr / 'fieldUsage, dimMessage)(
+                      attentionLayer(
+                        'ObjLiteralTypeExpr / 'fieldUsage,
+                        dimMessage,
+                        transformKey = true
+                      )(
                         nodeMap(v.id),
                         fieldUsages(label).map {
                           case (k, n) => nodeMap(k.id) -> nodeMap(n.id)
@@ -270,7 +307,7 @@ case class GraphEmbedding(
             )
             if (fieldDefs.contains(label)) {
               messages(v.id) += {
-                val att = attentionLayer('FieldAccess / 'defs, dimMessage)(
+                val att = attentionLayer('FieldAccess / 'defs, dimMessage, transformKey = true)(
                   nodeMap(objType.id),
                   fieldDefs(label)
                     .map { case (k, n) => nodeMap(k.id) -> nodeMap(n.id) } ++
