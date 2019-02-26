@@ -1,6 +1,6 @@
 [
   {
-    "name": "mergeSort",
+    "name": "\"programs/mergeSort\".mergeSort",
     "args": [
       [
         "array",
@@ -10,191 +10,579 @@
     "returnType": "number[]",
     "body": {
       "stmts": [
-        [
-          {
-            "cond": {
-              "f": {
+        {
+          "cond": {
+            "f": {
+              "expr": {
                 "expr": {
-                  "expr": {
-                    "name": "array",
-                    "category": "Var"
-                  },
-                  "field": "length",
-                  "category": "Access"
+                  "name": "array",
+                  "category": "Var"
                 },
-                "field": "LessThanEqualsToken",
+                "field": "length",
                 "category": "Access"
               },
-              "args": [
-                {
-                  "value": "1",
-                  "type": "number",
-                  "category": "Const"
-                }
-              ],
-              "category": "FuncCall"
+              "field": "LessThanEqualsToken",
+              "category": "Access"
             },
-            "branch1": {
-              "stmts": [
-                [
-                  {
-                    "e": {
+            "args": [
+              {
+                "value": 1,
+                "ty": "number",
+                "category": "Const"
+              }
+            ],
+            "category": "FuncCall"
+          },
+          "branch1": {
+            "stmts": [
+              {
+                "e": {
+                  "name": "array",
+                  "category": "Var"
+                },
+                "isReturn": true,
+                "category": "ExprStmt"
+              }
+            ],
+            "category": "BlockStmt"
+          },
+          "branch2": {
+            "stmts": [],
+            "category": "BlockStmt"
+          },
+          "category": "IfStmt"
+        },
+        {
+          "x": "middle",
+          "type": "any",
+          "init": {
+            "f": {
+              "expr": {
+                "name": "Math",
+                "category": "Var"
+              },
+              "field": "floor",
+              "category": "Access"
+            },
+            "args": [
+              {
+                "f": {
+                  "expr": {
+                    "expr": {
                       "name": "array",
                       "category": "Var"
                     },
-                    "isReturn": true,
-                    "category": "ExprStmt"
+                    "field": "length",
+                    "category": "Access"
+                  },
+                  "field": "SlashToken",
+                  "category": "Access"
+                },
+                "args": [
+                  {
+                    "value": 2,
+                    "ty": "number",
+                    "category": "Const"
                   }
-                ]
-              ],
-              "category": "BlockStmt"
+                ],
+                "category": "FuncCall"
+              }
+            ],
+            "category": "FuncCall"
+          },
+          "isConst": true,
+          "category": "VarDef"
+        },
+        {
+          "x": "left",
+          "type": "any",
+          "init": {
+            "f": {
+              "expr": {
+                "name": "array",
+                "category": "Var"
+              },
+              "field": "slice",
+              "category": "Access"
             },
-            "branch2": {
-              "stmts": [],
-              "category": "BlockStmt"
+            "args": [
+              {
+                "value": 0,
+                "ty": "number",
+                "category": "Const"
+              },
+              {
+                "name": "middle",
+                "category": "Var"
+              }
+            ],
+            "category": "FuncCall"
+          },
+          "isConst": true,
+          "category": "VarDef"
+        },
+        {
+          "x": "right",
+          "type": "any",
+          "init": {
+            "f": {
+              "expr": {
+                "name": "array",
+                "category": "Var"
+              },
+              "field": "slice",
+              "category": "Access"
             },
-            "category": "IfStmt"
-          }
-        ],
-        [
-          {
-            "x": "middle",
-            "type": "any",
-            "init": {
-              "f": {
-                "expr": {
-                  "name": "Math",
+            "args": [
+              {
+                "name": "middle",
+                "category": "Var"
+              }
+            ],
+            "category": "FuncCall"
+          },
+          "isConst": true,
+          "category": "VarDef"
+        },
+        {
+          "e": {
+            "f": {
+              "name": "merge",
+              "category": "Var"
+            },
+            "args": [
+              {
+                "f": {
+                  "name": "\"programs/mergeSort\".mergeSort",
                   "category": "Var"
                 },
-                "field": "floor",
-                "category": "Access"
+                "args": [
+                  {
+                    "name": "left",
+                    "category": "Var"
+                  }
+                ],
+                "category": "FuncCall"
               },
-              "args": [
-                {
+              {
+                "f": {
+                  "name": "\"programs/mergeSort\".mergeSort",
+                  "category": "Var"
+                },
+                "args": [
+                  {
+                    "name": "right",
+                    "category": "Var"
+                  }
+                ],
+                "category": "FuncCall"
+              }
+            ],
+            "category": "FuncCall"
+          },
+          "isReturn": true,
+          "category": "ExprStmt"
+        }
+      ],
+      "category": "BlockStmt"
+    },
+    "category": "FuncDef"
+  },
+  {
+    "name": "merge",
+    "args": [
+      [
+        "left",
+        "number[]"
+      ],
+      [
+        "right",
+        "number[]"
+      ]
+    ],
+    "returnType": "number[]",
+    "body": {
+      "stmts": [
+        {
+          "x": "array",
+          "type": "number[]",
+          "init": {
+            "value": [],
+            "ty": "array",
+            "category": "Const"
+          },
+          "isConst": true,
+          "category": "VarDef"
+        },
+        {
+          "x": "lIndex",
+          "type": "any",
+          "init": {
+            "value": 0,
+            "ty": "number",
+            "category": "Const"
+          },
+          "isConst": false,
+          "category": "VarDef"
+        },
+        {
+          "x": "rIndex",
+          "type": "any",
+          "init": {
+            "value": 0,
+            "ty": "number",
+            "category": "Const"
+          },
+          "isConst": false,
+          "category": "VarDef"
+        },
+        {
+          "cond": {
+            "f": {
+              "expr": {
+                "f": {
+                  "expr": {
+                    "name": "lIndex",
+                    "category": "Var"
+                  },
+                  "field": "PlusToken",
+                  "category": "Access"
+                },
+                "args": [
+                  {
+                    "name": "rIndex",
+                    "category": "Var"
+                  }
+                ],
+                "category": "FuncCall"
+              },
+              "field": "FirstBinaryOperator",
+              "category": "Access"
+            },
+            "args": [
+              {
+                "f": {
+                  "expr": {
+                    "expr": {
+                      "name": "left",
+                      "category": "Var"
+                    },
+                    "field": "length",
+                    "category": "Access"
+                  },
+                  "field": "PlusToken",
+                  "category": "Access"
+                },
+                "args": [
+                  {
+                    "expr": {
+                      "name": "right",
+                      "category": "Var"
+                    },
+                    "field": "length",
+                    "category": "Access"
+                  }
+                ],
+                "category": "FuncCall"
+              }
+            ],
+            "category": "FuncCall"
+          },
+          "body": {
+            "stmts": [
+              {
+                "x": "lItem",
+                "type": "any",
+                "init": {
                   "f": {
                     "expr": {
-                      "expr": {
-                        "name": "array",
-                        "category": "Var"
-                      },
-                      "field": "length",
-                      "category": "Access"
+                      "name": "left",
+                      "category": "Var"
                     },
-                    "field": "SlashToken",
+                    "field": "access",
                     "category": "Access"
                   },
                   "args": [
                     {
-                      "value": "2",
-                      "type": "number",
+                      "name": "lIndex",
+                      "category": "Var"
+                    }
+                  ],
+                  "category": "FuncCall"
+                },
+                "isConst": true,
+                "category": "VarDef"
+              },
+              {
+                "x": "rItem",
+                "type": "any",
+                "init": {
+                  "f": {
+                    "expr": {
+                      "name": "right",
+                      "category": "Var"
+                    },
+                    "field": "access",
+                    "category": "Access"
+                  },
+                  "args": [
+                    {
+                      "name": "rIndex",
+                      "category": "Var"
+                    }
+                  ],
+                  "category": "FuncCall"
+                },
+                "isConst": true,
+                "category": "VarDef"
+              },
+              {
+                "cond": {
+                  "f": {
+                    "expr": {
+                      "name": "lItem",
+                      "category": "Var"
+                    },
+                    "field": "EqualsEqualsToken",
+                    "category": "Access"
+                  },
+                  "args": [
+                    {
+                      "value": null,
+                      "ty": "null",
                       "category": "Const"
                     }
                   ],
                   "category": "FuncCall"
-                }
-              ],
-              "category": "FuncCall"
-            },
-            "isConst": true,
-            "category": "VarDef"
-          }
-        ],
-        [
-          {
-            "x": "left",
-            "type": "any",
-            "init": {
-              "f": {
-                "expr": {
-                  "name": "array",
-                  "category": "Var"
                 },
-                "field": "slice",
-                "category": "Access"
-              },
-              "args": [
-                {
-                  "value": "0",
-                  "type": "number",
-                  "category": "Const"
-                },
-                {
-                  "name": "middle",
-                  "category": "Var"
-                }
-              ],
-              "category": "FuncCall"
-            },
-            "isConst": true,
-            "category": "VarDef"
-          }
-        ],
-        [
-          {
-            "x": "right",
-            "type": "any",
-            "init": {
-              "f": {
-                "expr": {
-                  "name": "array",
-                  "category": "Var"
-                },
-                "field": "slice",
-                "category": "Access"
-              },
-              "args": [
-                {
-                  "name": "middle",
-                  "category": "Var"
-                }
-              ],
-              "category": "FuncCall"
-            },
-            "isConst": true,
-            "category": "VarDef"
-          }
-        ],
-        [
-          {
-            "e": {
-              "f": {
-                "name": "merge",
-                "category": "Var"
-              },
-              "args": [
-                {
-                  "f": {
-                    "name": "mergeSort",
-                    "category": "Var"
-                  },
-                  "args": [
+                "branch1": {
+                  "stmts": [
                     {
-                      "name": "left",
-                      "category": "Var"
+                      "e": {
+                        "f": {
+                          "expr": {
+                            "name": "array",
+                            "category": "Var"
+                          },
+                          "field": "push",
+                          "category": "Access"
+                        },
+                        "args": [
+                          {
+                            "name": "rItem",
+                            "category": "Var"
+                          }
+                        ],
+                        "category": "FuncCall"
+                      },
+                      "isReturn": false,
+                      "category": "ExprStmt"
+                    },
+                    {
+                      "e": {
+                        "f": {
+                          "name": "PlusPlusToken",
+                          "category": "Var"
+                        },
+                        "args": [
+                          {
+                            "name": "rIndex",
+                            "category": "Var"
+                          }
+                        ],
+                        "category": "FuncCall"
+                      },
+                      "isReturn": false,
+                      "category": "ExprStmt"
                     }
                   ],
-                  "category": "FuncCall"
+                  "category": "BlockStmt"
                 },
-                {
-                  "f": {
-                    "name": "mergeSort",
-                    "category": "Var"
+                "branch2": {
+                  "cond": {
+                    "f": {
+                      "expr": {
+                        "name": "rItem",
+                        "category": "Var"
+                      },
+                      "field": "EqualsEqualsToken",
+                      "category": "Access"
+                    },
+                    "args": [
+                      {
+                        "value": null,
+                        "ty": "null",
+                        "category": "Const"
+                      }
+                    ],
+                    "category": "FuncCall"
                   },
-                  "args": [
-                    {
-                      "name": "right",
-                      "category": "Var"
-                    }
-                  ],
-                  "category": "FuncCall"
-                }
-              ],
-              "category": "FuncCall"
-            },
-            "isReturn": true,
-            "category": "ExprStmt"
-          }
-        ]
+                  "branch1": {
+                    "stmts": [
+                      {
+                        "e": {
+                          "f": {
+                            "expr": {
+                              "name": "array",
+                              "category": "Var"
+                            },
+                            "field": "push",
+                            "category": "Access"
+                          },
+                          "args": [
+                            {
+                              "name": "lItem",
+                              "category": "Var"
+                            }
+                          ],
+                          "category": "FuncCall"
+                        },
+                        "isReturn": false,
+                        "category": "ExprStmt"
+                      },
+                      {
+                        "e": {
+                          "f": {
+                            "name": "PlusPlusToken",
+                            "category": "Var"
+                          },
+                          "args": [
+                            {
+                              "name": "lIndex",
+                              "category": "Var"
+                            }
+                          ],
+                          "category": "FuncCall"
+                        },
+                        "isReturn": false,
+                        "category": "ExprStmt"
+                      }
+                    ],
+                    "category": "BlockStmt"
+                  },
+                  "branch2": {
+                    "cond": {
+                      "f": {
+                        "expr": {
+                          "name": "lItem",
+                          "category": "Var"
+                        },
+                        "field": "FirstBinaryOperator",
+                        "category": "Access"
+                      },
+                      "args": [
+                        {
+                          "name": "rItem",
+                          "category": "Var"
+                        }
+                      ],
+                      "category": "FuncCall"
+                    },
+                    "branch1": {
+                      "stmts": [
+                        {
+                          "e": {
+                            "f": {
+                              "expr": {
+                                "name": "array",
+                                "category": "Var"
+                              },
+                              "field": "push",
+                              "category": "Access"
+                            },
+                            "args": [
+                              {
+                                "name": "lItem",
+                                "category": "Var"
+                              }
+                            ],
+                            "category": "FuncCall"
+                          },
+                          "isReturn": false,
+                          "category": "ExprStmt"
+                        },
+                        {
+                          "e": {
+                            "f": {
+                              "name": "PlusPlusToken",
+                              "category": "Var"
+                            },
+                            "args": [
+                              {
+                                "name": "lIndex",
+                                "category": "Var"
+                              }
+                            ],
+                            "category": "FuncCall"
+                          },
+                          "isReturn": false,
+                          "category": "ExprStmt"
+                        }
+                      ],
+                      "category": "BlockStmt"
+                    },
+                    "branch2": {
+                      "stmts": [
+                        {
+                          "e": {
+                            "f": {
+                              "expr": {
+                                "name": "array",
+                                "category": "Var"
+                              },
+                              "field": "push",
+                              "category": "Access"
+                            },
+                            "args": [
+                              {
+                                "name": "rItem",
+                                "category": "Var"
+                              }
+                            ],
+                            "category": "FuncCall"
+                          },
+                          "isReturn": false,
+                          "category": "ExprStmt"
+                        },
+                        {
+                          "e": {
+                            "f": {
+                              "name": "PlusPlusToken",
+                              "category": "Var"
+                            },
+                            "args": [
+                              {
+                                "name": "rIndex",
+                                "category": "Var"
+                              }
+                            ],
+                            "category": "FuncCall"
+                          },
+                          "isReturn": false,
+                          "category": "ExprStmt"
+                        }
+                      ],
+                      "category": "BlockStmt"
+                    },
+                    "category": "IfStmt"
+                  },
+                  "category": "IfStmt"
+                },
+                "category": "IfStmt"
+              }
+            ],
+            "category": "BlockStmt"
+          },
+          "category": "WhileStmt"
+        },
+        {
+          "e": {
+            "name": "array",
+            "category": "Var"
+          },
+          "isReturn": true,
+          "category": "ExprStmt"
+        }
       ],
       "category": "BlockStmt"
     },
