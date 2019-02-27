@@ -206,10 +206,9 @@ case class LayerFactory(nameSpace: SymbolPath, params: ParamCollection) {
       val weightLogits = {
         val originalKeys = concatN(ys.map(_._1), axis = 0)
         val keys =
-          if (transformKey) relu(linear(name / 'keyTransform2, keyDim)(originalKeys))
+          if (transformKey) linear(name / 'keyTransform2, keyDim, useBias = false)(originalKeys)
           else originalKeys
-        val newKey = if(transformKey) relu(linear(name / 'keyTransform1, keyDim)(xKey)) else xKey
-        keys.dot(newKey.t).t
+        keys.dot(xKey.t).t
       }
       val aWeights = softmax(weightLogits / sqrtN)
 

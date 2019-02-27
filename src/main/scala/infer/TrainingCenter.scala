@@ -80,6 +80,7 @@ object TrainingCenter {
         configs = Seq(
 //          "embedding-magnitudes" -> PlotConfig("ImageSize->Medium"),
           "embedding-changes" -> PlotConfig("ImageSize->Medium"),
+          "embedding-min-length" -> PlotConfig("ImageSize->Medium"),
           "certainty" -> PlotConfig("ImageSize->Medium"),
           "iteration-time" -> PlotConfig(
             "ImageSize->Medium",
@@ -157,6 +158,9 @@ object TrainingCenter {
           }
           .seq
         eventLogger.log("embedding-changes", step, Tensor(diffs: _*))
+
+        val maxEmbeddingLength = embeddings.map{_.stat.trueEmbeddingLengths.max}.max
+        eventLogger.log("embedding-max-length", step, Tensor(maxEmbeddingLength))
       }
       val logits =
         GraphEmbedding(embedCtx, factory, dimMessage, forwardInParallel = true)

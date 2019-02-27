@@ -22,7 +22,9 @@ object GraphEmbedding {
     fieldKnowledge: Map[Symbol, (CompNode, CompNode)]
   )
 
-  case class Embedding(nodeMap: Map[IR.IRTypeId, CompNode])
+  case class Embedding(nodeMap: Map[IR.IRTypeId, CompNode], stat: EmbeddingStat)
+
+  case class EmbeddingStat(trueEmbeddingLengths: IS[Double])
 
   case class DecodingCtx(
     concreteTypes: IS[GType],
@@ -77,7 +79,8 @@ case class GraphEmbedding(
   ): CompNode = {
     import SimpleMath.measureTimeAsSeconds
     val (embeddings, iterTime) = measureTimeAsSeconds {
-      val init = Embedding(idTypeMap.mapValuesNow(_ => nodeInitVec))
+      val stat = EmbeddingStat(idTypeMap.mapValuesNow(_ => 1.0).values.toVector)
+      val init = Embedding(idTypeMap.mapValuesNow(_ => nodeInitVec), stat)
       IS.iterate(init, iterations)(iterate)
     }
 
@@ -98,14 +101,14 @@ case class GraphEmbedding(
   /** Each message consists of a key-value pair */
   type Message = (CompNode, CompNode)
 
+  def singleLayer(name: SymbolPath, input: CompNode): CompNode = {
+    linear(name / 'linear, dimMessage)(input) ~> relu
+  }
+
   def messageModel(name: SymbolPath, vec: CompNode): Message = {
     relu(linear(name / 'header, dimMessage)(vec)) -> relu(
       linear(name / 'content, dimMessage)(vec)
     )
-  }
-
-  def singleLayer(name: SymbolPath, input: CompNode): CompNode = {
-    linear(name / 'linear, dimMessage)(input) ~> relu
   }
 
   def binaryMessage(name: SymbolPath, v1: CompNode, v2: CompNode): Message = {
@@ -119,17 +122,6 @@ case class GraphEmbedding(
     fieldLabel: Symbol
   ): Message = {
     val input = objEmbed.concat(labelMap(fieldLabel), axis = 1)
-    messageModel(name, singleLayer(name / 'compress, input))
-  }
-
-  def fieldAccessMessageBatch(
-    name: SymbolPath,
-    objEmbeds: Iterable[CompNode],
-    fieldLabels: Iterable[CompNode]
-  ): Message = {
-    val input =
-      concatN(objEmbeds.toIndexedSeq, axis = 0)
-        .concat(concatN(fieldLabels.toIndexedSeq, axis = 0), axis = 1)
     messageModel(name, singleLayer(name / 'compress, input))
   }
 
@@ -321,22 +313,27 @@ case class GraphEmbedding(
 
     ctx.predicates.par.foreach(sendPredicateMessages)
 
+    val outLengths = mutable.ListBuffer[Double]()
     val newNodeMap = _messages.keys.par
       .map { id =>
-        val nodeKey1 = singleLayer('MessageAggregate / 'nodeKey1, nodeMap(id))
-        val nodeKey2 = singleLayer('MessageAggregate / 'nodeKey2, nodeMap(id))
+        val node = nodeMap(id)
 //        val nodePair = messageModel('MessageAggregate / 'nodeMessage, nodeMap(id))
-        val out = attentionLayer('MessageAggregate, dimMessage)(
-          nodeKey1,
-          _messages(id).toIndexedSeq :+ (nodeKey2, nodeMap(id))
+        val out = attentionLayer('MessageAggregate, dimMessage, transformKey = true)(
+          node,
+          _messages(id).toIndexedSeq :+ (node, node)
         )
-        val newEmbed = out / sqrt(sum(square(out)))
+        val outLen = sqrt(sum(square(out)))
+        outLengths.synchronized{
+          outLengths += outLen.value.squeeze()
+        }
+        val newEmbed = out / outLen
 //      val newEmbed = gru('MessageAggregate / 'updateGru)(nodeVec, change)
         id -> newEmbed
       }
       .seq
       .toMap
-    Embedding(newNodeMap)
+    val stat = EmbeddingStat(outLengths.toIndexedSeq)
+    Embedding(newNodeMap, stat)
   }
 
   /**
@@ -351,7 +348,7 @@ case class GraphEmbedding(
     val attentionHeads = 16
     val concretes = decodingCtx.concreteTypes.map(encodeGType)
 
-    val certainty = getVar(Symbol("decode:certainty"))(Tensor(10.0))
+    val certainty = getVar(Symbol("decode:certainty"))(Tensor(6.0))
     val logits = for (head <- (0 until attentionHeads).par) yield {
       val shrinkFactor = 2
       def mlp(rows: IS[CompNode], layerName: String, layers: Int): CompNode = {
@@ -378,7 +375,7 @@ case class GraphEmbedding(
       }
 
       val transformedNodes = mlp(placesToDecode.map(embedding.nodeMap), "decode:nodes", 2)
-      transformedNodes.dot(candidateEmbeddings.t) * (certainty * 6.0 / dimMessage)
+      transformedNodes.dot(candidateEmbeddings.t) * (certainty * 10.0 / dimMessage)
     }
     total(logits.seq.toVector) ~> relu
   }
