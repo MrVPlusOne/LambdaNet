@@ -61,7 +61,7 @@ object GStmtParsing {
 
   val tHoleContext = new TypeHoleContext()
 
-  def parseType(v: Js.Val): GTMark = {
+  def parseType(v: Js.Val, userAnnotated: Boolean = false): GTMark = {
     val s = v.asInstanceOf[Str].value
     if (s == "missing") tHoleContext.newTHole(None)
     else {
@@ -69,7 +69,7 @@ object GStmtParsing {
       val t =
         if (tName == AnyType.id) AnyType
         else TyVar(tName)
-      tHoleContext.newTHole(Some(t))
+      tHoleContext.newTHole(Some(t), userAnnotated)
     }
   }
 
@@ -187,8 +187,8 @@ object GStmtParsing {
   }
 
   def main(args: Array[String]): Unit = {
-    val jValue = parseAsJSon(pwd / 'data / 'tests / "mergeSort.json")
-    println(jValue)
+    val jValue = parseAsJSon(pwd/up/'DeepTypeTS/'output/"foo.json")
+//    println(jValue)
 
     asArray(jValue).map(parseGStmt).foreach(println)
   }

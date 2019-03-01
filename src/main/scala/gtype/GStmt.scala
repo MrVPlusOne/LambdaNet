@@ -180,26 +180,25 @@ object GStmt {
   class TypeHoleContext {
     var typeHoleId: Int = 0
     val holeTypeMap: mutable.HashMap[GTHole, GType] = mutable.HashMap[GTHole, GType]()
+    val userAnnotatedSet: mutable.HashSet[GTHole] = mutable.HashSet[GTHole]()
 
-    def newTHole(ty: Option[GType]): GTHole = {
+    def newTHole(ty: Option[GType], userAnnotated: Boolean = false): GTHole = {
       val h = GTHole(typeHoleId)
       typeHoleId += 1
       ty.foreach { t =>
         assert(!holeTypeMap.contains(h))
         holeTypeMap(h) = t
       }
+      if(userAnnotated){
+        userAnnotatedSet += h
+      }
       h
-    }
-
-    def reset(): Unit = {
-      typeHoleId = 0
-      holeTypeMap.clear()
     }
   }
 
   /** Replace all the type annotations with [[GTHole]]s */
   trait GStmtAPI extends GExprAPI {
-    val typeHoleContext: TypeHoleContext = new TypeHoleContext()
+    var typeHoleContext: TypeHoleContext = new TypeHoleContext()
 
     implicit def expr2Stmt(expr: GExpr): GStmt = ExprStmt(expr, isReturn = false)
 

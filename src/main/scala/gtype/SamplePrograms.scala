@@ -69,7 +69,7 @@ object SamplePrograms {
   object Collection {
 
     def wellFormed(stmt: => GStmt): Example = {
-      typeHoleContext.reset()
+      typeHoleContext = new TypeHoleContext()
       val b = TryBLOCK(stmt)
       val e = Example(b, typeHoleContext.holeTypeMap.toMap)
       GStmt.assertAllTypesStripped(b)

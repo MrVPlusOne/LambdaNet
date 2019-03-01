@@ -2,6 +2,7 @@ package gtype
 
 import gtype.GStmt.API._
 import SamplePrograms.Example
+import gtype.GStmt.TypeHoleContext
 
 import scala.collection.mutable.ListBuffer
 
@@ -104,7 +105,7 @@ object JSExamples {
     val all: ListBuffer[(String, Example)] = mutable.ListBuffer()
 
     def wellFormed(name: String)(stmt: => GStmt): Example = {
-      typeHoleContext.reset()
+      typeHoleContext = new TypeHoleContext()
       val b = TryBLOCK(stmt)
       val e = Example(b, typeHoleContext.holeTypeMap.toMap)
       all += (name -> e)
