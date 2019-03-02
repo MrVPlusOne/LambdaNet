@@ -99,8 +99,8 @@ object GStmt {
   def prettyPrintHelper(indent: Int, stmt: GStmt): Vector[(Int, String)] = {
     stmt match {
       case VarDef(x, ty, init, isConst) =>
-        val constModifier = if (isConst) " const" else ""
-        Vector(indent -> s"let$constModifier ${x.name}: $ty = $init;")
+        val keyword = if (isConst) "const" else "let"
+        Vector(indent -> s"$keyword ${x.name}: $ty = $init;")
       case AssignStmt(lhs, rhs) =>
         Vector(indent -> s"$lhs = $rhs;")
       case ExprStmt(v, isReturn) =>
@@ -176,21 +176,23 @@ object GStmt {
     }
   }
 
+  case class TypeAnnotation(ty: GType, userAnnotated: Boolean)
+
   /** An context used for constructing programs written in [[GStmt]] */
   class TypeHoleContext {
     var typeHoleId: Int = 0
     val holeTypeMap: mutable.HashMap[GTHole, GType] = mutable.HashMap[GTHole, GType]()
     val userAnnotatedSet: mutable.HashSet[GTHole] = mutable.HashSet[GTHole]()
 
-    def newTHole(ty: Option[GType], userAnnotated: Boolean = false): GTHole = {
+    def newTHole(mark: Option[TypeAnnotation]): GTHole = {
       val h = GTHole(typeHoleId)
       typeHoleId += 1
-      ty.foreach { t =>
+      mark.foreach { m =>
         assert(!holeTypeMap.contains(h))
-        holeTypeMap(h) = t
-      }
-      if(userAnnotated){
-        userAnnotatedSet += h
+        holeTypeMap(h) = m.ty
+        if (m.userAnnotated) {
+          userAnnotatedSet += h
+        }
       }
       h
     }
@@ -205,7 +207,12 @@ object GStmt {
     def RETURN(expr: GExpr) = ExprStmt(expr, isReturn = true)
 
     def VAR(x: Symbol, ty: GType, isConst: Boolean = false)(init: GExpr): VarDef = {
-      VarDef(x, typeHoleContext.newTHole(Some(ty)), init, isConst)
+      VarDef(
+        x,
+        typeHoleContext.newTHole(Some(TypeAnnotation(ty, userAnnotated = true))),
+        init,
+        isConst
+      )
     }
 
     def VAR(x: Symbol)(init: GExpr): VarDef = {
@@ -242,11 +249,14 @@ object GStmt {
     def IF(b: GExpr)(branch1: GStmt*) = IFBuild(b, BLOCK(branch1: _*), identity)
 
     def stripArgs(args: Seq[(Symbol, GType)]): List[(Symbol, GTHole)] = {
-      args.toList.map { case (s, t) => s -> typeHoleContext.newTHole(Some(t)) }
+      args.toList.map {
+        case (s, t) =>
+          s -> typeHoleContext.newTHole(Some(TypeAnnotation(t, userAnnotated = true)))
+      }
     }
 
     def stripType(t: GType): GTHole = {
-      typeHoleContext.newTHole(Some(t))
+      typeHoleContext.newTHole(Some(TypeAnnotation(t, userAnnotated = true)))
     }
 
     def FUNC(name: Symbol, returnType: GType)(

@@ -1,12 +1,25 @@
 package gtype.parsing
 
 import ammonite.ops._
-import gtype.GStmt.TypeHoleContext
+import gtype.GStmt.{TypeAnnotation, TypeHoleContext}
 import gtype._
 import gtype.parsing.Js._
 
-object GStmtParsing {
-  def parseAsJSon(jsonFile: Path): Js.Val = {
+object GStmtParsing{
+  def parseContent(content: String): Vector[GStmt] = {
+    val r = %%('node, "./test-cases/parsingService.js", content)(pwd / 'scripts / 'ts)
+    val json = GStmtParsing.parseJson(r.out.string).asInstanceOf[Js.Arr]
+    val parser = new GStmtParsing()
+    json.value.toVector.map {
+      parser.parseGStmt
+    }
+  }
+
+  def parseJson(text: String): Js.Val = {
+    fastparse.parse(text, JsonParsing.jsonExpr(_)).get.value
+  }
+
+  def parseJsonFromFile(jsonFile: Path): Js.Val = {
     val text = read(jsonFile)
     fastparse.parse(text, JsonParsing.jsonExpr(_)).get.value
   }
@@ -23,22 +36,34 @@ object GStmtParsing {
 
   def asOptionSymbol(v: Js.Val): Option[Symbol] = v match {
     case Null => None
-    case _ => Some(asSymbol(v))
+    case _    => Some(asSymbol(v))
   }
 
   def asObj(v: Val): Map[String, Val] = v.asInstanceOf[Obj].value
+
+  def arrayToMap(value: Js.Val): Map[String, Val] = {
+    value.asInstanceOf[Arr].value.map{ v =>
+      val p = asObj(v)
+      asString(p("name")) -> p("expr")
+    }.toMap
+  }
+
+  def asBoolean(v: Js.Val): Boolean = {
+    (v: @unchecked) match {
+      case False => false
+      case True => true
+    }
+  }
+}
+
+import GStmtParsing._
+
+class GStmtParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
 
   def parseClassVars(v: Js.Val): Map[Symbol, GTMark] = {
     val obj = asObj(v)
     obj.map {
       case (x, y) => (Symbol(x), parseType(y))
-    }
-  }
-
-  def parseBoolean(v: Js.Val): Boolean = {
-    (v: @unchecked) match {
-      case False => false
-      case True => true
     }
   }
 
@@ -59,18 +84,17 @@ object GStmtParsing {
     list.map(parseGStmt)
   }
 
-  val tHoleContext = new TypeHoleContext()
-
-  def parseType(v: Js.Val, userAnnotated: Boolean = false): GTMark = {
-    val s = v.asInstanceOf[Str].value
-    if (s == "missing") tHoleContext.newTHole(None)
-    else {
-      val tName = Symbol(s)
-      val t =
-        if (tName == AnyType.id) AnyType
-        else TyVar(tName)
-      tHoleContext.newTHole(Some(t), userAnnotated)
+  def parseType(v: Js.Val): GType = {
+    val o = asObj(v)
+    val t = asString(o("category")) match {
+      case "TVar"    => TyVar(asSymbol(o("name")))
+      case "AnyType" => AnyType
     }
+    t
+  }
+
+  def newTyHole(mark: Option[TypeAnnotation]): GTHole = {
+    tHoleContext.newTHole(mark)
   }
 
   /*
@@ -95,22 +119,13 @@ object GStmtParsing {
         val name = asSymbol(map("name"))
         Var(name)
       case "Const" =>
-        val ty_name = asSymbol(map("ty"))
-        val ty = TyVar(ty_name)
-        val val_ = map("value")
-
-        ty_name match {
-          case 'number => Const(asNumber(val_), ty.asInstanceOf[GType])
-          case 'array => Const(asVector(val_), ty.asInstanceOf[GType])
-          case 'string => Const(asString(val_), ty.asInstanceOf[GType])
-          case 'boolean => Const(parseBoolean(val_), ty.asInstanceOf[GType])
-          case 'null => Const(null, ty.asInstanceOf[GType])
-        }
-
+        val ty = parseType(map("ty"))
+        val value = asString(map("value"))
+        Const(value, ty)
       case "ObjLiteral" =>
-        val obj = asObj(map("fields"))
-        val obj_map = obj.map { case (x, y) => (Symbol(x), parseGExpr(y)) }
-        ObjLiteral(obj_map)
+        val obj = arrayToMap(map("fields"))
+        val objMap = obj.map { case (x, y) => (Symbol(x), parseGExpr(y)) }
+        ObjLiteral(objMap)
       case "Access" =>
         val expr = parseGExpr(map("expr"))
         val field = asSymbol(map("field"))
@@ -119,8 +134,8 @@ object GStmtParsing {
         val cond = parseGExpr(map("cond"))
         val e1 = parseGExpr(map("e1"))
         val e2 = parseGExpr(map("e2"))
-        val resultType = parseType(map("resultType"))
-        IfExpr(cond, e1, e2, resultType)
+//        val resultType = parseType(map("resultType"))
+        IfExpr(cond, e1, e2, newTyHole(None))
 
       case _ => ???
     }
@@ -145,15 +160,15 @@ object GStmtParsing {
         val name = asString(map("x"))
         val t = parseType(map("type"))
         val init = parseGExpr(map("init"))
-        val b = parseBoolean(map("isConst"))
+        val b = asBoolean(map("isConst"))
         VarDef(Symbol(name), t, init, isConst = b)
       case "AssignStmt" =>
         val lhs = parseGExpr(map("lhs"))
         val rhs = parseGExpr(map("rhs"))
         AssignStmt(lhs, rhs)
       case "ExprStmt" =>
-        val e = parseGExpr(map("e"))
-        val isReturn = parseBoolean(map("isReturn"))
+        val e = parseGExpr(map("expr"))
+        val isReturn = asBoolean(map("isReturn"))
         ExprStmt(e, isReturn)
       case "IfStmt" =>
         val cond = parseGExpr(map("cond"))
@@ -181,13 +196,12 @@ object GStmtParsing {
         val funcDefs = asVector(map("funcDefs")).map(x => x.asInstanceOf[FuncDef])
         ClassDef(name, superType, constructor, vars, funcDefs)
 
-
       case _ => ???
     }
   }
 
   def main(args: Array[String]): Unit = {
-    val jValue = parseAsJSon(pwd/up/'DeepTypeTS/'output/"foo.json")
+    val jValue = parseJsonFromFile(pwd / up / 'DeepTypeTS / 'output / "foo.json")
 //    println(jValue)
 
     asArray(jValue).map(parseGStmt).foreach(println)
