@@ -42,17 +42,19 @@ See [typingNet-Formalizations.pdf](typingNet-Formalizations.pdf).
 
 Todo:
 
-- [ ] Implement predicate-level loss
+- [ ] translate real-world TS projects into our DSL
+
+- [ ] implement predicate-level loss
 
 Done:
 
-- [X] Make the model capable of overfitting to a single program
+- [X] make the model capable of overfitting to a single program
 
-- [X] Investigate abnormal jumps in training loss 
+- [X] investigate abnormal jumps in training loss 
 
 (solution: updating with an RNN unit)
 
-- [X] Implement the training loop
+- [X] implement the training loop
 
 #### Inference Graph Construction
 
