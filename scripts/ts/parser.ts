@@ -10,30 +10,35 @@ class JNode {
 
 function assertNotNull(v: any, msg: string = null) {
     if (v == null) {
-        if(msg){
+        if (msg) {
             throw new Error("should not be null! Message: " + msg);
-        }else{
+        } else {
             throw new Error("should not be null!");
         }
     }
 }
 
 // ASTs
-interface GType{
+type GMark = GType | null;
+interface GType {
     category: string;
 }
 
-class TVar implements GType{
+class TVar implements GType {
     public category = "TVar";
-    constructor(public name: string){
+
+    constructor(public name: string) {
         assertNotNull(name)
     }
 }
 
-class AnyType implements GType{
+class AnyType implements GType {
     public category = "AnyType";
     public name: string = "any";
-    private constructor(){}
+
+    private constructor() {
+    }
+
     static instance = new AnyType();
 }
 
@@ -41,29 +46,21 @@ export const anyType = AnyType.instance;
 
 export function parseType(node: ts.TypeNode, checker: ts.TypeChecker): GType {
     //todo: handle other cases
+    if (!node) {
+        throw new Error("parse type on an empty node!")
+    }
+    // let string = node.getText();
     let string = checker.typeToString(checker.getTypeFromTypeNode(node));
-    return new TVar(string);
+    if (string == "any") return anyType;
+    else return new TVar(string);
 }
 
 
-interface NamedExpr{
+interface NamedExpr {
     name: String;
     expr: GExpr;
 }
-/*
- *  e :=                         ([[GExpr]])
- *     | x                       ([[Var]])
- *     | c                       ([[Const]])
- *     | e(e,...,e)              ([[FuncCall]])
- *     | e[t]                    ([[Cast]])
- *     | { l: e, ..., l: e }     ([[Constructor]])
- *     | e.l                     ([[Access]])
- *     | if[α] e then e else e   ([[IfExpr]])
- *
- *  where x, l are [[Symbol]],
- *        t is [[GType]],
- *        α is [[GTMark]]
- */
+
 interface GExpr {
     category: string
 }
@@ -91,8 +88,9 @@ class FuncCall implements GExpr {
     }
 }
 
-class ObjLiteral implements GExpr{
+class ObjLiteral implements GExpr {
     category: string = "ObjLiteral";
+
     constructor(public fields: NamedExpr[]) {
     }
 }
@@ -120,7 +118,7 @@ export interface GStmt {
 class VarDef implements GStmt {
     category: string = "VarDef";
 
-    constructor(public x: string, public type: GType,
+    constructor(public x: string, public mark: GMark,
                 public init: GExpr, public isConst: boolean) {
     }
 }
@@ -164,7 +162,7 @@ class FuncDef implements GStmt {
     category: string = "FuncDef";
 
     constructor(public name: string, public args: [string, string][], public returnType: string,
-                public body: GStmt) {
+                public body: GStmt[]) {
     }
 }
 
@@ -185,22 +183,8 @@ function tryFullyQualifiedName(node: ts.Node, checker: ts.TypeChecker): string {
 
 export function parseExpr(node: ts.Node, checker: ts.TypeChecker): GExpr {
 
-    function rec(node: ts.Node): GExpr{
-        /*
-     *  e :=                         ([[GExpr]])
-     *     | x                       ([[Var]])
-     *     | c                       ([[Const]])
-     *     | e(e,...,e)              ([[FuncCall]])
-     *     | e[t]                    ([[Cast]])
-     *     | { l: e, ..., l: e }     ([[ObjLiteral]])
-     *     | e.l                     ([[Access]])
-     *     | if[α] e then e else e   ([[IfExpr]])
-     *
-     *  where x, l are [[Symbol]],
-     *        t is [[GType]],
-     *        α is [[GTMark]]
-     */
-        switch (node.kind){
+    function rec(node: ts.Node): GExpr {
+        switch (node.kind) {
             case SyntaxKind.Identifier:
                 let name = tryFullyQualifiedName(node, checker);
                 return new Var(name);
@@ -234,6 +218,13 @@ export function parseExpr(node: ts.Node, checker: ts.TypeChecker): GExpr {
                 let index = rec(n.argumentExpression);
                 return new FuncCall(new Access(thing, "access"), [index]);
             }
+            case ts.SyntaxKind.ConditionalExpression: {
+                let n = node as ts.ConditionalExpression;
+                let cond = parseExpr(n.condition, checker);
+                let e1 = parseExpr(n.whenTrue, checker);
+                let e2 = parseExpr(n.whenFalse, checker);
+                return new IfExpr(cond, e1, e2);
+            }
             case ts.SyntaxKind.ParenthesizedExpression: {
                 let n = node as ts.ParenthesizedExpression;
                 return rec(n.expression);
@@ -244,44 +235,36 @@ export function parseExpr(node: ts.Node, checker: ts.TypeChecker): GExpr {
                 return constExpr("number");
             case SyntaxKind.StringLiteral:
                 return constExpr("string");
-            case SyntaxKind.TrueKeyword: case SyntaxKind.FalseKeyword:
+            case SyntaxKind.TrueKeyword:
+            case SyntaxKind.FalseKeyword:
                 return constExpr("bool");
             case SyntaxKind.NullKeyword:
                 return new Const("null", anyType);
             case SyntaxKind.ArrayLiteralExpression:
                 return constExpr("array"); //todo: might need to distinguish array types
 
-            // miscellaneous
+            // operators
             case ts.SyntaxKind.BinaryExpression: {
                 let n = node as ts.BinaryExpression;
                 let l = rec(n.left);
                 let r = rec(n.right);
                 let opp = n.operatorToken.kind;
 
-                // if (opp == ts.SyntaxKind.FirstAssignment) {
-                //     return [new AssignStmt(l, r)]
-                // } fixme
                 return new FuncCall(new Access(l, ts.SyntaxKind[opp]), [r]);
             }
-            case ts.SyntaxKind.ConditionalExpression: {
-                let n = node as ts.ConditionalExpression;
-                let cond = parseExpr(n.condition, checker);
-                let e1 = parseExpr(n.whenTrue, checker);
-                let e2 = parseExpr(n.whenFalse, checker);
-                return new IfExpr(cond, e1, e2);
-            }
-            case ts.SyntaxKind.PrefixUnaryExpression:
-            case ts.SyntaxKind.PostfixUnaryExpression:
+            case SyntaxKind.PrefixUnaryExpression:
+            case SyntaxKind.PostfixUnaryExpression:
                 let n = <any>node;
-                let op = ts.SyntaxKind[n["operator"]];
+                let opName = ts.SyntaxKind[n["operator"]];
+                let fixity = (node.kind == SyntaxKind.PrefixUnaryExpression) ? "" : "POST_";
                 let arg = parseExpr(n["operand"], checker);
-                return new FuncCall(new Var(op), [arg]);
+                return new FuncCall(new Var(fixity + opName), [arg]);
 
             default:
                 throw new Error("Unknown category: " + ts.SyntaxKind[node.kind]);
         }
 
-        function constExpr(typeName: string){
+        function constExpr(typeName: string) {
             // let v = (<ts.LiteralLikeNode>node).text;
             return new Const("CONST", new TVar(typeName));
         }
@@ -296,13 +279,30 @@ export function parseExpr(node: ts.Node, checker: ts.TypeChecker): GExpr {
 }
 
 export function parseStmt(node: ts.Node, checker: ts.TypeChecker): GStmt[] {
+    /** a program statement
+     *
+     * S :=                                    ([[GStmt]])
+     *       var x: α = e                      ([[VarDef]])
+     *       e := e                            ([[AssignStmt]])
+     *       [return] e                        ([[ExprStmt]])
+     *       if e then S else S                ([[IfStmt]])
+     *       while e do S                      ([[WhileStmt]])
+     * B in  { S; ...; S }                     ([[BlockStmt]])
+     * f in  function x (x: α, ..., x:α): α B  ([[FuncDef]])
+     *       class x (l: α, ..., l:α)          ([[ClassDef]])
+     *       ↳ [extends x]{ f, ..., f }
+     *
+     * where x and l are [[Symbol]],
+     *       α is [[GTMark]],
+     *       e is [[GExpr]],
+     * */
     function rec(node: ts.Node): GStmt[] {
         switch (node.kind) {
             case SyntaxKind.ExpressionStatement: {
                 let n = <ts.ExpressionStatement>node;
-                if(n.expression.kind == SyntaxKind.BinaryExpression){
+                if (n.expression.kind == SyntaxKind.BinaryExpression) {
                     let e = n.expression as ts.BinaryExpression;
-                    if(e.operatorToken.kind == ts.SyntaxKind.FirstAssignment){
+                    if (e.operatorToken.kind == ts.SyntaxKind.FirstAssignment) {
                         let l = parseExpr(e.left, checker);
                         let r = parseExpr(e.right, checker);
                         return [new AssignStmt(l, r)]
@@ -318,6 +318,53 @@ export function parseStmt(node: ts.Node, checker: ts.TypeChecker): GStmt[] {
                 let list = (node as ts.VariableStatement).declarationList;
                 return parseVarDecList(list);
             }
+            case SyntaxKind.IfStatement: {
+                let n = node as ts.IfStatement;
+                let cond = parseExpr(n.expression, checker);
+                let then = flattenBlock(rec(n.thenStatement));
+                let otherwise: GStmt[];
+                if (n.elseStatement == undefined) otherwise = [new BlockStmt([])];
+                else otherwise = rec(n.elseStatement);
+                return [new IfStmt(cond, then, flattenBlock(otherwise))]
+            }
+            case SyntaxKind.WhileStatement: {
+                let n = node as ts.WhileStatement;
+                let cond = parseExpr(n.expression, checker);
+                let body = flattenBlock(rec(n.statement));
+                return [new WhileStmt(cond, body)]
+            }
+            case SyntaxKind.Block: {
+                let n = node as ts.Block;
+                let stmts = flatMap(n.statements, rec);
+                return [new BlockStmt(stmts)]
+            }
+            case ts.SyntaxKind.ForStatement:
+                let n = node as ts.ForStatement;
+                let cond = n.condition;
+                let init = n.initializer;
+                let outerBlock = new BlockStmt([]);
+
+                if (ts.isVariableDeclarationList(init)) {
+                    outerBlock.stmts = parseVarDecList(init);
+                } else {
+                    outerBlock.stmts.push(new ExprStmt(parseExpr(init, checker), false));
+                }
+
+                let incr = new ExprStmt(parseExpr(n.incrementor, checker), false);
+                let bodyStmts: GStmt[] = rec(n.statement).concat([incr]);
+
+                outerBlock.stmts.push(new WhileStmt(
+                    parseExpr(cond, checker),
+                    flattenBlock(bodyStmts)
+                ));
+                return [outerBlock];
+
+            // case SyntaxKind.FunctionDeclaration: {
+            //
+            // }
+
+            default:
+                throw new Error("Unknown stmt category: " + ts.SyntaxKind[node.kind]);
         }
     }
 
@@ -326,11 +373,19 @@ export function parseStmt(node: ts.Node, checker: ts.TypeChecker): GStmt[] {
 
         let dec = node.declarations;
 
-        return dec.map(x => new VarDef(
-            (<ts.Identifier>x.name).text,
-            parseType(x.type, checker),
-            parseExpr(x.initializer, checker),
-            isConst));
+        return dec.map(x => {
+            let mark: GMark = x.type ? parseType(x.type, checker): null;
+            return new VarDef(
+                (<ts.Identifier>x.name).text,
+                mark,
+                parseExpr(x.initializer, checker),
+                isConst)
+        });
+    }
+
+    function flattenBlock(stmts: GStmt[]): GStmt {
+        if (stmts.length == 1) return stmts[0];
+        else return new BlockStmt(stmts);
     }
 
     return rec(node);
@@ -347,3 +402,8 @@ export function parseFile(src: string, envFiles: string[]): GExpr {
     return parseExpr(source_files[0], checker);
 }
 
+
+// utilities
+export function flatMap<A, B>(xs: any, f: (x: A) => B[]): B[] {
+    return xs.reduce((acc: any, x: A) => acc.concat(f(x)), []);
+}

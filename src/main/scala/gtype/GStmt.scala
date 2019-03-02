@@ -26,11 +26,11 @@ import collection.mutable
   * */
 // @formatter:on
 sealed trait GStmt {
-  def prettyPrint(indentSpaces: Int = 2): String = {
+  def prettyPrint(indentSpaces: Int = 2, indent: Int = 0): String = {
     GStmt
-      .prettyPrintHelper(0, this)
+      .prettyPrintHelper(indent, this)
       .map {
-        case (indent, text) => " " * (indent * indentSpaces) + text
+        case (dent, text) => " " * (dent * indentSpaces) + text
       }
       .mkString("\n")
   }

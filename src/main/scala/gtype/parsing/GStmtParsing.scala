@@ -16,7 +16,13 @@ object GStmtParsing{
   }
 
   def parseJson(text: String): Js.Val = {
-    fastparse.parse(text, JsonParsing.jsonExpr(_)).get.value
+    try {
+      fastparse.parse(text, JsonParsing.jsonExpr(_)).get.value
+    } catch {
+      case e: Exception =>
+        System.err.println(s"source text: $text")
+        throw e
+    }
   }
 
   def parseJsonFromFile(jsonFile: Path): Js.Val = {
@@ -79,11 +85,6 @@ class GStmtParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
     list.map(parseArgPair)
   }
 
-  def parseGStmtList(v: Js.Val): Vector[GStmt] = {
-    val list = asVector(v)
-    list.map(parseGStmt)
-  }
-
   def parseType(v: Js.Val): GType = {
     val o = asObj(v)
     val t = asString(o("category")) match {
@@ -91,6 +92,13 @@ class GStmtParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
       case "AnyType" => AnyType
     }
     t
+  }
+
+  def parseGTMark(v: Js.Val): GTMark = {
+    v match {
+      case Null => tHoleContext.newTHole(None)
+      case _ => parseType(v)
+    }
   }
 
   def newTyHole(mark: Option[TypeAnnotation]): GTHole = {
@@ -158,7 +166,7 @@ class GStmtParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
     asString(map("category")) match {
       case "VarDef" =>
         val name = asString(map("x"))
-        val t = parseType(map("type"))
+        val t = parseGTMark(map("mark"))
         val init = parseGExpr(map("init"))
         val b = asBoolean(map("isConst"))
         VarDef(Symbol(name), t, init, isConst = b)
@@ -180,7 +188,7 @@ class GStmtParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
         val body = parseGStmt(map("body"))
         WhileStmt(cond, body)
       case "BlockStmt" =>
-        val stmts = parseGStmtList(map("stmts"))
+        val stmts = asVector(map("stmts")).map(parseGStmt)
         BlockStmt(stmts)
       case "FuncDef" =>
         val name = Symbol(asString(map("name")))
