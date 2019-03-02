@@ -8,18 +8,20 @@ class JNode {
     }
 }
 
-function assertNotNull(v: any, msg: string = null) {
+function mustExist<T>(v: T, msg: string = null): T{
     if (v == null) {
         if (msg) {
-            throw new Error("should not be null! Message: " + msg);
+            throw new Error("should not be " + v + "! Message: " + msg);
         } else {
-            throw new Error("should not be null!");
+            throw new Error("should not be " + v + "!");
         }
     }
+    return v
 }
 
 // ASTs
 type GMark = GType | null;
+
 interface GType {
     category: string;
 }
@@ -28,7 +30,7 @@ class TVar implements GType {
     public category = "TVar";
 
     constructor(public name: string) {
-        assertNotNull(name)
+        mustExist(name)
     }
 }
 
@@ -44,21 +46,24 @@ class AnyType implements GType {
 
 export const anyType = AnyType.instance;
 
-export function parseType(node: ts.TypeNode, checker: ts.TypeChecker): GType {
-    //todo: handle other cases
-    if (!node) {
-        throw new Error("parse type on an empty node!")
-    }
-    // let string = node.getText();
+
+export function parseMark(node: ts.TypeNode, checker: ts.TypeChecker): GMark {
+    if (!node) return null;
+
+    // let symbol = checker.getTypeFromTypeNode(node)();
+    // if(!symbol) throw new Error("unresolved type: " + node.getText());
+
     let string = checker.typeToString(checker.getTypeFromTypeNode(node));
+    //todo: handle other cases
+    //todo: deal with type errors (currently, unresolved types are marked as any)
     if (string == "any") return anyType;
     else return new TVar(string);
 }
 
 
-interface NamedExpr {
-    name: String;
-    expr: GExpr;
+class NamedValue<V> {
+    constructor(public name: String, public value: V) {
+    }
 }
 
 interface GExpr {
@@ -69,7 +74,7 @@ class Var implements GExpr {
     category: string = "Var";
 
     constructor(public name: string) {
-        assertNotNull(name);
+        mustExist(name);
     }
 }
 
@@ -77,7 +82,7 @@ class Const implements GExpr {
     category: string = "Const";
 
     constructor(public value: string, public ty: GType) {
-        assertNotNull(value);
+        mustExist(value);
     }
 }
 
@@ -91,7 +96,7 @@ class FuncCall implements GExpr {
 class ObjLiteral implements GExpr {
     category: string = "ObjLiteral";
 
-    constructor(public fields: NamedExpr[]) {
+    constructor(public fields: NamedValue<GExpr>[]) {
     }
 }
 
@@ -99,7 +104,7 @@ class Access implements GExpr {
     category: string = "Access";
 
     constructor(public expr: GExpr, public field: string) {
-        assertNotNull(field);
+        mustExist(field);
     }
 }
 
@@ -161,8 +166,9 @@ class BlockStmt implements GStmt {
 class FuncDef implements GStmt {
     category: string = "FuncDef";
 
-    constructor(public name: string, public args: [string, string][], public returnType: string,
-                public body: GStmt[]) {
+    constructor(public name: string, public args: NamedValue<GMark>[], public returnType: GMark,
+                public body: GStmt) {
+        mustExist(name);
     }
 }
 
@@ -170,13 +176,15 @@ class ClassDef implements GStmt {
     category: string = "ClassDef";
 
     constructor(public name: string, public constructor: FuncDef, public vars: Object,
-                public funcDefs: FuncDef[], public superType: string = null) {
+                public funcDefs: FuncDef[], public superType: string) {
     }
 }
 
 function tryFullyQualifiedName(node: ts.Node, checker: ts.TypeChecker): string {
-    let symbol = checker.getSymbolAtLocation(node);
-    let name: string = symbol ? checker.getFullyQualifiedName(symbol) : (<any>node)["text"];
+    // let symbol = checker.getSymbolAtLocation(node);
+    // let name: string = symbol ? checker.getFullyQualifiedName(symbol) : (<any>node)["text"]; fixme: not working
+    let name = (<any>node).text;
+    mustExist(name);
     return name;
 }
 
@@ -188,6 +196,8 @@ export function parseExpr(node: ts.Node, checker: ts.TypeChecker): GExpr {
             case SyntaxKind.Identifier:
                 let name = tryFullyQualifiedName(node, checker);
                 return new Var(name);
+            case SyntaxKind.ThisKeyword:
+                return new Var("this");
             case SyntaxKind.CallExpression: {
                 let n = (<ts.CallExpression>node);
                 let f = rec(n.expression);
@@ -269,9 +279,9 @@ export function parseExpr(node: ts.Node, checker: ts.TypeChecker): GExpr {
             return new Const("CONST", new TVar(typeName));
         }
 
-        function parseObjectLiteralElementLike(p: ts.ObjectLiteralElementLike): NamedExpr {
+        function parseObjectLiteralElementLike(p: ts.ObjectLiteralElementLike): NamedValue<GExpr> {
             let a = (<ts.PropertyAssignment>p);
-            return {name: (<ts.StringLiteral>a.name).text, expr: rec(a.initializer)};
+            return new NamedValue<GExpr>((<ts.StringLiteral>a.name).text, rec(a.initializer));
         }
     }
 
@@ -359,9 +369,61 @@ export function parseStmt(node: ts.Node, checker: ts.TypeChecker): GStmt[] {
                 ));
                 return [outerBlock];
 
-            // case SyntaxKind.FunctionDeclaration: {
-            //
-            // }
+            case SyntaxKind.FunctionDeclaration:
+            case SyntaxKind.MethodDeclaration:
+            case SyntaxKind.Constructor: {
+                let name = (node.kind == SyntaxKind.Constructor) ? "Constructor" :
+                    tryFullyQualifiedName((node as any).name, checker);
+                let n = <ts.FunctionLikeDeclaration>node;
+                let retType = (node.kind == SyntaxKind.Constructor) ? new TVar("void") :
+                    parseMark(n.type, checker);
+                let args = n.parameters.map(p => {
+                    {
+                        return new NamedValue((<ts.Identifier>p.name).text, parseMark(p.type, checker))
+                    }
+                });
+                let body = flattenBlock(rec(n.body));
+
+                return [new FuncDef(name, args, retType, body)]
+
+            }
+
+            case SyntaxKind.ClassDeclaration: {
+                let n = node as ts.ClassDeclaration;
+
+                let name = tryFullyQualifiedName(n.name, checker);
+
+                let superType: string | null = null;
+                if (n.heritageClauses != undefined) {
+                    let clauses = n.heritageClauses;
+                    for (const c of clauses) {
+                        if (c.token == ts.SyntaxKind.ExtendsKeyword) {
+                            superType = mustExist((c.types[0].expression as any)["name"]) as string;
+                        }
+                    }
+                }
+
+                let vars: NamedValue<GMark>[] = [];
+                let funcDefs: FuncDef[] = [];
+                let constructor: FuncDef|null = null;
+
+                for (const v of n.members) {
+                    if (ts.isPropertyDeclaration(v)) {
+                        let v1 = v as ts.PropertyDeclaration;
+                        vars.push(new NamedValue(getPropertyName(v1.name), parseMark(v1.type, checker)));
+                    }
+                    else if (ts.isMethodDeclaration(v)) {
+                        funcDefs.push(rec(v)[0] as FuncDef)
+                    }
+                    else if (ts.isConstructorDeclaration(v)) {
+                        constructor = rec(v)[0] as FuncDef;
+                    }else{
+                        throw new Error("Unknown statements in class definitions: " + v);
+                    }
+                }
+
+                return [new ClassDef(name, constructor, vars, funcDefs, superType)]
+            }
 
             default:
                 throw new Error("Unknown stmt category: " + ts.SyntaxKind[node.kind]);
@@ -374,10 +436,9 @@ export function parseStmt(node: ts.Node, checker: ts.TypeChecker): GStmt[] {
         let dec = node.declarations;
 
         return dec.map(x => {
-            let mark: GMark = x.type ? parseType(x.type, checker): null;
             return new VarDef(
                 (<ts.Identifier>x.name).text,
-                mark,
+                parseMark(x.type, checker),
                 parseExpr(x.initializer, checker),
                 isConst)
         });
@@ -386,6 +447,10 @@ export function parseStmt(node: ts.Node, checker: ts.TypeChecker): GStmt[] {
     function flattenBlock(stmts: GStmt[]): GStmt {
         if (stmts.length == 1) return stmts[0];
         else return new BlockStmt(stmts);
+    }
+
+    function getPropertyName(name: ts.PropertyName): string {
+        return mustExist(name.getText());
     }
 
     return rec(node);

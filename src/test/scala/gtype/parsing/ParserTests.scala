@@ -6,6 +6,13 @@ import ammonite.ops._
 
 class ParserTests extends WordSpec with MyTest {
   def testParsing(printResult: Boolean)(pairs: (String, Class[_])*): Unit = {
+//    for ((source, cls) <- pairs) {
+//      val parsed = GStmtParsing.parseContent(source)
+//      assert(parsed.zip(cls).forall{ case (s, c) => s.getClass == c},
+//        s"Failed for: '$source'. expect types: $cls, but get values:\n"+
+//          parsed.map(_.prettyPrint(indent = 1)).mkString("\n")
+//      )
+//    }
     val (lines0, cls) = pairs.unzip
     val lines = lines0.toArray
     val parsed = GStmtParsing.parseContent(lines.mkString("\n"))
@@ -54,7 +61,28 @@ class ParserTests extends WordSpec with MyTest {
       """while(1+2==2) { "no escape"} """ -> classOf[WhileStmt],
       """{i++; let v = 2;}""" -> classOf[BlockStmt],
       """{++i; i++}""" -> classOf[BlockStmt],
-      """for(let x = 0; x < 5; x ++) { print(x) }""" -> classOf[BlockStmt]
+      """for(let x = 0; x < 5; x ++) { print(x) }""" -> classOf[BlockStmt],
+      """function foo(bar: number, z): boolean {
+        |  return z;
+        |}
+      """.stripMargin -> classOf[FuncDef],
+      """class Test1 {
+        |  x;
+        |  constructor(y: number){
+        |    this.x = y;
+        |  }
+        |
+        |  m1(x: boolean){
+        |    this.x = x;
+        |  }
+        |}
+      """.stripMargin -> classOf[ClassDef],
+      """class Bare {
+        | x: number;
+        | y(z: number): number{
+        |   return z;
+        | }
+      """.stripMargin -> classOf[ClassDef],
     )
 
   }

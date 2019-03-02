@@ -1,27 +1,26 @@
 package gtype.parsing
 
 import ammonite.ops._
+import funcdiff.SimpleMath
 import gtype.GStmt.{TypeAnnotation, TypeHoleContext}
 import gtype._
 import gtype.parsing.Js._
 
 object GStmtParsing{
   def parseContent(content: String): Vector[GStmt] = {
-    val r = %%('node, "./test-cases/parsingService.js", content)(pwd / 'scripts / 'ts)
-    val json = GStmtParsing.parseJson(r.out.string).asInstanceOf[Js.Arr]
-    val parser = new GStmtParsing()
-    json.value.toVector.map {
-      parser.parseGStmt
+    SimpleMath.addMessagesForExceptions("failed when parsing content: \n" + content) {
+      val r = %%('node, "./test-cases/parsingService.js", content)(pwd / 'scripts / 'ts)
+      val json = GStmtParsing.parseJson(r.out.string).asInstanceOf[Js.Arr]
+      val parser = new GStmtParsing()
+      json.value.toVector.map {
+        parser.parseGStmt
+      }
     }
   }
 
   def parseJson(text: String): Js.Val = {
-    try {
+    SimpleMath.addMessagesForExceptions(s"JSON source text: $text"){
       fastparse.parse(text, JsonParsing.jsonExpr(_)).get.value
-    } catch {
-      case e: Exception =>
-        System.err.println(s"source text: $text")
-        throw e
     }
   }
 
@@ -47,11 +46,13 @@ object GStmtParsing{
 
   def asObj(v: Val): Map[String, Val] = v.asInstanceOf[Obj].value
 
+  def parseNamedValue(v: Js.Val): (String, Val) = {
+    val p = asObj(v)
+    asString(p("name")) -> p("value")
+  }
+
   def arrayToMap(value: Js.Val): Map[String, Val] = {
-    value.asInstanceOf[Arr].value.map{ v =>
-      val p = asObj(v)
-      asString(p("name")) -> p("expr")
-    }.toMap
+    value.asInstanceOf[Arr].value.map{parseNamedValue}.toMap
   }
 
   def asBoolean(v: Js.Val): Boolean = {
@@ -66,18 +67,10 @@ import GStmtParsing._
 
 class GStmtParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
 
-  def parseClassVars(v: Js.Val): Map[Symbol, GTMark] = {
-    val obj = asObj(v)
-    obj.map {
-      case (x, y) => (Symbol(x), parseType(y))
-    }
-  }
-
   def parseArgPair(value: Js.Val): (Symbol, GTMark) = {
-    val list = asArray(value)
-    val name = Symbol(asString(list.head))
-    val ty = parseType(list.tail.head)
-    (name, ty)
+    val (name, v) = parseNamedValue(value)
+    val ty = parseGTMark(v)
+    (Symbol(name), ty)
   }
 
   def parseArgList(value: Js.Val): List[(Symbol, GTMark)] = {
@@ -86,6 +79,7 @@ class GStmtParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
   }
 
   def parseType(v: Js.Val): GType = {
+    assert(v != Null, "Use parseGTMark instead if you are parsing an optional user type annotation.")
     val o = asObj(v)
     val t = asString(o("category")) match {
       case "TVar"    => TyVar(asSymbol(o("name")))
@@ -193,16 +187,26 @@ class GStmtParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
       case "FuncDef" =>
         val name = Symbol(asString(map("name")))
         val args = parseArgList(map("args"))
-        val returnType = parseType(map("returnType"))
+        val returnType = parseGTMark(map("returnType"))
         val body = parseGStmt(map("body"))
         FuncDef(name, args, returnType, body)
       case "ClassDef" =>
         val name = asSymbol(map("name"))
         val superType = asOptionSymbol(map("superType"))
-        val constructor = parseGStmt(map("constructor")).asInstanceOf[FuncDef]
-        val vars = parseClassVars(map("vars"))
-        val funcDefs = asVector(map("funcDefs")).map(x => x.asInstanceOf[FuncDef])
-        ClassDef(name, superType, constructor, vars, funcDefs)
+        val constructor = {
+          val consName = ClassDef.constructorName(name)
+          val constructorValue = map("constructor")
+          val f = if(constructorValue == Null){
+            // make an empty constructor
+            FuncDef(consName, List(), GType.voidType, BlockStmt(Vector()))
+          }else{
+            parseGStmt(constructorValue).asInstanceOf[FuncDef]
+          }
+          f.copy(name = consName)
+        }
+        val vars = parseArgList(map("vars"))
+        val funcDefs = asVector(map("funcDefs")).map(x => parseGStmt(x).asInstanceOf[FuncDef])
+        ClassDef(name, superType, constructor, vars.toMap, funcDefs)
 
       case _ => ???
     }

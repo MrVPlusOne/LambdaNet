@@ -528,6 +528,16 @@ object SimpleMath {
     (r, long.toDouble / 1e6)
   }
 
+  def addMessagesForExceptions[T](msg: String)(computation: => T): T ={
+    try{
+      computation
+    }catch {
+      case e: Exception =>
+        System.err.println(msg)
+        throw e
+    }
+  }
+
   trait Monoid[T] {
     def zero: T
     def op(x1: T, x2: T): T
