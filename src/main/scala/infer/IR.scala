@@ -182,7 +182,7 @@ object IR {
       }
     }
   }
-  def tryToBlock(stmts: Vector[IRStmt]): IRStmt = {
+  def groupInBlock(stmts: Vector[IRStmt]): IRStmt = {
     if (stmts.length == 1) {
       stmts.head
     } else {

@@ -124,12 +124,12 @@ object GStmt {
         (indent -> "{") +: stmts.flatMap(
           s => prettyPrintHelper(indent + 1, s)
         ) :+ (indent -> "}")
-      case FuncDef(funcName, args, returnType, body) => //todo: replace this with a block
+      case FuncDef(funcName, args, returnType, body) =>
         val argList = args
           .map { case (v, tv) => s"${v.name}: $tv" }
           .mkString("(", ", ", ")")
         Vector(indent -> s"function ${funcName.name} $argList: $returnType") ++
-          prettyPrintHelper(indent, body)
+          prettyPrintHelper(indent, makeSureInBlock(body))
       case ClassDef(name, superType, constructor, vars, funcDefs) =>
         val superPart = superType
           .map(t => s" extends $t")
@@ -229,13 +229,6 @@ object GStmt {
 
     def BLOCK(stmts: GStmt*): BlockStmt = {
       BlockStmt(stmts.toVector)
-    }
-
-    def TryBLOCK(stmt: GStmt): BlockStmt = {
-      stmt match {
-        case b: BlockStmt => b
-        case _            => BlockStmt(Vector(stmt))
-      }
     }
 
     def WHILE(cond: GExpr)(stmts: GStmt*): WhileStmt = {
@@ -399,6 +392,13 @@ object GStmt {
         ctx -> errors
       case _ =>
         throw new NotImplementedError(s"GTHoles in Stmt: $stmt")
+    }
+  }
+
+  def makeSureInBlock(stmt: GStmt): BlockStmt = {
+    stmt match {
+      case b: BlockStmt => b
+      case _            => BlockStmt(Vector(stmt))
     }
   }
 }

@@ -98,8 +98,8 @@ object IRTranslation {
       case gtype.IfStmt(cond, branch1, branch2) =>
         val (condDef, condE) = translateExpr2(cond)
         val (condDef2, condV) = exprAsVar(condE)
-        val branch1Stmt = tryToBlock(translateStmt(branch1))
-        val branch2Stmt = tryToBlock(translateStmt(branch2))
+        val branch1Stmt = groupInBlock(translateStmt(branch1))
+        val branch2Stmt = groupInBlock(translateStmt(branch2))
         val ifStmt = IfStmt(condV, branch1Stmt, branch2Stmt)
         condDef ++ condDef2 :+ ifStmt
       case gtype.WhileStmt(cond, body) =>
@@ -107,7 +107,7 @@ object IRTranslation {
         val (condDef2, condV) = exprAsVar(condE)
         // recompute the conditional expression value at the end of the loop
         val condCompute = (condDef ++ condDef2).filterNot(_.isInstanceOf[VarDef])
-        val bodyStmt = tryToBlock(translateStmt(body) ++ condCompute)
+        val bodyStmt = groupInBlock(translateStmt(body) ++ condCompute)
         condDef ++ condDef2 :+ WhileStmt(condV, bodyStmt)
       case gtype.CommentStmt(_) => Vector()
       case gtype.BlockStmt(stmts) =>
