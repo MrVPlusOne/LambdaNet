@@ -109,6 +109,7 @@ object IRTranslation {
         val condCompute = (condDef ++ condDef2).filterNot(_.isInstanceOf[VarDef])
         val bodyStmt = tryToBlock(translateStmt(body) ++ condCompute)
         condDef ++ condDef2 :+ WhileStmt(condV, bodyStmt)
+      case gtype.CommentStmt(_) => Vector()
       case gtype.BlockStmt(stmts) =>
         stmts.flatMap(translateStmt)
       case f: gtype.FuncDef => Vector(translateFunc(f))

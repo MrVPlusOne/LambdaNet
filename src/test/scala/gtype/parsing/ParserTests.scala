@@ -28,6 +28,18 @@ class ParserTests extends WordSpec with MyTest {
     }
   }
 
+  "Source file parsing test" in {
+    val projectRoot = pwd / RelPath("data/ts-algorithms/algorithms")
+    val files = Seq(
+      RelPath("backtracking/rat-in-maze.ts"),
+      RelPath("backtracking/sudoku-solver.ts"),
+    )
+    GStmtParsing.parseFromFiles(files, Set(), projectRoot).foreach{ module =>
+      println(s"=== module: '${module.moduleName}' ===")
+      module.stmts.foreach(println)
+    }
+  }
+
   "Expressions parsing test" in {
     val content =
       """

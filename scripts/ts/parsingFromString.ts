@@ -1,7 +1,7 @@
-import * as parser from "../parser";
+import * as parser from "./parser";
 import * as ts from "typescript";
 import 'source-map-support/register';
-import {GStmt} from "../parser";
+import {GStmt} from "./parser";
 
 let content = process.argv[2];
 

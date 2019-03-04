@@ -2,13 +2,12 @@ import {readFileSync} from "fs";
 import * as ts from "typescript";
 import {SyntaxKind} from "typescript";
 
-/** The output format for the Scala side to parse */
-class JNode {
-    constructor(public nodeKind: string, public children: JNode[]) {
-    }
+
+export class GModule{
+    constructor(public name: string, public stmts: GStmt[]){}
 }
 
-function mustExist<T>(v: T, msg: string = null): T{
+export function mustExist<T>(v: T, msg: string = null): T{
     if (v == null) {
         if (msg) {
             throw new Error("should not be " + v + "! Message: " + msg);
@@ -153,6 +152,14 @@ class WhileStmt implements GStmt {
     category: string = "WhileStmt";
 
     constructor(public cond: GExpr, public body: GStmt) {
+    }
+}
+
+class CommentStmt implements GStmt {
+    category: string = "CommentStmt";
+
+    constructor(public text: string) {
+        mustExist(text);
     }
 }
 
@@ -424,6 +431,10 @@ export function parseStmt(node: ts.Node, checker: ts.TypeChecker): GStmt[] {
 
                 return [new ClassDef(name, constructor, vars, funcDefs, superType)]
             }
+
+            // ignored statements:
+            case SyntaxKind.BreakStatement:
+                return [new CommentStmt("break;")];
 
             default:
                 throw new Error("Unknown stmt category: " + ts.SyntaxKind[node.kind]);

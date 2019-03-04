@@ -1,7 +1,7 @@
 package gtype
 
-/** Models a Javascript file */
-case class GModule() {
+/** Models a source file */
+case class GModule(moduleName: String, stmts: Vector[GStmt]) {
 
 }
 

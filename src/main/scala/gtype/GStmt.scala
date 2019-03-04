@@ -15,6 +15,7 @@ import collection.mutable
   *       [return] e                        ([[ExprStmt]])
   *       if e then S else S                ([[IfStmt]])
   *       while e do S                      ([[WhileStmt]])
+  *       // comment                        ([[CommentStmt]])
   * B in  { S; ...; S }                     ([[BlockStmt]])
   * f in  function x (x: α, ..., x:α): α B  ([[FuncDef]])
   *       class x (l: α, ..., l:α)          ([[ClassDef]])
@@ -49,6 +50,8 @@ case class ExprStmt(e: GExpr, isReturn: Boolean) extends GStmt
 case class IfStmt(cond: GExpr, branch1: GStmt, branch2: GStmt) extends GStmt
 
 case class WhileStmt(cond: GExpr, body: GStmt) extends GStmt
+
+case class CommentStmt(text: String) extends GStmt
 
 case class BlockStmt(stmts: Vector[GStmt]) extends GStmt
 
@@ -107,11 +110,16 @@ object GStmt {
         val returnModifier = if (isReturn) "return " else ""
         Vector(indent -> s"$returnModifier$v;")
       case IfStmt(cond, e1, e2) =>
+        lazy val elsePart = {
+          if (e2 == BlockStmt(Vector())) Vector()
+          else Vector(indent -> "else") ++ prettyPrintHelper(indent, e2)
+        }
         Vector(indent -> s"if ($cond)") ++
-          prettyPrintHelper(indent, e1) ++ Vector(indent -> "else") ++
-          prettyPrintHelper(indent, e2)
+          prettyPrintHelper(indent, e1) ++ elsePart
       case WhileStmt(cond, body) =>
         (indent -> s"while ($cond)") +: prettyPrintHelper(indent, body)
+      case CommentStmt(text) =>
+        Vector(indent -> ("//" + text))
       case BlockStmt(stmts) =>
         (indent -> "{") +: stmts.flatMap(
           s => prettyPrintHelper(indent + 1, s)

@@ -6,10 +6,10 @@ import gtype.GStmt.{TypeAnnotation, TypeHoleContext}
 import gtype._
 import gtype.parsing.Js._
 
-object GStmtParsing{
+object GStmtParsing {
   def parseContent(content: String): Vector[GStmt] = {
     SimpleMath.addMessagesForExceptions("failed when parsing content: \n" + content) {
-      val r = %%('node, "./test-cases/parsingService.js", content)(pwd / 'scripts / 'ts)
+      val r = %%('node, "./parsingFromString.js", content)(pwd / 'scripts / 'ts)
       val json = GStmtParsing.parseJson(r.out.string).asInstanceOf[Js.Arr]
       val parser = new GStmtParsing()
       json.value.toVector.map {
@@ -18,8 +18,24 @@ object GStmtParsing{
     }
   }
 
+  def parseFromFiles(srcFiles: Seq[RelPath], libraryFiles: Set[RelPath], projectRoot: Path): Seq[GModule] = {
+    val totalLibraries = libraryFiles ++ srcFiles
+
+    val r = %%(
+      'node,
+      pwd / RelPath("scripts/ts/parsingFromFile.js"),
+      srcFiles.length.toString, // number of source files
+      srcFiles.map(_.toString()),
+      totalLibraries.toList.map(_.toString())
+    )(projectRoot)
+
+    val modules = GStmtParsing.parseJson(r.out.string).asInstanceOf[Js.Arr]
+    val parser = new GStmtParsing()
+    modules.value.map(parser.parseGModule)
+  }
+
   def parseJson(text: String): Js.Val = {
-    SimpleMath.addMessagesForExceptions(s"JSON source text: $text"){
+    SimpleMath.addMessagesForExceptions(s"JSON source text: $text") {
       fastparse.parse(text, JsonParsing.jsonExpr(_)).get.value
     }
   }
@@ -52,13 +68,13 @@ object GStmtParsing{
   }
 
   def arrayToMap(value: Js.Val): Map[String, Val] = {
-    value.asInstanceOf[Arr].value.map{parseNamedValue}.toMap
+    value.asInstanceOf[Arr].value.map { parseNamedValue }.toMap
   }
 
   def asBoolean(v: Js.Val): Boolean = {
     (v: @unchecked) match {
       case False => false
-      case True => true
+      case True  => true
     }
   }
 }
@@ -79,7 +95,10 @@ class GStmtParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
   }
 
   def parseType(v: Js.Val): GType = {
-    assert(v != Null, "Use parseGTMark instead if you are parsing an optional user type annotation.")
+    assert(
+      v != Null,
+      "Use parseGTMark instead if you are parsing an optional user type annotation."
+    )
     val o = asObj(v)
     val t = asString(o("category")) match {
       case "TVar"    => TyVar(asSymbol(o("name")))
@@ -91,7 +110,7 @@ class GStmtParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
   def parseGTMark(v: Js.Val): GTMark = {
     v match {
       case Null => tHoleContext.newTHole(None)
-      case _ => parseType(v)
+      case _    => parseType(v)
     }
   }
 
@@ -181,6 +200,9 @@ class GStmtParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
         val cond = parseGExpr(map("cond"))
         val body = parseGStmt(map("body"))
         WhileStmt(cond, body)
+      case "CommentStmt" =>
+        val text = asString(map("text"))
+        CommentStmt(text)
       case "BlockStmt" =>
         val stmts = asVector(map("stmts")).map(parseGStmt)
         BlockStmt(stmts)
@@ -196,20 +218,28 @@ class GStmtParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
         val constructor = {
           val consName = ClassDef.constructorName(name)
           val constructorValue = map("constructor")
-          val f = if(constructorValue == Null){
+          val f = if (constructorValue == Null) {
             // make an empty constructor
             FuncDef(consName, List(), GType.voidType, BlockStmt(Vector()))
-          }else{
+          } else {
             parseGStmt(constructorValue).asInstanceOf[FuncDef]
           }
           f.copy(name = consName)
         }
         val vars = parseArgList(map("vars"))
-        val funcDefs = asVector(map("funcDefs")).map(x => parseGStmt(x).asInstanceOf[FuncDef])
+        val funcDefs =
+          asVector(map("funcDefs")).map(x => parseGStmt(x).asInstanceOf[FuncDef])
         ClassDef(name, superType, constructor, vars.toMap, funcDefs)
 
       case _ => ???
     }
+  }
+
+  def parseGModule(v: Js.Val): GModule = {
+    val obj = asObj(v)
+    val name = asString(obj("name"))
+    val stmts = asVector(obj("stmts")).map{ parseGStmt }
+    GModule(name, stmts)
   }
 
   def main(args: Array[String]): Unit = {
