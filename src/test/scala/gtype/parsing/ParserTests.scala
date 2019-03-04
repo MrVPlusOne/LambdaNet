@@ -30,11 +30,10 @@ class ParserTests extends WordSpec with MyTest {
 
   "Source file parsing test" in {
     val projectRoot = pwd / RelPath("data/ts-algorithms/algorithms")
-    val files = Seq(
-      RelPath("backtracking/rat-in-maze.ts"),
-      RelPath("backtracking/sudoku-solver.ts"),
-    )
-    GStmtParsing.parseFromFiles(files, Set(), projectRoot).foreach{ module =>
+    val files = ls(projectRoot / "dynamic-programing")
+      .filter(_.ext == "ts")
+      .map(_.relativeTo(projectRoot))
+    GStmtParsing.parseFromFiles(files, Set(), projectRoot).foreach { module =>
       println(s"=== module: '${module.moduleName}' ===")
       module.stmts.foreach(println)
     }
@@ -74,6 +73,7 @@ class ParserTests extends WordSpec with MyTest {
       """{i++; let v = 2;}""" -> classOf[BlockStmt],
       """{++i; i++}""" -> classOf[BlockStmt],
       """for(let x = 0; x < 5; x ++) { print(x) }""" -> classOf[BlockStmt],
+      """break;""" -> classOf[CommentStmt],
       """function foo(bar: number, z): boolean {
         |  return z;
         |}
@@ -95,6 +95,9 @@ class ParserTests extends WordSpec with MyTest {
         |   return z;
         | }
       """.stripMargin -> classOf[ClassDef],
+      "let inc = (x: number) => {return x + 1;};" -> classOf[BlockStmt],
+      "let inc = x => x+1;" -> classOf[BlockStmt],
+      "let f = (x) => (y) => x + y;" -> classOf[BlockStmt],
     )
 
   }

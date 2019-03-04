@@ -18,7 +18,11 @@ object GStmtParsing {
     }
   }
 
-  def parseFromFiles(srcFiles: Seq[RelPath], libraryFiles: Set[RelPath], projectRoot: Path): Seq[GModule] = {
+  def parseFromFiles(
+    srcFiles: Seq[RelPath],
+    libraryFiles: Set[RelPath],
+    projectRoot: Path
+  ): Seq[GModule] = {
     val totalLibraries = libraryFiles ++ srcFiles
 
     val r = %%(
@@ -209,7 +213,8 @@ class GStmtParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
       case "FuncDef" =>
         val name = Symbol(asString(map("name")))
         val args = parseArgList(map("args"))
-        val returnType = parseGTMark(map("returnType"))
+        val returnType =
+          if (name == 'Constructor) GType.voidType else parseGTMark(map("returnType"))
         val body = parseGStmt(map("body"))
         FuncDef(name, args, returnType, body)
       case "ClassDef" =>
@@ -238,7 +243,7 @@ class GStmtParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
   def parseGModule(v: Js.Val): GModule = {
     val obj = asObj(v)
     val name = asString(obj("name"))
-    val stmts = asVector(obj("stmts")).map{ parseGStmt }
+    val stmts = asVector(obj("stmts")).map { parseGStmt }
     GModule(name, stmts)
   }
 

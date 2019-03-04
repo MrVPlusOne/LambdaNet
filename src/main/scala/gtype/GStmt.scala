@@ -70,7 +70,7 @@ case class ClassDef(
   funcDefs: Vector[FuncDef]
 ) extends GStmt {
   require(constructor.name == ClassDef.constructorName(name))
-  require(constructor.returnType == GType.voidType)
+  require(constructor.returnType == GType.voidType, s"Get: ${constructor.returnType}")
 }
 
 object ClassDef {
@@ -124,7 +124,7 @@ object GStmt {
         (indent -> "{") +: stmts.flatMap(
           s => prettyPrintHelper(indent + 1, s)
         ) :+ (indent -> "}")
-      case FuncDef(funcName, args, returnType, body) =>
+      case FuncDef(funcName, args, returnType, body) => //todo: replace this with a block
         val argList = args
           .map { case (v, tv) => s"${v.name}: $tv" }
           .mkString("(", ", ", ")")

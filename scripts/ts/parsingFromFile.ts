@@ -1,7 +1,7 @@
-import * as parser from "./parser";
+import * as parsing from "./parsing";
 import * as ts from "typescript";
 import 'source-map-support/register';
-import {GStmt, GModule, mustExist} from "./parser";
+import {GStmt, GModule, mustExist} from "./parsing";
 
 function parseFiles(sources: string[], libraryFiles: string[]): GModule[] {
     let program = ts.createProgram(libraryFiles, {
@@ -10,9 +10,11 @@ function parseFiles(sources: string[], libraryFiles: string[]): GModule[] {
     });
     let checker = program.getTypeChecker();
 
-    let sFiles = sources.map(program.getSourceFile);
+    let sFiles = sources.map(file => mustExist(program.getSourceFile(file),
+        "getSourceFile failed for: " + file));
     mustExist(sFiles);
 
+    let parser = new parsing.StmtParser();
 
     let parsed = sFiles.map(src => {
         let stmts: GStmt[] = [];
