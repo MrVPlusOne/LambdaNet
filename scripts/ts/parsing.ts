@@ -3,307 +3,308 @@ import * as ts from "typescript";
 import {SyntaxKind} from "typescript";
 
 
-export class GModule{
-    constructor(public name: string, public stmts: GStmt[]){}
+export class GModule {
+  constructor(public name: string, public stmts: GStmt[]) {
+  }
 }
 
-export function mustExist<T>(v: T, msg: string = null): T{
-    if (v == null) {
-        if (msg) {
-            throw new Error("should not be " + v + "! Message: " + msg);
-        } else {
-            throw new Error("should not be " + v + "!");
-        }
+export function mustExist<T>(v: T, msg: string = null): T {
+  if (v == null) {
+    if (msg) {
+      throw new Error("should not be " + v + "! Message: " + msg);
+    } else {
+      throw new Error("should not be " + v + "!");
     }
-    return v
+  }
+  return v
 }
 
 // ASTs
 type GMark = GType | null;
 
 interface GType {
-    category: string;
+  category: string;
 }
 
 class TVar implements GType {
-    public category = "TVar";
+  public category = "TVar";
 
-    constructor(public name: string) {
-        mustExist(name)
-    }
+  constructor(public name: string) {
+    mustExist(name)
+  }
 }
 
 class AnyType implements GType {
-    public category = "AnyType";
-    public name: string = "any";
+  public category = "AnyType";
+  public name: string = "any";
 
-    private constructor() {
-    }
+  private constructor() {
+  }
 
-    static instance = new AnyType();
+  static instance = new AnyType();
 }
 
 export const anyType = AnyType.instance;
 
 
 export function parseMark(node: ts.TypeNode, checker: ts.TypeChecker): GMark {
-    if (!node) return null;
+  if (!node) return null;
 
-    // let symbol = checker.getTypeFromTypeNode(node)();
-    // if(!symbol) throw new Error("unresolved type: " + node.getText());
+  // let symbol = checker.getTypeFromTypeNode(node)();
+  // if(!symbol) throw new Error("unresolved type: " + node.getText());
 
-    let string = checker.typeToString(checker.getTypeFromTypeNode(node));
-    //todo: handle other cases
-    //todo: deal with type errors (currently, unresolved types are marked as any)
-    if (string == "any") return anyType;
-    else return new TVar(string);
+  let string = checker.typeToString(checker.getTypeFromTypeNode(node));
+  //todo: handle other cases
+  //todo: deal with type errors (currently, unresolved types are marked as any)
+  if (string == "any") return anyType;
+  else return new TVar(string);
 }
 
 
 class NamedValue<V> {
-    constructor(public name: String, public value: V) {
-    }
+  constructor(public name: String, public value: V) {
+  }
 }
 
 interface GExpr {
-    category: string
+  category: string
 }
 
 class Var implements GExpr {
-    category: string = "Var";
+  category: string = "Var";
 
-    constructor(public name: string) {
-        mustExist(name);
-    }
+  constructor(public name: string) {
+    mustExist(name);
+  }
 }
 
 class Const implements GExpr {
-    category: string = "Const";
+  category: string = "Const";
 
-    constructor(public value: string, public ty: GType) {
-        mustExist(value);
-    }
+  constructor(public value: string, public ty: GType) {
+    mustExist(value);
+  }
 }
 
 class FuncCall implements GExpr {
-    category: string = "FuncCall";
+  category: string = "FuncCall";
 
-    constructor(public f: GExpr, public args: GExpr[]) {
-    }
+  constructor(public f: GExpr, public args: GExpr[]) {
+  }
 }
 
 class ObjLiteral implements GExpr {
-    category: string = "ObjLiteral";
+  category: string = "ObjLiteral";
 
-    constructor(public fields: NamedValue<GExpr>[]) {
-    }
+  constructor(public fields: NamedValue<GExpr>[]) {
+  }
 }
 
 class Access implements GExpr {
-    category: string = "Access";
+  category: string = "Access";
 
-    constructor(public expr: GExpr, public field: string) {
-        mustExist(field);
-    }
+  constructor(public expr: GExpr, public field: string) {
+    mustExist(field);
+  }
 }
 
 class IfExpr implements GExpr {
-    category: string = "IfExpr";
+  category: string = "IfExpr";
 
-    constructor(public cond: GExpr, public e1: GExpr, public e2: GExpr) {
-    }
+  constructor(public cond: GExpr, public e1: GExpr, public e2: GExpr) {
+  }
 }
 
 
 export interface GStmt {
-    category: string
+  category: string
 }
 
 class VarDef implements GStmt {
-    category: string = "VarDef";
+  category: string = "VarDef";
 
-    constructor(public x: string, public mark: GMark,
-                public init: GExpr, public isConst: boolean) {
-    }
+  constructor(public x: string, public mark: GMark,
+              public init: GExpr, public isConst: boolean) {
+  }
 }
 
 class AssignStmt implements GStmt {
-    category: string = "AssignStmt";
+  category: string = "AssignStmt";
 
-    constructor(public lhs: GExpr, public rhs: GExpr) {
-    }
+  constructor(public lhs: GExpr, public rhs: GExpr) {
+  }
 }
 
 class ExprStmt implements GStmt {
-    category: string = "ExprStmt";
+  category: string = "ExprStmt";
 
-    constructor(public expr: GExpr, public isReturn: boolean) {
-    }
+  constructor(public expr: GExpr, public isReturn: boolean) {
+  }
 }
 
 class IfStmt implements GStmt {
-    category: string = "IfStmt";
+  category: string = "IfStmt";
 
-    constructor(public cond: GExpr, public branch1: GStmt, public branch2: GStmt) {
-    }
+  constructor(public cond: GExpr, public branch1: GStmt, public branch2: GStmt) {
+  }
 }
 
 class WhileStmt implements GStmt {
-    category: string = "WhileStmt";
+  category: string = "WhileStmt";
 
-    constructor(public cond: GExpr, public body: GStmt) {
-    }
+  constructor(public cond: GExpr, public body: GStmt) {
+  }
 }
 
 class CommentStmt implements GStmt {
-    category: string = "CommentStmt";
+  category: string = "CommentStmt";
 
-    constructor(public text: string) {
-        mustExist(text);
-    }
+  constructor(public text: string) {
+    mustExist(text);
+  }
 }
 
 class BlockStmt implements GStmt {
-    category: string = "BlockStmt";
+  category: string = "BlockStmt";
 
-    constructor(public stmts: GStmt[]) {
-    }
+  constructor(public stmts: GStmt[]) {
+  }
 }
 
 class FuncDef implements GStmt {
-    category: string = "FuncDef";
+  category: string = "FuncDef";
 
-    constructor(public name: string, public args: NamedValue<GMark>[], public returnType: GMark,
-                public body: GStmt) {
-        mustExist(name);
-        if((name == "Constructor") && returnType && (returnType as TVar).name != 'void'){
-          throw new Error("Wrong return type for constructor. Got: " + returnType)
-        }
+  constructor(public name: string, public args: NamedValue<GMark>[], public returnType: GMark,
+              public body: GStmt) {
+    mustExist(name);
+    if ((name == "Constructor") && returnType && (returnType as TVar).name != 'void') {
+      throw new Error("Wrong return type for constructor. Got: " + returnType)
     }
+  }
 }
 
 class ClassDef implements GStmt {
-    category: string = "ClassDef";
+  category: string = "ClassDef";
 
-    constructor(public name: string, public constructor: FuncDef, public vars: Object,
-                public funcDefs: FuncDef[], public superType: string) {
-    }
+  constructor(public name: string, public constructor: FuncDef, public vars: Object,
+              public funcDefs: FuncDef[], public superType: string) {
+  }
 }
 
 function tryFullyQualifiedName(node: ts.Node, checker: ts.TypeChecker): string {
-    // let symbol = checker.getSymbolAtLocation(node);
-    // let name: string = symbol ? checker.getFullyQualifiedName(symbol) : (<any>node)["text"]; fixme: not working
-    let name = (<any>node).text;
-    mustExist(name);
-    return name;
+  // let symbol = checker.getSymbolAtLocation(node);
+  // let name: string = symbol ? checker.getFullyQualifiedName(symbol) : (<any>node)["text"]; fixme: not working
+  let name = (<any>node).text;
+  mustExist(name);
+  return name;
 }
 
 
 export function parseExpr(node: ts.Node, checker: ts.TypeChecker,
-                          allocateLambda: (f: ts.FunctionLikeDeclaration)=>Var): GExpr {
+                          allocateLambda: (f: ts.FunctionLikeDeclaration) => Var): GExpr {
 
-    function rec(node: ts.Node): GExpr {
-        mustExist(node);
-        switch (node.kind) {
-            case SyntaxKind.Identifier:
-                let name = tryFullyQualifiedName(node, checker);
-                return new Var(name);
-            case SyntaxKind.ThisKeyword:
-                return new Var("this");
-            case SyntaxKind.CallExpression: {
-                let n = (<ts.CallExpression>node);
-                let f = rec(n.expression);
-                let args = n.arguments.map(rec);
-                return new FuncCall(f, args);
-            }
-            case SyntaxKind.NewExpression: {
-                let n = (<ts.NewExpression>node);
-                let fName = "NEW-" + (<ts.Identifier>n.expression).text;
-                let args = n.arguments.map(rec);
-                return new FuncCall(new Var(fName), args);
-            }
-            case SyntaxKind.ObjectLiteralExpression: {
-                let n = (<ts.ObjectLiteralExpression>node);
-                let fields = n.properties.map((p: ts.ObjectLiteralElementLike) => {
-                    return parseObjectLiteralElementLike(p);
-                });
-                return new ObjLiteral(fields);
-            }
-            case SyntaxKind.PropertyAccessExpression: {
-                let n = node as ts.PropertyAccessExpression;
-                let lhs = rec(n.expression);
-                return new Access(lhs, n.name.text);
-            }
-            case ts.SyntaxKind.ElementAccessExpression: {
-                let n = node as ts.ElementAccessExpression;
-                let thing = rec(n.expression);
-                let index = rec(n.argumentExpression);
-                return new FuncCall(new Access(thing, "access"), [index]);
-            }
-            case ts.SyntaxKind.ConditionalExpression: {
-                let n = node as ts.ConditionalExpression;
-                let cond = rec(n.condition);
-                let e1 = rec(n.whenTrue);
-                let e2 = rec(n.whenFalse);
-                return new IfExpr(cond, e1, e2);
-            }
-            case ts.SyntaxKind.ParenthesizedExpression: {
-                let n = node as ts.ParenthesizedExpression;
-                return rec(n.expression);
-            }
+  function rec(node: ts.Node): GExpr {
+    mustExist(node);
+    switch (node.kind) {
+      case SyntaxKind.Identifier:
+        let name = tryFullyQualifiedName(node, checker);
+        return new Var(name);
+      case SyntaxKind.ThisKeyword:
+        return new Var("this");
+      case SyntaxKind.CallExpression: {
+        let n = (<ts.CallExpression>node);
+        let f = rec(n.expression);
+        let args = n.arguments.map(rec);
+        return new FuncCall(f, args);
+      }
+      case SyntaxKind.NewExpression: {
+        let n = (<ts.NewExpression>node);
+        let fName = "NEW-" + (<ts.Identifier>n.expression).text;
+        let args = n.arguments.map(rec);
+        return new FuncCall(new Var(fName), args);
+      }
+      case SyntaxKind.ObjectLiteralExpression: {
+        let n = (<ts.ObjectLiteralExpression>node);
+        let fields = n.properties.map((p: ts.ObjectLiteralElementLike) => {
+          return parseObjectLiteralElementLike(p);
+        });
+        return new ObjLiteral(fields);
+      }
+      case SyntaxKind.PropertyAccessExpression: {
+        let n = node as ts.PropertyAccessExpression;
+        let lhs = rec(n.expression);
+        return new Access(lhs, n.name.text);
+      }
+      case ts.SyntaxKind.ElementAccessExpression: {
+        let n = node as ts.ElementAccessExpression;
+        let thing = rec(n.expression);
+        let index = rec(n.argumentExpression);
+        return new FuncCall(new Access(thing, "access"), [index]);
+      }
+      case ts.SyntaxKind.ConditionalExpression: {
+        let n = node as ts.ConditionalExpression;
+        let cond = rec(n.condition);
+        let e1 = rec(n.whenTrue);
+        let e2 = rec(n.whenFalse);
+        return new IfExpr(cond, e1, e2);
+      }
+      case ts.SyntaxKind.ParenthesizedExpression: {
+        let n = node as ts.ParenthesizedExpression;
+        return rec(n.expression);
+      }
 
-            // constants
-            case SyntaxKind.NumericLiteral:
-                return constExpr("number");
-            case SyntaxKind.StringLiteral:
-                return constExpr("string");
-            case SyntaxKind.TrueKeyword:
-            case SyntaxKind.FalseKeyword:
-                return constExpr("bool");
-            case SyntaxKind.NullKeyword:
-                return new Const("null", anyType);
-            case SyntaxKind.ArrayLiteralExpression:
-                return constExpr("array"); //todo: might need to distinguish array types
+      // constants
+      case SyntaxKind.NumericLiteral:
+        return constExpr("number");
+      case SyntaxKind.StringLiteral:
+        return constExpr("string");
+      case SyntaxKind.TrueKeyword:
+      case SyntaxKind.FalseKeyword:
+        return constExpr("bool");
+      case SyntaxKind.NullKeyword:
+        return new Const("null", anyType);
+      case SyntaxKind.ArrayLiteralExpression:
+        return constExpr("array"); //todo: might need to distinguish array types
 
-            // operators
-            case ts.SyntaxKind.BinaryExpression: {
-                let n = node as ts.BinaryExpression;
-                let l = rec(n.left);
-                let r = rec(n.right);
-                let opp = n.operatorToken.kind;
+      // operators
+      case ts.SyntaxKind.BinaryExpression: {
+        let n = node as ts.BinaryExpression;
+        let l = rec(n.left);
+        let r = rec(n.right);
+        let opp = n.operatorToken.kind;
 
-                return new FuncCall(new Access(l, ts.SyntaxKind[opp]), [r]);
-            }
-            case SyntaxKind.PrefixUnaryExpression:
-            case SyntaxKind.PostfixUnaryExpression: {
-                let n = <any>node;
-                let opName = ts.SyntaxKind[n["operator"]];
-                let fixity = (node.kind == SyntaxKind.PrefixUnaryExpression) ? "" : "POST_";
-                let arg = rec(n["operand"]);
-                return new FuncCall(new Var(fixity + opName), [arg]);
-            }
-            case SyntaxKind.ArrowFunction:
-            case SyntaxKind.FunctionExpression: {
-                let n = node as ts.FunctionLikeDeclaration;
-                return allocateLambda(n);
-            }
+        return new FuncCall(new Access(l, ts.SyntaxKind[opp]), [r]);
+      }
+      case SyntaxKind.PrefixUnaryExpression:
+      case SyntaxKind.PostfixUnaryExpression: {
+        let n = <any>node;
+        let opName = ts.SyntaxKind[n["operator"]];
+        let fixity = (node.kind == SyntaxKind.PrefixUnaryExpression) ? "" : "POST_";
+        let arg = rec(n["operand"]);
+        return new FuncCall(new Var(fixity + opName), [arg]);
+      }
+      case SyntaxKind.ArrowFunction:
+      case SyntaxKind.FunctionExpression: {
+        let n = node as ts.FunctionLikeDeclaration;
+        return allocateLambda(n);
+      }
 
-            default:
-                throw new Error("Unknown expression category: " + ts.SyntaxKind[node.kind]);
-        }
-
-        function constExpr(typeName: string) {
-            // let v = (<ts.LiteralLikeNode>node).text;
-            return new Const("CONST", new TVar(typeName));
-        }
-
-        function parseObjectLiteralElementLike(p: ts.ObjectLiteralElementLike): NamedValue<GExpr> {
-            let a = (<ts.PropertyAssignment>p);
-            return new NamedValue<GExpr>((<ts.StringLiteral>a.name).text, rec(a.initializer));
-        }
+      default:
+        throw new Error("Unknown expression category: " + ts.SyntaxKind[node.kind]);
     }
 
-    return rec(node);
+    function constExpr(typeName: string) {
+      // let v = (<ts.LiteralLikeNode>node).text;
+      return new Const("CONST", new TVar(typeName));
+    }
+
+    function parseObjectLiteralElementLike(p: ts.ObjectLiteralElementLike): NamedValue<GExpr> {
+      let a = (<ts.PropertyAssignment>p);
+      return new NamedValue<GExpr>((<ts.StringLiteral>a.name).text, rec(a.initializer));
+    }
+  }
+
+  return rec(node);
 }
 
 export const notDefinedValue = new Const("undefined", anyType);
@@ -324,6 +325,7 @@ export class StmtParser {
 
       processExpr(e: ts.Expression): GExpr {
         let lambdas = this.lambdaDefs;
+
         function allocateLambda(f: ts.FunctionLikeDeclaration): Var {
           let name = "$Lambda" + getNLambda[0];
           getNLambda[0] += 1;
@@ -351,7 +353,7 @@ export class StmtParser {
       });
 
       let body: StmtsHolder;
-      try{
+      try {
         let ep = new ExprProcessor();
         // try to parse the body as a ConciseFunction body
         body = ep.alongWith(new ExprStmt(ep.processExpr((n.body as ts.Expression)), true))
@@ -510,7 +512,7 @@ export function flattenBlock(stmts: GStmt[]): GStmt {
 }
 
 export function getSingleton<A>(xs: A[]): A {
-  if(xs.length != 1)
+  if (xs.length != 1)
     throw new Error("Expect a singleton collection, but get: " + xs);
   return xs[0];
 }
@@ -518,5 +520,5 @@ export function getSingleton<A>(xs: A[]): A {
 
 // utilities
 export function flatMap<A, B>(xs: any, f: (x: A) => B[]): B[] {
-    return xs.reduce((acc: any, x: A) => acc.concat(f(x)), []);
+  return xs.reduce((acc: any, x: A) => acc.concat(f(x)), []);
 }
