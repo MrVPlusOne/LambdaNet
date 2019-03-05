@@ -29,7 +29,7 @@ class ParserTests extends WordSpec with MyTest {
   }
 
   "Source file parsing test" in {
-    val projectRoot = pwd / RelPath("data/ts-algorithms/algorithms")
+    val projectRoot = pwd / RelPath("data/ts-algorithms")
     val files = ls.rec(projectRoot)
       .filter(_.ext == "ts")
       .map(_.relativeTo(projectRoot))
@@ -98,6 +98,15 @@ class ParserTests extends WordSpec with MyTest {
       "let inc = (x: number) => {return x + 1;};" -> classOf[BlockStmt],
       "let inc = x => x+1;" -> classOf[BlockStmt],
       "let f = (x) => (y) => x + y;" -> classOf[BlockStmt],
+      "let {x,y} = {x: 10, y: 5};" -> classOf[BlockStmt],
+      """switch(i){
+        |  case 1:
+        |    print(i); break;
+        |  case a: a + 1;
+        |  default:
+        |    print("do nothing");
+        |}
+      """.stripMargin -> classOf[BlockStmt]
     )
 
   }

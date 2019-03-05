@@ -211,7 +211,9 @@ export function parseExpr(node: ts.Node, checker: ts.TypeChecker,
         let name = tryFullyQualifiedName(node, checker);
         return new Var(name);
       case SyntaxKind.ThisKeyword:
-        return new Var("this");
+        return SpecialVars.THIS;
+      case SyntaxKind.SuperKeyword:
+        return SpecialVars.SUPER;
       case SyntaxKind.CallExpression: {
         let n = (<ts.CallExpression>node);
         let f = rec(n.expression);
@@ -290,14 +292,22 @@ export function parseExpr(node: ts.Node, checker: ts.TypeChecker,
         return allocateLambda(n);
       }
 
-      // Ignore spread element because we always treat var-args as a sequence type.
+      // Special treatments:
       case SyntaxKind.SpreadElement: {
         let n = node as ts.SpreadElement;
-        return new FuncCall(SpecialVars.spread,[rec(n.expression)]);
+        return new FuncCall(SpecialVars.spread, [rec(n.expression)]);
+      }
+      case SyntaxKind.TypeOfExpression: {
+        let n = node as ts.TypeOfExpression;
+        return new FuncCall(SpecialVars.typeOf, [rec(n.expression)]);
+      }
+      case SyntaxKind.TemplateExpression: {
+        return constExpr("string");
       }
 
       default:
-        throw new Error("Unknown expression category: " + ts.SyntaxKind[node.kind]);
+        throw new Error("Unknown expression category: " + ts.SyntaxKind[node.kind]
+          + ". Text: " + node.getText());
     }
 
     function constExpr(typeName: string) {
@@ -377,7 +387,7 @@ export class StmtParser {
 
       function parseVarDecList(node: ts.VariableDeclarationList): VarDef[] {
 
-        function parseBinding(x: ts.BindingElement | ts.VariableDeclaration, isConst: boolean): VarDef[]{
+        function parseBinding(x: ts.BindingElement | ts.VariableDeclaration, isConst: boolean): VarDef[] {
           let initExpr = x.initializer ? EP.processExpr(x.initializer) : notDefinedValue;
           let lhs = x.name;
           switch (lhs.kind) {
@@ -401,7 +411,7 @@ export class StmtParser {
 
           let dec = node.declarations;
 
-          return flatMap(dec,(x: ts.VariableDeclaration) => parseBinding(x, isConst));
+          return flatMap(dec, (x: ts.VariableDeclaration) => parseBinding(x, isConst));
         });
       }
 
@@ -486,7 +496,8 @@ export class StmtParser {
             let clauses = n.heritageClauses;
             for (const c of clauses) {
               if (c.token == ts.SyntaxKind.ExtendsKeyword) {
-                superType = mustExist((c.types[0].expression as any)["name"]) as string;
+                superType = c.types[0].expression.getText(); //todo: handle more cases
+                // superType = mustExist((c.types[0].expression as any)["name"]) as string;
               }
             }
           }
@@ -510,13 +521,37 @@ export class StmtParser {
 
           return EP.alongWith(new ClassDef(name, constructor, vars, funcDefs, superType));
         }
+        case SyntaxKind.SwitchStatement: {
+          let n = node as ts.SwitchStatement;
+
+          let switchCall = new FuncCall(SpecialVars.SWITCH, [EP.processExpr(n.expression)]);
+
+          let clauses = flatMap(
+            n.caseBlock.clauses,
+            (c: ts.CaseOrDefaultClause) => {
+              let body = flatMap(c.statements, (s: ts.Statement) => rec(s).stmts);
+              switch (c.kind) {
+                case SyntaxKind.CaseClause:
+                  let f = new FuncCall(SpecialVars.CASE, [EP.processExpr((c as ts.CaseClause).expression)]);
+                  let all = [new ExprStmt(f, false) as GStmt].concat(body);
+                  return EP.alongWithMany(all).stmts;
+                case SyntaxKind.DefaultClause:
+                  return EP.alongWithMany(body).stmts;
+              }
+            });
+          return EP.alongWithMany([new ExprStmt(switchCall, false) as GStmt].concat(clauses));
+        }
 
         // ignored statements:
         case SyntaxKind.BreakStatement:
           return EP.alongWith(new CommentStmt("break;"));
         case SyntaxKind.EnumDeclaration:
         case SyntaxKind.ImportDeclaration:
+        case SyntaxKind.ExportDeclaration:
+        //todo: support the followings
+        case SyntaxKind.TypeAliasDeclaration:
           return EP.alongWith(new CommentStmt(node.getText()));
+
 
         default:
           throw new Error("Unknown stmt category: " + ts.SyntaxKind[node.kind]);
@@ -543,8 +578,13 @@ export function getSingleton<A>(xs: A[]): A {
 }
 
 
-class SpecialVars{
+class SpecialVars {
   static spread = new Var("$Spread");
+  static typeOf = new Var("$TypeOf");
+  static THIS = new Var("this");
+  static SUPER = new Var("super");
+  static CASE = new Var("$Case");
+  static SWITCH = new Var("$SWITCH");
 }
 
 // utilities
@@ -552,10 +592,10 @@ export function flatMap<A, B>(xs: any, f: (x: A) => B[]): B[] {
   return xs.reduce((acc: any, x: A) => acc.concat(f(x)), []);
 }
 
-export function forNode<T>(node: ts.Node, action: ()=>T): T {
-  try{
+export function forNode<T>(node: ts.Node, action: () => T): T {
+  try {
     return action()
-  }catch (e) {
+  } catch (e) {
     console.debug("Error occurred when processing node: " + node.getText())
     throw e
   }
