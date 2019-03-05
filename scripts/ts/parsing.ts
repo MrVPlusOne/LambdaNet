@@ -304,6 +304,10 @@ export function parseExpr(node: ts.Node, checker: ts.TypeChecker,
       case SyntaxKind.TemplateExpression: {
         return constExpr("string");
       }
+      case SyntaxKind.DeleteExpression: {
+        let n = node as ts.DeleteExpression;
+        return new FuncCall(SpecialVars.DELETE, [rec(n.expression)]);
+      }
 
       default:
         throw new Error("Unknown expression category: " + ts.SyntaxKind[node.kind]
@@ -462,10 +466,10 @@ export class StmtParser {
           let init = n.initializer;
           let outerBlock = new BlockStmt([]);
 
-          if (ts.isVariableDeclarationList(init)) {
+          if (init && ts.isVariableDeclarationList(init)) {
             outerBlock.stmts = parseVarDecList(init);
-          } else {
-            outerBlock.stmts.push(new ExprStmt(EP.processExpr(init), false));
+          } else if (init) {
+            outerBlock.stmts.push(new ExprStmt(EP.processExpr(init as ts.Expression), false));
           }
 
           let incr = new ExprStmt(EP.processExpr(n.incrementor), false);
@@ -584,7 +588,8 @@ class SpecialVars {
   static THIS = new Var("this");
   static SUPER = new Var("super");
   static CASE = new Var("$Case");
-  static SWITCH = new Var("$SWITCH");
+  static SWITCH = new Var("$Switch");
+  static DELETE = new Var("$Delete")
 }
 
 // utilities
