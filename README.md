@@ -28,6 +28,8 @@ See [typingNet-Formalizations.pdf](typingNet-Formalizations.pdf).
 ### Where are things
 **Surface Language**: [GStmt](src/main/scala/gtype/GStmt.scala), [GExpr]([GStmt](src/main/scala/gtype/GExpr.scala))
 
+**Typescript to DSL parser**: [GStmtParsing](src/main/scala/gtype/parsing/GStmtParsing.scala)
+
 **Intermediate Language**: [IR]([GStmt](src/main/scala/infer/IR.scala)), [IRTranslation]([GStmt](src/main/scala/infer/IRTranslation.scala))
 
 **Relation Graph**: [RelationGraph](src/main/scala/infer/RelationGraph.scala)
@@ -42,11 +44,13 @@ See [typingNet-Formalizations.pdf](typingNet-Formalizations.pdf).
 
 Todo:
 
-- [ ] translate real-world TS projects into our DSL
+- [ ] properly handle module imports/exports
 
 - [ ] implement predicate-level loss
 
 Done:
+
+- [X] translate real-world TS projects into our DSL
 
 - [X] make the model capable of overfitting to a single program
 

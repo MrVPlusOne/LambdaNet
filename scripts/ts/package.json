@@ -1,0 +1,11 @@
+{
+  "name": "ts-to-scala-parser",
+  "author": "Maruth Goyal, Jiayi Wei",
+  "version": "0.1",
+  "dependencies": {
+    "@types/yargs": "^12.0.9",
+    "fs": "latest",
+    "typescript": "latest",
+    "yargs": "latest"
+  }
+}

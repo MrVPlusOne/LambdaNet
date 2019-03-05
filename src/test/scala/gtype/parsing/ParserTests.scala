@@ -33,10 +33,15 @@ class ParserTests extends WordSpec with MyTest {
     val files = ls.rec(projectRoot)
       .filter(_.ext == "ts")
       .map(_.relativeTo(projectRoot))
-    GStmtParsing.parseFromFiles(files, Set(), projectRoot).foreach { module =>
+
+    val modules = GStmtParsing.parseModulesFromFiles(files, Set(), projectRoot, Some(projectRoot / "parsed.json"))
+    modules.foreach { module =>
       println(s"=== module: '${module.moduleName}' ===")
       module.stmts.foreach(println)
     }
+
+    val modules2 = GStmtParsing.parseModulesFromJson(read(projectRoot / "parsed.json"))
+    assert(modules == modules2, "Two parses do not match.")
   }
 
   "Expressions parsing test" in {

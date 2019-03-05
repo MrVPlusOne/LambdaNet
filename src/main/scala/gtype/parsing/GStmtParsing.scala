@@ -18,22 +18,28 @@ object GStmtParsing {
     }
   }
 
-  def parseFromFiles(
+  def parseModulesFromFiles(
     srcFiles: Seq[RelPath],
     libraryFiles: Set[RelPath],
-    projectRoot: Path
+    projectRoot: Path,
+    writeToFile: Option[Path] = None
   ): Seq[GModule] = {
     val totalLibraries = libraryFiles ++ srcFiles
-
     val r = %%(
       'node,
       pwd / RelPath("scripts/ts/parsingFromFile.js"),
-      srcFiles.length.toString, // number of source files
+      "--src",
       srcFiles.map(_.toString()),
+      "--lib",
       totalLibraries.toList.map(_.toString())
     )(projectRoot)
+    val parsedJson = r.out.string
+    writeToFile.foreach(p => write.over(p, parsedJson))
+    parseModulesFromJson(parsedJson)
+  }
 
-    val modules = GStmtParsing.parseJson(r.out.string).asInstanceOf[Js.Arr]
+  def parseModulesFromJson(parsedJson: String): Seq[GModule] = {
+    val modules = GStmtParsing.parseJson(parsedJson).asInstanceOf[Js.Arr]
     val parser = new GStmtParsing()
     modules.value.map(parser.parseGModule)
   }

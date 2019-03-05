@@ -605,3 +605,33 @@ export function forNode<T>(node: ts.Node, action: () => T): T {
     throw e
   }
 }
+
+export function parseFiles(sources: string[], libraryFiles: string[]): GModule[] {
+  let program = ts.createProgram(libraryFiles, {
+    target: ts.ScriptTarget.ES2018,
+    module: ts.ModuleKind.CommonJS
+  });
+  let checker = program.getTypeChecker();
+
+  let sFiles = sources.map(file => mustExist(program.getSourceFile(file),
+    "getSourceFile failed for: " + file));
+  mustExist(sFiles);
+
+  let parser = new StmtParser();
+
+  return sFiles.map(src => {
+    let stmts: GStmt[] = [];
+    src.statements.forEach(s => {
+      try {
+        let r = parser.parseStmt(s, checker);
+        r.forEach(s => stmts.push(s));
+      } catch (e) {
+        console.debug("Parsing failed for file: " + src.fileName);
+        console.debug("Failure occurred at line: " + s.getText());
+        throw e
+      }
+
+    });
+    return new GModule(src.fileName, stmts);
+  });
+}
