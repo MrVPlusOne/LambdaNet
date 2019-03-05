@@ -119,7 +119,7 @@ object GStmt {
       case WhileStmt(cond, body) =>
         (indent -> s"while ($cond)") +: prettyPrintHelper(indent, body)
       case CommentStmt(text) =>
-        Vector(indent -> ("//" + text))
+        Vector(indent -> ("/*" + text + "*/"))
       case BlockStmt(stmts) =>
         (indent -> "{") +: stmts.flatMap(
           s => prettyPrintHelper(indent + 1, s)

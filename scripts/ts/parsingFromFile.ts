@@ -19,11 +19,15 @@ function parseFiles(sources: string[], libraryFiles: string[]): GModule[] {
   let parsed = sFiles.map(src => {
     let stmts: GStmt[] = [];
     src.statements.forEach(s => {
-      let r = parser.parseStmt(s, checker);
-      if (!r) {
-        throw new Error("failed for: " + s.getFullText(src));
+      try {
+        let r = parser.parseStmt(s, checker);
+        r.forEach(s => stmts.push(s));
+      } catch (e) {
+        console.debug("Parsing failed for file: " + src.fileName);
+        console.debug("Failure occurred at line: " + s.getText());
+        throw e
       }
-      r.forEach(s => stmts.push(s));
+
     });
     return new GModule(src.fileName, stmts);
   });

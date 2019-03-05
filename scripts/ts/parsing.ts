@@ -125,6 +125,7 @@ class VarDef implements GStmt {
 
   constructor(public x: string, public mark: GMark,
               public init: GExpr, public isConst: boolean) {
+    mustExist(x);
   }
 }
 
@@ -289,6 +290,12 @@ export function parseExpr(node: ts.Node, checker: ts.TypeChecker,
         return allocateLambda(n);
       }
 
+      // Ignore spread element because we always treat var-args as a sequence type.
+      case SyntaxKind.SpreadElement: {
+        let n = node as ts.SpreadElement;
+        return new FuncCall(SpecialVars.spread,[rec(n.expression)]);
+      }
+
       default:
         throw new Error("Unknown expression category: " + ts.SyntaxKind[node.kind]);
     }
@@ -369,17 +376,32 @@ export class StmtParser {
       let EP = new ExprProcessor();
 
       function parseVarDecList(node: ts.VariableDeclarationList): VarDef[] {
-        let isConst = (node.flags & ts.NodeFlags.Const) != 0;
 
-        let dec = node.declarations;
-
-        return dec.map(x => {
+        function parseBinding(x: ts.BindingElement | ts.VariableDeclaration, isConst: boolean): VarDef[]{
           let initExpr = x.initializer ? EP.processExpr(x.initializer) : notDefinedValue;
-          return new VarDef(
-            (<ts.Identifier>x.name).text,
-            parseMark(x.type, checker),
-            initExpr,
-            isConst)
+          let lhs = x.name;
+          switch (lhs.kind) {
+            case SyntaxKind.Identifier:
+              return [new VarDef(
+                (<ts.Identifier>lhs).text,
+                parseMark((<any>x).type, checker),
+                initExpr,
+                isConst)];
+            case SyntaxKind.ObjectBindingPattern:
+              return flatMap((lhs as ts.ObjectBindingPattern).elements, (e: ts.BindingElement) => {
+                return parseBinding(e, isConst)
+              });
+            default:
+              throw new Error("Unsupported binding pattern: " + x.getText())
+          }
+        }
+
+        return forNode(node, () => {
+          let isConst = (node.flags & ts.NodeFlags.Const) != 0;
+
+          let dec = node.declarations;
+
+          return flatMap(dec,(x: ts.VariableDeclaration) => parseBinding(x, isConst));
         });
       }
 
@@ -424,7 +446,7 @@ export class StmtParser {
           let stmts = flatMap(n.statements, (x: ts.Node) => rec(x).stmts);
           return EP.alongWith(new BlockStmt(stmts));
         }
-        case ts.SyntaxKind.ForStatement:
+        case ts.SyntaxKind.ForStatement: {
           let n = node as ts.ForStatement;
           let cond = n.condition;
           let init = n.initializer;
@@ -444,7 +466,7 @@ export class StmtParser {
             flattenBlock(bodyStmts)
           ));
           return EP.alongWith(outerBlock);
-
+        }
         case SyntaxKind.FunctionDeclaration:
         case SyntaxKind.MethodDeclaration:
         case SyntaxKind.Constructor: {
@@ -492,6 +514,9 @@ export class StmtParser {
         // ignored statements:
         case SyntaxKind.BreakStatement:
           return EP.alongWith(new CommentStmt("break;"));
+        case SyntaxKind.EnumDeclaration:
+        case SyntaxKind.ImportDeclaration:
+          return EP.alongWith(new CommentStmt(node.getText()));
 
         default:
           throw new Error("Unknown stmt category: " + ts.SyntaxKind[node.kind]);
@@ -518,7 +543,20 @@ export function getSingleton<A>(xs: A[]): A {
 }
 
 
+class SpecialVars{
+  static spread = new Var("$Spread");
+}
+
 // utilities
 export function flatMap<A, B>(xs: any, f: (x: A) => B[]): B[] {
   return xs.reduce((acc: any, x: A) => acc.concat(f(x)), []);
+}
+
+export function forNode<T>(node: ts.Node, action: ()=>T): T {
+  try{
+    return action()
+  }catch (e) {
+    console.debug("Error occurred when processing node: " + node.getText())
+    throw e
+  }
 }

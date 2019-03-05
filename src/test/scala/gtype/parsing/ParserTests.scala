@@ -30,7 +30,7 @@ class ParserTests extends WordSpec with MyTest {
 
   "Source file parsing test" in {
     val projectRoot = pwd / RelPath("data/ts-algorithms/algorithms")
-    val files = ls(projectRoot / "dynamic-programing")
+    val files = ls.rec(projectRoot)
       .filter(_.ext == "ts")
       .map(_.relativeTo(projectRoot))
     GStmtParsing.parseFromFiles(files, Set(), projectRoot).foreach { module =>
