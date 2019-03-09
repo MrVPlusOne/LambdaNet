@@ -30,15 +30,6 @@ class CompNode(val func: DiffFunc) {
   override def toString: String = {
     s"Node[name=${func.name}, shape=$shape, value=$value]"
   }
-
-//  def withShape(shape: Int*): CompNode = {
-//    assert(
-//      this.shape == shape,
-//      s"expected shape: ${TensorExtension.showShape(shape)}, " +
-//        s"actual: $shape, node: $this"
-//    )
-//    this
-//  }
 }
 
 class ParamNode(v: Tensor, val path: SymbolPath) extends CompNode(ConstFunc(v)) {

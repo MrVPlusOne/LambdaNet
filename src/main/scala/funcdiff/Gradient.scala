@@ -4,9 +4,6 @@ import botkop.numsca
 import numsca._
 import TensorExtension._
 
-import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, ExecutionContext, Future}
-
 /**
   * The gradient of a scalar w.r.t a tensor
   */
@@ -315,55 +312,5 @@ class GradientBuilder (private var value: Gradient, private var needCopy: Boolea
   def retrieve: Gradient = {
     needCopy = true
     value
-  }
-}
-
-object ParallelGradBuilder{
-
-}
-
-/** Mutable buffer used to accumulate gradients using delayed parallel summation */
-class ParallelGradBuilder(shape: Shape) {
-  import collection.mutable
-  private val grads = mutable.ListBuffer[Gradient]()
-  private var value: Option[Future[Gradient]] = None
-
-  def add(grad: Gradient): Unit = this synchronized {
-    require(value.isEmpty)
-    grads += grad
-  }
-
-
-  def retrieve(implicit ctx: ExecutionContext): Future[Gradient] = this synchronized {
-    val fut = value.getOrElse {
-      val zeroGrad = ZeroGradient(shape)
-      if (grads.length < 8) {
-        Future {
-          val builder = new GradientBuilder(zeroGrad, needCopy = false)
-          grads.foreach(g => builder.add(g))
-          grads.clear()
-          builder.retrieve
-        }
-      } else {
-        val m = new SimpleMath.Monoid[Gradient] {
-          def zero: Gradient = zeroGrad
-
-          def op(x1: Gradient, x2: Gradient): Gradient = {
-            val b = new GradientBuilder(x1, needCopy = true) {
-              add(x2)
-            }
-            b.retrieve
-          }
-        }
-        for{
-          g <- SimpleMath.parallelReduce(grads.toArray, m)
-        } yield {
-          grads.clear()
-          g
-        }
-      }
-    }
-    value = Some(fut)
-    fut
   }
 }
