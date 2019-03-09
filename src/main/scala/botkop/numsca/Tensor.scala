@@ -1,8 +1,9 @@
 package botkop.numsca
 
+import funcdiff.DebugTime
 import org.nd4j.linalg.api.iter.NdIndexIterator
 import org.nd4j.linalg.api.ndarray.INDArray
-import org.nd4j.linalg.factory.Nd4j
+import org.nd4j.linalg.factory.{Broadcast, Nd4j}
 import org.nd4j.linalg.indexing.{INDArrayIndex, NDArrayIndex}
 import org.nd4j.linalg.ops.transforms.Transforms
 
@@ -12,36 +13,38 @@ import scala.language.{implicitConversions, postfixOps}
 class Tensor(val array: INDArray, val isBoolean: Boolean = false)
     extends Serializable {
 
-  def data: Array[Double] = array.dup.data.asDouble
-
-  def copy(): Tensor = new Tensor(array.dup())
-
   val shape: Shape = Shape.fromArray(array.shape())
-  def reshape(newShape: Shape) = new Tensor(array.reshape(newShape.sizes: _*))
-  def reshape(newShape: Int*) = new Tensor(array.reshape(newShape.map(_.toLong): _*))
+
+  lazy val data: Array[Double] = array.dup.data.asDouble
+
+  def newTensor(array: INDArray): Tensor = new Tensor(array, isBoolean)
+
+  def copy(): Tensor = new Tensor(array.dup(), isBoolean)
+
+  def reshape(newShape: Shape) = newTensor(array.reshape(newShape.sizes: _*))
+  def reshape(newShape: Int*) = newTensor(array.reshape(newShape.toArray))
   def shapeLike(t: Tensor): Tensor = reshape(t.shape)
 
-  def transpose() = new Tensor(array.transpose())
+  def transpose() = new Tensor(array.transpose(), isBoolean)
   def T: Tensor = transpose()
-  def transpose(axes: Array[Int]): Tensor = {
-    require(axes.sorted sameElements shape.sizes.indices, "invalid axes")
+  def transpose(axes: Int*): Tensor = {
+    require(axes.sorted == shape.sizes.indices, "invalid axes")
     val newShape = Shape(axes.map(a => shape(a)).toVector)
     reshape(newShape)
   }
-  def transpose(axes: Int*): Tensor = transpose(axes.toArray)
 
   def round: Tensor =
     Tensor(data.map(math.round(_).toDouble)).reshape(this.shape)
 
-  def dot(other: Tensor) = new Tensor(array mmul other.array)
+  def dot(other: Tensor) = Tensor(array mmul other.array)
 
-  def unary_- : Tensor = new Tensor(array mul -1)
-  def +(d: Double): Tensor = new Tensor(array add d)
-  def -(d: Double): Tensor = new Tensor(array sub d)
-  def *(d: Double): Tensor = new Tensor(array mul d)
+  def unary_- : Tensor = Tensor(array mul -1)
+  def +(d: Double): Tensor = Tensor(array add d)
+  def -(d: Double): Tensor = Tensor(array sub d)
+  def *(d: Double): Tensor = Tensor(array mul d)
   def **(d: Double): Tensor = power(this, d)
-  def /(d: Double): Tensor = new Tensor(array div d)
-  def %(d: Double): Tensor = new Tensor(array fmod d)
+  def /(d: Double): Tensor = Tensor(array div d)
+  def %(d: Double): Tensor = Tensor(array fmod d)
 
   def +=(d: Double): Unit = array addi d
   def -=(d: Double): Unit = array subi d
@@ -83,7 +86,10 @@ class Tensor(val array: INDArray, val isBoolean: Boolean = false)
   /**
     * broadcast argument tensor with shape of this tensor
     */
-  private def bc(t: Tensor): INDArray = t.array.broadcast(shape.sizes: _*)
+  private def bc(t: Tensor): INDArray = {
+    if(t.shape == this.shape) t.array
+    else t.array.broadcast(shape.sizes: _*)
+  }
 
   def +=(t: Tensor): Unit = array addi bc(t)
   def -=(t: Tensor): Unit = array subi bc(t)
@@ -99,11 +105,11 @@ class Tensor(val array: INDArray, val isBoolean: Boolean = false)
   def minimum(other: Tensor): Tensor = Ops.min(this, other)
   def minimum(d: Double): Tensor = new Tensor(Transforms.min(this.array, d))
 
-  def ravel(): Tensor = new Tensor(array.ravel())
-  def ravel(c: Char): Tensor = new Tensor(array.ravel(c))
+  def ravel(): Tensor = newTensor(array.ravel())
+  def ravel(c: Char): Tensor = newTensor(array.ravel(c))
 
-  def slice(i: Int): Tensor = new Tensor(array.slice(i))
-  def slice(i: Int, dim: Int): Tensor = new Tensor(array.slice(i, dim))
+  def slice(i: Int): Tensor = newTensor(array.slice(i))
+  def slice(i: Int, dim: Int): Tensor = newTensor(array.slice(i, dim))
 
   def squeeze(): Double = {
     require(shape.sizes.forall(_ == 1))
@@ -115,12 +121,12 @@ class Tensor(val array: INDArray, val isBoolean: Boolean = false)
   /**
     * returns a view
     */
-  def apply(index: Long*): Tensor = {
+  def access(index: Long*): Tensor = {
     val ix = index.map(NDArrayIndex.point)
-    new Tensor(array.get(ix: _*))
+    newTensor(array.get(ix: _*))
   }
 
-  def apply(indices: Array[Long]): Tensor = this.apply(indices:_*)
+  def apply(index: Array[Long]): Tensor = access(index:_*)
 
   private def handleNegIndex(i: Long, shapeIndex: Int): Long =
     if (i < 0) shape(shapeIndex) + i else i
@@ -128,7 +134,7 @@ class Tensor(val array: INDArray, val isBoolean: Boolean = false)
   /**
     * returns a view
     */
-  def apply(ranges: NumscaRange*)(implicit dummy: Int = 0): Tensor = {
+  def apply(ranges: NumscaRange*): Tensor = {
 
     val indexes: Seq[INDArrayIndex] = ranges.zipWithIndex.map {
       case (nr, i) =>
@@ -142,7 +148,7 @@ class Tensor(val array: INDArray, val isBoolean: Boolean = false)
                                   handleNegIndex(n, i))
         }
     }
-    new Tensor(array.get(indexes: _*))
+    newTensor(array.get(indexes: _*))
   }
 
   def apply(selection: Tensor*): TensorSelection = {
@@ -170,7 +176,7 @@ class Tensor(val array: INDArray, val isBoolean: Boolean = false)
             s"shapes must be [1, n] (was: ${selection.map(_.shape)}")
 
     // broadcast selection to same shape
-    val ts: Seq[INDArray] = Ops.tbc(selection: _*)
+    val ts: Seq[INDArray] = Ops.broadcastArrays(selection.map(_.array))
 
     val rank = ts.head.shape()(1)
     require(ts.forall(s => s.shape()(1) == rank),
@@ -200,7 +206,7 @@ class Tensor(val array: INDArray, val isBoolean: Boolean = false)
   def rank: Int = array.rank()
 
   def clip(min: Double, max: Double): Tensor =
-    Tensor(array.data().asDouble().map { x =>
+    Tensor(data.map { x =>
       if (x < min) min
       else if (x > max)
         max
@@ -219,7 +225,7 @@ case class Shape(sizes: Vector[Long]){
 
   override def toString: String = sizes.mkString("Shape(", ",", ")")
 
-  def length: Int = sizes.length
+  def rank: Int = sizes.length
 
   def updated(i: Int, value: Long): Shape = Shape(sizes.updated(i,value))
 
@@ -238,13 +244,15 @@ object Tensor {
 
   def apply(data: Array[Double]): Tensor = {
     val array = Nd4j.create(data)
-    new Tensor(array)
+    new Tensor(array, isBoolean = false)
   }
 
   def apply(data: Array[Float]): Tensor = {
     val array = Nd4j.create(data)
-    new Tensor(array)
+    new Tensor(array, isBoolean = false)
   }
+
+  def apply(array: INDArray) = new Tensor(array, isBoolean = false)
 
   def apply(data: Double*): Tensor = Tensor(data.toArray)
 
@@ -262,12 +270,12 @@ case class TensorSelection(t: Tensor,
       Tensor(newData)
   }
 
-  def :=(d: Double): Unit = indexes.foreach(t(_) := d)
-  def +=(d: Double): Unit = indexes.foreach(t(_) += d)
-  def -=(d: Double): Unit = indexes.foreach(t(_) -= d)
-  def *=(d: Double): Unit = indexes.foreach(t(_) *= d)
-  def /=(d: Double): Unit = indexes.foreach(t(_) /= d)
-  def %=(d: Double): Unit = indexes.foreach(t(_) %= d)
-  def **=(d: Double): Unit = indexes.foreach(t(_) **= d)
+  def :=(d: Double): Unit = indexes.foreach(t.apply(_) := d)
+  def +=(d: Double): Unit = indexes.foreach(t.apply(_) += d)
+  def -=(d: Double): Unit = indexes.foreach(t.apply(_) -= d)
+  def *=(d: Double): Unit = indexes.foreach(t.apply(_) *= d)
+  def /=(d: Double): Unit = indexes.foreach(t.apply(_) /= d)
+  def %=(d: Double): Unit = indexes.foreach(t.apply(_) %= d)
+  def **=(d: Double): Unit = indexes.foreach(t.apply(_) **= d)
 
 }

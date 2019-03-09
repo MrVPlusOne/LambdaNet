@@ -1,9 +1,13 @@
 package botkop
 
+import funcdiff.DebugTime
 import org.nd4j.linalg.api.iter.NdIndexIterator
 import org.nd4j.linalg.api.ndarray.INDArray
 import org.nd4j.linalg.api.ops.impl.indexaccum.{IMax, IMin}
-import org.nd4j.linalg.api.ops.impl.transforms.comparison.{GreaterThanOrEqual, LessThanOrEqual}
+import org.nd4j.linalg.api.ops.impl.transforms.comparison.{
+  GreaterThanOrEqual,
+  LessThanOrEqual
+}
 import org.nd4j.linalg.api.ops.random.impl.Choice
 import org.nd4j.linalg.api.rng
 import org.nd4j.linalg.factory.Nd4j
@@ -71,9 +75,7 @@ package object numsca {
     Tensor(data).reshape(shape)
   }
 
-  def uniform(low: Double = 0.0,
-              high: Double = 1.0,
-              shape: Array[Int]): Tensor =
+  def uniform(low: Double = 0.0, high: Double = 1.0, shape: Array[Int]): Tensor =
     (new Tensor(Nd4j.randn(shape)) - low) / (high - low)
 
   def linspace(lower: Double, upper: Double, num: Int): Tensor =
@@ -165,7 +167,7 @@ package object numsca {
   def reshape(x: Tensor, shape: Shape): Tensor = x.reshape(shape)
 
   def transpose(x: Tensor): Tensor = x.transpose()
-  def transpose(x: Tensor, axes: Array[Int]): Tensor = x.transpose(axes)
+  def transpose(x: Tensor, axes: Array[Int]): Tensor = x.transpose(axes: _*)
 
   def arrayEqual(t1: Tensor, t2: Tensor): Boolean = numsca.prod(t1 == t2) == 1
 
@@ -304,7 +306,30 @@ package object numsca {
       xa.map(a => a.broadcast(finalShape: _*))
     }
 
-    def tbc(ts: Tensor*): Seq[INDArray] = broadcastArrays(ts.map(_.array))
+    /** make two tensors have the same shape, broadcast them if necessary */
+    def broadcast2(t1: Tensor, t2: Tensor): Seq[INDArray] = {
+
+      val rank = t1.shape.rank.max(t2.shape.rank)
+      val s1 = Vector.fill(rank - t1.shape.rank)(1L) ++ t1.shape.sizes
+      val s2 = Vector.fill(rank - t2.shape.rank)(1L) ++ t2.shape.sizes
+      val newShape = s1.zip(s2).map {
+        case (a, b) =>
+          if (a != b) {
+            assert(a == 1 || b == 1)
+            a.max(b)
+          } else a
+      }
+      Seq(
+        if (t1.shape.sizes != newShape) t1.array.reshape(s1: _*).broadcast(newShape: _*)
+        else t1.array,
+        if (t2.shape.sizes != newShape) t2.array.reshape(s2: _*).broadcast(newShape: _*)
+        else t2.array
+      )
+    }
+
+//    def tbc(ts: Tensor*): Seq[INDArray] =
+//      broadcastArrays(ts.map(_.array))
+    def tbc(t1: Tensor, t2: Tensor): Seq[INDArray] = broadcast2(t1, t2)
 
   }
 

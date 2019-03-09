@@ -176,7 +176,7 @@ object DiffFunc {
   }
 
   case class Transpose(x1: CompNode) extends UnaryFunc {
-    require(x1.shape.length == 2, "only matrices can be transposed")
+    require(x1.shape.rank == 2, "only matrices can be transposed")
     val value: Tensor = x1.value.transpose()
 
     def backprop1(grad: Gradient): Gradient = grad.transpose
@@ -204,7 +204,7 @@ object DiffFunc {
       val y = value
       val dy = grad.toTensor()
       val dx = dy * y
-      val s = ns.sum(dx, axis = dx.shape.length - 1)
+      val s = ns.sum(dx, axis = dx.shape.rank - 1)
       dx -= y * s
       DenseGradient(dx)
     }
@@ -376,7 +376,7 @@ object DiffFunc {
   // ================ Loss functions ======================
   case class CrossEntropyOnSoftmax(logits: CompNode, targets: CompNode) extends UnaryFunc {
     require(targets.shape == logits.shape, "Targets have different shape than logits.")
-    require(logits.shape.length == 2, "Logits should be of rank 2.")
+    require(logits.shape.rank == 2, "Logits should be of rank 2.")
 
     def x1: CompNode = logits
 
