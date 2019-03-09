@@ -50,9 +50,9 @@ object TensorExtension {
 
   /** calculates which axes are broadcasted when these two shapes are broadcasted to make equal */
   def broadcastAxesWhenMerge(shape1: Shape, shape2: Shape): (Seq[Int], Seq[Int]) = {
-    require(shape1.length == shape2.length)
+    require(shape1.rank == shape2.rank)
     var axes1, axes2 = List[Int]()
-    for(i <- 0 until shape1.length;
+    for(i <- 0 until shape1.rank;
         l1 = shape1(i);
         l2 = shape2(i)) yield {
       if(l1 < l2){
@@ -94,13 +94,13 @@ object TensorExtension {
     }
 
     def broadcast(newShape: Shape): Tensor = {
-      new Tensor(data.array.broadcast(newShape.sizes :_*))
+      new Tensor(data.array.broadcast(newShape.sizes :_*), data.isBoolean)
     }
 
     def splitAlongAxis(axis: Int, splitAt: Long): (Tensor, Tensor) = {
       import ns._
 
-      require(axis >= 0 && axis < data.shape.length)
+      require(axis >= 0 && axis < data.shape.rank)
       require(splitAt > 0 && splitAt < data.shape(axis), s"split at $splitAt along axis $axis would create empty matrix from $data")
       val left = data(data.shape.sizes.indices.map{ dim =>
         if(dim == axis) 0 :> splitAt

@@ -64,7 +64,7 @@ sealed trait Gradient{
 
 object Gradient{
   def transposeShape(shape: Shape): Shape = {
-    require(shape.length == 2)
+    require(shape.rank == 2)
     Shape(Vector(shape(1), shape(0)))
   }
 }
