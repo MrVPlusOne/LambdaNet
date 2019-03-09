@@ -32,8 +32,10 @@ object SimpleMath {
         * Assuming the two map has the same set of keys,
         * combines their values correspondingly.
         */
-      def elementwiseCombine[V2, R](that: Map[K,V2])(f: (V,V2)=>R): Map[K, R] = {
-        map.keys.map{k => k -> f(map(k), that(k))}.toMap
+      def elementwiseCombine[V2, R](that: Map[K, V2])(f: (V, V2) => R): Map[K, R] = {
+        map.keys.map { k =>
+          k -> f(map(k), that(k))
+        }.toMap
       }
     }
 
@@ -47,7 +49,8 @@ object SimpleMath {
       new BufferedTotalMap[K, V](partialMap, default)
   }
 
-  class BufferedTotalMap[K, V](partialMap: K => Option[V], default: K => V) extends Function[K,V]{
+  class BufferedTotalMap[K, V](partialMap: K => Option[V], default: K => V)
+      extends Function[K, V] {
     import collection.mutable
     val map: mutable.HashMap[K, V] = mutable.HashMap[K, V]()
 
@@ -530,20 +533,21 @@ object SimpleMath {
   }
 
   def prettyPrintTime(inNano: Long): String = {
-    val (amount, unit) = if(inNano > 1e9) (inNano / 1e9, "s")
-    else if(inNano > 1e6) (inNano / 1e6, "ms")
-    else if (inNano > 1e3) (inNano / 1e3, "µs")
-    else (inNano.toDouble, "ns")
+    val (amount, unit) =
+      if (inNano > 1e9) (inNano / 1e9, "s")
+      else if (inNano > 1e6) (inNano / 1e6, "ms")
+      else if (inNano > 1e3) (inNano / 1e3, "µs")
+      else (inNano.toDouble, "ns")
 
     "%.3f".format(amount) + unit
   }
 
-  class TimeLogger(){
+  class TimeLogger() {
     val stat = mutable.HashMap[Symbol, Long]()
 
     def logTime[T](name: Symbol)(e: => T): T = {
       val (r, time) = measureTime(e)
-      stat synchronized{
+      stat synchronized {
         val t0 = stat.getOrElse(name, 0L)
         stat(name) = t0 + time
       }
@@ -551,16 +555,21 @@ object SimpleMath {
     }
 
     def show: String = {
-      stat.toSeq.sortBy(_._2).reverse.map{ case (name, time) =>
-        s"${name.name}: ${prettyPrintTime(time)}"
-      }.mkString("\n")
+      stat.toSeq
+        .sortBy(_._2)
+        .reverse
+        .map {
+          case (name, time) =>
+            s"${name.name}: ${prettyPrintTime(time)}"
+        }
+        .mkString("\n")
     }
   }
 
-  def addMessagesForExceptions[T](msg: String)(computation: => T): T ={
-    try{
+  def addMessagesForExceptions[T](msg: String)(computation: => T): T = {
+    try {
       computation
-    }catch {
+    } catch {
       case e: Exception =>
         System.err.println(msg)
         throw e
@@ -573,29 +582,27 @@ object SimpleMath {
   }
 
   import scala.concurrent._
-  def parallelReduce[T](xs: Array[T], m: Monoid[T])(
+  def parallelReduce[T](xs: Array[T], m: Monoid[T], sequentialThreshold: Int = 2)(
     implicit ctx: ExecutionContext
   ): Future[T] = {
     def rec(range: Range): Future[T] = {
       val span = range.length
-      span match {
-        case 0 => Future.successful(m.zero)
-        case 1 => Future.successful(xs(range.start))
-        case _ =>
-          Future(range.splitAt(span / 2)).flatMap {
-            case (l, r) =>
-              val lF = rec(l)
-              val rF = rec(r)
-              lF.zip(rF).map { p =>
-                m.op(p._1, p._2)
-              }
-          }
+      if (span < sequentialThreshold) {
+        Future(range.map(xs.apply).foldLeft(m.zero)(m.op))
+      } else {
+        val (l, r) = range.splitAt(span / 2)
+        val lF = rec(l)
+        val rF = rec(r)
+        lF.zip(rF).map { p =>
+          m.op(p._1, p._2)
+        }
       }
+
     }
     rec(xs.indices)
   }
 
-  class LabeledGraph(){
+  class LabeledGraph() {
     case class Edge(from: Int, to: Int, info: String)
     case class Node(name: String, info: String)
 
@@ -607,7 +614,7 @@ object SimpleMath {
       nodeStyleMap(id) = style
     }
 
-    def addNode(id: Int, name: String, info: String, style: String): Unit ={
+    def addNode(id: Int, name: String, info: String, style: String): Unit = {
       nodeInfo(id) = Node(name, info)
       setNodeStyle(id, style)
     }
@@ -617,17 +624,24 @@ object SimpleMath {
     }
 
     def toMamFormat(graphLayout: String, directed: Boolean): String = {
-      val arrow = if(directed) "->" else "\\[UndirectedEdge]"
+      val arrow = if (directed) "->" else "\\[UndirectedEdge]"
 
-      val nodeList = nodeInfo.map{ case (id, Node(name, info)) =>
-        s"""Labeled[Tooltip[$id,$info],"$name"]"""
-      }.mkString("{",",","}")
+      val nodeList = nodeInfo
+        .map {
+          case (id, Node(name, info)) =>
+            s"""Labeled[Tooltip[$id,$info],"$name"]"""
+        }
+        .mkString("{", ",", "}")
 
-      val edgeList = edges.map{ case Edge(from, to, info) =>
-        if(info.isEmpty) s"$from$arrow$to" else s"""Labeled[$from$arrow$to, $info]"""
-      }.mkString("{",",","}")
+      val edgeList = edges
+        .map {
+          case Edge(from, to, info) =>
+            if (info.isEmpty) s"$from$arrow$to" else s"""Labeled[$from$arrow$to, $info]"""
+        }
+        .mkString("{", ",", "}")
 
-      val stylePart = nodeStyleMap.map{case (id, s) => s"$id->$s"}.mkString("{",",","}")
+      val stylePart =
+        nodeStyleMap.map { case (id, s) => s"$id->$s" }.mkString("{", ",", "}")
 
       s"""Graph[$nodeList,$edgeList,VertexStyle->$stylePart,GraphLayout -> $graphLayout]"""
     }
