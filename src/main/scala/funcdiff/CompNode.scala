@@ -148,19 +148,16 @@ object CompNode {
     import collection.mutable
     assert(nodes.length == grads.length)
 
-    val childrenNumber = countChildren(nodes)
-
     class Counter(var i: Int)
-    val childrenCounter = childrenNumber.map{ case (n, i) => n -> new Counter(i)}
 
     class GradientHolder(val builder: GradientBuilder) {
-      var currentTask: Future[Unit] = Future.successful()
-      def add(g: Gradient): Future[Unit] = synchronized {
+      private var currentTask: Future[Unit] = Future.successful()
+
+      def add(g: Gradient): Unit = synchronized {
         val fut = currentTask.map { _ =>
           builder.add(g)
         }
         currentTask = fut
-        fut
       }
 
       def get: Future[Gradient] = {
@@ -170,51 +167,53 @@ object CompNode {
       }
     }
 
+    val childrenCount = countChildren(nodes)
+    val childrenCounter = childrenCount.map { case (n, i) => n -> new Counter(i) }
+
     val gradients = DebugTime.logTime('gradsInit) {
-      mutable.HashMap(topologicalSort(nodes, Some(childrenNumber)).map { n =>
+      mutable.HashMap(topologicalSort(nodes, Some(childrenCount)).map { n =>
         n -> new GradientHolder(
           new GradientBuilder(ZeroGradient(n.shape), needCopy = false)
         )
       }: _*)
     }
-    nodes.zip(grads).foreach { case (n, g) => gradients(n).builder.add(g) }
 
-    def rec(node: CompNode): Future[Unit] = {
+    def rec(node: CompNode, grad: Gradient): Future[Unit] = {
       val cn = {
         val c = childrenCounter(node)
         c.synchronized {
+          gradients(node).add(grad)
           c.i -= 1
           c.i
         }
       }
 
       if (cn > 0) return Future.successful(())
-      gradients.get(node) match {
-        case None => Future.successful(Unit)
-        case Some(holder) =>
-          holder.get.map(node.func.backProp).flatMap { argGradients =>
-            val futs = for {
-              (arg, grad) <- node.func.args.zip(argGradients) if !grad.isZero
-            } yield {
-              gradients(arg).add(grad).map(_ => rec(arg))
-            }
-            Future.sequence(futs).map(_ => ())
-          }
+      gradients(node).get.flatMap { grad =>
+        val argGrads = node.func.backProp(grad)
+        val futs = for {
+          (arg, grad) <- node.func.args.zip(argGrads) if !grad.isZero
+        } yield {
+          rec(arg, grad)
+        }
+        Future.sequence(futs).map(_ => ())
       }
     }
 
-    Future.traverse(nodes)(rec).flatMap { _ =>
-      Future
-        .sequence(gradients.toSeq.map {
-          case (k, gB) =>
-            gB.get.map { g =>
-              k -> g
-            }
-        })
-        .map { pairs =>
-          pairs.filter(_._2.nonZero).toMap
-        }
-    }
+    Future
+      .traverse(nodes.zip(grads)) { case (n, g) => rec(n, g) }
+      .flatMap { _ =>
+        Future
+          .sequence(gradients.toSeq.map {
+            case (k, gB) =>
+              gB.get.map { g =>
+                k -> g
+              }
+          })
+          .map { pairs =>
+            pairs.filter(_._2.nonZero).toMap
+          }
+      }
   }
 
   def backpropParallel(node: CompNode)(
