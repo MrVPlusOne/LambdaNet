@@ -345,19 +345,22 @@ class ParallelGradBuilder(shape: Shape) {
           builder.retrieve
         }
       } else {
-        val m = new SimpleMath.Monoid[GradientBuilder] {
-          def zero: GradientBuilder = new GradientBuilder(zeroGrad, needCopy = false)
+        Future {
+          val m = new SimpleMath.Monoid[GradientBuilder] {
+            def zero: GradientBuilder = new GradientBuilder(zeroGrad, needCopy = false)
 
-          def op(x1: GradientBuilder, x2: GradientBuilder): GradientBuilder = {
-            x1.add(x2.retrieve)
-            x1
+            def op(x1: GradientBuilder, x2: GradientBuilder): GradientBuilder = {
+              x1.add(x2.retrieve)
+              x1
+            }
           }
-        }
-
-        val xs = grads.toArray.map{g => new GradientBuilder(g, needCopy = false)}
-        SimpleMath.parallelReduce(xs, m).map{ g =>
-          grads.clear()
-          g.retrieve
+          val xs = grads.toArray.map { g => new GradientBuilder(g, needCopy = false) }
+          (m, xs)
+        }.flatMap { case (m, xs) =>
+          SimpleMath.parallelReduce(xs, m).map { g =>
+            grads.clear()
+            g.retrieve
+          }
         }
       }
     }
