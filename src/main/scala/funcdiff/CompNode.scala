@@ -9,7 +9,7 @@ import concurrent._
 class CompNode(val func: DiffFunc) {
   def value: Tensor = func.value
 
-  def shape: Array[Int] = value.shape
+  def shape: Shape = value.shape
 
   def backprop: Map[CompNode, Gradient] = CompNode.backprop(this)
 
@@ -28,23 +28,23 @@ class CompNode(val func: DiffFunc) {
   ): Future[Map[CompNode, Gradient]] = CompNode.backpropParallel(this)
 
   override def toString: String = {
-    s"Node[name=${func.name}, shape=${TensorExtension.showShape(shape)}, value=$value]"
+    s"Node[name=${func.name}, shape=$shape, value=$value]"
   }
 
-  def withShape(shape: Int*): CompNode = {
-    assert(
-      this.shape sameElements shape,
-      s"expected shape: ${TensorExtension.showShape(shape.toArray)}, " +
-        s"actual: ${TensorExtension.showShape(this.shape)}, node: $this"
-    )
-    this
-  }
+//  def withShape(shape: Int*): CompNode = {
+//    assert(
+//      this.shape == shape,
+//      s"expected shape: ${TensorExtension.showShape(shape)}, " +
+//        s"actual: $shape, node: $this"
+//    )
+//    this
+//  }
 }
 
 class ParamNode(v: Tensor, val path: SymbolPath) extends CompNode(ConstFunc(v)) {
 
   override def toString: String = {
-    s"param{$path, shape=${TensorExtension.showShape(value.shape)}"
+    s"param{$path, shape=${value.shape}"
   }
 }
 
@@ -86,7 +86,7 @@ object CompNode {
   }
 
   def backprop(node: CompNode): Map[CompNode, Gradient] = {
-    backprop(List(node), List(DenseGradient(ones(node.shape))))
+    backprop(List(node), List(DenseGradient(ones(node.value.shape))))
   }
 
   import collection.mutable
@@ -220,7 +220,7 @@ object CompNode {
   def backpropParallel(node: CompNode)(
     implicit ctx: ExecutionContext
   ): Future[Map[CompNode, Gradient]] = {
-    backpropParallel(List(node), List(DenseGradient(ones(node.shape))))
+    backpropParallel(List(node), List(DenseGradient(ones(node.value.shape))))
   }
 
   def defaultNodeName(n: CompNode): String = n match {

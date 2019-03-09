@@ -1,11 +1,12 @@
 package funcdiff
 
 import botkop.numsca
-import botkop.numsca.{NumscaRange, Tensor}
+import botkop.numsca.{NumscaRange, Tensor, Shape}
 import botkop.{numsca => ns}
 import org.nd4j.linalg.api.ops.impl.indexaccum.{IMax, IMin}
 import org.nd4j.linalg.factory.Nd4j
 import org.nd4j.linalg.ops.transforms.Transforms
+import Tensor.{Size}
 
 
 object TensorExtension {
@@ -36,20 +37,22 @@ object TensorExtension {
 
 
   /** calculates which axes have been broadcasted */
-  def broadcastAxes(oldShape: Array[Int], newShape: Array[Int]): Seq[Int] = {
-    for(i <- oldShape.indices;
-        l1 = oldShape(i);
-        l2 = newShape(i) if l1 != l2) yield {
+  def broadcastAxes(oldShape: Shape, newShape: Shape): Seq[Int] = {
+    val s1 = oldShape.sizes
+    val s2 = newShape.sizes
+    for(i <- s1.indices;
+        l1 = s1(i);
+        l2 = s2(i) if l1 != l2) yield {
       assert(l1 == 1, s"oldShape along axis $i is invalid! l1 = $l1, l2 = $l2")
       i
     }
   }
 
   /** calculates which axes are broadcasted when these two shapes are broadcasted to make equal */
-  def broadcastAxesWhenMerge(shape1: Array[Int], shape2: Array[Int]): (Seq[Int], Seq[Int]) = {
+  def broadcastAxesWhenMerge(shape1: Shape, shape2: Shape): (Seq[Int], Seq[Int]) = {
     require(shape1.length == shape2.length)
     var axes1, axes2 = List[Int]()
-    for(i <- shape1.indices;
+    for(i <- 0 until shape1.length;
         l1 = shape1(i);
         l2 = shape2(i)) yield {
       if(l1 < l2){
@@ -63,8 +66,8 @@ object TensorExtension {
     (axes1, axes2)
   }
 
-  def shapeConsistentWithRanges(shape: Array[Int], ranges: Seq[NumscaRange]): Boolean = {
-    shape.zip(ranges).forall{ case (s, range) =>
+  def shapeConsistentWithRanges(shape: Shape, ranges: Seq[NumscaRange]): Boolean = {
+    shape.ints.zip(ranges).forall{ case (s, range) =>
       range.to match {
         case Some(to) =>
           (to - range.from) == s
@@ -73,15 +76,15 @@ object TensorExtension {
     }
   }
 
-  def rangesToShape(totalShape: Array[Int], ranges: Seq[NumscaRange]): Array[Int] = {
-    ranges.zipWithIndex.map{ case(nr, i) =>
+  def rangesToShape(totalShape: Shape, ranges: Seq[NumscaRange]): Shape = {
+    Shape(ranges.zipWithIndex.map{ case(nr, i) =>
       val to = nr.to.getOrElse(totalShape(i))
       to - nr.from
-    }.toArray
+    }.toVector)
   }
 
   implicit class TensorWrapper(data: Tensor){
-    def unbroadcast(oldShape: Array[Int]): Tensor = {
+    def unbroadcast(oldShape: Shape): Tensor = {
       val axes = broadcastAxes(oldShape, data.shape)
       sumAlongAxes(axes)
     }
@@ -90,22 +93,22 @@ object TensorExtension {
       axes.foldLeft(data) { case (t, axis) => ns.sum(t, axis)}
     }
 
-    def broadcast(newShape: Array[Int]): Tensor = {
-      new Tensor(data.array.broadcast(newShape :_*))
+    def broadcast(newShape: Shape): Tensor = {
+      new Tensor(data.array.broadcast(newShape.sizes :_*))
     }
 
-    def splitAlongAxis(axis: Int, splitAt: Int): (Tensor, Tensor) = {
+    def splitAlongAxis(axis: Int, splitAt: Long): (Tensor, Tensor) = {
       import ns._
 
       require(axis >= 0 && axis < data.shape.length)
       require(splitAt > 0 && splitAt < data.shape(axis), s"split at $splitAt along axis $axis would create empty matrix from $data")
-      val left = data(data.shape.indices.map{ dim =>
+      val left = data(data.shape.sizes.indices.map{ dim =>
         if(dim == axis) 0 :> splitAt
         else :>
       } :_*)
 
-      val right = data(data.shape.indices.map{ dim =>
-        if(dim == axis) splitAt :> data.shape(dim)
+      val right = data(data.shape.sizes.indices.map{ dim =>
+        if(dim == axis) splitAt :> data.shape(dim).toInt
         else :>
       } :_*)
 
@@ -120,7 +123,7 @@ object TensorExtension {
 
     def requirePositive(info: String = "", tolerance: Double = zeroTolerance): Unit = {
       if(checkNaN) {
-        require(ns.sum(data > tolerance) == data.shape.product, s"Tensor contains negative element: $data. $info")
+        require(ns.sum(data > tolerance) == data.shape.sizes.product, s"Tensor contains negative element: $data. $info")
       }
     }
 
@@ -146,7 +149,7 @@ object TensorExtension {
 
   /** Generates a random point on the surface of an N-dimensional sphere.
     * @param resultDim the dimension N */
-  def randomUnitVec(resultDim: Int): Tensor = {
+  def randomUnitVec(resultDim: Size): Tensor = {
     val x = numsca.randn(resultDim)
     val n = normL2(x)
     if(n.squeeze() < TensorExtension.zeroTolerance){
@@ -173,8 +176,8 @@ object TensorExtension {
   def conv2D(x: Tensor, kernel: Tensor): Tensor = {
     import botkop.numsca._
 
-    val Array(h, w) = x.shape
-    val Array(kh, kw) = kernel.shape
+    val Vector(h, w) = x.shape.ints
+    val Vector(kh, kw) = kernel.shape.ints
     val rh = h - kh + 1
     val rw = w - kw + 1
     val data = new Array[Double](rh*rw)
@@ -196,7 +199,7 @@ object TensorExtension {
       })
     }
 
-    def offset(amount: Int): NumscaRange = {
+    def offset(amount: Long): NumscaRange = {
       NumscaRange(range.from + amount, range.to.map(_ + amount))
     }
 
@@ -207,9 +210,5 @@ object TensorExtension {
 
   def showRanges(ranges: Seq[NumscaRange]): String = {
     ranges.map(_.prettyPrint).mkString("[",",","]")
-  }
-
-  def showShape(shape: Array[Int]): String = {
-    shape.mkString("[",",","]")
   }
 }

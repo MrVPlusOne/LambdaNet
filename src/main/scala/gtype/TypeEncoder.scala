@@ -4,6 +4,7 @@ import funcdiff.API._
 import funcdiff._
 import botkop.numsca
 import botkop.numsca.Tensor
+import botkop.numsca.Tensor.Size
 import funcdiff.Optimizers.Adam
 import gtype.TypeAliasGraph._
 
@@ -33,9 +34,9 @@ object ArgsEncodingMethod extends Enumeration {
 
 @SerialVersionUID(0)
 case class EncoderParams(
-    labelDim: Int,
-    typeDim: Int,
-    fieldDim: Int,
+    labelDim: Size,
+    typeDim: Size,
+    fieldDim: Size,
     fieldCombineMethod: FieldCombineMethod.Value = FieldCombineMethod.Attention,
     argsEncodingMethod: ArgsEncodingMethod.Value = ArgsEncodingMethod.Separate,
     updateWithRNN: Boolean = false,

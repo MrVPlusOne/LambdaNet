@@ -3,13 +3,15 @@ package funcdiff
 import botkop.numsca.Tensor
 import botkop.{numsca => ns}
 import API._
+import botkop.numsca.Tensor.{Size}
+import ns.Shape
 import funcdiff.LayerFactory.WeightsInitializer
 import funcdiff.ParameterAttribute.NeedRegularization
 
 object LayerFactory {
-  type WeightsInitializer = (Int, Int) => Tensor
+  type WeightsInitializer = (Size, Size) => Tensor
 
-  def xavier(nIn: Int, nOut: Int): Tensor = {
+  def xavier(nIn: Size, nOut: Size): Tensor = {
     ns.randn(nIn, nOut) * math.sqrt(2.0 / (nIn + nOut))
   }
 }
@@ -33,7 +35,7 @@ case class LayerFactory(nameSpace: SymbolPath, params: ParamCollection) {
 
   def linear(
     name: SymbolPath,
-    nOut: Int,
+    nOut: Size,
     useBias: Boolean = true,
     initializer: WeightsInitializer = LayerFactory.xavier
   )(input: CompNode): CompNode = withPrefix(name) { prefix =>
@@ -176,7 +178,7 @@ case class LayerFactory(nameSpace: SymbolPath, params: ParamCollection) {
     */
   def bidirectionalGru(
     name: SymbolPath,
-    stateShape: Array[Int],
+    stateShape: Shape,
     combiner: (CompNode, CompNode) => CompNode
   )(inputs: IS[CompNode]): IS[CompNode] = withPrefix(name) { prefix =>
     val leftInit: CompNode = getVar(prefix / 'leftInit) {
@@ -206,7 +208,8 @@ case class LayerFactory(nameSpace: SymbolPath, params: ParamCollection) {
       val weightLogits = {
         val originalKeys = concatN(ys.map(_._1), axis = 0)
         val keys =
-          if (transformKey) linear(name / 'keyTransform2, keyDim, useBias = false)(originalKeys)
+          if (transformKey)
+            linear(name / 'keyTransform2, keyDim, useBias = false)(originalKeys)
           else originalKeys
         keys.dot(xKey.t).t
       }

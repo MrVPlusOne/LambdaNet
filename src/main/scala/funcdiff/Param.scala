@@ -2,7 +2,7 @@ package funcdiff
 
 import java.io._
 
-import botkop.numsca.Tensor
+import botkop.numsca.{Tensor, Shape}
 
 trait ParameterAttribute extends Serializable
 
@@ -16,7 +16,7 @@ class Param(var node: ParamNode, val attributes: Set[ParameterAttribute] = Set()
   def path: SymbolPath = node.path
 
   override def toString: String = {
-    s"Param($path, attributes=$attributes, valueShape=${TensorExtension.showShape(node.shape)})"
+    s"Param($path, attributes=$attributes, valueShape=${node.shape})"
   }
 }
 
@@ -57,12 +57,12 @@ object ParamCollection {
 
   def fromFile(file: File): ParamCollection = {
     val (paramMap, constMap) = readObjectFromFile[
-      (List[(SymbolPath, Map[String, Object])], List[(SymbolPath, (Array[Int], Array[Double]))])](file)
+      (List[(SymbolPath, Map[String, Object])], List[(SymbolPath, (Shape, Array[Double]))])](file)
 
     val pc = ParamCollection()
 
     paramMap.foreach{ case( path, param) =>
-      val shape = param("shape").asInstanceOf[Array[Int]]
+      val shape = param("shape").asInstanceOf[Shape]
       val data = param("data").asInstanceOf[Array[Double]]
       val attributes = param("attributes").asInstanceOf[List[ParameterAttribute]].toSet
       val p1 = param("path").asInstanceOf[SymbolPath]

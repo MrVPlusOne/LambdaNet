@@ -19,7 +19,7 @@ object DiffFunc {
 
   case class ConstFunc(value: Tensor) extends DiffFunc {
     def name: String = {
-      s"const{shape=${value.shape.mkString("[", ",", "]")}}"
+      s"const{shape=${value.shape}}"
     }
 
     def args: IS[CompNode] = IS()
@@ -163,8 +163,8 @@ object DiffFunc {
   }
 
   case class Slice(x1: CompNode, ranges: Seq[NumscaRange]) extends UnaryFunc {
-    require(x1.shape.zip(ranges).forall{case (s, r) => r.to.forall{_ <= s}},
-    s"slice out of range. x1 shape: ${showShape(x1.shape)}, ranges: ${showRanges(ranges)}")
+    require(x1.shape.sizes.zip(ranges).forall{case (s, r) => r.to.forall{_ <= s}},
+    s"slice out of range. x1 shape: ${x1.shape}, ranges: ${showRanges(ranges)}")
     val value = x1.value.apply(ranges :_*)
 
 
@@ -306,7 +306,7 @@ object DiffFunc {
 
 
     def backProp2(grad: Gradient): (Gradient, Gradient) = {
-      grad.splitAlongAxis(axis, x1.shape(axis))
+      grad.splitAlongAxis(axis, x1.shape(axis).toInt)
     }
 
     def name: String = s"concat{axis=$axis}"
@@ -361,10 +361,10 @@ object DiffFunc {
         case _ => grad
       }
 
-      val ranges = value.shape.toVector.map{ size => 0 until size }
+      val ranges = value.shape.ints.map{ size => 0 until size }
       var idx = 0
       val subRegions = args.map{ arg =>
-        val s = arg.shape(axis)
+        val s = arg.shape(axis).toInt
         idx += s
         ranges.updated(axis, (idx - s) until idx)
       }
@@ -375,7 +375,7 @@ object DiffFunc {
 
   // ================ Loss functions ======================
   case class CrossEntropyOnSoftmax(logits: CompNode, targets: CompNode) extends UnaryFunc {
-    require(targets.shape sameElements logits.shape, "Targets have different shape than logits.")
+    require(targets.shape == logits.shape, "Targets have different shape than logits.")
     require(logits.shape.length == 2, "Logits should be of rank 2.")
 
     def x1: CompNode = logits

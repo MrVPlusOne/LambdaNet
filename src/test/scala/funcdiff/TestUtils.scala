@@ -89,9 +89,9 @@ trait TestUtils extends FlatSpec with Matchers with LazyLogging {
     println(s"[$name]: out = $out")
 
     val zeroGrad = ZeroGradient(out.shape)
-    val denseGrad = DenseGradient(ns.abs(ns.randn(out.shape: _*)))
+    val denseGrad = DenseGradient(ns.abs(ns.randn(out.shape)))
     val inflatedGrad = {
-      val ranges = out.shape.map{ size =>
+      val ranges = out.shape.ints.map{ size =>
         val l = rand.nextInt(size)
         val r = rand.nextInt(size)
         NumscaRange(l, Some(math.max(r, size)))
@@ -143,7 +143,7 @@ trait TestUtils extends FlatSpec with Matchers with LazyLogging {
     val out = f(pc)
     println(s"Test Layer: $name")
 
-    val dOut = DenseGradient(ns.ones(out.shape :_*))
+    val dOut = DenseGradient(ns.ones(out.shape))
     val gradients = out.backpropForParams(None)
 
     pc.allParams.foreach{ p =>

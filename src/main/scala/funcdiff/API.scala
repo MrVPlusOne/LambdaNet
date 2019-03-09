@@ -138,17 +138,12 @@ object API {
   def :> = NumscaRange(0, None)
 
   /** convenient import for NumscaRange */
-  implicit class NumscaInt(i: Int) {
-    def :>(end: Int) = NumscaRange(i, Some(end))
+  implicit class NumscaInt(i: Long) {
+    def :>(end: Long) = NumscaRange(i, Some(end))
     def :> = NumscaRange(i, None)
   }
 
-  def printShape(withShape: {def shape: Array[Int]}, name: String): Unit = {
-    val shapeString = TensorExtension.showShape(withShape.shape)
-    println(s"$name shape: $shapeString")
-  }
-
-  def showShape(shape: Array[Int]): String = {
-    TensorExtension.showShape(shape)
+  def printShape(withShape: {def shape: Shape}, name: String): Unit = {
+    println(s"$name shape: ${withShape.shape}")
   }
 }

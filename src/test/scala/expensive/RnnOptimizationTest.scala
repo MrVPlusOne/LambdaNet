@@ -2,7 +2,7 @@ package expensive
 
 import funcdiff._
 import botkop.numsca
-import botkop.numsca.Tensor
+import botkop.numsca.{Shape, Tensor}
 import botkop.{numsca => ns}
 import funcdiff.Optimizers.{Adam, SGD}
 import API._
@@ -149,7 +149,7 @@ class RnnOptimizationTest extends TestUtils {
     val errors = for (i <- 0 until 100) yield {
       val outputs = factory.bidirectionalGru(
         'TestBiGRU,
-        Array(1, nState),
+        Shape.make(1, nState),
         combiner = (l, r) => factory.linear('Output, 1)(l.concat(r, axis = 1))
       )(inputs)
 

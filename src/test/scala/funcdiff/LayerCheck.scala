@@ -2,6 +2,7 @@ package funcdiff
 
 import botkop.numsca
 import API._
+import botkop.numsca.Shape
 
 
 class LayerCheck extends TestUtils {
@@ -16,7 +17,7 @@ class LayerCheck extends TestUtils {
 
     val nOut = 10
     val y = linear('linear1, nOut)(input)
-    y.shape shouldBe List(nInput, nOut)
+    y.shape shouldBe Shape.make(nInput, nOut)
 
     println(collection.paramMap)
   }

@@ -11,7 +11,7 @@ import scala.concurrent.{Await, ExecutionContext, Future}
   * The gradient of a scalar w.r.t a tensor
   */
 sealed trait Gradient{
-  def shape: Array[Int]
+  def shape(): Shape
 
   def unary_- : Gradient
 
@@ -33,14 +33,14 @@ sealed trait Gradient{
     this * (1.0/d)
   }
 
-  def unbroadcast(oldShape: Array[Int]): Gradient
+  def unbroadcast(oldShape: Shape): Gradient
 
-  def broadcast(newShape: Array[Int]): Gradient
+  def broadcast(newShape: Shape): Gradient
 
   def addToTensor(tensor: Tensor): Unit
 
   /** Create a sparse gradient tensor whose only non-empty part is this tensor */
-  def putInRanges(ranges: Seq[NumscaRange], shape: Array[Int]): Gradient
+  def putInRanges(ranges: Seq[NumscaRange], shape: Shape): Gradient
 
   /** split gradient tensor along an axis into two */
   def splitAlongAxis(axis: Int, splitAt: Int): (Gradient, Gradient)
@@ -63,16 +63,16 @@ sealed trait Gradient{
 }
 
 object Gradient{
-  def transposeShape(shape: Array[Int]): Array[Int] = {
+  def transposeShape(shape: Shape): Shape = {
     require(shape.length == 2)
-    Array(shape(1), shape(0))
+    Shape(Vector(shape(1), shape(0)))
   }
 }
 
 /**
   * Useful when the target scalar does not depend on the variable
   */
-case class ZeroGradient(shape: Array[Int]) extends Gradient {
+case class ZeroGradient(shape: Shape) extends Gradient {
 
   override def isZero: Boolean = true
 
@@ -84,9 +84,9 @@ case class ZeroGradient(shape: Array[Int]) extends Gradient {
 
   def *(d: Real): Gradient = this
 
-  def unbroadcast(oldShape: Array[Int]): Gradient = ZeroGradient(oldShape)
+  def unbroadcast(oldShape: Shape): Gradient = ZeroGradient(oldShape)
 
-  def broadcast(newShape: Array[Int]): Gradient = ZeroGradient(newShape)
+  def broadcast(newShape: Shape): Gradient = ZeroGradient(newShape)
 
   def addToTensor(tensor: Tensor): Unit = ()
 
@@ -99,19 +99,19 @@ case class ZeroGradient(shape: Array[Int]) extends Gradient {
       ZeroGradient(shape.updated(axis, shape(axis) - splitAt)))
   }
 
-  def putInRanges(ranges: Seq[NumscaRange], shape: Array[Int]): Gradient = ZeroGradient(shape)
+  def putInRanges(ranges: Seq[NumscaRange], shape: Shape): Gradient = ZeroGradient(shape)
 
   def transpose: Gradient = ZeroGradient(Gradient.transposeShape(shape))
 
   def clip(min: Real, max: Real): Gradient = this
 
   def subGradient(subRegion: Seq[Range]): Gradient = {
-    ZeroGradient(subRegion.map{r => r.end - r.start}.toArray)
+    ZeroGradient(Shape(subRegion.map{r => (r.end - r.start).toLong}.toVector))
   }
 }
 
 case class DenseGradient(value: Tensor) extends Gradient {
-  def shape: Array[Int] = value.shape
+  def shape(): Shape = value.shape
 
   def unary_- : Gradient = DenseGradient(-value)
 
@@ -119,9 +119,9 @@ case class DenseGradient(value: Tensor) extends Gradient {
 
   def *(d: Real): Gradient = DenseGradient(value * d)
 
-  def unbroadcast(oldShape: Array[Int]): Gradient = DenseGradient(value.unbroadcast(oldShape))
+  def unbroadcast(oldShape: Shape): Gradient = DenseGradient(value.unbroadcast(oldShape))
 
-  def broadcast(newShape: Array[Int]): Gradient = DenseGradient(value.broadcast(newShape))
+  def broadcast(newShape: Shape): Gradient = DenseGradient(value.broadcast(newShape))
 
   def addToTensor(tensor: Tensor): Unit = tensor += value
 
@@ -138,7 +138,7 @@ case class DenseGradient(value: Tensor) extends Gradient {
     DenseGradient(g1) -> DenseGradient(g2)
   }
 
-  def putInRanges(ranges: Seq[NumscaRange], shape: Array[Int]): Gradient = {
+  def putInRanges(ranges: Seq[NumscaRange], shape: Shape): Gradient = {
     InflatedGradient(value, ranges.toList, shape)
   }
 
@@ -160,12 +160,12 @@ case class DenseGradient(value: Tensor) extends Gradient {
 /**
   * A sparse gradient tensor with only one non-empty core
   */
-case class InflatedGradient(core: Tensor, ranges: List[NumscaRange], shape: Array[Int]) extends Gradient {
+case class InflatedGradient(core: Tensor, ranges: List[NumscaRange], shape: Shape) extends Gradient {
   require(TensorExtension.shapeConsistentWithRanges(core.shape, ranges),
-    s"core shape: ${showShape(core.shape)}, ranges: ${TensorExtension.showRanges(ranges)}")
+    s"core shape: ${core.shape}, ranges: ${TensorExtension.showRanges(ranges)}")
 
   override def toString: String = {
-    s"InflatedGradient($core, ${ranges.map(_.prettyPrint).mkString("[",",","]")}, shape=${shape.mkString("{",",","}")})"
+    s"InflatedGradient($core, ${ranges.map(_.prettyPrint).mkString("[",",","]")}, shape=$shape)"
   }
 
   def deepCopy: Gradient = this.copy(core=core.copy())
@@ -184,7 +184,7 @@ case class InflatedGradient(core: Tensor, ranges: List[NumscaRange], shape: Arra
     val (axes1, axes2) = TensorExtension.broadcastAxesWhenMerge(shape, t.shape)
     val tRanges = ranges.toArray
     val coreRanges = ranges.toArray
-    val newShape = shape.clone()
+    val newShape = shape.sizes.toArray
 
     axes1.foreach{ axis =>
       newShape(axis) = t.shape(axis)
@@ -195,7 +195,7 @@ case class InflatedGradient(core: Tensor, ranges: List[NumscaRange], shape: Arra
       tRanges(axis) = 0 :> 1
     }
 
-    InflatedGradient(core = op(core, t(tRanges :_*)), coreRanges.toList, newShape)
+    InflatedGradient(core = op(core, t(tRanges :_*)), coreRanges.toList, Shape(newShape.toVector))
   }
 
   def *(t: Tensor): Gradient = {
@@ -206,21 +206,21 @@ case class InflatedGradient(core: Tensor, ranges: List[NumscaRange], shape: Arra
     transformCore(t, _ / _)
   }
 
-  def unbroadcast(oldShape: Array[Int]): Gradient = {
+  def unbroadcast(oldShape: Shape): Gradient = {
     val axes = TensorExtension.broadcastAxes(oldShape, shape)
     val newRanges = axes.foldLeft(ranges){ (rs, axis) => rs.updated(axis, 0:>1)}
     InflatedGradient(core.sumAlongAxes(axes), newRanges, oldShape)
   }
 
-  def broadcast(newShape: Array[Int]): Gradient = {
+  def broadcast(newShape: Shape): Gradient = {
     val axes = TensorExtension.broadcastAxes(shape, newShape)
     val newRanges = axes.foldLeft(ranges){ (rs, axis) => rs.updated(axis, :>)}
     val newCoreShape = {
-      val s = core.shape.clone()
+      val s = core.shape.sizes.toArray
       axes.foreach{ axis =>
         s(axis) = newShape(axis)
       }
-      s
+      Shape(s.toVector)
     }
 
     InflatedGradient(core.broadcast(newCoreShape), newRanges, newShape)
@@ -230,7 +230,7 @@ case class InflatedGradient(core: Tensor, ranges: List[NumscaRange], shape: Arra
     tensor(ranges :_*) += core
   }
 
-  def putInRanges(newRanges: Seq[NumscaRange], newShape: Array[Int]): Gradient = {
+  def putInRanges(newRanges: Seq[NumscaRange], newShape: Shape): Gradient = {
     val offsetRanges = ranges.zip(newRanges).map{ case (r, newR) =>
         r.offset(newR.from)
     }
@@ -323,7 +323,7 @@ object ParallelGradBuilder{
 }
 
 /** Mutable buffer used to accumulate gradients using delayed parallel summation */
-class ParallelGradBuilder(shape: Array[Int]){
+class ParallelGradBuilder(shape: Shape) {
   import collection.mutable
   private val grads = mutable.ListBuffer[Gradient]()
   private var value: Option[Future[Gradient]] = None

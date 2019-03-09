@@ -179,7 +179,7 @@ class GradientMatrixTest extends TestUtils {
     }, IS(a, b), s"Concat case")
   }
 
-  val unaryTestInputShape = Seq(4, 6)
+  val unaryTestInputShape = Seq(4L, 6L)
 
   val unaryOps = {
     val t = ns.softmax(ns.randn(unaryTestInputShape: _*))
