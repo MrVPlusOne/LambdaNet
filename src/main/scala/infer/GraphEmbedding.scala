@@ -9,6 +9,7 @@ import infer.IR.{IRType, IRTypeId}
 import infer.PredicateGraph._
 
 import scala.collection.mutable
+import scala.collection.parallel.ForkJoinTaskSupport
 
 object GraphEmbedding {
 
@@ -58,7 +59,7 @@ case class GraphEmbedding(
   ctx: EmbeddingCtx,
   layerFactory: LayerFactory,
   dimMessage: Int,
-  forwardInParallel: Boolean
+  taskSupport: Option[ForkJoinTaskSupport]
 ) {
   import ctx._
   import layerFactory._
@@ -77,24 +78,19 @@ case class GraphEmbedding(
     placesToDecode: IS[IRTypeId],
     iterateLogger: IS[Embedding] => Unit = _ => ()
   ): CompNode = {
-    import SimpleMath.measureTimeAsSeconds
-    val (embeddings, iterTime) = measureTimeAsSeconds {
+    val embeddings = DebugTime.logTime('iterTime){
       val stat = EmbeddingStat(idTypeMap.mapValuesNow(_ => 1.0).values.toVector)
       val init = Embedding(idTypeMap.mapValuesNow(_ => nodeInitVec), stat)
       IS.iterate(init, iterations)(iterate)
     }
 
-    val (_, loggingTime) = measureTimeAsSeconds {
+    DebugTime.logTime('loggingTime) {
       iterateLogger(embeddings)
     }
-    val (result, decodingTime) = measureTimeAsSeconds {
+    val result = DebugTime.logTime('decodingTime) {
       decode(decodingCtx, placesToDecode, embeddings.last)
     }
 
-    println(
-      "iter time: %.3fs, loggingTime: %.3fs, decodingTime: %.3fs"
-        .format(iterTime, loggingTime, decodingTime)
-    )
     result
   }
 
@@ -311,10 +307,10 @@ case class GraphEmbedding(
         }
     }
 
-    ctx.predicates.par.foreach(sendPredicateMessages)
+    par(ctx.predicates).foreach(sendPredicateMessages)
 
     val outLengths = mutable.ListBuffer[Double]()
-    val newNodeMap = _messages.keys.par
+    val newNodeMap = par(_messages.keys.toSeq)
       .map { id =>
         val node = nodeMap(id)
 //        val nodePair = messageModel('MessageAggregate / 'nodeMessage, nodeMap(id))
@@ -349,7 +345,7 @@ case class GraphEmbedding(
     val concretes = decodingCtx.concreteTypes.map(encodeGType)
 
     val certainty = getVar(Symbol("decode:certainty"))(Tensor(6.0))
-    val logits = for (head <- (0 until attentionHeads).par) yield {
+    val logits = for (head <- par(0 until attentionHeads)) yield {
       val shrinkFactor = 2
       def mlp(rows: IS[CompNode], layerName: String, layers: Int): CompNode = {
         var input = concatN(rows, axis = 0)
@@ -419,5 +415,14 @@ case class GraphEmbedding(
         rec(t)
       }
     )
+
+  def par[T](xs: Seq[T]) = {
+    taskSupport match {
+      case None => xs
+      case Some(ts) => val r = xs.par
+        r.tasksupport = ts
+        r
+    }
+  }
 
 }

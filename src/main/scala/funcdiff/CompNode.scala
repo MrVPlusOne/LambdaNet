@@ -3,6 +3,7 @@ package funcdiff
 import botkop.numsca._
 import funcdiff.DiffFunc.ConstFunc
 import SimpleMath.Extensions._
+
 import concurrent._
 
 class CompNode(val func: DiffFunc) {
@@ -112,8 +113,11 @@ object CompNode {
     * Returns a reverse-topologically sorted list of the nodes. The first element corresponds
     * to the first node we should perform backprop on.
     */
-  def topologicalSort(nodes: List[CompNode]): List[CompNode] = {
-    val nodeCounters = countChildren(nodes)
+  def topologicalSort(
+    nodes: List[CompNode],
+    childNumbers: Option[mutable.Map[CompNode, Int]] = None
+  ): List[CompNode] = {
+    val nodeCounters = childNumbers.getOrElse(countChildren(nodes))
 
     def rec(sorted: List[CompNode], left: List[CompNode]): List[CompNode] = {
       left match {
@@ -146,27 +150,53 @@ object CompNode {
 
     val childrenNumber = countChildren(nodes)
 
-    val gradients = mutable.HashMap(topologicalSort(nodes).map { n =>
-      n -> new ParallelGradBuilder(n.shape)
-    }: _*)
-    nodes.zip(grads).foreach {case (n, g) => gradients(n).add(g)}
+    class Counter(var i: Int)
+    val childrenCounter = childrenNumber.map{ case (n, i) => n -> new Counter(i)}
 
+    class GradientHolder(val builder: GradientBuilder) {
+      var currentTask: Future[Unit] = Future.successful()
+      def add(g: Gradient): Future[Unit] = synchronized {
+        val fut = currentTask.map { _ =>
+          builder.add(g)
+        }
+        currentTask = fut
+        fut
+      }
+
+      def get: Future[Gradient] = {
+        currentTask.map { _ =>
+          builder.retrieve
+        }
+      }
+    }
+
+    val gradients = DebugTime.logTime('gradsInit) {
+      mutable.HashMap(topologicalSort(nodes, Some(childrenNumber)).map { n =>
+        n -> new GradientHolder(
+          new GradientBuilder(ZeroGradient(n.shape), needCopy = false)
+        )
+      }: _*)
+    }
+    nodes.zip(grads).foreach { case (n, g) => gradients(n).builder.add(g) }
 
     def rec(node: CompNode): Future[Unit] = {
-      val cn = childrenNumber.synchronized {
-        childrenNumber(node) -= 1
-        childrenNumber(node)
+      val cn = {
+        val c = childrenCounter(node)
+        c.synchronized {
+          c.i -= 1
+          c.i
+        }
       }
 
       if (cn > 0) return Future.successful(())
       gradients.get(node) match {
         case None => Future.successful(Unit)
-        case Some(gBuilder) =>
-          gBuilder.retrieve.map(node.func.backProp).flatMap { argGradients =>
+        case Some(holder) =>
+          holder.get.map(node.func.backProp).flatMap { argGradients =>
             val futs = for {
               (arg, grad) <- node.func.args.zip(argGradients) if !grad.isZero
             } yield {
-              Future(gradients(arg).add(grad)).flatMap(_ => rec(arg))
+              gradients(arg).add(grad).map(_ => rec(arg))
             }
             Future.sequence(futs).map(_ => ())
           }
@@ -174,11 +204,16 @@ object CompNode {
     }
 
     Future.traverse(nodes)(rec).flatMap { _ =>
-      Future.sequence(gradients.toList.map{
-        case (k, gB) => gB.retrieve.map{g => k -> g}
-      }).map{ pairs =>
-        pairs.filter(_._2.nonZero).toMap
-      }
+      Future
+        .sequence(gradients.toSeq.map {
+          case (k, gB) =>
+            gB.get.map { g =>
+              k -> g
+            }
+        })
+        .map { pairs =>
+          pairs.filter(_._2.nonZero).toMap
+        }
     }
   }
 
@@ -190,12 +225,14 @@ object CompNode {
 
   def defaultNodeName(n: CompNode): String = n match {
     case p: ParamNode => SimpleMath.wrapInQuotes(p.path.toString)
-    case _ => SimpleMath.wrapInQuotes(n.func.name)
+    case _            => SimpleMath.wrapInQuotes(n.func.name)
   }
 
-  def visualize(node: CompNode,
-                nodeInfo: CompNode => String = n => SimpleMath.wrapInQuotes(n.func.name),
-                nodeName: CompNode => String = defaultNodeName): String = {
+  def visualize(
+    node: CompNode,
+    nodeInfo: CompNode => String = n => SimpleMath.wrapInQuotes(n.func.name),
+    nodeName: CompNode => String = defaultNodeName
+  ): String = {
     var id = 0
     val idMap = mutable.HashMap[CompNode, Int]()
     val connectivity = mutable.HashMap[Int, Int]()
@@ -207,17 +244,16 @@ object CompNode {
       id += 1
       idMap(n) = thisId
       nodeMessages += s"Labeled[$id, Tooltip[${nodeName(n)}, ${nodeInfo(n)}]]"
-      for( a <- n.func.args){
-        if(!idMap.contains(a))
+      for (a <- n.func.args) {
+        if (!idMap.contains(a))
           rec(a)
         connectivity(idMap(a)) = thisId
       }
     }
     rec(node)
 
-    val edgePart = connectivity.map{case(a,b) => s"$a->$b"}.mkString("{",",","}")
-    s"""Graph[${nodeMessages.mkString("{",",","}")},$edgePart,GraphLayout -> "LayeredDigraphEmbedding"]"""
+    val edgePart = connectivity.map { case (a, b) => s"$a->$b" }.mkString("{", ",", "}")
+    s"""Graph[${nodeMessages.mkString("{", ",", "}")},$edgePart,GraphLayout -> "LayeredDigraphEmbedding"]"""
   }
-
 
 }

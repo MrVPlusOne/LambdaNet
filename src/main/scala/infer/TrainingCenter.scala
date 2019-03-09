@@ -1,5 +1,7 @@
 package infer
 
+import java.util.concurrent.ForkJoinPool
+
 import botkop.numsca
 import botkop.numsca.Tensor
 import funcdiff.API._
@@ -11,7 +13,9 @@ import gtype._
 import infer.GraphEmbedding.DecodingCtx
 import infer.IRTranslation.TranslationEnv
 import infer.PredicateGraph._
+
 import scala.collection.mutable
+import scala.collection.parallel.ForkJoinTaskSupport
 
 object TrainingCenter {
 
@@ -80,7 +84,7 @@ object TrainingCenter {
         configs = Seq(
 //          "embedding-magnitudes" -> PlotConfig("ImageSize->Medium"),
           "embedding-changes" -> PlotConfig("ImageSize->Medium"),
-          "embedding-min-length" -> PlotConfig("ImageSize->Medium"),
+          "embedding-max-length" -> PlotConfig("ImageSize->Medium"),
           "certainty" -> PlotConfig("ImageSize->Medium"),
           "iteration-time" -> PlotConfig(
             "ImageSize->Medium",
@@ -97,7 +101,11 @@ object TrainingCenter {
 
     val optimizer = Optimizers.Adam(learningRate = 4e-4)
 
-    val parallelCtx = concurrent.ExecutionContext.global
+    val numOfThreads = Runtime.getRuntime.availableProcessors()
+    val taskSupport = new ForkJoinTaskSupport(new ForkJoinPool(numOfThreads))
+    val parallelCtx =
+      concurrent.ExecutionContext.fromExecutorService(new ForkJoinPool(numOfThreads))
+
     // training loop
     for (step <- 0 until 1000) {
       val startTime = System.currentTimeMillis()
@@ -159,11 +167,11 @@ object TrainingCenter {
           .seq
         eventLogger.log("embedding-changes", step, Tensor(diffs: _*))
 
-        val maxEmbeddingLength = embeddings.map{_.stat.trueEmbeddingLengths.max}.max
+        val maxEmbeddingLength = embeddings.map { _.stat.trueEmbeddingLengths.max }.max
         eventLogger.log("embedding-max-length", step, Tensor(maxEmbeddingLength))
       }
       val logits =
-        GraphEmbedding(embedCtx, factory, dimMessage, forwardInParallel = true)
+        GraphEmbedding(embedCtx, factory, dimMessage, Some(taskSupport))
           .encodeAndDecode(
             iterations = 10,
             decodingCtx,
@@ -189,10 +197,11 @@ object TrainingCenter {
       }
       eventLogger.log("loss", step, loss.value)
 
-      val (_, optimizeTime) = SimpleMath.measureTimeAsSeconds {
+      DebugTime.logTime('optimization) {
         optimizer.minimize(loss, params.allParams, backPropInParallel = Some(parallelCtx))
       }
-      println("optimization time: %.3fs".format(optimizeTime))
+
+      println(DebugTime.show)
 
       eventLogger.log(
         "iteration-time",

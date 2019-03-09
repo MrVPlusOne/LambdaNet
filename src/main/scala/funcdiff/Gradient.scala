@@ -309,6 +309,7 @@ class GradientBuilder (private var value: Gradient, private var needCopy: Boolea
             add(grad)
         }
     }
+    this
   }
 
   def retrieve: Gradient = {
@@ -317,6 +318,9 @@ class GradientBuilder (private var value: Gradient, private var needCopy: Boolea
   }
 }
 
+object ParallelGradBuilder{
+
+}
 
 /** Mutable buffer used to accumulate gradients using delayed parallel summation */
 class ParallelGradBuilder(shape: Array[Int]){

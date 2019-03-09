@@ -528,6 +528,34 @@ object SimpleMath {
     (r, long.toDouble / 1e6)
   }
 
+  def prettyPrintTime(inNano: Long): String = {
+    val (amount, unit) = if(inNano > 1e9) (inNano / 1e9, "s")
+    else if(inNano > 1e6) (inNano / 1e6, "ms")
+    else if (inNano > 1e3) (inNano / 1e3, "µs")
+    else (inNano.toDouble, "ns")
+
+    "%.3f".format(amount) + unit
+  }
+
+  class TimeLogger(){
+    val stat = mutable.HashMap[Symbol, Long]()
+
+    def logTime[T](name: Symbol)(e: => T): T = {
+      val (r, time) = measureTime(e)
+      stat synchronized{
+        val t0 = stat.getOrElse(name, 0L)
+        stat(name) = t0 + time
+      }
+      r
+    }
+
+    def show: String = {
+      stat.toSeq.sortBy(_._2).reverse.map{ case (name, time) =>
+        s"${name.name}: ${prettyPrintTime(time)}"
+      }.mkString("\n")
+    }
+  }
+
   def addMessagesForExceptions[T](msg: String)(computation: => T): T ={
     try{
       computation
