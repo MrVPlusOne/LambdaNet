@@ -20,7 +20,5 @@ libraryDependencies ++= Seq(
   //  "be.botkop" %% "numsca" % "0.1.4",
   // for building numsca
   "org.nd4j" % "nd4j-native-platform" % "1.0.0-beta3",
-//  "org.nd4j" % "nd4j-cuda-10.0" % "1.0.0-beta3",
-  
   "com.typesafe.scala-logging" %% "scala-logging" % "3.7.2",
 )

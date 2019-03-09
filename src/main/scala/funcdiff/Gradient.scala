@@ -10,7 +10,7 @@ import scala.concurrent.{Await, ExecutionContext, Future}
 /**
   * The gradient of a scalar w.r.t a tensor
   */
-sealed trait Gradient {
+sealed trait Gradient{
   def shape(): Shape
 
   def unary_- : Gradient
@@ -22,15 +22,15 @@ sealed trait Gradient {
 
   def deepCopy: Gradient
 
-  def *(d: Real): Gradient
+  def * (d: Real): Gradient
 
-  def *(t: Tensor): Gradient
+  def * (t: Tensor): Gradient
 
-  def /(t: Tensor): Gradient
+  def / (t: Tensor): Gradient
 
-  def /(d: Real): Gradient = {
+  def / (d: Real): Gradient = {
     require(math.abs(d) > TensorExtension.zeroTolerance)
-    this * (1.0 / d)
+    this * (1.0/d)
   }
 
   def unbroadcast(oldShape: Shape): Gradient
@@ -62,7 +62,7 @@ sealed trait Gradient {
   def clip(min: Real, max: Real): Gradient
 }
 
-object Gradient {
+object Gradient{
   def transposeShape(shape: Shape): Shape = {
     require(shape.rank == 2)
     Shape(Vector(shape(1), shape(0)))
@@ -95,10 +95,8 @@ case class ZeroGradient(shape: Shape) extends Gradient {
   def *(t: Tensor): Gradient = this
 
   def splitAlongAxis(axis: Int, splitAt: Int): (Gradient, Gradient) = {
-    (
-      ZeroGradient(shape.updated(axis, splitAt)),
-      ZeroGradient(shape.updated(axis, shape(axis) - splitAt))
-    )
+    (ZeroGradient(shape.updated(axis, splitAt)),
+      ZeroGradient(shape.updated(axis, shape(axis) - splitAt)))
   }
 
   def putInRanges(ranges: Seq[NumscaRange], shape: Shape): Gradient = ZeroGradient(shape)
@@ -108,9 +106,7 @@ case class ZeroGradient(shape: Shape) extends Gradient {
   def clip(min: Real, max: Real): Gradient = this
 
   def subGradient(subRegion: Seq[Range]): Gradient = {
-    ZeroGradient(Shape(subRegion.map { r =>
-      (r.end - r.start).toLong
-    }.toVector))
+    ZeroGradient(Shape(subRegion.map{r => (r.end - r.start).toLong}.toVector))
   }
 }
 
@@ -130,7 +126,7 @@ case class DenseGradient(value: Tensor) extends Gradient {
   def addToTensor(tensor: Tensor): Unit = tensor += value
 
   def /(t: Tensor): Gradient = {
-    if (TensorExtension.checkNaN)
+    if(TensorExtension.checkNaN)
       t.requireNonZero()
     DenseGradient(value / t)
   }
@@ -155,9 +151,7 @@ case class DenseGradient(value: Tensor) extends Gradient {
   }
 
   def subGradient(subRegion: Seq[Range]): Gradient = {
-    val ranges = subRegion.map { r =>
-      r.start :> r.end
-    }
+    val ranges = subRegion.map{ r => r.start :> r.end}
     DenseGradient(value(ranges: _*))
   }
 
@@ -166,22 +160,19 @@ case class DenseGradient(value: Tensor) extends Gradient {
 /**
   * A sparse gradient tensor with only one non-empty core
   */
-case class InflatedGradient(core: Tensor, ranges: List[NumscaRange], shape: Shape)
-    extends Gradient {
-  require(
-    TensorExtension.shapeConsistentWithRanges(core.shape, ranges),
-    s"core shape: ${core.shape}, ranges: ${TensorExtension.showRanges(ranges)}"
-  )
+case class InflatedGradient(core: Tensor, ranges: List[NumscaRange], shape: Shape) extends Gradient {
+  require(TensorExtension.shapeConsistentWithRanges(core.shape, ranges),
+    s"core shape: ${core.shape}, ranges: ${TensorExtension.showRanges(ranges)}")
 
   override def toString: String = {
-    s"InflatedGradient($core, ${ranges.map(_.prettyPrint).mkString("[", ",", "]")}, shape=$shape)"
+    s"InflatedGradient($core, ${ranges.map(_.prettyPrint).mkString("[",",","]")}, shape=$shape)"
   }
 
-  def deepCopy: Gradient = this.copy(core = core.copy())
+  def deepCopy: Gradient = this.copy(core=core.copy())
 
   def toDense: DenseGradient = {
     val t = numsca.zeros(shape)
-    t(ranges: _*) += core
+    t(ranges :_*) += core
     DenseGradient(t)
   }
 
@@ -195,20 +186,16 @@ case class InflatedGradient(core: Tensor, ranges: List[NumscaRange], shape: Shap
     val coreRanges = ranges.toArray
     val newShape = shape.sizes.toArray
 
-    axes1.foreach { axis =>
+    axes1.foreach{ axis =>
       newShape(axis) = t.shape(axis)
       tRanges(axis) = :>
       coreRanges(axis) = :>
     }
-    axes2.foreach { axis =>
+    axes2.foreach{ axis =>
       tRanges(axis) = 0 :> 1
     }
 
-    InflatedGradient(
-      core = op(core, t(tRanges: _*)),
-      coreRanges.toList,
-      Shape(newShape.toVector)
-    )
+    InflatedGradient(core = op(core, t(tRanges :_*)), coreRanges.toList, Shape(newShape.toVector))
   }
 
   def *(t: Tensor): Gradient = {
@@ -221,20 +208,16 @@ case class InflatedGradient(core: Tensor, ranges: List[NumscaRange], shape: Shap
 
   def unbroadcast(oldShape: Shape): Gradient = {
     val axes = TensorExtension.broadcastAxes(oldShape, shape)
-    val newRanges = axes.foldLeft(ranges) { (rs, axis) =>
-      rs.updated(axis, 0 :> 1)
-    }
+    val newRanges = axes.foldLeft(ranges){ (rs, axis) => rs.updated(axis, 0:>1)}
     InflatedGradient(core.sumAlongAxes(axes), newRanges, oldShape)
   }
 
   def broadcast(newShape: Shape): Gradient = {
     val axes = TensorExtension.broadcastAxes(shape, newShape)
-    val newRanges = axes.foldLeft(ranges) { (rs, axis) =>
-      rs.updated(axis, :>)
-    }
+    val newRanges = axes.foldLeft(ranges){ (rs, axis) => rs.updated(axis, :>)}
     val newCoreShape = {
       val s = core.shape.sizes.toArray
-      axes.foreach { axis =>
+      axes.foreach{ axis =>
         s(axis) = newShape(axis)
       }
       Shape(s.toVector)
@@ -244,12 +227,11 @@ case class InflatedGradient(core: Tensor, ranges: List[NumscaRange], shape: Shap
   }
 
   def addToTensor(tensor: Tensor): Unit = {
-    tensor(ranges: _*) += core
+    tensor(ranges :_*) += core
   }
 
   def putInRanges(newRanges: Seq[NumscaRange], newShape: Shape): Gradient = {
-    val offsetRanges = ranges.zip(newRanges).map {
-      case (r, newR) =>
+    val offsetRanges = ranges.zip(newRanges).map{ case (r, newR) =>
         r.offset(newR.from)
     }
     InflatedGradient(core, offsetRanges, newShape)
@@ -260,13 +242,13 @@ case class InflatedGradient(core: Tensor, ranges: List[NumscaRange], shape: Shap
 
     val lShape = shape.updated(axis, splitAt)
     val rShape = shape.updated(axis, shape(axis) - splitAt)
-    if (range.from < splitAt && splitAt < range.to.getOrElse(shape(axis))) {
+    if(range.from < splitAt && splitAt < range.to.getOrElse(shape(axis))){
       val (l, r) = core.splitAlongAxis(axis, splitAt - range.from)
       val lRange = ranges.updated(axis, range.from :> splitAt)
-      val rRange = ranges.updated(axis, NumscaRange(0, range.to.map { _ - splitAt }))
+      val rRange = ranges.updated(axis, NumscaRange(0, range.to.map{_  - splitAt}))
       InflatedGradient(l, lRange, lShape) -> InflatedGradient(r, rRange, rShape)
     } else {
-      if (range.from >= splitAt) {
+      if(range.from >= splitAt) {
         val rRange = ranges.updated(axis, range.offset(-splitAt))
         ZeroGradient(lShape) -> InflatedGradient(core, rRange, rShape)
       } else {
@@ -276,11 +258,7 @@ case class InflatedGradient(core: Tensor, ranges: List[NumscaRange], shape: Shap
   }
 
   def transpose: Gradient = {
-    InflatedGradient(
-      core.transpose(),
-      List(ranges(1), ranges.head),
-      Gradient.transposeShape(shape)
-    )
+    InflatedGradient(core.transpose(), List(ranges(1), ranges.head), Gradient.transposeShape(shape))
   }
 
   def clip(min: Real, max: Real): Gradient = {
@@ -288,14 +266,12 @@ case class InflatedGradient(core: Tensor, ranges: List[NumscaRange], shape: Shap
   }
 
   def subGradient(subRegion: Seq[Range]): Gradient = {
-    throw new Exception(
-      "subGradient on sparse gradient not supported. Turn the gradient into dense instead."
-    )
+    throw new Exception("subGradient on sparse gradient not supported. Turn the gradient into dense instead.")
   }
 }
 
 /** Mutable buffer used to accumulate gradients */
-class GradientBuilder(private var value: Gradient, private var needCopy: Boolean) {
+class GradientBuilder (private var value: Gradient, private var needCopy: Boolean){
 
   def add(grad: Gradient): Unit = this synchronized {
     value match {
@@ -306,21 +282,21 @@ class GradientBuilder(private var value: Gradient, private var needCopy: Boolean
         grad match {
           case _: ZeroGradient => ()
           case i: InflatedGradient =>
-            if (needCopy) {
+            if(needCopy){
               val c = dense.value.copy()
-              c(i.ranges: _*) += i.core
+              c(i.ranges :_*) += i.core
               value = DenseGradient(c)
               needCopy = false
             } else {
-              dense.value(i.ranges: _*) += i.core
+              dense.value(i.ranges :_*) += i.core
             }
           case d: DenseGradient =>
-            if (needCopy) {
+            if(needCopy){
               val c = dense.value.copy()
               c += d.value
               value = DenseGradient(c)
               needCopy = false
-            } else {
+            } else{
               dense.value += d.value
             }
         }
@@ -342,8 +318,7 @@ class GradientBuilder(private var value: Gradient, private var needCopy: Boolean
   }
 }
 
-object ParallelGradBuilder {
-  val sequentialThreshold = 12
+object ParallelGradBuilder{
 
 }
 
@@ -358,10 +333,11 @@ class ParallelGradBuilder(shape: Shape) {
     grads += grad
   }
 
-  def get(implicit ctx: ExecutionContext): Future[Gradient] = this synchronized {
+
+  def retrieve(implicit ctx: ExecutionContext): Future[Gradient] = this synchronized {
     val fut = value.getOrElse {
       val zeroGrad = ZeroGradient(shape)
-      if (grads.length < ParallelGradBuilder.sequentialThreshold) {
+      if (grads.length < 8) {
         Future {
           val builder = new GradientBuilder(zeroGrad, needCopy = false)
           grads.foreach(g => builder.add(g))
@@ -369,29 +345,24 @@ class ParallelGradBuilder(shape: Shape) {
           builder.retrieve
         }
       } else {
-        Future {
-          val m = new SimpleMath.Monoid[GradientBuilder] {
-            def zero: GradientBuilder = new GradientBuilder(zeroGrad, needCopy = false)
+        val m = new SimpleMath.Monoid[Gradient] {
+          def zero: Gradient = zeroGrad
 
-            def op(x1: GradientBuilder, x2: GradientBuilder): GradientBuilder = {
-              x1.add(x2.retrieve)
-              x1
+          def op(x1: Gradient, x2: Gradient): Gradient = {
+            val b = new GradientBuilder(x1, needCopy = true) {
+              add(x2)
             }
+            b.retrieve
           }
-          val xs = grads.toArray.map { g =>
-            new GradientBuilder(g, needCopy = true)
-          }
-          (m, xs)
-        }.flatMap {
-          case (m, xs) =>
-            SimpleMath.parallelReduce(xs, m, ParallelGradBuilder.sequentialThreshold).map { g =>
-              grads.clear()
-              g.retrieve
-            }
+        }
+        for{
+          g <- SimpleMath.parallelReduce(grads.toArray, m)
+        } yield {
+          grads.clear()
+          g
         }
       }
     }
-
     value = Some(fut)
     fut
   }

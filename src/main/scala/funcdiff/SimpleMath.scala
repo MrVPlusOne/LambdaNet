@@ -2,7 +2,6 @@ package funcdiff
 
 import scala.util.Random
 import collection.mutable
-import scala.concurrent.Future
 
 object SimpleMath {
 

@@ -85,7 +85,7 @@ object TrainingCenter {
 //          "embedding-magnitudes" -> PlotConfig("ImageSize->Medium"),
           "embedding-changes" -> PlotConfig("ImageSize->Medium"),
           "embedding-max-length" -> PlotConfig("ImageSize->Medium"),
-//          "certainty" -> PlotConfig("ImageSize->Medium"),
+          "certainty" -> PlotConfig("ImageSize->Medium"),
           "iteration-time" -> PlotConfig(
             "ImageSize->Medium",
             """AxesLabel->{"step","ms"}"""
@@ -180,7 +180,7 @@ object TrainingCenter {
           )
 //      println("Predictions: ====")
 //      println(logits)
-//      eventLogger.log("certainty", step, getVar(Symbol("decode:certainty"))(???).value)
+      eventLogger.log("certainty", step, getVar(Symbol("decode:certainty"))(???).value)
 
       val accuracy = analyzeResults(annotatedPlaces, logits.value, transEnv, decodingCtx)
       eventLogger.log("accuracy", step, Tensor(accuracy))
