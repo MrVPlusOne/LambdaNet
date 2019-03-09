@@ -150,31 +150,12 @@ object CompNode {
 
     class Counter(var i: Int)
 
-    class GradientHolder(val builder: GradientBuilder) {
-      private var currentTask: Future[Unit] = Future.successful()
-
-      def add(g: Gradient): Unit = synchronized {
-        val fut = currentTask.map { _ =>
-          builder.add(g)
-        }
-        currentTask = fut
-      }
-
-      def get: Future[Gradient] = {
-        currentTask.map { _ =>
-          builder.retrieve
-        }
-      }
-    }
-
     val childrenCount = countChildren(nodes)
     val childrenCounter = childrenCount.map { case (n, i) => n -> new Counter(i) }
 
     val gradients = DebugTime.logTime('gradsInit) {
       mutable.HashMap(topologicalSort(nodes, Some(childrenCount)).map { n =>
-        n -> new GradientHolder(
-          new GradientBuilder(ZeroGradient(n.shape), needCopy = false)
-        )
+        n -> new ParallelGradBuilder(n.shape)
       }: _*)
     }
 

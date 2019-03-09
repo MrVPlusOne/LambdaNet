@@ -334,10 +334,10 @@ class ParallelGradBuilder(shape: Shape) {
   }
 
 
-  def retrieve(implicit ctx: ExecutionContext): Future[Gradient] = this synchronized {
+  def get(implicit ctx: ExecutionContext): Future[Gradient] = this synchronized {
     val fut = value.getOrElse {
       val zeroGrad = ZeroGradient(shape)
-      if (grads.length < 8) {
+      if (grads.length < 5) {
         Future {
           val builder = new GradientBuilder(zeroGrad, needCopy = false)
           grads.foreach(g => builder.add(g))
@@ -345,21 +345,19 @@ class ParallelGradBuilder(shape: Shape) {
           builder.retrieve
         }
       } else {
-        val m = new SimpleMath.Monoid[Gradient] {
-          def zero: Gradient = zeroGrad
+        val m = new SimpleMath.Monoid[GradientBuilder] {
+          def zero: GradientBuilder = new GradientBuilder(zeroGrad, needCopy = false)
 
-          def op(x1: Gradient, x2: Gradient): Gradient = {
-            val b = new GradientBuilder(x1, needCopy = true) {
-              add(x2)
-            }
-            b.retrieve
+          def op(x1: GradientBuilder, x2: GradientBuilder): GradientBuilder = {
+            x1.add(x2.retrieve)
+            x1
           }
         }
-        for{
-          g <- SimpleMath.parallelReduce(grads.toArray, m)
-        } yield {
+
+        val xs = grads.toArray.map{g => new GradientBuilder(g, needCopy = false)}
+        SimpleMath.parallelReduce(xs, m).map{ g =>
           grads.clear()
-          g
+          g.retrieve
         }
       }
     }
