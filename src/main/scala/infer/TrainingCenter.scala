@@ -12,7 +12,7 @@ import gtype.EventLogger.PlotConfig
 import gtype._
 import infer.GraphEmbedding.DecodingCtx
 import infer.IRTranslation.TranslationEnv
-import infer.PredicateGraph._
+import infer.PredicateGraphConstruction._
 
 import scala.collection.mutable
 import scala.collection.parallel.ForkJoinTaskSupport
@@ -38,13 +38,13 @@ object TrainingCenter {
     }.toIndexedSeq
 
     val (predicates, newTypes) = {
-      val (ps, ctx) = PredicateGraph.encodeIR(stmts, PredicateContext.jsCtx(transEnv))
-      val ups = PredicateGraph.encodeUnaryPredicates(transEnv.idTypeMap.values)
+      val (ps, ctx) = PredicateGraphConstruction.encodeIR(stmts, PredicateContext.jsCtx(transEnv))
+      val ups = PredicateGraphConstruction.encodeUnaryPredicates(transEnv.idTypeMap.values)
       (ps ++ ups, ctx.newTypeMap.toIndexedSeq)
     }
     println("Predicate numbers:")
     println {
-      predicates.groupBy(predicateCategory).mapValuesNow { _.length }
+      predicates.groupBy(PredicateGraph.predicateCategory).mapValuesNow { _.length }
     }
     println {
       val wrongNodes = Seq(GTHole(1), GTHole(2)).map(transEnv.holeTyVarMap)

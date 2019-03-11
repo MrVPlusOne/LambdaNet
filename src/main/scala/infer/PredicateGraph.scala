@@ -2,10 +2,12 @@ package infer
 
 import funcdiff.SimpleMath
 import funcdiff.SimpleMath.Extensions._
-import gtype.{GTHole, GType, JSExamples, TyVar}
+import gtype.{GTHole, GType, JSExamples}
 import infer.IR._
 import infer.IRTranslation.TranslationEnv
 import SimpleMath.{LabeledGraph, wrapInQuotes}
+import infer.PredicateGraph._
+import collection.mutable
 
 /** Encodes the relationships between different type variables */
 object PredicateGraph {
@@ -27,25 +29,21 @@ object PredicateGraph {
   case class ObjLiteralTypeExpr(fields: Map[Symbol, IRType]) extends TypeExpr
   case class FieldAccessTypeExpr(objType: IRType, field: Symbol) extends TypeExpr
 
-  case class PredicateContext(
-    varTypeMap: Map[Var, IRType],
-    newTypeMap: Map[Symbol, IRType]
-  )
-
   def predicateCategory(p: TyVarPredicate): Symbol = p match {
-    case _: EqualityRel => 'equality
-    case _: FreezeType => 'freeze
-    case _: HasName => 'hasName
-    case _: SubtypeRel => 'subtype
-    case _: AssignRel => 'assign
-    case _: UsedAsBoolean => 'usedAsBool
+    case _: EqualityRel    => 'equality
+    case _: FreezeType     => 'freeze
+    case _: HasName        => 'hasName
+    case _: SubtypeRel     => 'subtype
+    case _: AssignRel      => 'assign
+    case _: UsedAsBoolean  => 'usedAsBool
     case _: InheritanceRel => 'inheritance
-    case DefineRel(_, et) => et match {
-      case _: FuncTypeExpr => Symbol("define-func")
-      case _: CallTypeExpr => Symbol("define-call")
-      case _: ObjLiteralTypeExpr => Symbol("define-object")
-      case _: FieldAccessTypeExpr => Symbol("define-access")
-    }
+    case DefineRel(_, et) =>
+      et match {
+        case _: FuncTypeExpr        => Symbol("define-func")
+        case _: CallTypeExpr        => Symbol("define-call")
+        case _: ObjLiteralTypeExpr  => Symbol("define-object")
+        case _: FieldAccessTypeExpr => Symbol("define-access")
+      }
   }
 
   def displayPredicateGraph(
@@ -87,18 +85,6 @@ object PredicateGraph {
       graph.addNode(n.id, n.id.toString, typeInfo(n), "Red")
     })
 
-    /*
-    case class AssignRel(lhs: IRType, rhs: IRType) extends TyVarPredicate
-    case class UsedAsBoolean(tyVar: IRType) extends TyVarPredicate
-    case class InheritanceRel(child: IRType, parent: IRType) extends TyVarPredicate
-    case class DefineRel(v: IRType, expr: TypeExpr) extends TyVarPredicate
-
-    sealed trait TypeExpr
-    case class FuncTypeExpr(argTypes: List[IRType], returnType: IRType) extends TypeExpr
-    case class CallTypeExpr(f: IRType, args: List[IRType]) extends TypeExpr
-    case class ObjLiteralTypeExpr(fields: Map[Symbol, IRType]) extends TypeExpr
-    case class FieldAccessTypeExpr(objType: IRType, field: Symbol) extends TypeExpr
-     */
     predicates.foreach {
       case EqualityRel(v1, v2) =>
         newPredicate("=", "Equality", Seq(v1.id -> "L", v2.id -> "R"))
@@ -127,7 +113,7 @@ object PredicateGraph {
             val conn = args.zipWithIndex.map { case (a, i) => a.id -> s"arg$i" }
             ("Call", "CallTypeExpr", conn)
           case ObjLiteralTypeExpr(fields) =>
-            val conn = fields.toList.map{ case (label, t) => t.id -> label.toString()}
+            val conn = fields.toList.map { case (label, t) => t.id -> label.toString() }
             ("Obj", "ObjLiteralTypeExpr", conn)
           case FieldAccessTypeExpr(objType, field) =>
             (s"_.${field.name}", "FieldAccessTypeExpr", Seq(objType.id -> ""))
@@ -139,6 +125,13 @@ object PredicateGraph {
   }
 
   val returnVar: Var = namedVar(gtype.GStmt.returnSymbol)
+}
+
+object PredicateGraphConstruction {
+  case class PredicateContext(
+    varTypeMap: Map[Var, IRType],
+    newTypeMap: Map[Symbol, IRType]
+  )
 
   object PredicateContext {
     val empty: PredicateContext =
@@ -148,11 +141,26 @@ object PredicateGraph {
       val typeMap = JSExamples.exprContext.varAssign.map {
         case (s, t) => namedVar(s) -> env.newTyVar(None, Some(s), Some(t))
       }
-//      val objDef = JSExamples.typeContext.typeUnfold.keys
-//        .map(s => s -> env.newTyVar(None, Some(s), Some(TyVar(s))))
-//        .toMap
+      //      val objDef = JSExamples.typeContext.typeUnfold.keys
+      //        .map(s => s -> env.newTyVar(None, Some(s), Some(TyVar(s))))
+      //        .toMap
       PredicateContext(typeMap, Map())
     }
+  }
+
+  case class ModuleExports(
+    terms: Map[Var, IRType],
+    types: Map[Symbol, IRType]
+  )
+
+  def collectExports(stmts: Vector[IRStmt]): ModuleExports = {
+    val terms = mutable.HashMap()
+    val types = mutable.HashMap()
+
+    def rec(stmt: IRStmt): Unit = {
+
+    }
+    ???
   }
 
   def encodeIR(

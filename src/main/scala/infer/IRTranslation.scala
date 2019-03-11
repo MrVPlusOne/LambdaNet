@@ -206,7 +206,7 @@ object IRTranslation {
     val stmts = translateStmt(example.program)(env)
     stmts.foreach(println)
 
-    import infer.PredicateGraph._
+    import infer.PredicateGraphConstruction._
     val ctx = PredicateContext.jsCtx(env)
 
     println{
@@ -214,7 +214,7 @@ object IRTranslation {
     }
 
     println{
-      "newCtx: " + PredicateGraph.encodeIR(stmts, ctx)._2.newTypeMap
+      "newCtx: " + PredicateGraphConstruction.encodeIR(stmts, ctx)._2.newTypeMap
     }
   }
 }
