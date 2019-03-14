@@ -150,16 +150,15 @@ object PredicateGraphConstruction {
 
   case class ModuleExports(
     terms: Map[Var, IRType],
-    types: Map[Symbol, IRType]
+    types: Map[Symbol, IRType],
+    defaultExport: Option[(Var, IRType)]
   )
 
   def collectExports(stmts: Vector[IRStmt]): ModuleExports = {
     val terms = mutable.HashMap()
     val types = mutable.HashMap()
 
-    def rec(stmt: IRStmt): Unit = {
-
-    }
+    def rec(stmt: IRStmt): Unit = {}
     ???
   }
 
@@ -185,9 +184,9 @@ object PredicateGraphConstruction {
       }
 
       val defs = stmts.collect {
-        case VarDef(v, tyVar, _) => v -> tyVar
-        case f: FuncDef          => namedVar(f.name) -> f.funcT
-        case c: ClassDef         => namedVar(c.constructor.name) -> c.constructor.funcT
+        case d: VarDef   => d.v -> d.mark
+        case f: FuncDef  => namedVar(f.name) -> f.funcT
+        case c: ClassDef => namedVar(c.constructor.name) -> c.constructor.funcT
       }
 
       ctx.copy(
@@ -200,10 +199,10 @@ object PredicateGraphConstruction {
       import ctx._
 
       stmt match {
-        case VarDef(v, _, rhs) =>
+        case d: VarDef =>
           // don't need to modify ctx here, collect definitions when processing blocks
-          val tv = varTypeMap(v)
-          rhs match {
+          val tv = varTypeMap(d.v)
+          d.rhs match {
             case v1: Var =>
               add(EqualityRel(tv, varTypeMap(v1)))
             case Const(_, ty) =>
@@ -234,7 +233,7 @@ object PredicateGraphConstruction {
           val innerCtx = collectDefinitions(block.stmts)
 //          println(s"Inner context: $innerCtx")
           block.stmts.foreach(s => encodeStmt(s)(innerCtx))
-        case FuncDef(_, args, newReturnType, body, funcT) =>
+        case FuncDef(_, args, newReturnType, body, funcT, _) =>
           val innerCtx =
             collectDefinitions(body)(
               ctx.copy(
@@ -243,7 +242,7 @@ object PredicateGraphConstruction {
             )
           add(DefineRel(funcT, FuncTypeExpr(args.map(_._2), newReturnType)))
           body.foreach(s => encodeStmt(s)(innerCtx))
-        case ClassDef(_, superType, constructor, vars, funcDefs, classT) =>
+        case ClassDef(_, superType, constructor, vars, funcDefs, classT, _) =>
           superType.foreach { n =>
             val parentType = ctx.newTypeMap(n)
             add(InheritanceRel(classT, parentType))

@@ -1,7 +1,8 @@
 package infer
 
-import gtype.{GTHole, GType, JSExamples}
+import gtype.{ExportLevel, GTHole, GType, JSExamples}
 import funcdiff.SimpleMath.Extensions._
+import gtype.ExportLevel.asPrefix
 
 /**
   * An intermediate program representation useful for type inference
@@ -103,7 +104,7 @@ object IR {
     override def toString: String = prettyPrint()
   }
 
-  case class VarDef(v: Var, mark: IRType, rhs: IRExpr) extends IRStmt
+  case class VarDef(v: Var, mark: IRType, rhs: IRExpr, exportLevel: ExportLevel.Value) extends IRStmt
 
   case class Assign(lhs: Var, rhs: Var) extends IRStmt
 
@@ -120,7 +121,8 @@ object IR {
     args: List[(Var, IRType)],
     returnType: IRType,
     body: Vector[IRStmt],
-    funcT: IRType
+    funcT: IRType,
+    exportLevel: ExportLevel.Value
   ) extends IRStmt
 
   case class ClassDef(
@@ -129,7 +131,8 @@ object IR {
     constructor: FuncDef,
     vars: Map[Symbol, IRType],
     funcDefs: Vector[FuncDef],
-    classT: IRType
+    classT: IRType,
+    exportLevel: ExportLevel.Value
   ) extends IRStmt {
     require(constructor.name == gtype.ClassDef.constructorName(name))
     require(constructor.returnType == classT)
@@ -143,7 +146,7 @@ object IR {
   object IRStmt {
     def prettyPrintHelper(indent: Int, stmt: IRStmt): Vector[(Int, String)] = {
       stmt match {
-        case VarDef(v, ty, rhs) => Vector(indent -> s"let $v: $ty = $rhs;")
+        case VarDef(v, ty, rhs, level) => Vector(indent -> s"${asPrefix(level)}let $v: $ty = $rhs;")
         case Assign(lhs, rhs)   => Vector(indent -> s"$lhs = $rhs;")
         case ReturnStmt(v)      => Vector(indent -> s"return $v;")
         case IfStmt(cond, e1, e2) =>
@@ -156,21 +159,21 @@ object IR {
           (indent -> "{") +: stmts.flatMap(
             s => prettyPrintHelper(indent + 1, s)
           ) :+ (indent -> "}")
-        case FuncDef(funcName, args, returnType, body, funcT) =>
+        case FuncDef(funcName, args, returnType, body, funcT, level) =>
           val argList = args
             .map { case (v, tv) => s"$v: $tv" }
             .mkString("(", ", ", ")")
           val returnMark =
             if (returnType.freezeToType.contains(GType.voidType)) "" else s": $returnType"
-          Vector(indent -> s"function ${funcName.name}:$funcT $argList$returnMark {") ++
+          Vector(indent -> s"${asPrefix(level)}function ${funcName.name}:$funcT $argList$returnMark {") ++
             body.flatMap(s => prettyPrintHelper(indent + 1, s)) ++ Vector(
             indent -> "}"
           )
-        case ClassDef(name, superType, constructor, vars, funcDefs, classT) =>
+        case ClassDef(name, superType, constructor, vars, funcDefs, classT, level) =>
           val superPart = superType
             .map(t => s"extends $t")
             .getOrElse("")
-          Vector(indent -> s"class ${name.name}: $classT $superPart {") ++
+          Vector(indent -> s"${asPrefix(level)}class ${name.name}: $classT $superPart {") ++
             vars.toList.map {
               case (fieldName, tv) =>
                 (indent + 1, s"${fieldName.name}: $tv;")

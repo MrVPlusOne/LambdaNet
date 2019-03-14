@@ -41,7 +41,13 @@ sealed trait GStmt {
 
 // === Start of Statement definitions ====
 
-case class VarDef(x: Symbol, ty: GTMark, init: GExpr, isConst: Boolean) extends GStmt
+case class VarDef(
+  x: Symbol,
+  ty: GTMark,
+  init: GExpr,
+  isConst: Boolean,
+  exportLevel: ExportLevel.Value
+) extends GStmt
 
 case class AssignStmt(lhs: GExpr, rhs: GExpr) extends GStmt
 
@@ -59,7 +65,8 @@ case class FuncDef(
   name: Symbol,
   args: List[(Symbol, GTMark)],
   returnType: GTMark,
-  body: GStmt
+  body: GStmt,
+  exportLevel: ExportLevel.Value
 ) extends GStmt
 
 case class ClassDef(
@@ -67,7 +74,8 @@ case class ClassDef(
   superType: Option[Symbol] = None,
   constructor: FuncDef,
   vars: Map[Symbol, GTMark],
-  funcDefs: Vector[FuncDef]
+  funcDefs: Vector[FuncDef],
+  exportLevel: ExportLevel.Value
 ) extends GStmt {
   require(constructor.name == ClassDef.constructorName(name))
   require(constructor.returnType == GType.voidType, s"Get: ${constructor.returnType}")
@@ -100,10 +108,11 @@ object GStmt {
    *       ↳ [extends x]{ f, ..., f }
    */
   def prettyPrintHelper(indent: Int, stmt: GStmt): Vector[(Int, String)] = {
+    import ExportLevel.asPrefix
     stmt match {
-      case VarDef(x, ty, init, isConst) =>
+      case VarDef(x, ty, init, isConst, level) =>
         val keyword = if (isConst) "const" else "let"
-        Vector(indent -> s"$keyword ${x.name}: $ty = $init;")
+        Vector(indent -> s"${asPrefix(level)}$keyword ${x.name}: $ty = $init;")
       case AssignStmt(lhs, rhs) =>
         Vector(indent -> s"$lhs = $rhs;")
       case ExprStmt(v, isReturn) =>
@@ -124,17 +133,19 @@ object GStmt {
         (indent -> "{") +: stmts.flatMap(
           s => prettyPrintHelper(indent + 1, s)
         ) :+ (indent -> "}")
-      case FuncDef(funcName, args, returnType, body) =>
+      case FuncDef(funcName, args, returnType, body, level) =>
         val argList = args
           .map { case (v, tv) => s"${v.name}: $tv" }
           .mkString("(", ", ", ")")
-        Vector(indent -> s"function ${funcName.name} $argList: $returnType") ++
+        Vector(
+          indent -> s"${asPrefix(level)}function ${funcName.name} $argList: $returnType"
+        ) ++
           prettyPrintHelper(indent, makeSureInBlock(body))
-      case ClassDef(name, superType, constructor, vars, funcDefs) =>
+      case ClassDef(name, superType, constructor, vars, funcDefs, level) =>
         val superPart = superType
           .map(t => s" extends $t")
           .getOrElse("")
-        Vector(indent -> s"class ${name.name}$superPart {") ++
+        Vector(indent -> s"${asPrefix(level)}class ${name.name}$superPart {") ++
           vars.toList.map {
             case (fieldName, tv) =>
               (indent + 1, s"${fieldName.name}: $tv;")
@@ -172,8 +183,8 @@ object GStmt {
     }
 
     modifyChildren(stmt) {
-      case s @ VarDef(_, _: GType, _, _) => fail(s)
-      case s @ FuncDef(_, args, returnType, _) =>
+      case s: VarDef => if (s.ty.isInstanceOf[GType]) fail(s) else s
+      case s @ FuncDef(_, args, returnType, _, _) =>
         if (args.exists(_._2.isInstanceOf[GType]) ||
             returnType.isInstanceOf[GType] && returnType != GType.voidType) fail(s)
         else s
@@ -214,17 +225,28 @@ object GStmt {
 
     def RETURN(expr: GExpr) = ExprStmt(expr, isReturn = true)
 
-    def VAR(x: Symbol, ty: GType, isConst: Boolean = false)(init: GExpr): VarDef = {
+    def VAR(
+      x: Symbol,
+      ty: GType,
+      isConst: Boolean = false
+    )(init: GExpr): VarDef = {
       VarDef(
         x,
         typeHoleContext.newTHole(Some(TypeAnnotation(ty, userAnnotated = true))),
         init,
-        isConst
+        isConst,
+        exportLevel = ExportLevel.Public
       )
     }
 
     def VAR(x: Symbol)(init: GExpr): VarDef = {
-      VarDef(x, typeHoleContext.newTHole(None), init, isConst = false)
+      VarDef(
+        x,
+        typeHoleContext.newTHole(None),
+        init,
+        isConst = false,
+        exportLevel = ExportLevel.Public
+      )
     }
 
     def BLOCK(stmts: GStmt*): BlockStmt = {
@@ -264,7 +286,13 @@ object GStmt {
       args: (Symbol, GType)*
     )(body: GStmt*): FuncDef = {
       val a1s = stripArgs(args)
-      FuncDef(name, a1s, stripType(returnType), BLOCK(body: _*))
+      FuncDef(
+        name,
+        a1s,
+        stripType(returnType),
+        BLOCK(body: _*),
+        exportLevel = ExportLevel.Public
+      )
     }
 
     def CONSTRUCTOR(className: Symbol, args: (Symbol, GType)*)(body: GStmt*): FuncDef = {
@@ -272,7 +300,8 @@ object GStmt {
         ClassDef.constructorName(className),
         stripArgs(args),
         GType.voidType,
-        BLOCK(body: _*)
+        BLOCK(body: _*),
+        exportLevel = ExportLevel.Public
       )
     }
 
@@ -280,7 +309,14 @@ object GStmt {
       vars: (Symbol, GType)*
     )(constructor: FuncDef, methods: FuncDef*): ClassDef = {
       assert(vars.length == vars.toMap.size)
-      ClassDef(name, superType, constructor, stripArgs(vars).toMap, methods.toVector)
+      ClassDef(
+        name,
+        superType,
+        constructor,
+        stripArgs(vars).toMap,
+        methods.toVector,
+        exportLevel = ExportLevel.Public
+      )
     }
   }
 
@@ -303,7 +339,7 @@ object GStmt {
       case f: FuncDef =>
         val signatureType = extractSignature(f)
         currentCtx = currentCtx.newVar(f.name, signatureType)
-      case ClassDef(name, superType, constructor, vars, funcDefs) =>
+      case ClassDef(name, superType, constructor, vars, funcDefs, _) =>
         val sT = superType
           .map { s =>
             currentCtx.typeContext.typeUnfold(s).asInstanceOf[ObjectType]
@@ -337,7 +373,7 @@ object GStmt {
   ): (ExprContext, Set[TypeCheckError]) = {
     import ctx.typeContext.mkSubtypeError
     stmt match {
-      case VarDef(x, ty, init, _) =>
+      case VarDef(x, ty, init, _, _) =>
         ty match {
           case ty: GType =>
             val ctx1 = ctx.newVar(x, ty)
@@ -366,7 +402,7 @@ object GStmt {
         val (condT, e0) = typeCheckInfer(cond, ctx)
         val (_, e1) = typeCheckStmt(body, ctx, returnType)
         ctx -> (e0 ++ e1 ++ mkSubtypeError(condT, GType.boolType))
-      case FuncDef(_, args, newReturn: GType, body) =>
+      case FuncDef(_, args, newReturn: GType, body, _) =>
         val ctxWithArgs = ctx.copy(
           varAssign =
             ctx.varAssign ++ args.toMap.mapValuesNow(_.asInstanceOf[GType])
@@ -375,7 +411,7 @@ object GStmt {
         ctx -> errs
       case block: BlockStmt =>
         ctx -> typeCheckBlock(block, ctx, returnType)
-      case ClassDef(name, superType, constructor, _, funcDefs) =>
+      case ClassDef(name, superType, constructor, _, funcDefs, _) =>
         val ctxWithThis = ctx
           .newVar(ClassDef.thisSymbol, ctx.typeContext.typeUnfold(name))
           .newVar(

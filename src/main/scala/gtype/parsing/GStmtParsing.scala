@@ -172,6 +172,8 @@ class GStmtParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
     }
   }
 
+  val exportLevel = ExportLevel.Public
+
   /*
    * S :=                                    ([[GStmt]])
    *       var x: α = e                      ([[VarDef]])
@@ -192,7 +194,7 @@ class GStmtParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
         val t = parseGTMark(map("mark"))
         val init = parseGExpr(map("init"))
         val b = asBoolean(map("isConst"))
-        VarDef(Symbol(name), t, init, isConst = b)
+        VarDef(Symbol(name), t, init, isConst = b, exportLevel)
       case "AssignStmt" =>
         val lhs = parseGExpr(map("lhs"))
         val rhs = parseGExpr(map("rhs"))
@@ -222,7 +224,7 @@ class GStmtParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
         val returnType =
           if (name == 'Constructor) GType.voidType else parseGTMark(map("returnType"))
         val body = parseGStmt(map("body"))
-        FuncDef(name, args, returnType, body)
+        FuncDef(name, args, returnType, body, exportLevel)
       case "ClassDef" =>
         val name = asSymbol(map("name"))
         val superType = asOptionSymbol(map("superType"))
@@ -231,7 +233,7 @@ class GStmtParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
           val constructorValue = map("constructor")
           val f = if (constructorValue == Null) {
             // make an empty constructor
-            FuncDef(consName, List(), GType.voidType, BlockStmt(Vector()))
+            FuncDef(consName, List(), GType.voidType, BlockStmt(Vector()), exportLevel)
           } else {
             parseGStmt(constructorValue).asInstanceOf[FuncDef]
           }
@@ -240,7 +242,7 @@ class GStmtParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
         val vars = parseArgList(map("vars"))
         val funcDefs =
           asVector(map("funcDefs")).map(x => parseGStmt(x).asInstanceOf[FuncDef])
-        ClassDef(name, superType, constructor, vars.toMap, funcDefs)
+        ClassDef(name, superType, constructor, vars.toMap, funcDefs, exportLevel)
 
       case _ => ???
     }

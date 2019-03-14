@@ -1,7 +1,7 @@
 package infer
 
 import gtype.GStmt.TypeHoleContext
-import gtype.{GTHole, JSExamples}
+import gtype.{ExportLevel, GTHole, JSExamples}
 
 object IRTranslation {
   import IR._
@@ -58,7 +58,7 @@ object IRTranslation {
       case _ =>
         val v = env.newVar()
         Vector(
-          VarDef(v, env.newTyVar(None, None), expr)
+          VarDef(v, env.newTyVar(None, None), expr, ExportLevel.Private)
         ) -> v
     }
 
@@ -68,18 +68,19 @@ object IRTranslation {
     implicit env: TranslationEnv
   ): Vector[IR.IRStmt] = {
     stmt match {
-      case gtype.VarDef(x, ty, init, isConst) =>
+      case gtype.VarDef(x, ty, init, isConst, level) =>
         val v = namedVar(x)
         val (defs, initE) = translateExpr2(init)
         if (isConst) {
-          defs ++ Vector(VarDef(v, env.getTyVar(ty, v.nameOpt), initE))
+          defs ++ Vector(VarDef(v, env.getTyVar(ty, v.nameOpt), initE, level))
         } else {
           val (defs2, initV) = exprAsVar(initE)
           defs ++ defs2 ++ Vector(
             VarDef(
               v,
               env.getTyVar(ty, v.nameOpt),
-              Const("undefined", gtype.AnyType)
+              Const("undefined", gtype.AnyType),
+              level
             ),
             Assign(v, initV)
           )
@@ -113,7 +114,7 @@ object IRTranslation {
       case gtype.BlockStmt(stmts) =>
         stmts.flatMap(translateStmt)
       case f: gtype.FuncDef => Vector(translateFunc(f))
-      case gtype.ClassDef(name, superType, constructor, vars, funcDefs) =>
+      case gtype.ClassDef(name, superType, constructor, vars, funcDefs, level) =>
         val classT = env.newTyVar(None, Some(name))
         Vector(
           ClassDef(
@@ -122,7 +123,8 @@ object IRTranslation {
             translateFunc(constructor).copy(returnType = classT),
             vars.map { case (v, mark) => v -> env.getTyVar(mark, Some(v)) },
             funcDefs.map(translateFunc),
-            classT
+            classT,
+            level
           )
         )
     }
@@ -143,7 +145,8 @@ object IRTranslation {
       args1,
       env.getTyVar(returnType, None),
       translateStmt(body),
-      env.newTyVar(None, Some(name))
+      env.newTyVar(None, Some(name)),
+      exportLevel
     )
   }
 
