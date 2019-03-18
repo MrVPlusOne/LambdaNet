@@ -111,6 +111,8 @@ object GExpr {
 
     def I(i: Int) = Const(i, 'int)
 
+    def B(b: Boolean) = Const(b, 'bool)
+
     def N(n: Double) = Const(n, 'number)
 
     val undefined = Const("undefined", any)

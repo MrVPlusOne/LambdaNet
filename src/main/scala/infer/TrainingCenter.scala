@@ -28,7 +28,7 @@ object TrainingCenter {
     println("Program statements: === ")
     println { example.program }
 
-    val stmts = IRTranslation.translateStmt(example.program)(transEnv)
+    val stmts = IRTranslation.translateStmt(example.program)(Set(), transEnv)
 
 //    println("IR statements: === ")
 //    stmts.foreach(println)

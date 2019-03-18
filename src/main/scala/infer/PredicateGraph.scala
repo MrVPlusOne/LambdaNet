@@ -138,6 +138,7 @@ object PredicateGraphConstruction {
       PredicateContext(Map(), Map())
 
     def jsCtx(env: TranslationEnv): PredicateContext = {
+      implicit val tyVars: Set[Symbol] = Set()
       val typeMap = JSExamples.exprContext.varAssign.map {
         case (s, t) => namedVar(s) -> env.newTyVar(None, Some(s), Some(t))
       }

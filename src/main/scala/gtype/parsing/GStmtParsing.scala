@@ -3,7 +3,7 @@ package gtype.parsing
 import ammonite.ops._
 import funcdiff.SimpleMath
 import gtype.GStmt.{TypeAnnotation, TypeHoleContext}
-import gtype._
+import gtype.{ExportLevel, _}
 import gtype.parsing.Js._
 
 object GStmtParsing {
@@ -168,11 +168,11 @@ class GStmtParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
 //        val resultType = parseType(map("resultType"))
         IfExpr(cond, e1, e2, newTyHole(None))
 
-      case _ => ???
+      case _ => throw new Error("Unhandled GExpr case.")
     }
   }
 
-  val exportLevel = ExportLevel.Public
+  val exportLevel: ExportLevel.Value = ExportLevel.Public
 
   /*
    * S :=                                    ([[GStmt]])
@@ -224,7 +224,8 @@ class GStmtParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
         val returnType =
           if (name == 'Constructor) GType.voidType else parseGTMark(map("returnType"))
         val body = parseGStmt(map("body"))
-        FuncDef(name, args, returnType, body, exportLevel)
+        val tyVars = List()  //fixme
+        FuncDef(name, tyVars, args, returnType, body, exportLevel)
       case "ClassDef" =>
         val name = asSymbol(map("name"))
         val superType = asOptionSymbol(map("superType"))
@@ -233,7 +234,8 @@ class GStmtParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
           val constructorValue = map("constructor")
           val f = if (constructorValue == Null) {
             // make an empty constructor
-            FuncDef(consName, List(), GType.voidType, BlockStmt(Vector()), exportLevel)
+            val tyVars = List()  //fixme
+            FuncDef(consName, tyVars, List(), GType.voidType, BlockStmt(Vector()), exportLevel)
           } else {
             parseGStmt(constructorValue).asInstanceOf[FuncDef]
           }
@@ -242,7 +244,8 @@ class GStmtParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
         val vars = parseArgList(map("vars"))
         val funcDefs =
           asVector(map("funcDefs")).map(x => parseGStmt(x).asInstanceOf[FuncDef])
-        ClassDef(name, superType, constructor, vars.toMap, funcDefs, exportLevel)
+        val tyVars = List()  //fixme
+        ClassDef(name, tyVars, superType, constructor, vars.toMap, funcDefs, exportLevel)
 
       case _ => ???
     }

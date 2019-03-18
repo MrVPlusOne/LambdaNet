@@ -63,6 +63,7 @@ case class BlockStmt(stmts: Vector[GStmt]) extends GStmt
 
 case class FuncDef(
   name: Symbol,
+  tyVars: List[Symbol],
   args: List[(Symbol, GTMark)],
   returnType: GTMark,
   body: GStmt,
@@ -71,6 +72,7 @@ case class FuncDef(
 
 case class ClassDef(
   name: Symbol,
+  tyVars: List[Symbol],
   superType: Option[Symbol] = None,
   constructor: FuncDef,
   vars: Map[Symbol, GTMark],
@@ -133,19 +135,21 @@ object GStmt {
         (indent -> "{") +: stmts.flatMap(
           s => prettyPrintHelper(indent + 1, s)
         ) :+ (indent -> "}")
-      case FuncDef(funcName, args, returnType, body, level) =>
+      case FuncDef(funcName, tyVars, args, returnType, body, level) =>
         val argList = args
           .map { case (v, tv) => s"${v.name}: $tv" }
           .mkString("(", ", ", ")")
+        val tyVarPart = tyVarClause(tyVars)
         Vector(
-          indent -> s"${asPrefix(level)}function ${funcName.name} $argList: $returnType"
+          indent -> s"${asPrefix(level)}function ${funcName.name}$tyVarPart $argList: $returnType"
         ) ++
           prettyPrintHelper(indent, makeSureInBlock(body))
-      case ClassDef(name, superType, constructor, vars, funcDefs, level) =>
+      case ClassDef(name, tyVars, superType, constructor, vars, funcDefs, level) =>
         val superPart = superType
           .map(t => s" extends $t")
           .getOrElse("")
-        Vector(indent -> s"${asPrefix(level)}class ${name.name}$superPart {") ++
+        val tyVarPart = tyVarClause(tyVars)
+        Vector(indent -> s"${asPrefix(level)}class ${name.name}$tyVarPart$superPart {") ++
           vars.toList.map {
             case (fieldName, tv) =>
               (indent + 1, s"${fieldName.name}: $tv;")
@@ -155,6 +159,11 @@ object GStmt {
           ) ++
           Vector(indent -> "}")
     }
+  }
+
+  def tyVarClause(tyVars: List[Symbol]): String = {
+    if(tyVars.isEmpty) ""
+    else tyVars.mkString("<", ", ", ">")
   }
 
   /**
@@ -184,9 +193,9 @@ object GStmt {
 
     modifyChildren(stmt) {
       case s: VarDef => if (s.ty.isInstanceOf[GType]) fail(s) else s
-      case s @ FuncDef(_, args, returnType, _, _) =>
-        if (args.exists(_._2.isInstanceOf[GType]) ||
-            returnType.isInstanceOf[GType] && returnType != GType.voidType) fail(s)
+      case s: FuncDef =>
+        if (s.args.exists(_._2.isInstanceOf[GType]) ||
+            s.returnType.isInstanceOf[GType] && s.returnType != GType.voidType) fail(s)
         else s
       case s: ClassDef =>
         if (s.vars.exists(_._2.isInstanceOf[GType])) fail(s)
@@ -288,6 +297,7 @@ object GStmt {
       val a1s = stripArgs(args)
       FuncDef(
         name,
+        List(),
         a1s,
         stripType(returnType),
         BLOCK(body: _*),
@@ -298,6 +308,7 @@ object GStmt {
     def CONSTRUCTOR(className: Symbol, args: (Symbol, GType)*)(body: GStmt*): FuncDef = {
       FuncDef(
         ClassDef.constructorName(className),
+        List(),
         stripArgs(args),
         GType.voidType,
         BLOCK(body: _*),
@@ -311,6 +322,7 @@ object GStmt {
       assert(vars.length == vars.toMap.size)
       ClassDef(
         name,
+        List(),
         superType,
         constructor,
         stripArgs(vars).toMap,
@@ -329,6 +341,7 @@ object GStmt {
   /**
     * Allows forward reference to function definitions, but they will not escape their scope.
     **/
+  @deprecated
   def typeCheckBlock(
     block: BlockStmt,
     ctx: ExprContext,
@@ -339,7 +352,7 @@ object GStmt {
       case f: FuncDef =>
         val signatureType = extractSignature(f)
         currentCtx = currentCtx.newVar(f.name, signatureType)
-      case ClassDef(name, superType, constructor, vars, funcDefs, _) =>
+      case ClassDef(name, _, superType, constructor, vars, funcDefs, _) =>
         val sT = superType
           .map { s =>
             currentCtx.typeContext.typeUnfold(s).asInstanceOf[ObjectType]
@@ -366,6 +379,7 @@ object GStmt {
   /**
     * Allows forward reference to function definitions, but they will not escape their scope.
     **/
+  @deprecated
   private def typeCheckStmt(
     stmt: GStmt,
     ctx: ExprContext,
@@ -402,7 +416,7 @@ object GStmt {
         val (condT, e0) = typeCheckInfer(cond, ctx)
         val (_, e1) = typeCheckStmt(body, ctx, returnType)
         ctx -> (e0 ++ e1 ++ mkSubtypeError(condT, GType.boolType))
-      case FuncDef(_, args, newReturn: GType, body, _) =>
+      case FuncDef(_, _, args, newReturn: GType, body, _) =>
         val ctxWithArgs = ctx.copy(
           varAssign =
             ctx.varAssign ++ args.toMap.mapValuesNow(_.asInstanceOf[GType])
@@ -411,7 +425,7 @@ object GStmt {
         ctx -> errs
       case block: BlockStmt =>
         ctx -> typeCheckBlock(block, ctx, returnType)
-      case ClassDef(name, superType, constructor, _, funcDefs, _) =>
+      case ClassDef(name, _, superType, constructor, _, funcDefs, _) =>
         val ctxWithThis = ctx
           .newVar(ClassDef.thisSymbol, ctx.typeContext.typeUnfold(name))
           .newVar(

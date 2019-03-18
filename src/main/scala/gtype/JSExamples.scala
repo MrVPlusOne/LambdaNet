@@ -47,10 +47,6 @@ object JSExamples {
     def unary_! : GExpr = 'OP_Not.call(expr)
   }
 
-  def I(i: Int): Const = Const(i, number)
-
-  def B(b: Boolean) = Const(b, boolean)
-
   val THIS: Symbol = ClassDef.thisSymbol
 
   val SUPER: Symbol = ClassDef.superSymbol
@@ -101,6 +97,7 @@ object JSExamples {
   // @formatter:off
   object Collection {
     import collection.mutable
+    import GStmt.API._
 
     val all: ListBuffer[(String, Example)] = mutable.ListBuffer()
 
@@ -130,6 +127,21 @@ object JSExamples {
         'x := 'x + I(1)
       )
     ))
+
+//    val genericsExample: Example = wellFormed("generics")(BLOCK(
+//      ClassDef(
+//        'Foo,
+//        List('A),
+//        None,
+//        CONSTRUCTOR('Foo)(),
+//        Map('a -> 'A, 'b -> 'T),
+//        Vector(FuncDef('bar,
+//          List('T), List('x -> (List('T) -: 'A), 'y -> 'T),
+//          'B,
+//          BLOCK(), ExportLevel.Public)),
+//        ExportLevel.Public
+//      )
+//    ))
 
     val mergeSortExample: Example = wellFormed("mergeSort")(BLOCK(
       FUNC('mergeSort, numArray)('array -> numArray)(
