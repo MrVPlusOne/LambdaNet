@@ -1,8 +1,8 @@
 package infer
 
-import gtype.GStmt.TypeHoleContext
 import funcdiff.SimpleMath.Extensions._
-import gtype.{ExportLevel, GTHole, GType, JSExamples}
+import gtype._
+import infer.PredicateGraphConstruction.PredicateContext
 
 object IRTranslation {
   import IR._
@@ -10,9 +10,9 @@ object IRTranslation {
   def translateType(ty: GType)(implicit tyVars: Set[Symbol]): GType = {
     import gtype._
     ty match {
-      case tyVar: TyVar => if(tyVars.contains(tyVar.id)) AnyType else tyVar
-      case AnyType => AnyType
-      case f: FuncType => f.from.map(translateType) -: translateType(f.to)
+      case tyVar: TyVar => if (tyVars.contains(tyVar.id)) AnyType else tyVar
+      case AnyType      => AnyType
+      case f: FuncType  => f.from.map(translateType) -: translateType(f.to)
       case o: ObjectType =>
         ObjectType(o.fields.mapValuesNow(translateType))
     }
@@ -34,9 +34,9 @@ object IRTranslation {
       * Create and register a new [[IRType]].
       */
     def newTyVar(
-      origin: Option[GTHole],
-      name: Option[Symbol],
-      freezeToType: Option[gtype.GType] = None
+        origin: Option[GTHole],
+        name: Option[Symbol],
+        freezeToType: Option[gtype.GType] = None
     )(implicit tyVars: Set[Symbol]): IRType = {
       assert(tyVarIdx >= 0)
       val tv = IRType(tyVarIdx, name, freezeToType.map(translateType))
@@ -56,7 +56,8 @@ object IRTranslation {
       v
     }
 
-    def getTyVar(gMark: gtype.GTMark, name: Option[Symbol])(implicit tyVars: Set[Symbol]): IRType = {
+    def getTyVar(gMark: gtype.GTMark, name: Option[Symbol])(
+        implicit tyVars: Set[Symbol]): IRType = {
       gMark match {
         case h: gtype.GTHole => newTyVar(Some(h), name, None)
         case ty: gtype.GType => newTyVar(None, name, Some(ty))
@@ -64,7 +65,8 @@ object IRTranslation {
     }
   }
 
-  def exprAsVar(expr: IRExpr)(implicit tyVars: Set[Symbol], env: TranslationEnv): (Vector[IRStmt], Var) =
+  def exprAsVar(expr: IRExpr)(implicit tyVars: Set[Symbol],
+                              env: TranslationEnv): (Vector[IRStmt], Var) =
     expr match {
       case v: Var => (Vector(), v)
       case _ =>
@@ -75,9 +77,10 @@ object IRTranslation {
     }
 
   def translateStmt(
-    stmt: gtype.GStmt
+      stmt: gtype.GStmt
   )(
-    implicit quantifiedTypes: Set[Symbol], env: TranslationEnv
+      implicit quantifiedTypes: Set[Symbol],
+      env: TranslationEnv
   ): Vector[IR.IRStmt] = {
     stmt match {
       case gtype.VarDef(x, ty, init, isConst, level) =>
@@ -119,7 +122,8 @@ object IRTranslation {
         val (condDef, condE) = translateExpr2(cond)
         val (condDef2, condV) = exprAsVar(condE)
         // recompute the conditional expression value at the end of the loop
-        val condCompute = (condDef ++ condDef2).filterNot(_.isInstanceOf[VarDef])
+        val condCompute =
+          (condDef ++ condDef2).filterNot(_.isInstanceOf[VarDef])
         val bodyStmt = groupInBlock(translateStmt(body) ++ condCompute)
         condDef ++ condDef2 :+ WhileStmt(condV, bodyStmt)
       case gtype.CommentStmt(_) => Vector()
@@ -128,15 +132,24 @@ object IRTranslation {
       case f: gtype.FuncDef =>
         val newTyVars = quantifiedTypes ++ f.tyVars.toSet
         Vector(translateFunc(f)(newTyVars, env))
-      case gtype.ClassDef(name, tyVars, superType, constructor, vars, funcDefs, level) =>
+      case gtype.ClassDef(name,
+                          tyVars,
+                          superType,
+                          constructor,
+                          vars,
+                          funcDefs,
+                          level) =>
         val classT = env.newTyVar(None, Some(name))
         val newTyVars = quantifiedTypes ++ tyVars.toSet
         Vector(
           ClassDef(
             name,
             superType,
-            translateFunc(constructor)(newTyVars, env).copy(returnType = classT),
-            vars.map { case (v, mark) => v -> env.getTyVar(mark, Some(v))(newTyVars) },
+            translateFunc(constructor)(newTyVars, env)
+              .copy(returnType = classT),
+            vars.map {
+              case (v, mark) => v -> env.getTyVar(mark, Some(v))(newTyVars)
+            },
             funcDefs.map(f => translateFunc(f)(newTyVars, env)),
             classT,
             level
@@ -146,9 +159,10 @@ object IRTranslation {
   }
 
   def translateFunc(
-    func: gtype.FuncDef
+      func: gtype.FuncDef
   )(
-    implicit quantifiedTypes: Set[Symbol], env: TranslationEnv
+      implicit quantifiedTypes: Set[Symbol],
+      env: TranslationEnv
   ): IR.FuncDef = {
     import func._
     val args1 = args.map {
@@ -169,7 +183,8 @@ object IRTranslation {
 
   /** @see [[translateExpr]] */
   def translateExpr2(expr: gtype.GExpr)(
-    implicit tyVars: Set[Symbol], env: TranslationEnv
+      implicit tyVars: Set[Symbol],
+      env: TranslationEnv
   ): (Vector[IRStmt], IRExpr) = {
     val defs = mutable.ListBuffer[IRStmt]()
     val e = translateExpr(expr)(tyVars, env, defs)
@@ -182,8 +197,9 @@ object IRTranslation {
     * into the ListBuffer argument.
     */
   def translateExpr(expr: gtype.GExpr)(
-    implicit tyVars: Set[Symbol], env: TranslationEnv,
-    defs: mutable.ListBuffer[IRStmt]
+      implicit tyVars: Set[Symbol],
+      env: TranslationEnv,
+      defs: mutable.ListBuffer[IRStmt]
   ): IRExpr = {
     def asVar(expr: IRExpr): Var = {
       val (stmts, v) = exprAsVar(expr)
@@ -213,11 +229,72 @@ object IRTranslation {
     }
   }
 
+  /** collect the <b>top-level</b> public exports */
+  def collectExports(stmts: Vector[IRStmt]): ModuleExports = {
+    val terms = mutable.HashMap[Var, IRType]()
+    val types = mutable.HashMap[ClassName, IRType]()
+    var defaultExport: Option[(Either[Var, ClassName], IRType)] = None
+
+    /*
+     *   | var x: τ = e                      ([[VarDef]])
+     *   | x := x                            ([[Assign]])
+     *   | [return] x                        ([[ReturnStmt]])
+     *   | if(x) S else S                    ([[IfStmt]])
+     *   | while(x) S                        ([[WhileStmt]])
+     *   | { S; ...; S }                     ([[BlockStmt]])
+     *   | function x (x: τ, ..., x:τ): τ S  ([[FuncDef]])
+     *   | class x (l: α, ..., l:α)          ([[ClassDef]])
+     */
+    def rec(stmt: IRStmt): Unit = stmt match {
+      case VarDef(v, mark, _, exportLevel) =>
+        exportLevel match {
+          case ExportLevel.Public =>
+            require(!terms.contains(v))
+            terms(v) = mark
+          case ExportLevel.MainExport =>
+            require(defaultExport.isEmpty)
+            defaultExport = Some(Left(v) -> mark)
+          case ExportLevel.Private =>
+        }
+      case f: FuncDef =>
+        val funcVar = Var(Right(f.name))
+        f.exportLevel match {
+          case ExportLevel.Public =>
+            require(!terms.contains(funcVar))
+            terms(funcVar) = f.funcT
+          case ExportLevel.MainExport =>
+            require(defaultExport.isEmpty)
+            defaultExport = Some(Left(funcVar) -> f.funcT)
+          case ExportLevel.Private =>
+        }
+      case c: ClassDef =>
+        c.exportLevel match {
+          case ExportLevel.Public =>
+            require(!types.contains(c.name))
+            types(c.name) = c.classT
+          case ExportLevel.MainExport =>
+            require(defaultExport.isEmpty)
+            defaultExport = Some(Right(c.name) -> c.classT)
+          case ExportLevel.Private =>
+        }
+      case _ =>
+    }
+    stmts.foreach(rec)
+
+    ModuleExports(terms.toMap, types.toMap, defaultExport)
+  }
+
+  def translateModule(module: GModule, ctx: PredicateContext)(
+      implicit env: TranslationEnv): IRModule = {
+    val irStmts = module.stmts.flatMap(s => translateStmt(s)(Set(), env))
+    IRModule(collectExports(irStmts), irStmts)
+  }
+
   def main(args: Array[String]): Unit = {
     val env = new TranslationEnv()
     val example = JSExamples.Collection.doublyLinkedList
 
-    println{
+    println {
       example.program.prettyPrint()
     }
 
@@ -227,11 +304,11 @@ object IRTranslation {
     import infer.PredicateGraphConstruction._
     val ctx = PredicateContext.jsCtx(env)
 
-    println{
+    println {
       "oldCtx: " + ctx.newTypeMap
     }
 
-    println{
+    println {
       "newCtx: " + PredicateGraphConstruction.encodeIR(stmts, ctx)._2.newTypeMap
     }
   }

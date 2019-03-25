@@ -1,7 +1,6 @@
 package infer
 
 import gtype.{ExportLevel, GTHole, GType, JSExamples}
-import funcdiff.SimpleMath.Extensions._
 import gtype.ExportLevel.asPrefix
 
 /**
@@ -10,6 +9,15 @@ import gtype.ExportLevel.asPrefix
 object IR {
 
   type IRTypeId = Int
+  type ClassName = Symbol
+
+  case class IRModule(exports: ModuleExports, stmts: Vector[IRStmt])
+
+  case class ModuleExports(
+      terms: Map[Var, IRType],
+      types: Map[ClassName, IRType],
+      defaultExport: Option[(Either[Var, ClassName], IRType)]
+  )
 
   // @formatter:off
   /** a simple expression
@@ -61,10 +69,14 @@ object IR {
     def prettyPrint: String = s"($cond ? $e1 : $e2)"
   }
 
-  case class IRType(id: Int, name: Option[Symbol], freezeToType: Option[GType]) {
+  case class IRType(id: Int,
+                    name: Option[Symbol],
+                    freezeToType: Option[GType]) {
     override def toString: String = {
-      val parts = name.map(n => s"{${n.name}}").toList ++ freezeToType.map(t => s"[$t]").toList
-        s"𝒯$id${parts.mkString}"
+      val parts = name.map(n => s"{${n.name}}").toList ++ freezeToType
+        .map(t => s"[$t]")
+        .toList
+      s"𝒯$id${parts.mkString}"
     }
   }
 
@@ -104,7 +116,11 @@ object IR {
     override def toString: String = prettyPrint()
   }
 
-  case class VarDef(v: Var, mark: IRType, rhs: IRExpr, exportLevel: ExportLevel.Value) extends IRStmt
+  case class VarDef(v: Var,
+                    mark: IRType,
+                    rhs: IRExpr,
+                    exportLevel: ExportLevel.Value)
+      extends IRStmt
 
   case class Assign(lhs: Var, rhs: Var) extends IRStmt
 
@@ -117,22 +133,22 @@ object IR {
   case class BlockStmt(stmts: Vector[IRStmt]) extends IRStmt
 
   case class FuncDef(
-    name: Symbol,
-    args: List[(Var, IRType)],
-    returnType: IRType,
-    body: Vector[IRStmt],
-    funcT: IRType,
-    exportLevel: ExportLevel.Value
+      name: Symbol,
+      args: List[(Var, IRType)],
+      returnType: IRType,
+      body: Vector[IRStmt],
+      funcT: IRType,
+      exportLevel: ExportLevel.Value
   ) extends IRStmt
 
   case class ClassDef(
-    name: Symbol,
-    superType: Option[Symbol] = None,
-    constructor: FuncDef,
-    vars: Map[Symbol, IRType],
-    funcDefs: Vector[FuncDef],
-    classT: IRType,
-    exportLevel: ExportLevel.Value
+      name: Symbol,
+      superType: Option[Symbol] = None,
+      constructor: FuncDef,
+      vars: Map[Symbol, IRType],
+      funcDefs: Vector[FuncDef],
+      classT: IRType,
+      exportLevel: ExportLevel.Value
   ) extends IRStmt {
     require(constructor.name == gtype.ClassDef.constructorName(name))
     require(constructor.returnType == classT)
@@ -146,9 +162,10 @@ object IR {
   object IRStmt {
     def prettyPrintHelper(indent: Int, stmt: IRStmt): Vector[(Int, String)] = {
       stmt match {
-        case VarDef(v, ty, rhs, level) => Vector(indent -> s"${asPrefix(level)}let $v: $ty = $rhs;")
-        case Assign(lhs, rhs)   => Vector(indent -> s"$lhs = $rhs;")
-        case ReturnStmt(v)      => Vector(indent -> s"return $v;")
+        case VarDef(v, ty, rhs, level) =>
+          Vector(indent -> s"${asPrefix(level)}let $v: $ty = $rhs;")
+        case Assign(lhs, rhs) => Vector(indent -> s"$lhs = $rhs;")
+        case ReturnStmt(v)    => Vector(indent -> s"return $v;")
         case IfStmt(cond, e1, e2) =>
           Vector(indent -> s"if ($cond)") ++
             prettyPrintHelper(indent, e1) ++ Vector(indent -> "else") ++
@@ -164,16 +181,25 @@ object IR {
             .map { case (v, tv) => s"$v: $tv" }
             .mkString("(", ", ", ")")
           val returnMark =
-            if (returnType.freezeToType.contains(GType.voidType)) "" else s": $returnType"
-          Vector(indent -> s"${asPrefix(level)}function ${funcName.name}:$funcT $argList$returnMark {") ++
+            if (returnType.freezeToType.contains(GType.voidType)) ""
+            else s": $returnType"
+          Vector(
+            indent -> s"${asPrefix(level)}function ${funcName.name}:$funcT $argList$returnMark {") ++
             body.flatMap(s => prettyPrintHelper(indent + 1, s)) ++ Vector(
             indent -> "}"
           )
-        case ClassDef(name, superType, constructor, vars, funcDefs, classT, level) =>
+        case ClassDef(name,
+                      superType,
+                      constructor,
+                      vars,
+                      funcDefs,
+                      classT,
+                      level) =>
           val superPart = superType
             .map(t => s"extends $t")
             .getOrElse("")
-          Vector(indent -> s"${asPrefix(level)}class ${name.name}: $classT $superPart {") ++
+          Vector(
+            indent -> s"${asPrefix(level)}class ${name.name}: $classT $superPart {") ++
             vars.toList.map {
               case (fieldName, tv) =>
                 (indent + 1, s"${fieldName.name}: $tv;")

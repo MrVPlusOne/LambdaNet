@@ -3,6 +3,8 @@ package gtype.parsing
 import gtype._
 import org.scalatest.WordSpec
 import ammonite.ops._
+import infer.IRTranslation.{TranslationEnv, translateStmt}
+import infer.{IRTranslation, PredicateGraphConstruction}
 
 class ParserTests extends WordSpec with MyTest {
   def testParsing(printResult: Boolean)(pairs: (String, Class[_])*): Unit = {
@@ -113,6 +115,26 @@ class ParserTests extends WordSpec with MyTest {
         |}
       """.stripMargin -> classOf[BlockStmt]
     )
+  }
+
+  "Export Import tests" in {
+    val file1 =
+      s"""
+         |export function foo(bar: number, z): boolean {
+         |  return z;
+         |}
+       """.stripMargin
+    val m1 = GModule("file1", GStmtParsing.parseContent(file1))
+
+    import infer.PredicateGraphConstruction._
+    val env = new TranslationEnv()
+    val ctx = PredicateContext.jsCtx(env)
+    val irModule = IRTranslation.translateModule(m1, ctx)(env)
+    println{
+      irModule.exports
+    }
+
+    val (predicates, pCtx) = PredicateGraphConstruction.encodeIR(irModule.stmts, ctx)
 
   }
 }

@@ -6,6 +6,7 @@ import gtype.{ExportLevel, GTHole, GType, JSExamples}
 import infer.IR._
 import infer.IRTranslation.TranslationEnv
 import SimpleMath.{LabeledGraph, wrapInQuotes}
+import ammonite.ops.Path
 import infer.PredicateGraph._
 
 import collection.mutable
@@ -129,7 +130,6 @@ object PredicateGraph {
 }
 
 object PredicateGraphConstruction {
-  type ClassName = Symbol
 
   case class PredicateContext(
     varTypeMap: Map[Var, IRType],
@@ -152,65 +152,15 @@ object PredicateGraphConstruction {
     }
   }
 
-  case class ModuleExports(
-    terms: Map[Var, IRType],
-    types: Map[ClassName, IRType],
-    defaultExport: Option[(Either[Var, ClassName], IRType)]
-  )
 
-  /** collect the <b>top-level</b> public exports */
-  def collectExports(stmts: Vector[IRStmt]): ModuleExports = {
-    val terms = mutable.HashMap[Var, IRType]()
-    val types = mutable.HashMap[ClassName, IRType]()
-    var defaultExport: Option[(Either[Var, ClassName], IRType)] = None
+  def encodeModules(irModules: Map[Path, IRModule]):
+    Map[Path, (Vector[TyVarPredicate], Map[ClassName, IRType])] = {
+    def resolveImports(module: IRModule): PredicateContext = ???
 
-    /*
-    *   | var x: τ = e                      ([[VarDef]])
-    *   | x := x                            ([[Assign]])
-    *   | [return] x                        ([[ReturnStmt]])
-    *   | if(x) S else S                    ([[IfStmt]])
-    *   | while(x) S                        ([[WhileStmt]])
-    *   | { S; ...; S }                     ([[BlockStmt]])
-    *   | function x (x: τ, ..., x:τ): τ S  ([[FuncDef]])
-    *   | class x (l: α, ..., l:α)          ([[ClassDef]])
-     */
-    def rec(stmt: IRStmt): Unit = stmt match {
-      case VarDef(v, mark, _, exportLevel) =>
-        exportLevel match {
-          case ExportLevel.Public =>
-            require(!terms.contains(v))
-            terms(v) = mark
-          case ExportLevel.MainExport =>
-            require(defaultExport.isEmpty)
-            defaultExport = Some(Left(v) -> mark)
-          case ExportLevel.Private =>
-        }
-      case f: FuncDef =>
-        val funcVar = Var(Right(f.name))
-        f.exportLevel match {
-          case ExportLevel.Public =>
-            require(!terms.contains(funcVar))
-            terms(funcVar) = f.funcT
-          case ExportLevel.MainExport =>
-            require(defaultExport.isEmpty)
-            defaultExport = Some(Left(funcVar) -> f.funcT)
-          case ExportLevel.Private =>
-        }
-      case c: ClassDef =>
-        c.exportLevel match {
-          case ExportLevel.Public =>
-            require(!types.contains(c.name))
-            types(c.name) = c.classT
-          case ExportLevel.MainExport =>
-            require(defaultExport.isEmpty)
-            defaultExport = Some(Right(c.name) -> c.classT)
-          case ExportLevel.Private =>
-        }
-      case _ =>
+    irModules.mapValuesNow{ module =>
+      val (predicates, ctx1) = encodeIR(module.stmts, resolveImports(module))
+      predicates -> ctx1.newTypeMap
     }
-    stmts.foreach(rec)
-
-    ModuleExports(terms.toMap, types.toMap, defaultExport)
   }
 
   def encodeIR(
