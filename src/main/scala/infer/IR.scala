@@ -1,7 +1,8 @@
 package infer
 
-import gtype.{ExportLevel, GTHole, GType, JSExamples}
+import gtype._
 import gtype.ExportLevel.asPrefix
+import gtype.GModule.ProjectPath
 
 /**
   * An intermediate program representation useful for type inference
@@ -11,7 +12,12 @@ object IR {
   type IRTypeId = Int
   type ClassName = Symbol
 
-  case class IRModule(exports: ModuleExports, stmts: Vector[IRStmt])
+  case class IRModule(
+    path: ProjectPath,
+    imports: Vector[ImportStmt],
+    exports: ModuleExports,
+    stmts: Vector[IRStmt]
+  )
 
   case class ModuleExports(
       terms: Map[Var, IRType],
@@ -69,9 +75,7 @@ object IR {
     def prettyPrint: String = s"($cond ? $e1 : $e2)"
   }
 
-  case class IRType(id: Int,
-                    name: Option[Symbol],
-                    freezeToType: Option[GType]) {
+  case class IRType(id: Int, name: Option[Symbol], freezeToType: Option[GType]) {
     override def toString: String = {
       val parts = name.map(n => s"{${n.name}}").toList ++ freezeToType
         .map(t => s"[$t]")
@@ -116,10 +120,7 @@ object IR {
     override def toString: String = prettyPrint()
   }
 
-  case class VarDef(v: Var,
-                    mark: IRType,
-                    rhs: IRExpr,
-                    exportLevel: ExportLevel.Value)
+  case class VarDef(v: Var, mark: IRType, rhs: IRExpr, exportLevel: ExportLevel.Value)
       extends IRStmt
 
   case class Assign(lhs: Var, rhs: Var) extends IRStmt
@@ -133,22 +134,22 @@ object IR {
   case class BlockStmt(stmts: Vector[IRStmt]) extends IRStmt
 
   case class FuncDef(
-      name: Symbol,
-      args: List[(Var, IRType)],
-      returnType: IRType,
-      body: Vector[IRStmt],
-      funcT: IRType,
-      exportLevel: ExportLevel.Value
+    name: Symbol,
+    args: List[(Var, IRType)],
+    returnType: IRType,
+    body: Vector[IRStmt],
+    funcT: IRType,
+    exportLevel: ExportLevel.Value
   ) extends IRStmt
 
   case class ClassDef(
-      name: Symbol,
-      superType: Option[Symbol] = None,
-      constructor: FuncDef,
-      vars: Map[Symbol, IRType],
-      funcDefs: Vector[FuncDef],
-      classT: IRType,
-      exportLevel: ExportLevel.Value
+    name: Symbol,
+    superType: Option[Symbol] = None,
+    constructor: FuncDef,
+    vars: Map[Symbol, IRType],
+    funcDefs: Vector[FuncDef],
+    classT: IRType,
+    exportLevel: ExportLevel.Value
   ) extends IRStmt {
     require(constructor.name == gtype.ClassDef.constructorName(name))
     require(constructor.returnType == classT)
@@ -184,22 +185,16 @@ object IR {
             if (returnType.freezeToType.contains(GType.voidType)) ""
             else s": $returnType"
           Vector(
-            indent -> s"${asPrefix(level)}function ${funcName.name}:$funcT $argList$returnMark {") ++
+            indent -> s"${asPrefix(level)}function ${funcName.name}:$funcT $argList$returnMark {"
+          ) ++
             body.flatMap(s => prettyPrintHelper(indent + 1, s)) ++ Vector(
             indent -> "}"
           )
-        case ClassDef(name,
-                      superType,
-                      constructor,
-                      vars,
-                      funcDefs,
-                      classT,
-                      level) =>
+        case ClassDef(name, superType, constructor, vars, funcDefs, classT, level) =>
           val superPart = superType
             .map(t => s"extends $t")
             .getOrElse("")
-          Vector(
-            indent -> s"${asPrefix(level)}class ${name.name}: $classT $superPart {") ++
+          Vector(indent -> s"${asPrefix(level)}class ${name.name}: $classT $superPart {") ++
             vars.toList.map {
               case (fieldName, tv) =>
                 (indent + 1, s"${fieldName.name}: $tv;")

@@ -157,6 +157,14 @@ class WhileStmt implements GStmt {
   }
 }
 
+class ImportStmt implements GStmt {
+  category: string = "ImportStmt";
+
+  constructor(public text: string) {
+    mustExist(text);
+  }
+}
+
 class CommentStmt implements GStmt {
   category: string = "CommentStmt";
 
@@ -546,11 +554,15 @@ export class StmtParser {
           return EP.alongWithMany([new ExprStmt(switchCall, false) as GStmt].concat(clauses));
         }
 
+        case SyntaxKind.ImportDeclaration:
+          let n = node as ts.ImportDeclaration;
+          return EP.alongWith(new ImportStmt(n.getText()));
+
+
         // ignored statements:
         case SyntaxKind.BreakStatement:
           return EP.alongWith(new CommentStmt("break;"));
         case SyntaxKind.EnumDeclaration:
-        case SyntaxKind.ImportDeclaration:
         case SyntaxKind.ExportDeclaration:
         //todo: support the followings
         case SyntaxKind.TypeAliasDeclaration:

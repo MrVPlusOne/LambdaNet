@@ -2,17 +2,32 @@ package infer
 
 import funcdiff.SimpleMath
 import funcdiff.SimpleMath.Extensions._
-import gtype.{ExportLevel, GTHole, GType, JSExamples}
+import funcdiff.SimpleMath.{LabeledGraph, wrapInQuotes}
+import gtype.GModule.ProjectPath
+import gtype.ImportStmt._
+import gtype.{GTHole, GType, JSExamples}
 import infer.IR._
 import infer.IRTranslation.TranslationEnv
-import SimpleMath.{LabeledGraph, wrapInQuotes}
-import ammonite.ops.Path
 import infer.PredicateGraph._
 
-import collection.mutable
 
 /** Encodes the relationships between different type variables */
 object PredicateGraph {
+
+  case class PredicateModule(
+    path: ProjectPath,
+    predicates: Vector[TyVarPredicate],
+    newTypes: Map[ClassName, IRType]
+  ){
+    def display: String = {
+      s"""=== Module: $path ===
+         |* newTypes:
+         |${newTypes.mkString("\n")}
+         |* predicates:
+         |${predicates.mkString("\n")}
+       """.stripMargin
+    }
+  }
 
   sealed trait TyVarPredicate
 
@@ -112,7 +127,7 @@ object PredicateGraph {
             val conn = argTypes.zipWithIndex.map { case (a, i) => a.id -> s"arg$i" } :+ (returnType.id -> "return")
             ("Func", "FuncTypeExpr", conn)
           case CallTypeExpr(f, args) =>
-            val conn = args.zipWithIndex.map { case (a, i) => a.id -> s"arg$i" }
+            val conn = args.zipWithIndex.map { case (a, i) => a.id -> s"arg$i" } :+ (f.id -> "f")
             ("Call", "CallTypeExpr", conn)
           case ObjLiteralTypeExpr(fields) =>
             val conn = fields.toList.map { case (label, t) => t.id -> label.toString() }
@@ -152,14 +167,46 @@ object PredicateGraphConstruction {
     }
   }
 
+  def encodeModules(
+    modules: Seq[IRModule],
+    baseCtx: PredicateContext
+  ): Vector[PredicateModule] = {
+    val irModules = modules.map(m => m.path -> m).toMap
 
-  def encodeModules(irModules: Map[Path, IRModule]):
-    Map[Path, (Vector[TyVarPredicate], Map[ClassName, IRType])] = {
-    def resolveImports(module: IRModule): PredicateContext = ???
+    def resolveImports(module: IRModule): PredicateContext = {
+      var varTypeMap = baseCtx.varTypeMap
+      var newTypeMap = baseCtx.newTypeMap
+      val currentDir = module.path / ammonite.ops.up
+      module.imports.foreach {
+        case ImportSingle(oldName, path, newName) =>
+          val exports = irModules(currentDir / path).exports
+          val v = Var(Right(oldName))
+          exports.terms.get(v) match {
+            case Some(t) => varTypeMap = varTypeMap.updated(Var(Right(newName)), t)
+            case None =>
+              newTypeMap = newTypeMap.updated(newName, exports.types(oldName))
+          }
+        case ImportModule(path, newName) =>
+          val exports = irModules(currentDir / path).exports
+          varTypeMap = varTypeMap ++ exports.terms.map {
+            case (n, t) => Var(Right(Symbol(newName.name + "." + n.nameOpt.get.name))) -> t
+          }
+          newTypeMap ++= exports.types.map {
+            case (n, t) => Symbol(newName.name + "." + n.name) -> t
+          }
+        case ImportDefault(path, newName) =>
+          irModules(currentDir / path).exports.defaultExport.get match {
+            case (Left(_), t) => varTypeMap += (Var(Right(newName)) -> t)
+            case (Right(_), t) => newTypeMap += (newName -> t)
+          }
+      }
 
-    irModules.mapValuesNow{ module =>
+      PredicateContext(varTypeMap, newTypeMap)
+    }
+
+    modules.toVector.map { module =>
       val (predicates, ctx1) = encodeIR(module.stmts, resolveImports(module))
-      predicates -> ctx1.newTypeMap
+      PredicateModule(module.path, predicates, ctx1.newTypeMap)
     }
   }
 

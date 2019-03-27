@@ -6,12 +6,13 @@ import gtype.GStmt.{TypeAnnotation, TypeHoleContext}
 import gtype.{ExportLevel, _}
 import gtype.parsing.Js._
 
-object GStmtParsing {
+/** Parsing Typescript into the surface language */
+object ProgramParsing {
   def parseContent(content: String): Vector[GStmt] = {
     SimpleMath.addMessagesForExceptions("failed when parsing content: \n" + content) {
       val r = %%('node, "./parsingFromString.js", content)(pwd / 'scripts / 'ts)
-      val json = GStmtParsing.parseJson(r.out.string).asInstanceOf[Js.Arr]
-      val parser = new GStmtParsing()
+      val json = ProgramParsing.parseJson(r.out.string).asInstanceOf[Js.Arr]
+      val parser = new ProgramParsing()
       json.value.toVector.map {
         parser.parseGStmt
       }
@@ -39,8 +40,8 @@ object GStmtParsing {
   }
 
   def parseModulesFromJson(parsedJson: String): Seq[GModule] = {
-    val modules = GStmtParsing.parseJson(parsedJson).asInstanceOf[Js.Arr]
-    val parser = new GStmtParsing()
+    val modules = ProgramParsing.parseJson(parsedJson).asInstanceOf[Js.Arr]
+    val parser = new ProgramParsing()
     modules.value.map(parser.parseGModule)
   }
 
@@ -89,9 +90,9 @@ object GStmtParsing {
   }
 }
 
-import GStmtParsing._
+import ProgramParsing._
 
-class GStmtParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
+class ProgramParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
 
   def parseArgPair(value: Js.Val): (Symbol, GTMark) = {
     val (name, v) = parseNamedValue(value)
@@ -128,16 +129,6 @@ class GStmtParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
     tHoleContext.newTHole(mark)
   }
 
-  /*
-   *  e :=                         ([[GExpr]])
-   *     | x                       ([[Var]])
-   *     | c                       ([[Const]])
-   *     | e(e,...,e)              ([[FuncCall]])
-   *     | e as t                  ([[Cast]])
-   *     | { l: e, ..., l: e }     ([[ObjLiteral]])
-   *     | e.l                     ([[Access]])
-   *     | if[α] e then e else e   ([[IfExpr]])
-   */
   def parseGExpr(v: Js.Val): GExpr = {
     val map = asObj(v)
     asString(map("category")) match {
@@ -174,18 +165,7 @@ class GStmtParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
 
   val exportLevel: ExportLevel.Value = ExportLevel.Public
 
-  /*
-   * S :=                                    ([[GStmt]])
-   *       var x: α = e                      ([[VarDef]])
-   *       e := e                            ([[AssignStmt]])
-   *       [return] e                        ([[ExprStmt]])
-   *       if e then S else S                ([[IfStmt]])
-   *       while e do S                      ([[WhileStmt]])
-   * B in  { S; ...; S }                     ([[BlockStmt]])
-   * f in  function x (x: α, ..., x:α): α B  ([[FuncDef]])
-   *       class x (l: α, ..., l:α)          ([[ClassDef]])
-   *       ↳ [extends x]{ f, ..., f }
-   */
+
   def parseGStmt(v: Js.Val): GStmt = {
     val map = asObj(v)
     asString(map("category")) match {
@@ -224,7 +204,7 @@ class GStmtParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
         val returnType =
           if (name == 'Constructor) GType.voidType else parseGTMark(map("returnType"))
         val body = parseGStmt(map("body"))
-        val tyVars = List()  //fixme
+        val tyVars = List() //fixme
         FuncDef(name, tyVars, args, returnType, body, exportLevel)
       case "ClassDef" =>
         val name = asSymbol(map("name"))
@@ -234,8 +214,15 @@ class GStmtParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
           val constructorValue = map("constructor")
           val f = if (constructorValue == Null) {
             // make an empty constructor
-            val tyVars = List()  //fixme
-            FuncDef(consName, tyVars, List(), GType.voidType, BlockStmt(Vector()), exportLevel)
+            val tyVars = List() //fixme
+            FuncDef(
+              consName,
+              tyVars,
+              List(),
+              GType.voidType,
+              BlockStmt(Vector()),
+              exportLevel
+            )
           } else {
             parseGStmt(constructorValue).asInstanceOf[FuncDef]
           }
@@ -244,18 +231,28 @@ class GStmtParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
         val vars = parseArgList(map("vars"))
         val funcDefs =
           asVector(map("funcDefs")).map(x => parseGStmt(x).asInstanceOf[FuncDef])
-        val tyVars = List()  //fixme
+        val tyVars = List() //fixme
         ClassDef(name, tyVars, superType, constructor, vars.toMap, funcDefs, exportLevel)
 
-      case _ => ???
+      case other => throw new Error(s"Unknown category: $other")
     }
   }
 
   def parseGModule(v: Js.Val): GModule = {
     val obj = asObj(v)
     val name = asString(obj("name"))
-    val stmts = asVector(obj("stmts")).map { parseGStmt }
-    GModule(name, stmts)
+    var imports = Vector[ImportStmt]()
+    var stmts = Vector[GStmt]()
+
+    asVector(obj("stmts")).foreach {
+      case ImportPattern(ss) =>
+        imports ++= ss
+      case other =>
+        stmts :+= parseGStmt(other)
+    }
+
+    val modulePath = name.replace("." + RelPath(name).ext, "")
+    GModule(modulePath, imports, stmts)
   }
 
   def main(args: Array[String]): Unit = {

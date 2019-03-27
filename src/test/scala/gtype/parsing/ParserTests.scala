@@ -5,6 +5,7 @@ import org.scalatest.WordSpec
 import ammonite.ops._
 import infer.IRTranslation.{TranslationEnv, translateStmt}
 import infer.{IRTranslation, PredicateGraphConstruction}
+import ImportStmt._
 
 class ParserTests extends WordSpec with MyTest {
   def testParsing(printResult: Boolean)(pairs: (String, Class[_])*): Unit = {
@@ -17,7 +18,7 @@ class ParserTests extends WordSpec with MyTest {
 //    }
     val (lines0, cls) = pairs.unzip
     val lines = lines0.toArray
-    val parsed = GStmtParsing.parseContent(lines.mkString("\n"))
+    val parsed = ProgramParsing.parseContent(lines.mkString("\n"))
     parsed.zip(cls).zipWithIndex.foreach {
       case ((r, c), i) =>
         assert(
@@ -32,17 +33,23 @@ class ParserTests extends WordSpec with MyTest {
 
   "Source file parsing test" in {
     val projectRoot = pwd / RelPath("data/ts-algorithms")
-    val files = ls.rec(projectRoot)
+    val files = ls
+      .rec(projectRoot)
       .filter(_.ext == "ts")
       .map(_.relativeTo(projectRoot))
 
-    val modules = GStmtParsing.parseModulesFromFiles(files, Set(), projectRoot, Some(projectRoot / "parsed.json"))
+    val modules = ProgramParsing.parseModulesFromFiles(
+      files,
+      Set(),
+      projectRoot,
+      Some(projectRoot / "parsed.json")
+    )
     modules.foreach { module =>
       println(s"=== module: '${module.moduleName}' ===")
       module.stmts.foreach(println)
     }
 
-    val modules2 = GStmtParsing.parseModulesFromJson(read(projectRoot / "parsed.json"))
+    val modules2 = ProgramParsing.parseModulesFromJson(read(projectRoot / "parsed.json"))
     assert(modules == modules2, "Two parses do not match.")
   }
 
@@ -59,7 +66,7 @@ class ParserTests extends WordSpec with MyTest {
         |new A(1,2);
       """.stripMargin
 
-    GStmtParsing.parseContent(content)
+    ProgramParsing.parseContent(content)
   }
 
   "Statements parsing test" in {
@@ -117,24 +124,38 @@ class ParserTests extends WordSpec with MyTest {
     )
   }
 
+  "Imports parsing tests" in {
+    def test(text: String, target: Vector[ImportStmt]): Unit ={
+      assert(ImportPattern.parseImports(text) === target, s"parsing failed for '$text'")
+    }
+
+    test("""import A1 from "./ZipCodeValidator";""", Vector(ImportDefault(RelPath("./ZipCodeValidator"), 'A1)))
+    test("""import * as pkg from "./ZipCodeValidator";""", Vector(ImportModule(RelPath("./ZipCodeValidator"), 'pkg)))
+    test("""import {A,B as B1} from "./ZipCodeValidator";""", Vector(
+      ImportSingle('A, RelPath("./ZipCodeValidator"), 'A),
+      ImportSingle('B, RelPath("./ZipCodeValidator"), 'B1)
+    ))
+    test("""import {foo as fool} from "./file1";""", Vector(ImportSingle('foo, RelPath("./file1"), 'fool)))
+    test("""import "./my-module.js";""", Vector())
+
+  }
+
   "Export Import tests" in {
-    val file1 =
-      s"""
-         |export function foo(bar: number, z): boolean {
-         |  return z;
-         |}
-       """.stripMargin
-    val m1 = GModule("file1", GStmtParsing.parseContent(file1))
+    val modules = ProgramParsing.parseModulesFromFiles(
+      Seq("file1.ts", "file2.ts"),
+      Set(),
+      pwd / RelPath("data/tests/export-import"),
+    )
 
     import infer.PredicateGraphConstruction._
     val env = new TranslationEnv()
+    val irModules = modules.map(m => IRTranslation.translateModule(m)(env))
+
     val ctx = PredicateContext.jsCtx(env)
-    val irModule = IRTranslation.translateModule(m1, ctx)(env)
-    println{
-      irModule.exports
+    val pModules = PredicateGraphConstruction.encodeModules(irModules, ctx)
+
+    pModules.foreach{ m =>
+      println(m.display)
     }
-
-    val (predicates, pCtx) = PredicateGraphConstruction.encodeIR(irModule.stmts, ctx)
-
   }
 }
