@@ -11,6 +11,9 @@ export const gcd = (num1: number, num2: number): number => {
   return gcd(num1, num2 - num1);
 };
 
+export let a = 5;
+export function test(){}
+
 export const gcdArray = (num: number[]) => {
   let result = num[0];
 

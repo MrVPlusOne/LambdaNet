@@ -40,6 +40,33 @@ See [typingNet-Formalizations.pdf](typingNet-Formalizations.pdf).
 
 ### Current Progress
 
+#### Inference Graph Construction
+
+Todo: 
+
+- [ ] collapse constant nodes
+
+- [ ] fix generic variables parsing
+
+- [ ] fix types parsing
+
+Done:
+
+- [X] implement type decoding from predicate graphs
+
+- [X] implement user-defined type encoding
+
+- [X] implement graph embedding of predicate graphs
+
+- [X] generate predicate graph from IR
+
+- [X] implement an IR in single assignment form (SAF)
+
+- [X] translate programs ([GStmt](src/main/scala/gtype/GStmt.scala)) 
+into IR
+
+- [X] trace type variables back into source code
+
 #### Fine-tuning training loop and neural architecture
 
 Todo:
@@ -59,20 +86,3 @@ Done:
 (solution: updating with an RNN unit)
 
 - [X] implement the training loop
-
-#### Inference Graph Construction
-
-- [X] implement type decoding from predicate graphs
-
-- [X] implement user-defined type encoding
-
-- [X] implement graph embedding of predicate graphs
-
-- [X] generate predicate graph from IR
-
-- [X] implement an IR in single assignment form (SAF)
-
-- [X] translate programs ([GStmt](src/main/scala/gtype/GStmt.scala)) 
-into IR
-
-- [X] trace type variables back into source code

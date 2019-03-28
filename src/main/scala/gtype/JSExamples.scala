@@ -83,6 +83,7 @@ object JSExamples {
       'undefined -> any,
       'eq -> (List(any, any) -: boolean),
       'OP_Not -> (List(any) -: boolean),
+      'ExclamationToken -> (List(any) -: boolean),
       'OP_And -> (List(any, any) -: boolean),
       'toBool -> (List(any) -: boolean),
       'emptyArray -> anyArray,
@@ -90,7 +91,15 @@ object JSExamples {
         'floor -> (List(number) -: number),
         'abs -> (List(number) -: number)
       ),
+      ClassDef.constructorName('Array) -> (List(number) -: anyArray),
       'MinusToken -> (List(number) -: number),
+      'PlusToken -> (List(number) -: number),
+      'PlusPlusToken -> (List(number) -: number),
+      'MinusMinusToken -> (List(number) -: number),
+      'POST_PlusPlusToken -> (List(number) -: number),
+      'POST_MinusMinusToken -> (List(number) -: number),
+      'isFinite -> (List(number) -: boolean),
+      'Infinity -> number,
       '$TypeOf -> (List(any) -: string),
       '$Spread -> (List(anyArray) -: any),
       '$Case -> (List(number) -: void),
@@ -98,6 +107,7 @@ object JSExamples {
       '$Delete -> (List(any) -: void),
       //todo: properly handle these:
       'String -> any,
+      'Object -> any,
       'Number -> (List(any) -: number),
     )
 

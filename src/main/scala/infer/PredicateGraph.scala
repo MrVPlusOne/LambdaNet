@@ -255,8 +255,10 @@ object PredicateGraphConstruction {
     }
 
     modules.toVector.map { module =>
-      val (predicates, ctx1) = encodeIR(module.stmts, resolveImports(module))
-      PredicateModule(module.path, predicates, ctx1.newTypeMap)
+      SimpleMath.addMessagesForExceptions(s"Predicate Graph Construction failed for module: '${module.path}'", prepend = true) {
+        val (predicates, ctx1) = encodeIR(module.stmts, resolveImports(module))
+        PredicateModule(module.path, predicates, ctx1.newTypeMap)
+      }
     }
   }
 
@@ -342,9 +344,10 @@ object PredicateGraphConstruction {
             add(DefineRel(funcT, FuncTypeExpr(args.map(_._2), newReturnType)))
             body.foreach(s => encodeStmt(s)(innerCtx))
           case ClassDef(_, superType, constructor, vars, funcDefs, classT, _) =>
-            superType.foreach { n =>
+            val superMap = superType.map { n =>
               val parentType = ctx.newTypeMap(n)
               add(InheritanceRel(classT, parentType))
+              ClassDef.superVar -> parentType
             }
             val methods = funcDefs.map(f => f.name -> f.funcT)
             val objExpr = ObjLiteralTypeExpr(vars ++ methods)
@@ -353,7 +356,7 @@ object PredicateGraphConstruction {
 
             val innerCtx =
               ctx.copy(
-                varTypeMap = ctx.varTypeMap + (ClassDef.thisVar -> classT)
+                varTypeMap = ctx.varTypeMap + (ClassDef.thisVar -> classT) ++ superMap.toList
               )
             (constructor +: funcDefs).foreach(s => encodeStmt(s)(innerCtx))
         }

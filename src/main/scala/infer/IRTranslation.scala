@@ -258,7 +258,7 @@ object IRTranslation {
           case ExportLevel.Public =>
             require(!terms.contains(v.nameOpt.get), v + " already in var context!")
             terms(v.nameOpt.get) = mark
-          case ExportLevel.MainExport =>
+          case ExportLevel.Default =>
             require(defaultVar.isEmpty)
             defaultVar = Some(v -> mark)
           case ExportLevel.Private =>
@@ -268,7 +268,7 @@ object IRTranslation {
           case ExportLevel.Public =>
             require(!terms.contains(f.name))
             terms(f.name) = f.funcT
-          case ExportLevel.MainExport =>
+          case ExportLevel.Default =>
             require(defaultVar.isEmpty)
             defaultVar = Some(Var(Right(f.name)) -> f.funcT)
           case ExportLevel.Private =>
@@ -279,7 +279,7 @@ object IRTranslation {
             require(!classes.contains(c.name))
             classes(c.name) = c.classT
             terms(c.constructor.name) = c.constructor.funcT
-          case ExportLevel.MainExport =>
+          case ExportLevel.Default =>
             require(defaultVar.isEmpty)
             require(defaultClass.isEmpty)
             defaultClass = Some(c.name -> c.classT)
@@ -305,8 +305,10 @@ object IRTranslation {
     //fixme: introduce type aliases at inner scope. Currently they are only visible at export scope.
     module.exportStmts.collect {
       case ExportTypeAlias(name, tVars, t) =>
-        aliases(name) =
-          (env.newTyVar(None, Some(name), freezeToType = Some(t))(tVars.toSet), ExportCategory.TypeAlias)
+        aliases(name) = (
+          env.newTyVar(None, Some(name), freezeToType = Some(t))(tVars.toSet),
+          ExportCategory.TypeAlias
+        )
     }
 
     val moduleExports = collectExports(irStmts)

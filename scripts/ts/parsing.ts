@@ -1,4 +1,3 @@
-import {readFileSync} from "fs";
 import * as ts from "typescript";
 import {SyntaxKind} from "typescript";
 
@@ -124,7 +123,7 @@ class VarDef implements GStmt {
   category: string = "VarDef";
 
   constructor(public x: string, public mark: GMark,
-              public init: GExpr, public isConst: boolean) {
+              public init: GExpr, public isConst: boolean, public modifiers: string[]) {
     mustExist(x);
   }
 }
@@ -202,7 +201,7 @@ class FuncDef implements GStmt {
   category: string = "FuncDef";
 
   constructor(public name: string, public args: NamedValue<GMark>[], public returnType: GMark,
-              public body: GStmt) {
+              public body: GStmt, public modifiers: string[]) {
     mustExist(name);
     if ((name == "Constructor") && returnType && (returnType as TVar).name != 'void') {
       throw new Error("Wrong return type for constructor. Got: " + returnType)
@@ -214,7 +213,7 @@ class ClassDef implements GStmt {
   category: string = "ClassDef";
 
   constructor(public name: string, public constructor: FuncDef, public vars: Object,
-              public funcDefs: FuncDef[], public superType: string) {
+              public funcDefs: FuncDef[], public superType: string, public modifiers: string[]) {
   }
 }
 
@@ -376,7 +375,7 @@ export class StmtParser {
         function allocateLambda(f: ts.FunctionLikeDeclaration): Var {
           let name = "$Lambda" + getNLambda[0];
           getNLambda[0] += 1;
-          lambdas.push(parseFunction(name, f));
+          lambdas.push(parseFunction(name, f, []));
           return new Var(name);
         }
 
@@ -392,7 +391,7 @@ export class StmtParser {
       }
     }
 
-    function parseFunction(name: string, n: ts.FunctionLikeDeclaration): FuncDef {
+    function parseFunction(name: string, n: ts.FunctionLikeDeclaration, modifiers: string[]): FuncDef {
       let retType = (node.kind == SyntaxKind.Constructor) ? new TVar("void") :
         parseMark(n.type, checker);
       let args = n.parameters.map(p => {
@@ -408,40 +407,40 @@ export class StmtParser {
         body = rec(n.body);
       }
 
-      return new FuncDef(name, args, retType, flattenBlock(body.stmts));
+      return new FuncDef(name, args, retType, flattenBlock(body.stmts), modifiers);
     }
 
 
     function rec(node: ts.Node): StmtsHolder {
       let EP = new ExprProcessor();
 
-      function parseVarDecList(node: ts.VariableDeclarationList): VarDef[] {
-
-        function parseBinding(x: ts.BindingElement | ts.VariableDeclaration, isConst: boolean): VarDef[] {
-          let initExpr = x.initializer ? EP.processExpr(x.initializer) : notDefinedValue;
-          let lhs = x.name;
-          switch (lhs.kind) {
-            case SyntaxKind.Identifier:
-              return [new VarDef(
-                (<ts.Identifier>lhs).text,
-                parseMark((<any>x).type, checker),
-                initExpr,
-                isConst)];
-            case SyntaxKind.ObjectBindingPattern:
-              return flatMap((lhs as ts.ObjectBindingPattern).elements, (e: ts.BindingElement) => {
-                return parseBinding(e, isConst)
-              });
-            default:
-              throw new Error("Unsupported binding pattern: " + x.getText())
-          }
-        }
+      function parseVarDecList(node: ts.VariableDeclarationList, modifiers: string[]): VarDef[] {
 
         return forNode(node, () => {
           let isConst = (node.flags & ts.NodeFlags.Const) != 0;
 
-          let dec = node.declarations;
+          function parseBinding(x: ts.BindingElement | ts.VariableDeclaration): VarDef[] {
+            let initExpr = x.initializer ? EP.processExpr(x.initializer) : notDefinedValue;
+            let lhs = x.name;
+            switch (lhs.kind) {
+              case SyntaxKind.Identifier:
+                return [new VarDef(
+                  (<ts.Identifier>lhs).text,
+                  parseMark((<any>x).type, checker),
+                  initExpr,
+                  isConst,
+                  modifiers)];
+              case SyntaxKind.ObjectBindingPattern:
+                return flatMap((lhs as ts.ObjectBindingPattern).elements, (e: ts.BindingElement) => {
+                  return parseBinding(e)
+                });
+              default:
+                throw new Error("Unsupported binding pattern: " + x.getText())
+            }
+          }
 
-          return flatMap(dec, (x: ts.VariableDeclaration) => parseBinding(x, isConst));
+          let dec = node.declarations;
+          return flatMap(dec, (x: ts.VariableDeclaration) => parseBinding(x));
         });
       }
 
@@ -463,8 +462,10 @@ export class StmtParser {
           return EP.alongWith(new ExprStmt(EP.processExpr(n.expression), true));
         }
         case SyntaxKind.VariableStatement: {
-          let list = (node as ts.VariableStatement).declarationList;
-          return EP.alongWithMany(parseVarDecList(list));
+          let n = node as ts.VariableStatement;
+          let ms = parseModifiers(n.modifiers);
+          let list = n.declarationList;
+          return EP.alongWithMany(parseVarDecList(list, ms));
         }
         case SyntaxKind.IfStatement: {
           let n = node as ts.IfStatement;
@@ -493,7 +494,7 @@ export class StmtParser {
           let outerBlock = new BlockStmt([]);
 
           if (init && ts.isVariableDeclarationList(init)) {
-            outerBlock.stmts = parseVarDecList(init);
+            outerBlock.stmts = parseVarDecList(init, []);
           } else if (init) {
             outerBlock.stmts.push(new ExprStmt(EP.processExpr(init as ts.Expression), false));
           }
@@ -513,7 +514,7 @@ export class StmtParser {
           let name = (node.kind == SyntaxKind.Constructor) ? "Constructor" :
             tryFullyQualifiedName((node as any).name, checker);
           let n = <ts.FunctionLikeDeclaration>node;
-          return EP.alongWith(parseFunction(name, n));
+          return EP.alongWith(parseFunction(name, n, parseModifiers(n.modifiers)));
         }
 
         case SyntaxKind.ClassDeclaration: {
@@ -549,7 +550,8 @@ export class StmtParser {
             }
           }
 
-          return EP.alongWith(new ClassDef(name, constructor, vars, funcDefs, superType));
+          return EP.alongWith(new ClassDef(name, constructor, vars, funcDefs,
+            superType, parseModifiers(n.modifiers)));
         }
         case SyntaxKind.SwitchStatement: {
           let n = node as ts.SwitchStatement;
@@ -584,7 +586,8 @@ export class StmtParser {
           });
           let rhs = new ObjLiteral(vars);
 
-          return EP.alongWith(new VarDef(n.name.text, null, rhs, true));
+          return EP.alongWith(new VarDef(n.name.text, null, rhs,
+            true, parseModifiers(n.modifiers)));
         }
         case SyntaxKind.TypeAliasDeclaration: {
           let n = node as ts.TypeAliasDeclaration;
@@ -608,6 +611,27 @@ export class StmtParser {
 
     return rec(node).stmts;
   }
+}
+
+function parseModifiers(modifiersNode: ts.ModifiersArray): string[] {
+  let modifiers: string[] = [];
+  if(modifiersNode){
+    modifiersNode.forEach(m => {
+      switch (m.kind) {
+        case SyntaxKind.ExportKeyword:
+          modifiers.push("export");
+          break;
+        case SyntaxKind.DefaultKeyword:
+          modifiers.push("default");
+          break;
+        case SyntaxKind.ConstKeyword:
+          modifiers.push("const");
+          break;
+        default:
+      }
+    })
+  }
+  return modifiers;
 }
 
 export function flattenBlock(stmts: GStmt[]): GStmt {

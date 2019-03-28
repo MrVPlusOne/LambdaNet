@@ -565,13 +565,17 @@ object SimpleMath {
     }
   }
 
-  def addMessagesForExceptions[T](msg: => String)(computation: => T): T = {
+  def addMessagesForExceptions[T](msg: => String, prepend: Boolean = true)(computation: => T): T = {
     try {
       computation
     } catch {
       case e: Exception =>
-        System.err.println(msg)
-        throw e
+        if(prepend){
+          System.err.println(msg)
+          throw e
+        }else {
+          ???
+        }
     }
   }
 

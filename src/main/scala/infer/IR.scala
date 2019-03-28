@@ -141,9 +141,9 @@ object IR {
 
   case class ReturnStmt(v: Var) extends IRStmt
 
-  case class IfStmt(cond: Var, e1: IRStmt, e2: IRStmt) extends IRStmt
+  case class IfStmt(cond: Var, e1: BlockStmt, e2: BlockStmt) extends IRStmt
 
-  case class WhileStmt(cond: Var, body: IRStmt) extends IRStmt
+  case class WhileStmt(cond: Var, body: BlockStmt) extends IRStmt
 
   case class BlockStmt(stmts: Vector[IRStmt]) extends IRStmt
 
@@ -171,7 +171,7 @@ object IR {
 
   object ClassDef {
     val thisVar = namedVar(gtype.ClassDef.thisSymbol)
-//    val superVar = Var(gtype.ClassDef.superSymbol)
+    val superVar = namedVar(gtype.ClassDef.superSymbol)
   }
 
   object IRStmt {
@@ -220,11 +220,10 @@ object IR {
       }
     }
   }
-  def groupInBlock(stmts: Vector[IRStmt]): IRStmt = {
-    if (stmts.length == 1) {
-      stmts.head
-    } else {
-      BlockStmt(stmts)
+  def groupInBlock(stmts: Vector[IRStmt]): BlockStmt = {
+    stmts match {
+      case Vector(b: BlockStmt) => b
+      case _ => BlockStmt(stmts)
     }
   }
 }

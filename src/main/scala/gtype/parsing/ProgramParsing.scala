@@ -163,8 +163,17 @@ class ProgramParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
     }
   }
 
-  val exportLevel: ExportLevel.Value = ExportLevel.Public
 
+  case class DefModifiers(isConst: Boolean, exportLevel: ExportLevel.Value)
+
+  def parseModifiers(v: Js.Val): DefModifiers = {
+    val modifiers = asArray(v).map(asString).toSet
+    val isConst = modifiers.contains("const")
+    val exportLevel = if(modifiers.contains("export"))
+      if(modifiers.contains("default")) ExportLevel.Default else ExportLevel.Public
+    else ExportLevel.Private
+    DefModifiers(isConst, exportLevel)
+  }
 
   def parseGStmt(v: Js.Val): GStmt = {
     val map = asObj(v)
@@ -173,8 +182,9 @@ class ProgramParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
         val name = asString(map("x"))
         val t = parseGTMark(map("mark"))
         val init = parseGExpr(map("init"))
-        val b = asBoolean(map("isConst"))
-        VarDef(Symbol(name), t, init, isConst = b, exportLevel)
+        val ms = parseModifiers(map("modifiers"))
+        val b = asBoolean(map("isConst")) || ms.isConst
+        VarDef(Symbol(name), t, init, isConst = b, ms.exportLevel)
       case "AssignStmt" =>
         val lhs = parseGExpr(map("lhs"))
         val rhs = parseGExpr(map("rhs"))
@@ -205,10 +215,12 @@ class ProgramParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
           if (name == 'Constructor) GType.voidType else parseGTMark(map("returnType"))
         val body = parseGStmt(map("body"))
         val tyVars = List() //fixme
-        FuncDef(name, tyVars, args, returnType, body, exportLevel)
+        val ms = parseModifiers(map("modifiers"))
+        FuncDef(name, tyVars, args, returnType, body, ms.exportLevel)
       case "ClassDef" =>
         val name = asSymbol(map("name"))
         val superType = asOptionSymbol(map("superType"))
+        val ms = parseModifiers(map("modifiers"))
         val constructor = {
           val consName = ClassDef.constructorName(name)
           val constructorValue = map("constructor")
@@ -221,7 +233,7 @@ class ProgramParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
               List(),
               GType.voidType,
               BlockStmt(Vector()),
-              exportLevel
+              ms.exportLevel
             )
           } else {
             parseGStmt(constructorValue).asInstanceOf[FuncDef]
@@ -232,7 +244,7 @@ class ProgramParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
         val funcDefs =
           asVector(map("funcDefs")).map(x => parseGStmt(x).asInstanceOf[FuncDef])
         val tyVars = List() //fixme
-        ClassDef(name, tyVars, superType, constructor, vars.toMap, funcDefs, exportLevel)
+        ClassDef(name, tyVars, superType, constructor, vars.toMap, funcDefs, ms.exportLevel)
 
       case other => throw new Error(s"Unknown category: $other")
     }

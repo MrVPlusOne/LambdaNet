@@ -27,12 +27,12 @@ object ExportLevel extends Enumeration {
   val Private = Value
 
   /** Corresponds to 'default export' in typescript */
-  val MainExport = Value
+  val Default = Value
 
   def asPrefix(level: ExportLevel.Value): String = level match {
     case Public     => "export "
     case Private    => ""
-    case MainExport => "export default "
+    case Default => "export default "
   }
 }
 
