@@ -1,8 +1,9 @@
 package infer
 
 import funcdiff.SimpleMath.Extensions._
+import gtype.ExportStmt.ExportTypeAlias
 import gtype._
-import infer.PredicateGraphConstruction.PredicateContext
+import funcdiff.SimpleMath.Extensions._
 
 object IRTranslation {
   import IR._
@@ -236,8 +237,8 @@ object IRTranslation {
 
   /** collect the <b>top-level</b> public exports */
   def collectExports(stmts: Vector[IRStmt]): ModuleExports = {
-    val terms = mutable.HashMap[Var, IRType]()
-    val types = mutable.HashMap[ClassName, IRType]()
+    val terms = mutable.HashMap[Symbol, IRType]()
+    val classes = mutable.HashMap[ClassName, IRType]()
     var defaultVar: Option[(Var, IRType)] = None
     var defaultClass: Option[(ClassName, IRType)] = None
 
@@ -255,30 +256,29 @@ object IRTranslation {
       case VarDef(v, mark, _, exportLevel) =>
         exportLevel match {
           case ExportLevel.Public =>
-            require(!terms.contains(v), v + " already in var context!")
-            terms(v) = mark
+            require(!terms.contains(v.nameOpt.get), v + " already in var context!")
+            terms(v.nameOpt.get) = mark
           case ExportLevel.MainExport =>
             require(defaultVar.isEmpty)
             defaultVar = Some(v -> mark)
           case ExportLevel.Private =>
         }
       case f: FuncDef =>
-        val funcVar = Var(Right(f.name))
         f.exportLevel match {
           case ExportLevel.Public =>
-            require(!terms.contains(funcVar))
-            terms(funcVar) = f.funcT
+            require(!terms.contains(f.name))
+            terms(f.name) = f.funcT
           case ExportLevel.MainExport =>
             require(defaultVar.isEmpty)
-            defaultVar = Some(funcVar -> f.funcT)
+            defaultVar = Some(Var(Right(f.name)) -> f.funcT)
           case ExportLevel.Private =>
         }
       case c: ClassDef =>
         c.exportLevel match {
           case ExportLevel.Public =>
-            require(!types.contains(c.name))
-            types(c.name) = c.classT
-            terms(Var(Right(c.constructor.name))) = c.constructor.funcT
+            require(!classes.contains(c.name))
+            classes(c.name) = c.classT
+            terms(c.constructor.name) = c.constructor.funcT
           case ExportLevel.MainExport =>
             require(defaultVar.isEmpty)
             require(defaultClass.isEmpty)
@@ -290,14 +290,34 @@ object IRTranslation {
     }
     stmts.foreach(rec)
 
-    ModuleExports(terms.toMap, types.toMap, defaultVar, defaultClass)
+    val exports = terms.toMap.mapValuesNow(t => (t, ExportCategory.Term)) ++ classes.toMap
+      .mapValuesNow(t => (t, ExportCategory.Class))
+    ModuleExports(exports, defaultVar, defaultClass)
   }
 
   def translateModule(module: GModule)(
     implicit env: TranslationEnv
   ): IRModule = {
     val irStmts = module.stmts.flatMap(s => translateStmt(s)(Set(), env))
-    IRModule(module.path, module.imports, module.exportStmts, collectExports(irStmts), irStmts)
+
+    val aliases = mutable.HashMap[Symbol, (IRType, ExportCategory.Value)]()
+
+    //fixme: introduce type aliases at inner scope. Currently they are only visible at export scope.
+    module.exportStmts.collect {
+      case ExportTypeAlias(name, tVars, t) =>
+        aliases(name) =
+          (env.newTyVar(None, Some(name), freezeToType = Some(t))(tVars.toSet), ExportCategory.TypeAlias)
+    }
+
+    val moduleExports = collectExports(irStmts)
+
+    IRModule(
+      module.path,
+      module.imports,
+      module.exportStmts,
+      moduleExports.copy(definitions = moduleExports.definitions ++ aliases),
+      irStmts
+    )
   }
 
   def main(args: Array[String]): Unit = {

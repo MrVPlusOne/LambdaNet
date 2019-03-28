@@ -20,12 +20,24 @@ object IR {
     stmts: Vector[IRStmt]
   )
 
+
+  object ExportCategory extends Enumeration {
+    val Term, Class, TypeAlias = Value
+  }
+
   case class ModuleExports(
-    terms: Map[Var, IRType],
-    types: Map[ClassName, IRType],
+    definitions: Map[Symbol, (IRType, ExportCategory.Value)],
     defaultVar: Option[(Var, IRType)],
     defaultType: Option[(ClassName, IRType)]
-  )
+  ){
+    def terms: Iterator[(Symbol, IRType)] = definitions.toIterator.collect{
+      case (n, (t, ExportCategory.Term)) => n -> t
+    }
+
+    def types: Iterator[(Symbol, IRType)] = definitions.toIterator.collect{
+      case (n, (t, cat)) if cat == ExportCategory.Class || cat == ExportCategory.TypeAlias => n -> t
+    }
+  }
 
   // @formatter:off
   /** a simple expression

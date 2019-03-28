@@ -5,7 +5,7 @@ import gtype.GModule.ProjectPath
 import gtype.{ExportStmt, ImportStmt}
 import ImportStmt._
 import fastparse.Parsed.{Failure, Success}
-import gtype.parsing.ProgramParsing.{asObj, asString}
+import gtype.parsing.ProgramParsing.{asObj, asString, asVector, asSymbol}
 
 import fastparse._, JavaWhitespace._
 
@@ -76,6 +76,11 @@ object ExportPattern {
       case "ExportStmt" =>
         val str = StringContext.treatEscapes(asString(map("text")))
         Some(parseExports(str))
+      case "TypeAliasStmt" =>
+        val name = Symbol(asString(map("name")))
+        val tVars = asVector(map("tVars")).map(asSymbol)
+        val `type` = ProgramParsing.parseType(map("type"))
+        Some(Vector(ExportTypeAlias(name, tVars, `type`)))
       case _ => None
     }
   }

@@ -173,6 +173,16 @@ class ExportStmt implements GStmt {
   }
 }
 
+class TypeAliasStmt implements GStmt {
+  category: string = "TypeAliasStmt";
+
+  constructor(public name: string, public tVars: string[], public type: GType) {
+    mustExist(name);
+    mustExist(tVars);
+    mustExist(type);
+  }
+}
+
 class CommentStmt implements GStmt {
   category: string = "CommentStmt";
 
@@ -576,16 +586,16 @@ export class StmtParser {
 
           return EP.alongWith(new VarDef(n.name.text, null, rhs, true));
         }
-
+        case SyntaxKind.TypeAliasDeclaration: {
+          let n = node as ts.TypeAliasDeclaration;
+          let tVars = n.typeParameters.map(p => p.name.text);
+          return EP.alongWith(new TypeAliasStmt(n.name.text, tVars, parseMark(n.type, checker)));
+        }
 
         // ignored statements:
         case SyntaxKind.BreakStatement:
           return EP.alongWith(new CommentStmt("break;"));
         //todo: support the followings
-        case SyntaxKind.TypeAliasDeclaration:
-          // return EP.alongWith(new CommentStmt(node.getText()));
-          return EP.alongWith(new CommentStmt(node.getText()));
-
 
         default:
           throw new Error("Unknown stmt category: " + ts.SyntaxKind[node.kind]);

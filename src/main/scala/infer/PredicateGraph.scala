@@ -219,19 +219,22 @@ object PredicateGraphConstruction {
       module.imports.foreach {
         case ImportSingle(oldName, path, newName) =>
           val exports = getExports(path)
-          val v = Var(Right(oldName))
-          exports.terms.get(v) match {
-            case Some(t) => varTypeMap = varTypeMap.updated(Var(Right(newName)), t)
-            case None =>
-              newTypeMap = newTypeMap.updated(newName, exports.types(oldName))
-              val constructorT = exports.terms(Var(Right(constructorName(oldName))))
+          val (t, category) = exports.definitions(oldName)
+          category match {
+            case ExportCategory.Term =>
+              varTypeMap = varTypeMap.updated(Var(Right(newName)), t)
+            case ExportCategory.TypeAlias =>
+              newTypeMap = newTypeMap.updated(newName, t)
+            case ExportCategory.Class =>
+              newTypeMap = newTypeMap.updated(newName, t)
+              val constructorT = exports.definitions(constructorName(oldName))._1
               varTypeMap += (Var(Right(constructorName(newName))) -> constructorT)
           }
         case ImportModule(path, newName) =>
           val exports = getExports(path)
           varTypeMap = varTypeMap ++ exports.terms.map {
             case (n, t) =>
-              Var(Right(Symbol(newName.name + "." + n.nameOpt.get.name))) -> t
+              Var(Right(Symbol(newName.name + "." + n.name))) -> t
           }
           newTypeMap ++= exports.types.map {
             case (n, t) => Symbol(newName.name + "." + n.name) -> t

@@ -88,6 +88,19 @@ object ProgramParsing {
       case True  => true
     }
   }
+
+  def parseType(v: Js.Val): GType = {
+    assert(
+      v != Null,
+      "Use parseGTMark instead if you are parsing an optional user type annotation."
+    )
+    val o = asObj(v)
+    val t = asString(o("category")) match {
+      case "TVar"    => TyVar(asSymbol(o("name")))
+      case "AnyType" => AnyType
+    }
+    t
+  }
 }
 
 import ProgramParsing._
@@ -103,19 +116,6 @@ class ProgramParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
   def parseArgList(value: Js.Val): List[(Symbol, GTMark)] = {
     val list = asArray(value)
     list.map(parseArgPair)
-  }
-
-  def parseType(v: Js.Val): GType = {
-    assert(
-      v != Null,
-      "Use parseGTMark instead if you are parsing an optional user type annotation."
-    )
-    val o = asObj(v)
-    val t = asString(o("category")) match {
-      case "TVar"    => TyVar(asSymbol(o("name")))
-      case "AnyType" => AnyType
-    }
-    t
   }
 
   def parseGTMark(v: Js.Val): GTMark = {

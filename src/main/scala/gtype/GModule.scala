@@ -49,7 +49,8 @@ object ImportStmt {
 sealed trait ExportStmt
 
 object ExportStmt {
-  case class ExportDefault(path: ProjectPath, newName: Option[Symbol]) extends ExportStmt
-  case class ExportSingle(oldName: Symbol, path: ProjectPath, newName: Symbol)
+  case class ExportDefault(from: ProjectPath, newName: Option[Symbol]) extends ExportStmt
+  case class ExportSingle(oldName: Symbol, from: ProjectPath, newName: Symbol)
       extends ExportStmt
+  case class ExportTypeAlias(name: Symbol, tVars: Vector[Symbol], `type`: GType) extends ExportStmt
 }

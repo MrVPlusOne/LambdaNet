@@ -92,6 +92,13 @@ object JSExamples {
       ),
       'MinusToken -> (List(number) -: number),
       '$TypeOf -> (List(any) -: string),
+      '$Spread -> (List(anyArray) -: any),
+      '$Case -> (List(number) -: void),
+      '$Switch -> (List(number) -: void),
+      '$Delete -> (List(any) -: void),
+      //todo: properly handle these:
+      'String -> any,
+      'Number -> (List(any) -: number),
     )
 
     ExprContext(varAssign, typeContext)
