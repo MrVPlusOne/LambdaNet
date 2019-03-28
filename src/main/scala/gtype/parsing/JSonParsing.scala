@@ -53,6 +53,10 @@ object JsonParsing{
   def string[_: P]: P[Js.Str] =
     P( space ~ "\"" ~/ (strChars | escape).rep.! ~ "\"").map(Js.Str)
 
+  def singleQuoteStringChars(c: Char): Boolean = c != '\'' && c != '\\'
+  def singleQuoteString[_: P]: P[Js.Str] =
+    P( space ~ "'" ~/ (P( CharsWhile(singleQuoteStringChars) ) | escape).rep.! ~ "'").map(Js.Str)
+
   def array[_: P]: P[Js.Arr] =
     P( "[" ~/ jsonExpr.rep(sep=","./) ~ space ~ "]").map(Js.Arr(_:_*))
 

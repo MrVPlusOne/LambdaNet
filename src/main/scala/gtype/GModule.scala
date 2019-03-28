@@ -6,6 +6,7 @@ import gtype.GModule.ProjectPath
 case class GModule(
   path: ProjectPath,
   imports: Vector[ImportStmt],
+  exportStmts: Vector[ExportStmt],
   stmts: Vector[GStmt]
 ) {
   val moduleName: String = path.segments.last
@@ -37,11 +38,18 @@ object ExportLevel extends Enumeration {
 
 sealed trait ImportStmt
 
-object ImportStmt{
+object ImportStmt {
   case class ImportSingle(oldName: Symbol, relPath: ProjectPath, newName: Symbol)
-    extends ImportStmt
+      extends ImportStmt
 
   case class ImportDefault(path: ProjectPath, newName: Symbol) extends ImportStmt
   case class ImportModule(path: ProjectPath, newName: Symbol) extends ImportStmt
 }
 
+sealed trait ExportStmt
+
+object ExportStmt {
+  case class ExportDefault(path: ProjectPath, newName: Option[Symbol]) extends ExportStmt
+  case class ExportSingle(oldName: Symbol, path: ProjectPath, newName: Symbol)
+      extends ExportStmt
+}

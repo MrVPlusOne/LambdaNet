@@ -15,14 +15,16 @@ object IR {
   case class IRModule(
     path: ProjectPath,
     imports: Vector[ImportStmt],
+    exportStmts: Vector[ExportStmt],
     exports: ModuleExports,
     stmts: Vector[IRStmt]
   )
 
   case class ModuleExports(
-      terms: Map[Var, IRType],
-      types: Map[ClassName, IRType],
-      defaultExport: Option[(Either[Var, ClassName], IRType)]
+    terms: Map[Var, IRType],
+    types: Map[ClassName, IRType],
+    defaultVar: Option[(Var, IRType)],
+    defaultType: Option[(ClassName, IRType)]
   )
 
   // @formatter:off

@@ -2,29 +2,30 @@ package gtype.parsing
 
 import ammonite.ops.RelPath
 import gtype.GModule.ProjectPath
-import gtype.ImportStmt
+import gtype.{ExportStmt, ImportStmt}
 import ImportStmt._
 import fastparse.Parsed.{Failure, Success}
 import gtype.parsing.ProgramParsing.{asObj, asString}
+
+import fastparse._, JavaWhitespace._
 
 object ImportPattern {
   def unapply(v: Js.Val): Option[Vector[ImportStmt]] = {
     val map = asObj(v)
     asString(map("category")) match {
       case "ImportStmt" =>
-        val importString = asString(map("text")).replace("\\\"", "\"")
+        val importString = StringContext.treatEscapes(asString(map("text")))
         Some(parseImports(importString))
       case _ => None
     }
   }
 
-  import fastparse._, JavaWhitespace._
-
 //  def spaceSep[_: P]: P[Unit] = P(CharsWhileIn(" \r\n", 1))
 
-  def identifier[_: P]: P[String] = CharsWhileIn("a-zA-Z0-9$").!
+  def identifier[_: P]: P[String] = CharsWhileIn("a-zA-Z0-9$_").!
 
-  def path[_: P]: P[ProjectPath] = P(JsonParsing.string).map(s => RelPath(s.value))
+  def path[_: P]: P[ProjectPath] =
+    P(JsonParsing.string | JsonParsing.singleQuoteString).map(s => RelPath(s.value))
 
   def parseImports(importText: String): Vector[ImportStmt] = {
     def importDefault[_: P] = P(identifier ~/ "from" ~ path).map {
@@ -49,14 +50,67 @@ object ImportPattern {
           }.toVector
       }
 
-    def importForEffects[_:P] = P(path).map(_ => Vector[ImportStmt]())
+    def importForEffects[_: P] = P(path).map(_ => Vector[ImportStmt]())
 
     def stmt[_: P]: P[Vector[ImportStmt]] =
-      P("import" ~/ (importSingles | importModule | importDefault | importForEffects) ~ ";")
+      P(
+        "import" ~/ (importSingles | importModule | importDefault | importForEffects) ~ ";"
+      )
 
     parse(importText, stmt(_)) match {
       case Success(value, _) => value
-      case f: Failure => throw new Error(s"Failed to parse import statement: '$importText', errors: ${f.trace().longMsg}")
+      case f: Failure =>
+        throw new Error(
+          s"Failed to parse import statement: '$importText', errors: ${f.trace().longMsg}"
+        )
+    }
+  }
+}
+
+object ExportPattern {
+  import gtype.ExportStmt._
+
+  def unapply(v: Js.Val): Option[Vector[ExportStmt]] = {
+    val map = asObj(v)
+    asString(map("category")) match {
+      case "ExportStmt" =>
+        val str = StringContext.treatEscapes(asString(map("text")))
+        Some(parseExports(str))
+      case _ => None
+    }
+  }
+
+  def parseExports(str: String): Vector[ExportStmt] = {
+    import ImportPattern.{identifier, path}
+
+    type Creator = ProjectPath => Vector[ExportStmt]
+
+    def exportDefault[_: P]: P[Creator] =
+      P("{" ~ "default" ~/ ("as" ~/ identifier).? ~ "}").map { newNameOpt => p =>
+        Vector(ExportDefault(p, newNameOpt.map(Symbol.apply)))
+      }
+
+    def exportSingle[_: P]: P[Creator] =
+      P("{" ~ identifier ~/ ("as" ~/ identifier).? ~ "}").map {
+        case (oldName, newNameOpt) =>
+          p =>
+            Vector(
+              ExportSingle(Symbol(oldName), p, Symbol(newNameOpt.getOrElse(oldName)))
+            )
+      }
+
+    def stmt[_: P] =
+      P("export" ~/ (exportDefault | exportSingle) ~ "from" ~/ path ~ ";").map {
+        case (creator, p) =>
+          creator(p)
+      }
+
+    parse(str, stmt(_)) match {
+      case Success(value, _) => value
+      case f: Failure =>
+        throw new Error(
+          s"Failed to parse export statement: '$str', errors: ${f.trace().longMsg}"
+        )
     }
   }
 }

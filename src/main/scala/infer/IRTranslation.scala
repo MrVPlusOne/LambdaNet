@@ -29,6 +29,7 @@ object IRTranslation {
     val holeTyVarMap = mutable.HashMap[GTHole, IRType]()
     //noinspection TypeAnnotation
     val tyVarHoleMap = mutable.HashMap[IRTypeId, GTHole]()
+    val constMap = mutable.HashMap[Const, Var]()
 
     /**
       * Create and register a new [[IRType]].
@@ -71,6 +72,14 @@ object IRTranslation {
   )(implicit tyVars: Set[Symbol], env: TranslationEnv): (Vector[IRStmt], Var) =
     expr match {
       case v: Var => (Vector(), v)
+//      case c: Const => todo: merge const nodes for inference
+//        if(env.constMap.contains(c)) (Vector(), env.constMap(c))
+//        else {
+//          val v = env.newVar()
+//          Vector(
+//            VarDef(v, env.newTyVar(None, None), c, ExportLevel.Private)
+//          ) -> v
+//        }
       case _ =>
         val v = env.newVar()
         Vector(
@@ -213,7 +222,7 @@ object IRTranslation {
         IR.FuncCall(fVar, argsVars)
       case _: gtype.Cast => ???
       case gtype.ObjLiteral(fields) =>
-        ObjLiteral(fields.mapValues(e => asVar(translateExpr(e))))
+        ObjLiteral(fields.mapValuesNow(e => asVar(translateExpr(e))))
       case gtype.Access(receiver, field) =>
         val v = asVar(translateExpr(receiver))
         FieldAccess(v, field)
@@ -229,7 +238,8 @@ object IRTranslation {
   def collectExports(stmts: Vector[IRStmt]): ModuleExports = {
     val terms = mutable.HashMap[Var, IRType]()
     val types = mutable.HashMap[ClassName, IRType]()
-    var defaultExport: Option[(Either[Var, ClassName], IRType)] = None
+    var defaultVar: Option[(Var, IRType)] = None
+    var defaultClass: Option[(ClassName, IRType)] = None
 
     /*
      *   | var x: τ = e                      ([[VarDef]])
@@ -245,11 +255,11 @@ object IRTranslation {
       case VarDef(v, mark, _, exportLevel) =>
         exportLevel match {
           case ExportLevel.Public =>
-            require(!terms.contains(v))
+            require(!terms.contains(v), v + " already in var context!")
             terms(v) = mark
           case ExportLevel.MainExport =>
-            require(defaultExport.isEmpty)
-            defaultExport = Some(Left(v) -> mark)
+            require(defaultVar.isEmpty)
+            defaultVar = Some(v -> mark)
           case ExportLevel.Private =>
         }
       case f: FuncDef =>
@@ -259,8 +269,8 @@ object IRTranslation {
             require(!terms.contains(funcVar))
             terms(funcVar) = f.funcT
           case ExportLevel.MainExport =>
-            require(defaultExport.isEmpty)
-            defaultExport = Some(Left(funcVar) -> f.funcT)
+            require(defaultVar.isEmpty)
+            defaultVar = Some(funcVar -> f.funcT)
           case ExportLevel.Private =>
         }
       case c: ClassDef =>
@@ -268,23 +278,26 @@ object IRTranslation {
           case ExportLevel.Public =>
             require(!types.contains(c.name))
             types(c.name) = c.classT
+            terms(Var(Right(c.constructor.name))) = c.constructor.funcT
           case ExportLevel.MainExport =>
-            require(defaultExport.isEmpty)
-            defaultExport = Some(Right(c.name) -> c.classT)
+            require(defaultVar.isEmpty)
+            require(defaultClass.isEmpty)
+            defaultClass = Some(c.name -> c.classT)
+            defaultVar = Some(Var(Right(c.constructor.name)) -> c.constructor.funcT)
           case ExportLevel.Private =>
         }
       case _ =>
     }
     stmts.foreach(rec)
 
-    ModuleExports(terms.toMap, types.toMap, defaultExport)
+    ModuleExports(terms.toMap, types.toMap, defaultVar, defaultClass)
   }
 
   def translateModule(module: GModule)(
     implicit env: TranslationEnv
   ): IRModule = {
     val irStmts = module.stmts.flatMap(s => translateStmt(s)(Set(), env))
-    IRModule(module.path, module.imports, collectExports(irStmts), irStmts)
+    IRModule(module.path, module.imports, module.exportStmts, collectExports(irStmts), irStmts)
   }
 
   def main(args: Array[String]): Unit = {

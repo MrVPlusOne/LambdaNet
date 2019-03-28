@@ -10,7 +10,6 @@ import infer.IR._
 import infer.IRTranslation.TranslationEnv
 import infer.PredicateGraph._
 
-
 /** Encodes the relationships between different type variables */
 object PredicateGraph {
 
@@ -18,7 +17,7 @@ object PredicateGraph {
     path: ProjectPath,
     predicates: Vector[TyVarPredicate],
     newTypes: Map[ClassName, IRType]
-  ){
+  ) {
     def display: String = {
       s"""=== Module: $path ===
          |* newTypes:
@@ -145,6 +144,8 @@ object PredicateGraph {
 }
 
 object PredicateGraphConstruction {
+  import ammonite.ops._
+  import gtype.parsing.ProgramParsing
 
   case class PredicateContext(
     varTypeMap: Map[Var, IRType],
@@ -167,37 +168,83 @@ object PredicateGraphConstruction {
     }
   }
 
+  def fromSourceFiles(
+    root: Path,
+    libraryFiles: Set[RelPath] = Set(),
+    excludeIndexFile: Boolean = true
+  ): Vector[PredicateModule] = {
+    val sources = ls
+      .rec(root)
+      .filter(f => f.ext == "ts")
+      .filterNot(f => excludeIndexFile && f.last == "index.ts")
+      .map(_.relativeTo(root))
+    val modules = ProgramParsing.parseModulesFromFiles(
+      sources,
+      libraryFiles,
+      root
+    )
+
+    val env = new TranslationEnv()
+    val irModules = modules.map(m => IRTranslation.translateModule(m)(env))
+
+    val ctx = PredicateContext.jsCtx(env)
+    val pModules = PredicateGraphConstruction.encodeModules(irModules, ctx)
+
+    pModules
+  }
+
   def encodeModules(
     modules: Seq[IRModule],
     baseCtx: PredicateContext
   ): Vector[PredicateModule] = {
     val irModules = modules.map(m => m.path -> m).toMap
 
+    //todo: properly handle export statements, currently ignored
     def resolveImports(module: IRModule): PredicateContext = {
       var varTypeMap = baseCtx.varTypeMap
       var newTypeMap = baseCtx.newTypeMap
       val currentDir = module.path / ammonite.ops.up
+
+      def getExports(path: ProjectPath): ModuleExports = {
+        irModules
+          .getOrElse(
+            currentDir / path,
+            throw new Error(s"Cannot find source file: '${currentDir / path}'.")
+          )
+          .exports
+      }
+
+      import gtype.ClassDef.{constructorName, isConstructor}
+
       module.imports.foreach {
         case ImportSingle(oldName, path, newName) =>
-          val exports = irModules(currentDir / path).exports
+          val exports = getExports(path)
           val v = Var(Right(oldName))
           exports.terms.get(v) match {
             case Some(t) => varTypeMap = varTypeMap.updated(Var(Right(newName)), t)
             case None =>
               newTypeMap = newTypeMap.updated(newName, exports.types(oldName))
+              val constructorT = exports.terms(Var(Right(constructorName(oldName))))
+              varTypeMap += (Var(Right(constructorName(newName))) -> constructorT)
           }
         case ImportModule(path, newName) =>
-          val exports = irModules(currentDir / path).exports
+          val exports = getExports(path)
           varTypeMap = varTypeMap ++ exports.terms.map {
-            case (n, t) => Var(Right(Symbol(newName.name + "." + n.nameOpt.get.name))) -> t
+            case (n, t) =>
+              Var(Right(Symbol(newName.name + "." + n.nameOpt.get.name))) -> t
           }
           newTypeMap ++= exports.types.map {
             case (n, t) => Symbol(newName.name + "." + n.name) -> t
           }
         case ImportDefault(path, newName) =>
-          irModules(currentDir / path).exports.defaultExport.get match {
-            case (Left(_), t) => varTypeMap += (Var(Right(newName)) -> t)
-            case (Right(_), t) => newTypeMap += (newName -> t)
+          getExports(path).defaultType.foreach { p =>
+            newTypeMap += p
+          }
+          getExports(path).defaultVar.foreach {
+            case (v, t) =>
+              val name1 =
+                if (isConstructor(v.nameOpt.get)) constructorName(newName) else newName
+              varTypeMap += (Var(Right(name1)) -> t)
           }
       }
 
@@ -246,65 +293,67 @@ object PredicateGraphConstruction {
     def encodeStmt(stmt: IRStmt)(implicit ctx: PredicateContext): Unit = {
       import ctx._
 
-      stmt match {
-        case d: VarDef =>
-          // don't need to modify ctx here, collect definitions when processing blocks
-          val tv = varTypeMap(d.v)
-          d.rhs match {
-            case v1: Var =>
-              add(EqualityRel(tv, varTypeMap(v1)))
-            case Const(_, ty) =>
-              add(FreezeType(tv, ty))
-            case FuncCall(f, args) =>
-              add(DefineRel(tv, CallTypeExpr(varTypeMap(f), args.map(varTypeMap))))
-            case ObjLiteral(fields) =>
-              add(DefineRel(tv, ObjLiteralTypeExpr(fields.mapValuesNow(varTypeMap))))
-            case FieldAccess(receiver, label) =>
-              add(DefineRel(tv, FieldAccessTypeExpr(varTypeMap(receiver), label)))
-            case IfExpr(cond, e1, e2) =>
-              add(SubtypeRel(varTypeMap(e1), tv))
-              add(SubtypeRel(varTypeMap(e2), tv))
-              add(UsedAsBoolean(varTypeMap(cond)))
-          }
-        case Assign(lhs, rhs) =>
-          add(AssignRel(varTypeMap(lhs), varTypeMap(rhs)))
-        case ReturnStmt(v) =>
-          add(SubtypeRel(varTypeMap(v), ctx.varTypeMap(returnVar)))
-        case IfStmt(cond, e1, e2) =>
-          add(UsedAsBoolean(varTypeMap(cond)))
-          encodeStmt(e1)
-          encodeStmt(e2)
-        case WhileStmt(cond, body) =>
-          add(UsedAsBoolean(varTypeMap(cond)))
-          encodeStmt(body)
-        case block: BlockStmt =>
-          val innerCtx = collectDefinitions(block.stmts)
-//          println(s"Inner context: $innerCtx")
-          block.stmts.foreach(s => encodeStmt(s)(innerCtx))
-        case FuncDef(_, args, newReturnType, body, funcT, _) =>
-          val innerCtx =
-            collectDefinitions(body)(
-              ctx.copy(
-                varTypeMap = (ctx.varTypeMap ++ args) + (returnVar -> newReturnType)
+      SimpleMath.addMessagesForExceptions(s"--->\n${stmt.prettyPrint()}") {
+        stmt match {
+          case d: VarDef =>
+            // don't need to modify ctx here, collect definitions when processing blocks
+            val tv = varTypeMap(d.v)
+            d.rhs match {
+              case v1: Var =>
+                add(EqualityRel(tv, varTypeMap(v1)))
+              case Const(_, ty) =>
+                add(FreezeType(tv, ty))
+              case FuncCall(f, args) =>
+                add(DefineRel(tv, CallTypeExpr(varTypeMap(f), args.map(varTypeMap))))
+              case ObjLiteral(fields) =>
+                add(DefineRel(tv, ObjLiteralTypeExpr(fields.mapValuesNow(varTypeMap))))
+              case FieldAccess(receiver, label) =>
+                add(DefineRel(tv, FieldAccessTypeExpr(varTypeMap(receiver), label)))
+              case IfExpr(cond, e1, e2) =>
+                add(SubtypeRel(varTypeMap(e1), tv))
+                add(SubtypeRel(varTypeMap(e2), tv))
+                add(UsedAsBoolean(varTypeMap(cond)))
+            }
+          case Assign(lhs, rhs) =>
+            add(AssignRel(varTypeMap(lhs), varTypeMap(rhs)))
+          case ReturnStmt(v) =>
+            add(SubtypeRel(varTypeMap(v), ctx.varTypeMap(returnVar)))
+          case IfStmt(cond, e1, e2) =>
+            add(UsedAsBoolean(varTypeMap(cond)))
+            encodeStmt(e1)
+            encodeStmt(e2)
+          case WhileStmt(cond, body) =>
+            add(UsedAsBoolean(varTypeMap(cond)))
+            encodeStmt(body)
+          case block: BlockStmt =>
+            val innerCtx = collectDefinitions(block.stmts)
+            //          println(s"Inner context: $innerCtx")
+            block.stmts.foreach(s => encodeStmt(s)(innerCtx))
+          case FuncDef(_, args, newReturnType, body, funcT, _) =>
+            val innerCtx =
+              collectDefinitions(body)(
+                ctx.copy(
+                  varTypeMap = (ctx.varTypeMap ++ args) + (returnVar -> newReturnType)
+                )
               )
-            )
-          add(DefineRel(funcT, FuncTypeExpr(args.map(_._2), newReturnType)))
-          body.foreach(s => encodeStmt(s)(innerCtx))
-        case ClassDef(_, superType, constructor, vars, funcDefs, classT, _) =>
-          superType.foreach { n =>
-            val parentType = ctx.newTypeMap(n)
-            add(InheritanceRel(classT, parentType))
-          }
-          val methods = funcDefs.map(f => f.name -> f.funcT)
-          val objExpr = ObjLiteralTypeExpr(vars ++ methods)
+            add(DefineRel(funcT, FuncTypeExpr(args.map(_._2), newReturnType)))
+            body.foreach(s => encodeStmt(s)(innerCtx))
+          case ClassDef(_, superType, constructor, vars, funcDefs, classT, _) =>
+            superType.foreach { n =>
+              val parentType = ctx.newTypeMap(n)
+              add(InheritanceRel(classT, parentType))
+            }
+            val methods = funcDefs.map(f => f.name -> f.funcT)
+            val objExpr = ObjLiteralTypeExpr(vars ++ methods)
 
-          add(DefineRel(classT, objExpr))
+            add(DefineRel(classT, objExpr))
 
-          val innerCtx =
-            ctx.copy(
-              varTypeMap = ctx.varTypeMap + (ClassDef.thisVar -> classT)
-            )
-          (constructor +: funcDefs).foreach(s => encodeStmt(s)(innerCtx))
+            val innerCtx =
+              ctx.copy(
+                varTypeMap = ctx.varTypeMap + (ClassDef.thisVar -> classT)
+              )
+            (constructor +: funcDefs).foreach(s => encodeStmt(s)(innerCtx))
+        }
       }
     }
 

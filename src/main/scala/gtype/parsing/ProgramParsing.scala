@@ -242,17 +242,20 @@ class ProgramParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
     val obj = asObj(v)
     val name = asString(obj("name"))
     var imports = Vector[ImportStmt]()
+    var exports = Vector[ExportStmt]()
     var stmts = Vector[GStmt]()
 
     asVector(obj("stmts")).foreach {
       case ImportPattern(ss) =>
         imports ++= ss
+      case ExportPattern(ss) =>
+        exports ++= ss
       case other =>
         stmts :+= parseGStmt(other)
     }
 
-    val modulePath = name.replace("." + RelPath(name).ext, "")
-    GModule(modulePath, imports, stmts)
+    val modulePath = RelPath(name.replace("." + RelPath(name).ext, ""))
+    GModule(modulePath, imports, exports, stmts)
   }
 
   def main(args: Array[String]): Unit = {

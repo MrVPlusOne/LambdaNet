@@ -165,6 +165,14 @@ class ImportStmt implements GStmt {
   }
 }
 
+class ExportStmt implements GStmt {
+  category: string = "ExportStmt";
+
+  constructor(public text: string) {
+    mustExist(text);
+  }
+}
+
 class CommentStmt implements GStmt {
   category: string = "CommentStmt";
 
@@ -230,7 +238,7 @@ export function parseExpr(node: ts.Node, checker: ts.TypeChecker,
       }
       case SyntaxKind.NewExpression: {
         let n = (<ts.NewExpression>node);
-        let fName = "NEW-" + (<ts.Identifier>n.expression).text;
+        let fName = (<ts.Identifier>n.expression).text + "-NEW";
         let args = n.arguments.map(rec);
         return new FuncCall(new Var(fName), args);
       }
@@ -555,17 +563,27 @@ export class StmtParser {
         }
 
         case SyntaxKind.ImportDeclaration:
-          let n = node as ts.ImportDeclaration;
-          return EP.alongWith(new ImportStmt(n.getText()));
+          return EP.alongWith(new ImportStmt(node.getText()));
+        case SyntaxKind.ExportDeclaration:
+          return EP.alongWith(new ExportStmt(node.getText()));
+        case SyntaxKind.EnumDeclaration: {
+          let n = node as ts.EnumDeclaration;
+          let vars = n.members.map(member => {
+            let vName = member.name.getText();
+            return new NamedValue(vName, new Const("ENUM", new TVar("number")));
+          });
+          let rhs = new ObjLiteral(vars);
+
+          return EP.alongWith(new VarDef(n.name.text, null, rhs, true));
+        }
 
 
         // ignored statements:
         case SyntaxKind.BreakStatement:
           return EP.alongWith(new CommentStmt("break;"));
-        case SyntaxKind.EnumDeclaration:
-        case SyntaxKind.ExportDeclaration:
         //todo: support the followings
         case SyntaxKind.TypeAliasDeclaration:
+          // return EP.alongWith(new CommentStmt(node.getText()));
           return EP.alongWith(new CommentStmt(node.getText()));
 
 
@@ -631,7 +649,7 @@ export function parseFiles(sources: string[], libraryFiles: string[]): GModule[]
 
   let parser = new StmtParser();
 
-  return sFiles.map(src => {
+  return sFiles.map((src, index) => {
     let stmts: GStmt[] = [];
     src.statements.forEach(s => {
       try {
@@ -644,6 +662,6 @@ export function parseFiles(sources: string[], libraryFiles: string[]): GModule[]
       }
 
     });
-    return new GModule(src.fileName, stmts);
+    return new GModule(sources[index], stmts);
   });
 }

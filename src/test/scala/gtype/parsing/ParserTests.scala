@@ -56,7 +56,9 @@ class ParserTests extends WordSpec with MyTest {
   "Expressions parsing test" in {
     val content =
       """
+        |let x = {a: 1, b: {c: "x"}};
         |3;
+        |-2;
         |"abc";
         |true;
         |false;
@@ -66,7 +68,13 @@ class ParserTests extends WordSpec with MyTest {
         |new A(1,2);
       """.stripMargin
 
-    ProgramParsing.parseContent(content)
+    val stmts = ProgramParsing.parseContent(content)
+    stmts.foreach(println)
+    val env = new TranslationEnv()
+
+    val irStmts = stmts.flatMap(s => IRTranslation.translateStmt(s)(Set(), env))
+    println("=== IR ===")
+    irStmts.foreach(println)
   }
 
   "Statements parsing test" in {
@@ -131,7 +139,9 @@ class ParserTests extends WordSpec with MyTest {
 
     test("""import A1 from "./ZipCodeValidator";""", Vector(ImportDefault(RelPath("./ZipCodeValidator"), 'A1)))
     test("""import * as pkg from "./ZipCodeValidator";""", Vector(ImportModule(RelPath("./ZipCodeValidator"), 'pkg)))
-    test("""import {A,B as B1} from "./ZipCodeValidator";""", Vector(
+    test(
+      """import {A,
+        |B as B1} from "./ZipCodeValidator";""".stripMargin, Vector(
       ImportSingle('A, RelPath("./ZipCodeValidator"), 'A),
       ImportSingle('B, RelPath("./ZipCodeValidator"), 'B1)
     ))
@@ -141,21 +151,12 @@ class ParserTests extends WordSpec with MyTest {
   }
 
   "Export Import tests" in {
-    val modules = ProgramParsing.parseModulesFromFiles(
-      Seq("file1.ts", "file2.ts"),
-      Set(),
-      pwd / RelPath("data/tests/export-import"),
-    )
+    val root = pwd / RelPath("data/tests/export-import")
+    infer.PredicateGraphConstruction.fromSourceFiles(root).foreach{m => println(m.display)}
+  }
 
-    import infer.PredicateGraphConstruction._
-    val env = new TranslationEnv()
-    val irModules = modules.map(m => IRTranslation.translateModule(m)(env))
-
-    val ctx = PredicateContext.jsCtx(env)
-    val pModules = PredicateGraphConstruction.encodeModules(irModules, ctx)
-
-    pModules.foreach{ m =>
-      println(m.display)
-    }
+  "Project parsing integration test" in {
+    val root = pwd / RelPath("data/ts-algorithms")
+    infer.PredicateGraphConstruction.fromSourceFiles(root).foreach{m => println(m.display)}
   }
 }

@@ -86,7 +86,8 @@ case class ClassDef(
 object ClassDef {
   val thisSymbol = 'this
   val superSymbol = 'super
-  def constructorName(className: Symbol): Symbol = Symbol("NEW-" + className.name)
+  def constructorName(className: Symbol): Symbol = Symbol(className.name + "-NEW")
+  def isConstructor(name: Symbol) = name.name.endsWith("-NEW")
 }
 
 // === End of Statement definitions ====

@@ -80,6 +80,7 @@ object JSExamples {
 
   val exprContext: ExprContext = {
     val varAssign = Map[Symbol, GType](
+      'undefined -> any,
       'eq -> (List(any, any) -: boolean),
       'OP_Not -> (List(any) -: boolean),
       'OP_And -> (List(any, any) -: boolean),
@@ -88,7 +89,9 @@ object JSExamples {
       'Math -> obj(
         'floor -> (List(number) -: number),
         'abs -> (List(number) -: number)
-      )
+      ),
+      'MinusToken -> (List(number) -: number),
+      '$TypeOf -> (List(any) -: string),
     )
 
     ExprContext(varAssign, typeContext)

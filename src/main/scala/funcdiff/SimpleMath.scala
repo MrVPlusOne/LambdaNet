@@ -565,7 +565,7 @@ object SimpleMath {
     }
   }
 
-  def addMessagesForExceptions[T](msg: String)(computation: => T): T = {
+  def addMessagesForExceptions[T](msg: => String)(computation: => T): T = {
     try {
       computation
     } catch {
