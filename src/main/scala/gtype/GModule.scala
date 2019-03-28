@@ -14,6 +14,7 @@ case class GModule(
 
 object GModule {
   import ammonite.ops.RelPath
+  /** the path related to the project root */
   type ProjectPath = RelPath
 }
 

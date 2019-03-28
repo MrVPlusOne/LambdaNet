@@ -19,6 +19,7 @@ object IRTranslation {
     }
   }
 
+  /** Used during the translation to allocate new [[IR.Var]]s, [[IR.IRType]]s, and [[GTHole]]s. */
   class TranslationEnv() {
     import collection.mutable
 
@@ -30,7 +31,6 @@ object IRTranslation {
     val holeTyVarMap = mutable.HashMap[GTHole, IRType]()
     //noinspection TypeAnnotation
     val tyVarHoleMap = mutable.HashMap[IRTypeId, GTHole]()
-    val constMap = mutable.HashMap[Const, Var]()
 
     /**
       * Create and register a new [[IRType]].

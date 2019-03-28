@@ -71,6 +71,8 @@ into IR
 
 Todo:
 
+- [ ] implement training loop for multiple modules
+
 - [ ] implement predicate-level loss
 
 Done:
