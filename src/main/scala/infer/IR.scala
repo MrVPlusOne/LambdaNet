@@ -18,8 +18,44 @@ object IR {
     exportStmts: Vector[ExportStmt],
     exports: ModuleExports,
     stmts: Vector[IRStmt]
-  )
+  ) {
+    def moduleStats: IRModuleStats = {
+      var fieldsUsed, fieldsDefined: Set[Symbol] = Set()
 
+      def processExpr(expr: IRExpr): Unit = expr match {
+        case ObjLiteral(fields) =>
+          fieldsDefined ++= fields.keySet
+        case FieldAccess(_, label) =>
+          fieldsUsed += label
+        case _ =>
+      }
+
+      def processStmt(stmt: IRStmt): Unit = stmt match {
+        case s: VarDef => processExpr(s.rhs)
+        case s: IfStmt =>
+          processStmt(s.e1)
+          processStmt(s.e2)
+        case s: WhileStmt => processStmt(s.body)
+        case s: BlockStmt => s.stmts.foreach(processStmt)
+        case s: FuncDef => s.body.foreach(processStmt)
+        case s: ClassDef =>
+          processStmt(s.constructor)
+          s.funcDefs.foreach(processStmt)
+          fieldsDefined ++= s.funcDefs.map(_.name)
+          fieldsDefined ++= s.vars.keySet
+        case _ =>
+      }
+
+      stmts.foreach(processStmt)
+
+      IRModuleStats(fieldsUsed, fieldsDefined)
+    }
+  }
+
+  case class IRModuleStats(
+    fieldsUsed: Set[Symbol],
+    fieldsDefined: Set[Symbol]
+  )
 
   object ExportCategory extends Enumeration {
     val Term, Class, TypeAlias = Value
@@ -29,13 +65,15 @@ object IR {
     definitions: Map[Symbol, (IRType, ExportCategory.Value)],
     defaultVar: Option[(Var, IRType)],
     defaultType: Option[(ClassName, IRType)]
-  ){
-    def terms: Iterator[(Symbol, IRType)] = definitions.toIterator.collect{
+  ) {
+    def terms: Iterator[(Symbol, IRType)] = definitions.toIterator.collect {
       case (n, (t, ExportCategory.Term)) => n -> t
     }
 
-    def types: Iterator[(Symbol, IRType)] = definitions.toIterator.collect{
-      case (n, (t, cat)) if cat == ExportCategory.Class || cat == ExportCategory.TypeAlias => n -> t
+    def types: Iterator[(Symbol, IRType)] = definitions.toIterator.collect {
+      case (n, (t, cat))
+          if cat == ExportCategory.Class || cat == ExportCategory.TypeAlias =>
+        n -> t
     }
   }
 
@@ -223,7 +261,7 @@ object IR {
   def groupInBlock(stmts: Vector[IRStmt]): BlockStmt = {
     stmts match {
       case Vector(b: BlockStmt) => b
-      case _ => BlockStmt(stmts)
+      case _                    => BlockStmt(stmts)
     }
   }
 }

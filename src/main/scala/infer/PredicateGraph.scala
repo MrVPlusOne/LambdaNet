@@ -4,6 +4,7 @@ import funcdiff.SimpleMath
 import funcdiff.SimpleMath.Extensions._
 import funcdiff.SimpleMath.{LabeledGraph, wrapInQuotes}
 import gtype.GModule.ProjectPath
+import gtype.GStmt.TypeHoleContext
 import gtype.ImportStmt._
 import gtype.{GTHole, GType, JSExamples}
 import infer.IR._
@@ -21,7 +22,7 @@ object PredicateGraph {
   case class PredicateModule(
     path: ProjectPath,
     predicates: Vector[TyVarPredicate],
-    newTypes: Map[ClassName, IRType]
+    newTypes: Map[IRType, ClassName]
   ) {
     def display: String = {
       s"""=== Module: $path ===
@@ -173,29 +174,38 @@ object PredicateGraphConstruction {
     }
   }
 
+  case class ParsedModules(
+    typeHoleContext: TypeHoleContext,
+    irEnv: TranslationEnv,
+    irModules: Vector[IRModule],
+    predModules: Vector[PredicateModule]
+  )
+
   def fromSourceFiles(
     root: Path,
     libraryFiles: Set[RelPath] = Set(),
+    marksToHoles: Boolean,
     excludeIndexFile: Boolean = true
-  ): Vector[PredicateModule] = {
+  ): ParsedModules = {
     val sources = ls
       .rec(root)
       .filter(f => f.ext == "ts")
       .filterNot(f => excludeIndexFile && f.last == "index.ts")
       .map(_.relativeTo(root))
-    val modules = ProgramParsing.parseModulesFromFiles(
+    val parser = new ProgramParsing(marksToHoles = marksToHoles)
+    val modules = parser.parseModulesFromFiles(
       sources,
       libraryFiles,
       root
     )
 
     val env = new TranslationEnv()
-    val irModules = modules.map(m => IRTranslation.translateModule(m)(env))
+    val irModules = modules.map(m => IRTranslation.translateModule(m)(env)).toVector
 
     val ctx = PredicateContext.jsCtx(env)
     val pModules = PredicateGraphConstruction.encodeModules(irModules, ctx)
 
-    pModules
+    ParsedModules(parser.tHoleContext, env, irModules, pModules)
   }
 
   def resolveImports(
@@ -266,8 +276,10 @@ object PredicateGraphConstruction {
       SimpleMath.addMessagesForExceptions(
         s"Predicate Graph Construction failed for module: '${module.path}'"
       ) {
-        val (predicates, ctx1) = encodeIR(module.stmts, resolveImports(module, baseCtx, irModules))
-        PredicateModule(module.path, predicates, ctx1.newTypeMap)
+        val (predicates, ctx1) =
+          encodeIR(module.stmts, resolveImports(module, baseCtx, irModules))
+        val newTypes = ctx1.newTypeMap.map(_.swap)
+        PredicateModule(module.path, predicates, newTypes)
       }
     }
   }

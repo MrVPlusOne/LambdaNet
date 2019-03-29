@@ -18,7 +18,8 @@ class ParserTests extends WordSpec with MyTest {
 //    }
     val (lines0, cls) = pairs.unzip
     val lines = lines0.toArray
-    val parsed = ProgramParsing.parseContent(lines.mkString("\n"))
+    val parsed =
+      new ProgramParsing(marksToHoles = false).parseContent(lines.mkString("\n"))
     parsed.zip(cls).zipWithIndex.foreach {
       case ((r, c), i) =>
         assert(
@@ -38,7 +39,7 @@ class ParserTests extends WordSpec with MyTest {
       .filter(_.ext == "ts")
       .map(_.relativeTo(projectRoot))
 
-    val modules = ProgramParsing.parseModulesFromFiles(
+    val modules = new ProgramParsing(marksToHoles = false).parseModulesFromFiles(
       files,
       Set(),
       projectRoot,
@@ -49,7 +50,8 @@ class ParserTests extends WordSpec with MyTest {
       module.stmts.foreach(println)
     }
 
-    val modules2 = ProgramParsing.parseModulesFromJson(read(projectRoot / "parsed.json"))
+    val modules2 = new ProgramParsing(marksToHoles = false)
+      .parseModulesFromJson(read(projectRoot / "parsed.json"))
     assert(modules == modules2, "Two parses do not match.")
   }
 
@@ -68,7 +70,7 @@ class ParserTests extends WordSpec with MyTest {
         |new A(1,2);
       """.stripMargin
 
-    val stmts = ProgramParsing.parseContent(content)
+    val stmts = new ProgramParsing(marksToHoles = false).parseContent(content)
     stmts.foreach(println)
     val env = new TranslationEnv()
 
@@ -133,30 +135,52 @@ class ParserTests extends WordSpec with MyTest {
   }
 
   "Imports parsing tests" in {
-    def test(text: String, target: Vector[ImportStmt]): Unit ={
+    def test(text: String, target: Vector[ImportStmt]): Unit = {
       assert(ImportPattern.parseImports(text) === target, s"parsing failed for '$text'")
     }
 
-    test("""import A1 from "./ZipCodeValidator";""", Vector(ImportDefault(RelPath("./ZipCodeValidator"), 'A1)))
-    test("""import * as pkg from "./ZipCodeValidator";""", Vector(ImportModule(RelPath("./ZipCodeValidator"), 'pkg)))
+    test(
+      """import A1 from "./ZipCodeValidator";""",
+      Vector(ImportDefault(RelPath("./ZipCodeValidator"), 'A1))
+    )
+    test(
+      """import * as pkg from "./ZipCodeValidator";""",
+      Vector(ImportModule(RelPath("./ZipCodeValidator"), 'pkg))
+    )
     test(
       """import {A,
-        |B as B1} from "./ZipCodeValidator";""".stripMargin, Vector(
-      ImportSingle('A, RelPath("./ZipCodeValidator"), 'A),
-      ImportSingle('B, RelPath("./ZipCodeValidator"), 'B1)
-    ))
-    test("""import {foo as fool} from "./file1";""", Vector(ImportSingle('foo, RelPath("./file1"), 'fool)))
+        |B as B1} from "./ZipCodeValidator";""".stripMargin,
+      Vector(
+        ImportSingle('A, RelPath("./ZipCodeValidator"), 'A),
+        ImportSingle('B, RelPath("./ZipCodeValidator"), 'B1)
+      )
+    )
+    test(
+      """import {foo as fool} from "./file1";""",
+      Vector(ImportSingle('foo, RelPath("./file1"), 'fool))
+    )
     test("""import "./my-module.js";""", Vector())
 
   }
 
   "Export Import tests" in {
     val root = pwd / RelPath("data/tests/export-import")
-    infer.PredicateGraphConstruction.fromSourceFiles(root).foreach{m => println(m.display)}
+    infer.PredicateGraphConstruction
+      .fromSourceFiles(root, marksToHoles = false)
+      .predModules
+      .foreach { m =>
+        println(m.display)
+      }
   }
 
   "Project parsing integration test" in {
     val root = pwd / RelPath("data/ts-algorithms")
-    infer.PredicateGraphConstruction.fromSourceFiles(root).foreach{m => println(m.display)}
+    val parsed = infer.PredicateGraphConstruction
+      .fromSourceFiles(root, marksToHoles = true)
+    println("Hole type map: " + parsed.typeHoleContext.holeTypeMap)
+    parsed.predModules
+      .foreach { m =>
+        println(m.display)
+      }
   }
 }

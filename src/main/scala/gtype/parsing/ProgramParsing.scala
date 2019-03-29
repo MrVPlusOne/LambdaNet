@@ -8,42 +8,6 @@ import gtype.parsing.Js._
 
 /** Parsing Typescript into the surface language */
 object ProgramParsing {
-  def parseContent(content: String): Vector[GStmt] = {
-    SimpleMath.addMessagesForExceptions("failed when parsing content: \n" + content) {
-      val r = %%('node, "./parsingFromString.js", content)(pwd / 'scripts / 'ts)
-      val json = ProgramParsing.parseJson(r.out.string).asInstanceOf[Js.Arr]
-      val parser = new ProgramParsing()
-      json.value.toVector.map {
-        parser.parseGStmt
-      }
-    }
-  }
-
-  def parseModulesFromFiles(
-    srcFiles: Seq[RelPath],
-    libraryFiles: Set[RelPath],
-    projectRoot: Path,
-    writeToFile: Option[Path] = None
-  ): Seq[GModule] = {
-    val totalLibraries = libraryFiles ++ srcFiles
-    val r = %%(
-      'node,
-      pwd / RelPath("scripts/ts/parsingFromFile.js"),
-      "--src",
-      srcFiles.map(_.toString()),
-      "--lib",
-      totalLibraries.toList.map(_.toString())
-    )(projectRoot)
-    val parsedJson = r.out.string
-    writeToFile.foreach(p => write.over(p, parsedJson))
-    parseModulesFromJson(parsedJson)
-  }
-
-  def parseModulesFromJson(parsedJson: String): Seq[GModule] = {
-    val modules = ProgramParsing.parseJson(parsedJson).asInstanceOf[Js.Arr]
-    val parser = new ProgramParsing()
-    modules.value.map(parser.parseGModule)
-  }
 
   def parseJson(text: String): Js.Val = {
     SimpleMath.addMessagesForExceptions(s"JSON source text: $text") {
@@ -105,7 +69,45 @@ object ProgramParsing {
 
 import ProgramParsing._
 
-class ProgramParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
+class ProgramParsing(
+  val tHoleContext: TypeHoleContext = new TypeHoleContext(),
+  val marksToHoles: Boolean
+) {
+
+  def parseContent(content: String): Vector[GStmt] = {
+    SimpleMath.addMessagesForExceptions("failed when parsing content: \n" + content) {
+      val r = %%('node, "./parsingFromString.js", content)(pwd / 'scripts / 'ts)
+      val json = ProgramParsing.parseJson(r.out.string).asInstanceOf[Js.Arr]
+      json.value.toVector.map {
+        parseGStmt
+      }
+    }
+  }
+
+  def parseModulesFromFiles(
+    srcFiles: Seq[RelPath],
+    libraryFiles: Set[RelPath],
+    projectRoot: Path,
+    writeToFile: Option[Path] = None
+  ): Seq[GModule] = {
+    val totalLibraries = libraryFiles ++ srcFiles
+    val r = %%(
+      'node,
+      pwd / RelPath("scripts/ts/parsingFromFile.js"),
+      "--src",
+      srcFiles.map(_.toString()),
+      "--lib",
+      totalLibraries.toList.map(_.toString())
+    )(projectRoot)
+    val parsedJson = r.out.string
+    writeToFile.foreach(p => write.over(p, parsedJson))
+    parseModulesFromJson(parsedJson)
+  }
+
+  def parseModulesFromJson(parsedJson: String): Seq[GModule] = {
+    val modules = ProgramParsing.parseJson(parsedJson).asInstanceOf[Js.Arr]
+    modules.value.map(parseGModule)
+  }
 
   def parseArgPair(value: Js.Val): (Symbol, GTMark) = {
     val (name, v) = parseNamedValue(value)
@@ -121,7 +123,11 @@ class ProgramParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
   def parseGTMark(v: Js.Val): GTMark = {
     v match {
       case Null => tHoleContext.newTHole(None)
-      case _    => parseType(v)
+      case _ =>
+        val ty = parseType(v)
+        if (marksToHoles)
+          tHoleContext.newTHole(Some(TypeAnnotation(ty, userAnnotated = true)))
+        else ty
     }
   }
 
@@ -163,15 +169,15 @@ class ProgramParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
     }
   }
 
-
   case class DefModifiers(isConst: Boolean, exportLevel: ExportLevel.Value)
 
   def parseModifiers(v: Js.Val): DefModifiers = {
     val modifiers = asArray(v).map(asString).toSet
     val isConst = modifiers.contains("const")
-    val exportLevel = if(modifiers.contains("export"))
-      if(modifiers.contains("default")) ExportLevel.Default else ExportLevel.Public
-    else ExportLevel.Private
+    val exportLevel =
+      if (modifiers.contains("export"))
+        if (modifiers.contains("default")) ExportLevel.Default else ExportLevel.Public
+      else ExportLevel.Private
     DefModifiers(isConst, exportLevel)
   }
 
@@ -244,7 +250,15 @@ class ProgramParsing(tHoleContext: TypeHoleContext = new TypeHoleContext()) {
         val funcDefs =
           asVector(map("funcDefs")).map(x => parseGStmt(x).asInstanceOf[FuncDef])
         val tyVars = List() //fixme
-        ClassDef(name, tyVars, superType, constructor, vars.toMap, funcDefs, ms.exportLevel)
+        ClassDef(
+          name,
+          tyVars,
+          superType,
+          constructor,
+          vars.toMap,
+          funcDefs,
+          ms.exportLevel
+        )
 
       case other => throw new Error(s"Unknown category: $other")
     }
