@@ -61,44 +61,58 @@ class ObjectType implements GType {
 
 export const anyType = AnyType.instance;
 
-export function parseMark(node: ts.TypeNode, checker: ts.TypeChecker): GMark {
-  if (!node) return null;
-  //console.log(node)
-  // let symbol = checker.getTypeFromTypeNode(node)();
-  // if(!symbol) throw new Error("unresolved type: " + node.getText());
-  let string = checker.typeToString(checker.getTypeFromTypeNode(node));
-  //todo: handle other cases
-  //todo: deal with type errors (currently, unresolved types are marked as any)
-  if (string == "any") return anyType;
+let basicTypes = new Set<SyntaxKind>();
+basicTypes.add(SyntaxKind.BooleanKeyword);
+basicTypes.add(SyntaxKind.NumberKeyword);
+basicTypes.add(SyntaxKind.StringKeyword);
+basicTypes.add(SyntaxKind.SymbolKeyword);
+basicTypes.add(SyntaxKind.EnumKeyword);
+basicTypes.add(SyntaxKind.VoidKeyword);
 
-  else if (node.kind == SyntaxKind.FunctionType || node.kind == SyntaxKind.ConstructorType) {
-
+function parseType(node: ts.TypeNode, checker: ts.TypeChecker): GType {
+  if(node.kind == SyntaxKind.AnyKeyword){
+    return anyType;
+  } else if (ts.isTypeReferenceNode(node)){
+    let n = node as ts.TypeReferenceNode;
+    return new TVar(n.typeName.getText());
+  } else if (basicTypes.has(node.kind)){
+    return new TVar(node.getText());
+  } else if (node.kind == SyntaxKind.ArrayType){
+    return new TVar("Array");
+  } else if (node.kind == SyntaxKind.FunctionType || node.kind == SyntaxKind.ConstructorType) {
     let n = node as ts.FunctionOrConstructorTypeNode;
 
-    let ret: GMark = parseMark(n.type, checker);
+    let ret: GMark = parseType(n.type, checker);
     let args: GMark[] = n.parameters.map(p => {
-      return parseMark(p.type, checker)
+      return parseType(p.type, checker)
     });
 
     return new FuncType(args, ret);
-  }
-
-  else if (node.kind == SyntaxKind.TypeLiteral) {
+  } else if (node.kind == SyntaxKind.TypeLiteral) {
 
     let fields: { [k: string]: GMark } = {};
 
     let n = node as ts.TypeLiteralNode;
-    n.members.map(
+    n.members.forEach(
       x => {
         if (x.name != undefined)
-          fields[x.name.getText()] = parseMark((x as ts.PropertySignature).type, checker)
+          fields[x.name.getText()] = parseType((x as ts.PropertySignature).type, checker);
+        // else throw new Error("members without a name: " + node.getText()); todo: uncomment and handle other cases
       }
-    )
+    );
 
     return new ObjectType(fields)
+  } else if (node.kind == SyntaxKind.UnionType){
+    let n = node as ts.UnionTypeNode;
+    return parseType(n.types[0], checker); // hacky
+  } else{
+    throw new Error("Unknown Type Kind: " + ts.SyntaxKind[node.kind]);
   }
+}
 
-  else return new TVar(string);
+export function parseMark(node: ts.TypeNode, checker: ts.TypeChecker): GMark {
+  if (!node) return null;
+  else return parseType(node, checker);
 }
 
 

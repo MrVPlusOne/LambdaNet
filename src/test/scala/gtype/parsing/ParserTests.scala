@@ -59,6 +59,9 @@ class ParserTests extends WordSpec with MyTest {
     val content =
       """
         |let x = {a: 1, b: {c: "x"}};
+        |let myAdd: (x: number, y: number) => number = undefined;
+        |let o: {b: any, a: number} = undefined;
+        |let x: any = undefined;
         |3;
         |-2;
         |"abc";
