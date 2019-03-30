@@ -104,7 +104,15 @@ function parseType(node: ts.TypeNode, checker: ts.TypeChecker): GType {
     return new ObjectType(fields)
   } else if (node.kind == SyntaxKind.UnionType){
     let n = node as ts.UnionTypeNode;
-    return parseType(n.types[0], checker); // hacky
+    if(n.types.length == 2){
+      let second = n.types[1].getText();
+      if(second == "null" || second == "undefined"){
+        return parseType(n.types[0], checker);
+      }else{
+        return anyType;
+      }
+    }
+    return anyType;
   } else{
     throw new Error("Unknown Type Kind: " + ts.SyntaxKind[node.kind]);
   }
