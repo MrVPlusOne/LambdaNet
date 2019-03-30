@@ -61,83 +61,44 @@ class ObjectType implements GType {
 
 export const anyType = AnyType.instance;
 
-function parseFuncType(s: string): FuncType {
-  var stack: number = 1, i: number;
-  var tybuff: string;
-
-  var fr: GType[] = [];
-
-  for (i = 1; stack > 0 && i < s.length;) {
-    var j: number, k: number;
-    for (j = i; s.charAt(j) != ':'; j++) {
-      if (s.charAt(j) == '(') stack++;
-      else if (s.charAt(j) == ')') stack--;
-    }
-
-    for (k = j + 1; s.charAt(k) != ',' && stack > 0; k++) {
-      if (s.charAt(k + 1) == '(') stack++;
-      else if (s.charAt(k + 1) == ')') stack--;
-    }
-
-    tybuff = s.substring(j + 2, k);
-
-    fr.push(parseMark_s(tybuff.trim()));
-
-    i = k;
-  }
-
-  let to: GMark = parseMark_s(s.substring(i + 4).trim());
-
-  return new FuncType(fr, to);
-
-}
-
-function parseObjectType(s: string): ObjectType {
-  var stack: number = 1, i: number;
-  var argbuff: string, tybuff: string;
-
-  var fields: { [k: string]: GMark } = {};
-
-  for (i = 1; stack > 0 && i < s.length;) {
-    var j: number, k: number;
-    for (j = i; s.charAt(j) != ':'; j++) {
-      if (s.charAt(j) == '{') stack++;
-      else if (s.charAt(j) == '}') stack--;
-    }
-
-    argbuff = s.substring(i, j).trim();
-
-    for (k = j + 1; s.charAt(k) != ',' && stack > 0; k++) {
-      if (s.charAt(k + 1) == '{') stack++;
-      else if (s.charAt(k + 1) == '}') stack--;
-    }
-
-    tybuff = s.substring(j + 2, k).trim();
-    let type: GMark = parseMark_s(tybuff);
-    fields[argbuff] = type;
-
-    i = k;
-  }
-
-  return new ObjectType(fields);
-}
-
-function parseMark_s(s: string): GMark {
-  if (s == "any") return anyType;
-  else if (s.charAt(0) == '(') return parseFuncType(s);
-  else if (s.charAt(0) == '{') return parseObjectType(s);
-  else return new TVar(s);
-}
-
 export function parseMark(node: ts.TypeNode, checker: ts.TypeChecker): GMark {
   if (!node) return null;
-
+  //console.log(node)
   // let symbol = checker.getTypeFromTypeNode(node)();
   // if(!symbol) throw new Error("unresolved type: " + node.getText());
   let string = checker.typeToString(checker.getTypeFromTypeNode(node));
   //todo: handle other cases
   //todo: deal with type errors (currently, unresolved types are marked as any)
-  return parseMark_s(string);
+  if (string == "any") return anyType;
+
+  else if (node.kind == SyntaxKind.FunctionType || node.kind == SyntaxKind.ConstructorType) {
+
+    let n = node as ts.FunctionOrConstructorTypeNode;
+
+    let ret: GMark = parseMark(n.type, checker);
+    let args: GMark[] = n.parameters.map(p => {
+      return parseMark(p.type, checker)
+    });
+
+    return new FuncType(args, ret);
+  }
+
+  else if (node.kind == SyntaxKind.TypeLiteral) {
+
+    let fields: { [k: string]: GMark } = {};
+
+    let n = node as ts.TypeLiteralNode;
+    n.members.map(
+      x => {
+        if (x.name != undefined)
+          fields[x.name.getText()] = parseMark((x as ts.PropertySignature).type, checker)
+      }
+    )
+
+    return new ObjectType(fields)
+  }
+
+  else return new TVar(string);
 }
 
 
