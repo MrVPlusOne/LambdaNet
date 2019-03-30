@@ -3,8 +3,8 @@ package gtype.parsing
 import ammonite.ops._
 import funcdiff.SimpleMath
 import gtype.GStmt.{TypeAnnotation, TypeHoleContext}
-import gtype.{ExportLevel, _}
 import gtype.parsing.Js._
+import gtype.{ExportLevel, _}
 
 /** Parsing Typescript into the surface language */
 object ProgramParsing {
@@ -22,9 +22,15 @@ object ProgramParsing {
 
   def asString(v: Js.Val): String = v.asInstanceOf[Str].value
 
-  def asArray(v: Js.Val): List[Val] = v.asInstanceOf[Arr].value.toList
+  def asArray(v: Js.Val): List[Val] = v match {
+    case Js.Null => List[Val]()
+    case _       => v.asInstanceOf[Arr].value.toList
+  }
 
-  def asVector(v: Js.Val): Vector[Val] = v.asInstanceOf[Arr].value.toVector
+  def asVector(v: Js.Val): Vector[Val] = v match {
+    case Js.Null => Vector[Val]()
+    case _ => v.asInstanceOf[Arr].value.toVector
+  }
 
   def asNumber(v: Js.Val): Double = v.asInstanceOf[Num].value
 
@@ -32,7 +38,7 @@ object ProgramParsing {
 
   def asOptionSymbol(v: Js.Val): Option[Symbol] = v match {
     case Null => None
-    case _    => Some(asSymbol(v))
+    case _ => Some(asSymbol(v))
   }
 
   def asObj(v: Val): Map[String, Val] = v.asInstanceOf[Obj].value
@@ -43,13 +49,15 @@ object ProgramParsing {
   }
 
   def arrayToMap(value: Js.Val): Map[String, Val] = {
-    value.asInstanceOf[Arr].value.map { parseNamedValue }.toMap
+    value.asInstanceOf[Arr].value.map {
+      parseNamedValue
+    }.toMap
   }
 
   def asBoolean(v: Js.Val): Boolean = {
     (v: @unchecked) match {
       case False => false
-      case True  => true
+      case True => true
     }
   }
 
@@ -60,19 +68,19 @@ object ProgramParsing {
     )
     val o = asObj(v)
     val t = asString(o("category")) match {
-      case "TVar"    => TyVar(asSymbol(o("name")))
+      case "TVar" => TyVar(asSymbol(o("name")))
       case "AnyType" => AnyType
     }
     t
   }
 }
 
-import ProgramParsing._
+import gtype.parsing.ProgramParsing._
 
 class ProgramParsing(
-  val tHoleContext: TypeHoleContext = new TypeHoleContext(),
-  val marksToHoles: Boolean
-) {
+                      val tHoleContext: TypeHoleContext = new TypeHoleContext(),
+                      val marksToHoles: Boolean
+                    ) {
 
   def parseContent(content: String): Vector[GStmt] = {
     SimpleMath.addMessagesForExceptions("failed when parsing content: \n" + content) {
@@ -85,11 +93,11 @@ class ProgramParsing(
   }
 
   def parseModulesFromFiles(
-    srcFiles: Seq[RelPath],
-    libraryFiles: Set[RelPath],
-    projectRoot: Path,
-    writeToFile: Option[Path] = None
-  ): Seq[GModule] = {
+                             srcFiles: Seq[RelPath],
+                             libraryFiles: Set[RelPath],
+                             projectRoot: Path,
+                             writeToFile: Option[Path] = None
+                           ): Seq[GModule] = {
     val totalLibraries = libraryFiles ++ srcFiles
     val r = %%(
       'node,
@@ -162,7 +170,7 @@ class ProgramParsing(
         val cond = parseGExpr(map("cond"))
         val e1 = parseGExpr(map("e1"))
         val e2 = parseGExpr(map("e2"))
-//        val resultType = parseType(map("resultType"))
+        //        val resultType = parseType(map("resultType"))
         IfExpr(cond, e1, e2, newTyHole(None))
 
       case _ => throw new Error("Unhandled GExpr case.")
@@ -220,7 +228,8 @@ class ProgramParsing(
         val returnType =
           if (name == 'Constructor) GType.voidType else parseGTMark(map("returnType"))
         val body = parseGStmt(map("body"))
-        val tyVars = List() //fixme
+
+        val tyVars = asVector(map("tyVars")).map(asSymbol).toList
         val ms = parseModifiers(map("modifiers"))
         FuncDef(name, tyVars, args, returnType, body, ms.exportLevel)
       case "ClassDef" =>
@@ -249,7 +258,7 @@ class ProgramParsing(
         val vars = parseArgList(map("vars"))
         val funcDefs =
           asVector(map("funcDefs")).map(x => parseGStmt(x).asInstanceOf[FuncDef])
-        val tyVars = List() //fixme
+        val tyVars = asVector(map("tyVars")).map(asSymbol).toList
         ClassDef(
           name,
           tyVars,
@@ -286,7 +295,7 @@ class ProgramParsing(
 
   def main(args: Array[String]): Unit = {
     val jValue = parseJsonFromFile(pwd / up / 'DeepTypeTS / 'output / "foo.json")
-//    println(jValue)
+    //    println(jValue)
 
     asArray(jValue).map(parseGStmt).foreach(println)
   }
