@@ -43,20 +43,101 @@ class AnyType implements GType {
   static instance = new AnyType();
 }
 
+class FuncType implements GType {
+  public category = "FuncType";
+
+  constructor(public fro: GMark[], public to: GMark) {
+
+  }
+}
+
+class ObjectType implements GType {
+  public category = "ObjectType";
+
+  constructor(public fields: { [k: string]: GMark }) {
+
+  }
+}
+
 export const anyType = AnyType.instance;
 
+function parseFuncType(s: string): FuncType {
+  var stack: number = 1, i: number;
+  var tybuff: string;
+
+  var fr: GType[] = [];
+
+  for (i = 1; stack > 0 && i < s.length;) {
+    var j: number, k: number;
+    for (j = i; s.charAt(j) != ':'; j++) {
+      if (s.charAt(j) == '(') stack++;
+      else if (s.charAt(j) == ')') stack--;
+    }
+
+    for (k = j + 1; s.charAt(k) != ',' && stack > 0; k++) {
+      if (s.charAt(k + 1) == '(') stack++;
+      else if (s.charAt(k + 1) == ')') stack--;
+    }
+
+    tybuff = s.substring(j + 2, k);
+
+    fr.push(parseMark_s(tybuff.trim()));
+
+    i = k;
+  }
+
+  let to: GMark = parseMark_s(s.substring(i + 4).trim());
+
+  return new FuncType(fr, to);
+
+}
+
+function parseObjectType(s: string): ObjectType {
+  var stack: number = 1, i: number;
+  var argbuff: string, tybuff: string;
+
+  var fields: { [k: string]: GMark } = {};
+
+  for (i = 1; stack > 0 && i < s.length;) {
+    var j: number, k: number;
+    for (j = i; s.charAt(j) != ':'; j++) {
+      if (s.charAt(j) == '{') stack++;
+      else if (s.charAt(j) == '}') stack--;
+    }
+
+    argbuff = s.substring(i, j).trim();
+
+    for (k = j + 1; s.charAt(k) != ',' && stack > 0; k++) {
+      if (s.charAt(k + 1) == '{') stack++;
+      else if (s.charAt(k + 1) == '}') stack--;
+    }
+
+    tybuff = s.substring(j + 2, k).trim();
+    let type: GMark = parseMark_s(tybuff);
+    fields[argbuff] = type;
+
+    i = k;
+  }
+
+  return new ObjectType(fields);
+}
+
+function parseMark_s(s: string): GMark {
+  if (s == "any") return anyType;
+  else if (s.charAt(0) == '(') return parseFuncType(s);
+  else if (s.charAt(0) == '{') return parseObjectType(s);
+  else return new TVar(s);
+}
 
 export function parseMark(node: ts.TypeNode, checker: ts.TypeChecker): GMark {
   if (!node) return null;
 
   // let symbol = checker.getTypeFromTypeNode(node)();
   // if(!symbol) throw new Error("unresolved type: " + node.getText());
-
   let string = checker.typeToString(checker.getTypeFromTypeNode(node));
   //todo: handle other cases
   //todo: deal with type errors (currently, unresolved types are marked as any)
-  if (string == "any") return anyType;
-  else return new TVar(string);
+  return parseMark_s(string);
 }
 
 
@@ -282,7 +363,7 @@ export function parseExpr(node: ts.Node, checker: ts.TypeChecker,
         return rec(n.expression);
       }
 
-        // constants
+      // constants
       case SyntaxKind.NumericLiteral:
         return constExpr("number");
       case SyntaxKind.StringLiteral:
@@ -295,7 +376,7 @@ export function parseExpr(node: ts.Node, checker: ts.TypeChecker,
       case SyntaxKind.ArrayLiteralExpression:
         return constExpr("array"); //todo: might need to distinguish array types
 
-        // operators
+      // operators
       case ts.SyntaxKind.BinaryExpression: {
         let n = node as ts.BinaryExpression;
         let l = rec(n.left);
@@ -318,7 +399,7 @@ export function parseExpr(node: ts.Node, checker: ts.TypeChecker,
         return allocateLambda(n);
       }
 
-        // Special treatments:
+      // Special treatments:
       case SyntaxKind.SpreadElement: {
         let n = node as ts.SpreadElement;
         return new FuncCall(SpecialVars.spread, [rec(n.expression)]);
@@ -337,7 +418,7 @@ export function parseExpr(node: ts.Node, checker: ts.TypeChecker,
 
       default:
         throw new Error("Unknown expression category: " + ts.SyntaxKind[node.kind]
-            + ". Text: " + node.getText());
+          + ". Text: " + node.getText());
     }
 
     function constExpr(typeName: string) {
@@ -394,7 +475,7 @@ export class StmtParser {
 
     function parseFunction(name: string, n: ts.FunctionLikeDeclaration, modifiers: string[]): FuncDef {
       let retType = (node.kind == SyntaxKind.Constructor) ? new TVar("void") :
-          parseMark(n.type, checker);
+        parseMark(n.type, checker);
       let args = n.parameters.map(p => {
         return new NamedValue((<ts.Identifier>p.name).text, parseMark(p.type, checker))
       });
@@ -433,11 +514,11 @@ export class StmtParser {
             switch (lhs.kind) {
               case SyntaxKind.Identifier:
                 return [new VarDef(
-                    (<ts.Identifier>lhs).text,
-                    parseMark((<any>x).type, checker),
-                    initExpr,
-                    isConst,
-                    modifiers)];
+                  (<ts.Identifier>lhs).text,
+                  parseMark((<any>x).type, checker),
+                  initExpr,
+                  isConst,
+                  modifiers)];
               case SyntaxKind.ObjectBindingPattern:
                 return flatMap((lhs as ts.ObjectBindingPattern).elements, (e: ts.BindingElement) => {
                   return parseBinding(e)
@@ -511,8 +592,8 @@ export class StmtParser {
           let bodyStmts: GStmt[] = rec(n.statement).stmts.concat([incr]);
 
           outerBlock.stmts.push(new WhileStmt(
-              EP.processExpr(cond),
-              flattenBlock(bodyStmts)
+            EP.processExpr(cond),
+            flattenBlock(bodyStmts)
           ));
           return EP.alongWith(outerBlock);
         }
@@ -520,7 +601,7 @@ export class StmtParser {
         case SyntaxKind.MethodDeclaration:
         case SyntaxKind.Constructor: {
           let name = (node.kind == SyntaxKind.Constructor) ? "Constructor" :
-              tryFullyQualifiedName((node as any).name, checker);
+            tryFullyQualifiedName((node as any).name, checker);
           let n = <ts.FunctionLikeDeclaration>node;
           return EP.alongWith(parseFunction(name, n, parseModifiers(n.modifiers)));
         }
@@ -568,7 +649,7 @@ export class StmtParser {
             t_vars = null;
 
           return EP.alongWith(new ClassDef(name, constructor, vars, funcDefs,
-              superType, parseModifiers(n.modifiers), t_vars));
+            superType, parseModifiers(n.modifiers), t_vars));
         }
         case SyntaxKind.SwitchStatement: {
           let n = node as ts.SwitchStatement;
@@ -576,18 +657,18 @@ export class StmtParser {
           let switchCall = new FuncCall(SpecialVars.SWITCH, [EP.processExpr(n.expression)]);
 
           let clauses = flatMap(
-              n.caseBlock.clauses,
-              (c: ts.CaseOrDefaultClause) => {
-                let body = flatMap(c.statements, (s: ts.Statement) => rec(s).stmts);
-                switch (c.kind) {
-                  case SyntaxKind.CaseClause:
-                    let f = new FuncCall(SpecialVars.CASE, [EP.processExpr((c as ts.CaseClause).expression)]);
-                    let all = [new ExprStmt(f, false) as GStmt].concat(body);
-                    return EP.alongWithMany(all).stmts;
-                  case SyntaxKind.DefaultClause:
-                    return EP.alongWithMany(body).stmts;
-                }
-              });
+            n.caseBlock.clauses,
+            (c: ts.CaseOrDefaultClause) => {
+              let body = flatMap(c.statements, (s: ts.Statement) => rec(s).stmts);
+              switch (c.kind) {
+                case SyntaxKind.CaseClause:
+                  let f = new FuncCall(SpecialVars.CASE, [EP.processExpr((c as ts.CaseClause).expression)]);
+                  let all = [new ExprStmt(f, false) as GStmt].concat(body);
+                  return EP.alongWithMany(all).stmts;
+                case SyntaxKind.DefaultClause:
+                  return EP.alongWithMany(body).stmts;
+              }
+            });
           return EP.alongWithMany([new ExprStmt(switchCall, false) as GStmt].concat(clauses));
         }
 
@@ -604,7 +685,7 @@ export class StmtParser {
           let rhs = new ObjLiteral(vars);
 
           return EP.alongWith(new VarDef(n.name.text, null, rhs,
-              true, parseModifiers(n.modifiers)));
+            true, parseModifiers(n.modifiers)));
         }
         case SyntaxKind.TypeAliasDeclaration: {
           let n = node as ts.TypeAliasDeclaration;
@@ -612,10 +693,10 @@ export class StmtParser {
           return EP.alongWith(new TypeAliasStmt(n.name.text, tVars, parseMark(n.type, checker)));
         }
 
-          // ignored statements:
+        // ignored statements:
         case SyntaxKind.BreakStatement:
           return EP.alongWith(new CommentStmt("break;"));
-          //todo: support the followings
+        //todo: support the followings
 
         default:
           throw new Error("Unknown stmt category: " + ts.SyntaxKind[node.kind]);
@@ -695,7 +776,7 @@ export function parseFiles(sources: string[], libraryFiles: string[]): GModule[]
   let checker = program.getTypeChecker();
 
   let sFiles = sources.map(file => mustExist(program.getSourceFile(file),
-      "getSourceFile failed for: " + file));
+    "getSourceFile failed for: " + file));
   mustExist(sFiles);
 
   let parser = new StmtParser();
