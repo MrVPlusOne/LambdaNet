@@ -7,9 +7,10 @@ import funcdiff.SimpleMath.Extensions._
 import gtype.{AnyType, GType, TyVar}
 import infer.IR.{IRType, IRTypeId}
 import infer.PredicateGraph._
-
 import scala.collection.mutable
 import scala.collection.parallel.ForkJoinTaskSupport
+import GraphEmbedding._
+
 
 object GraphEmbedding {
 
@@ -52,7 +53,6 @@ object GraphEmbedding {
   }
 }
 
-import GraphEmbedding._
 import API._
 
 case class GraphEmbedding(
