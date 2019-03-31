@@ -32,17 +32,35 @@ object GraphEmbedding {
     concreteTypes: IS[GType],
     projectTypes: IS[IRType]
   ) {
-    private val indexMap =
-      (concreteTypes
+    private val indexMap = {
+      require(SimpleMath.noDuplicate(concreteTypes.collect{ case TyVar(n) => n }))
+      require(SimpleMath.noDuplicate(projectTypes.map(t => t.name.get)), {
+        projectTypes.groupBy(_.name.get).collect{ case (n, irTypes) if irTypes.length > 1 =>
+            s"name: $n, irTypes: $irTypes"
+        }.mkString("[", "; ", "]")
+      })
+
+      val concreteVars = concreteTypes.collect{
+        case TyVar(n) => n
+      }.toSet
+      val projectVars = projectTypes.map(t => t.name.get).toSet
+      val inter = concreteVars.intersect(projectVars)
+      assert(inter.isEmpty, "There are name clashes with concrete and project types: " + inter)
+
+      val vec = (concreteTypes
         ++ projectTypes.map { t =>
-          assert(t.name.nonEmpty, s"project type has no name: $t")
-          TyVar(t.name.get)
-        }).zipWithIndex.toMap
+        assert(t.name.nonEmpty, s"project type has no name: $t")
+        TyVar(t.name.get)
+      }).zipWithIndex
+      vec.toMap
+    }
 
     val maxIndex: Int = indexMap.size
 
     def indexOfType(t: GType): Int = {
-      indexMap.getOrElse(t, indexMap(TyVar(unknownTypeSymbol)))
+      val i = indexMap.getOrElse(t, indexMap(TyVar(unknownTypeSymbol)))
+      assert(i < maxIndex, s"$i not < $maxIndex")
+      i
     }
 
     def typeOfIndex(i: Int): Either[GType, IRType] = {

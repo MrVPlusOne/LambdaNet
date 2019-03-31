@@ -191,6 +191,10 @@ object SimpleMath {
     }
   }
 
+  def noDuplicate[T](xs: Seq[T]): Boolean ={
+    xs.toSet.size == xs.length
+  }
+
 //  /** preserve the order of result (but the running order is not preserved) **/
 //  def parallelArrayMap[A,B](threadNum: Int): (Seq[A], A => B) => Array[B] = {
 //    require(threadNum>0)

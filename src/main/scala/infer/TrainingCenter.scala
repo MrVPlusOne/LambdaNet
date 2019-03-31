@@ -14,7 +14,7 @@ import infer.GraphEmbedding._
 import infer.IRTranslation.TranslationEnv
 import infer.PredicateGraphConstruction._
 
-import scala.collection.{immutable, mutable}
+import scala.collection.{mutable}
 import scala.collection.parallel.ForkJoinTaskSupport
 import ammonite.ops._
 
@@ -38,25 +38,11 @@ object TrainingCenter {
 
     val predicates = parsed.predModules.flatMap(m => m.predicates) ++ PredicateGraphConstruction
       .encodeUnaryPredicates(transEnv.idTypeMap.values)
-    val newTypes = modules.flatMap(m => m.newTypes)
+    val newTypes = modules.flatMap(m => m.newTypes.keys).toSet
 
     println("Predicate numbers:")
     println {
       predicates.groupBy(PredicateGraph.predicateCategory).mapValuesNow { _.length }
-    }
-    println {
-      val wrongNodes = Seq(GTHole(1), GTHole(2)).map(transEnv.holeTyVarMap)
-      val graphString = PredicateGraph
-        .displayPredicateGraph(
-          (transEnv.idTypeMap.values.toSet -- wrongNodes.toSet).toSeq,
-          wrongNodes,
-          predicates,
-          transEnv.tyVarHoleMap.toMap
-        )
-        .toMamFormat("Automatic", directed = false)
-      import ammonite.ops._
-      write.over(pwd / "running-result" / "graph.txt", graphString)
-      graphString
     }
 
     /** any symbols that are not defined within the project */
@@ -72,7 +58,8 @@ object TrainingCenter {
     println("libraryFields: " + libraryFields)
 
     /** any types that are not defined within the project */
-    val libraryTypes: Vector[Symbol] = JSExamples.typeContext.typeUnfold.keys.toVector //todo: improve
+    val libraryTypes
+      : Vector[Symbol] = JSExamples.typeContext.typeUnfold.keys.toVector //todo: improve
 
     val dimMessage = 64
 
@@ -147,7 +134,7 @@ object TrainingCenter {
       val decodingCtx = DecodingCtx(
         Vector(AnyType, TyVar(unknownTypeSymbol)) ++ libraryTypeMap.keys.toIndexedSeq
           .map(TyVar),
-        newTypes.map(_._1)
+        newTypes.toVector
       )
 
       def logEmbeddingMagnitudeAndChanges(
@@ -178,14 +165,25 @@ object TrainingCenter {
             annotatedPlaces.map(_._1),
             logEmbeddingMagnitudeAndChanges
           )
-      //      println("Predictions: ====")
-      //      println(logits)
-      eventLogger.log("certainty", step, getVar(Symbol("decode:certainty"))(throw new Error()).value)
 
-      val accuracy = analyzeResults(annotatedPlaces, logits.value, transEnv, decodingCtx)
+      eventLogger.log(
+        "certainty",
+        step,
+        getVar(Symbol("decode:certainty"))(throw new Error()).value
+      )
+
+      val accuracy = analyzeResults(
+        annotatedPlaces,
+        logits.value,
+        transEnv,
+        decodingCtx,
+        printResults = false
+      )
       eventLogger.log("accuracy", step, Tensor(accuracy))
 
+      println("annotated places number: " + annotatedPlaces.length)
       val targets = annotatedPlaces.map(p => decodingCtx.indexOfType(p._2))
+      println("max Idx: " + decodingCtx.maxIndex)
       val loss = mean(
         crossEntropyOnSoftmax(logits, oneHot(targets, decodingCtx.maxIndex))
       )
@@ -433,7 +431,7 @@ object TrainingCenter {
       case (hole, tId) =>
         val t = ctx.typeOfIndex(tId)
         val tv = transEnv.holeTyVarMap(hole)
-        if(printResults)
+        if (printResults)
           println(s"[correct] \t$tv $hole: $t")
     }
 
@@ -443,7 +441,7 @@ object TrainingCenter {
         val tv = transEnv.holeTyVarMap(hole)
         val actualType = ctx.typeOfIndex(tId)
         val expected = holeTypeMap(transEnv.holeTyVarMap(hole).id)
-        if(printResults)
+        if (printResults)
           println(s"[incorrect] \t$tv $hole: $actualType not match $expected")
     }
 
