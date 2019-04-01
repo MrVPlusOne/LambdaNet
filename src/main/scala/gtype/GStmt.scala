@@ -164,7 +164,7 @@ object GStmt {
 
   def tyVarClause(tyVars: List[Symbol]): String = {
     if(tyVars.isEmpty) ""
-    else tyVars.mkString("<", ", ", ">")
+    else tyVars.map(_.name).mkString("<", ", ", ">")
   }
 
   /**
@@ -205,7 +205,11 @@ object GStmt {
     }
   }
 
-  case class TypeAnnotation(ty: GType, needInfer: Boolean)
+  case class TypeAnnotation(ty: GType, needInfer: Boolean){
+    override def toString: String = {
+      s"$ty${if(needInfer) "*" else ""}"
+    }
+  }
 
   /** An context used for constructing programs written in [[GStmt]] */
   class TypeHoleContext {

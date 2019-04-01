@@ -6,7 +6,7 @@ import funcdiff.SimpleMath.{LabeledGraph, wrapInQuotes}
 import gtype.GModule.ProjectPath
 import gtype.GStmt.{TypeAnnotation, TypeHoleContext}
 import gtype.ImportStmt._
-import gtype.{AnyType, GStmt, GTHole, GType, JSExamples, TyVar}
+import gtype.{AnyType, GModule, GStmt, GTHole, GType, JSExamples, TyVar}
 import infer.IR._
 import infer.IRTranslation.TranslationEnv
 import infer.PredicateGraph._
@@ -186,11 +186,23 @@ object PredicateGraphConstruction {
   }
 
   case class ParsedModules(
-    typeHoleContext: TypeHoleContext,
     irEnv: TranslationEnv,
     irModules: Vector[IRModule],
     predModules: Vector[PredicateModule]
   )
+
+  def fromModules(
+    modules: Seq[GModule],
+    libraryTypes: Set[GType]
+  ): ParsedModules = {
+    val env = new TranslationEnv()
+    val irModules = modules.map(m => IRTranslation.translateModule(m)(env)).toVector
+
+    val ctx = PredicateContext.jsCtx(env)
+    val pModules = PredicateGraphConstruction.encodeModules(irModules, ctx, libraryTypes)
+
+    ParsedModules(env, irModules, pModules)
+  }
 
   def fromSourceFiles(
     root: Path,
@@ -210,13 +222,7 @@ object PredicateGraphConstruction {
       root
     )
 
-    val env = new TranslationEnv()
-    val irModules = modules.map(m => IRTranslation.translateModule(m)(env)).toVector
-
-    val ctx = PredicateContext.jsCtx(env)
-    val pModules = PredicateGraphConstruction.encodeModules(irModules, ctx, libraryTypes)
-
-    ParsedModules(parser.tHoleContext, env, irModules, pModules)
+    fromModules(modules, libraryTypes)
   }
 
   def resolveImports(
@@ -337,16 +343,23 @@ object PredicateGraphConstruction {
 
     def encodeStmt(stmt: IRStmt)(implicit ctx: PredicateContext): Unit = {
       import ctx._
-      def resolveLabel(ty: GType): TypeLabel = ty match {
-        case AnyType => LibraryType(AnyType)
-        case TyVar(v) =>
-          ctx.newTypeMap.get(v) match {
-            case Some(tv) => ProjectType(tv)
-            case None =>
-              if (libraryTypes.contains(ty)) LibraryType(ty)
-              else OutOfScope
-          }
-        case _ => OutOfScope
+      def resolveLabel(ty: GType): TypeLabel = {
+        def outOfScope(): OutOfScope.type ={
+          System.err.println(s"[warn] out of scope type label: $ty")
+          OutOfScope
+        }
+
+        ty match {
+          case AnyType => LibraryType(AnyType)
+          case TyVar(v) =>
+            ctx.newTypeMap.get(v) match {
+              case Some(tv) => ProjectType(tv)
+              case None =>
+                if (libraryTypes.contains(ty)) LibraryType(ty)
+                else outOfScope()
+            }
+          case _ => outOfScope()
+        }
       }
 
       def recordLabel(tv: IRType): Unit = {

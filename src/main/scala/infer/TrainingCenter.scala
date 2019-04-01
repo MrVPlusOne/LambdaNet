@@ -12,60 +12,74 @@ import gtype.EventLogger.PlotConfig
 import gtype._
 import infer.GraphEmbedding._
 import infer.IRTranslation.TranslationEnv
-import infer.PredicateGraphConstruction._
 
 import scala.collection.mutable
 import scala.collection.parallel.ForkJoinTaskSupport
 import ammonite.ops._
-import gtype.GStmt.TypeAnnotation
-import infer.IR.IRTypeId
-import infer.PredicateGraph.TypeLabel
+import infer.IR.{IRModule, IRTypeId}
+import infer.PredicateGraph.{PredicateModule, TypeLabel}
+
+import scala.concurrent.ExecutionContextExecutorService
 
 object TrainingCenter {
 
-  def main(args: Array[String]): Unit = {
-    TensorExtension.checkNaN = false // uncomment to train faster
-    trainOnModules()
+
+
+  val numOfThreads: Int = Runtime.getRuntime.availableProcessors()
+  val taskSupport: ForkJoinTaskSupport = new ForkJoinTaskSupport(
+    new ForkJoinPool(numOfThreads)
+  )
+  val parallelCtx: ExecutionContextExecutorService =
+    concurrent.ExecutionContext.fromExecutorService(new ForkJoinPool(numOfThreads))
+
+  val printCorrectWrongs = true
+  val debugFreeze = true
+
+  def note(msg: String): Unit ={
+    if(debugFreeze) println("note: " + msg)
   }
 
-  def trainOnModules(): Unit = {
-    val root = pwd / RelPath("data/ts-algorithms")
+  def main(args: Array[String]): Unit = {
+    TensorExtension.checkNaN = false // uncomment to train faster
 
-    /** any types that are not defined within the project */
     val libraryTypes = JSExamples.libraryTypes
 
+    val projectRoot = pwd / RelPath("data/toy")
+//    val projectRoot = pwd / RelPath("data/ts-algorithms")
     val parsed = infer.PredicateGraphConstruction
-      .fromSourceFiles(root, libraryTypes = libraryTypes.map(TyVar))
-    val modules = parsed.predModules
+      .fromSourceFiles(
+        projectRoot,
+        libraryTypes = libraryTypes.map(TyVar)
+      )
 
-    val transEnv = parsed.irEnv
-//    val annotatedPlaces = parsed.typeHoleContext.holeTypeMap.map {
-//      case (h, t) => transEnv.holeTyVarMap(h).id -> t
-//    }.toIndexedSeq
-    val typeLabels = parsed.predModules.flatMap(m => m.typeLabels)
+    println(s"=== Training on $projectRoot ===")
+    parsed.irModules.foreach(m => m.stmts.foreach(s => println(s.prettyPrint())))
 
-    val predicates = parsed.predModules.flatMap(m => m.predicates) ++ PredicateGraphConstruction
+    trainOnModules(parsed.predModules, parsed.predModules, parsed.irModules, parsed.irEnv)
+  }
+
+  //noinspection TypeAnnotation
+  case class GraphNetBuilder(
+    predModules: IS[PredicateModule],
+    transEnv: TranslationEnv,
+    libraryFields: Vector[Symbol],
+    libraryTypes: Vector[Symbol],
+    dimMessage: Int = 64
+  ) {
+    val typeLabels = predModules.flatMap(m => m.typeLabels)
+
+    val predicates = predModules.flatMap(m => m.predicates) ++ PredicateGraphConstruction
       .encodeUnaryPredicates(transEnv.idTypeMap.values)
-    val newTypes = modules.flatMap(m => m.newTypes.keys).toSet
+    val newTypes = predModules.flatMap(m => m.newTypes.keys).toSet
 
-    println("Predicate numbers:")
-    println {
+    def predicateCategoryNumbers: Map[Symbol, IRTypeId] = {
       predicates.groupBy(PredicateGraph.predicateCategory).mapValuesNow { _.length }
     }
 
-    /** any symbols that are not defined within the project */
-    val libraryFields: Vector[Symbol] = {
-      var allDefined, allUsed = Set[Symbol]()
-      parsed.irModules.foreach(m => {
-        val stats = m.moduleStats
-        allDefined ++= stats.fieldsDefined
-        allUsed ++= stats.fieldsUsed
-      })
-      (allUsed -- allDefined).toVector
-    }
-    println("libraryFields: " + libraryFields)
-
-    val dimMessage = 64
+    val decodingCtx = DecodingCtx(
+      Vector(AnyType, TyVar(unknownTypeSymbol)) ++ libraryTypes.map(TyVar),
+      newTypes.toVector
+    )
 
     val factory = LayerFactory('GraphEmbedding, ParamCollection())
     import factory._
@@ -73,43 +87,11 @@ object TrainingCenter {
     def randomVar(path: SymbolPath): CompNode =
       getVar(path)(numsca.randn(1, dimMessage) * 0.01)
 
-    val eventLogger = {
-      import ammonite.ops._
-      new EventLogger(
-        pwd / "running-result" / "log.txt",
-        printToConsole = true,
-        overrideMode = true,
-        configs = Seq(
-          //          "embedding-magnitudes" -> PlotConfig("ImageSize->Medium"),
-          "embedding-changes" -> PlotConfig("ImageSize->Medium"),
-          "embedding-max-length" -> PlotConfig("ImageSize->Medium"),
-          "certainty" -> PlotConfig("ImageSize->Medium"),
-          "iteration-time" -> PlotConfig(
-            "ImageSize->Medium",
-            """AxesLabel->{"step","ms"}"""
-          ),
-          "loss" -> PlotConfig("ImageSize->Large"),
-          "accuracy" -> PlotConfig("ImageSize->Large")
-        )
-      )
-    }
-
     import GraphEmbedding._
-    import TensorExtension.oneHot
 
-    val optimizer = Optimizers.Adam(learningRate = 4e-4)
-
-    val numOfThreads = Runtime.getRuntime.availableProcessors()
-    val taskSupport = new ForkJoinTaskSupport(new ForkJoinPool(numOfThreads))
-    val parallelCtx =
-      concurrent.ExecutionContext.fromExecutorService(new ForkJoinPool(numOfThreads))
-
-    // training loop
-    for (step <- 0 until 1000) {
-      val startTime = System.currentTimeMillis()
-
+    def encodeDecode(): (CompNode, IS[Embedding]) = {
       val libraryTypeMap: Map[Symbol, CompNode] = {
-        libraryTypes.toList.map { k =>
+        libraryTypes.map { k =>
           k -> randomVar('TyVar / k)
         }
       }.toMap
@@ -137,144 +119,51 @@ object TrainingCenter {
         labelEncoding,
         fieldKnowledge
       )
-      val decodingCtx = DecodingCtx(
-        Vector(AnyType, TyVar(unknownTypeSymbol)) ++ libraryTypeMap.keys.toIndexedSeq
-          .map(TyVar),
-        newTypes.toVector
-      )
 
-      def logEmbeddingMagnitudeAndChanges(
-        embeddings: IS[GraphEmbedding.Embedding]
-      ): Unit = {
-
-        val diffs = embeddings
-          .zip(embeddings.tail)
-          .par
-          .map {
-            case (e1, e0) =>
-              val diffMap = e1.nodeMap.elementwiseCombine(e0.nodeMap) { (x, y) =>
-                math.sqrt(numsca.sum(numsca.square(x.value - y.value)))
-              }
-              SimpleMath.mean(diffMap.values.toSeq)
-          }
-          .seq
-        eventLogger.log("embedding-changes", step, Tensor(diffs: _*))
-
-        val maxEmbeddingLength = embeddings.map { _.stat.trueEmbeddingLengths.max }.max
-        eventLogger.log("embedding-max-length", step, Tensor(maxEmbeddingLength))
-      }
-      val logits =
-        GraphEmbedding(embedCtx, factory, dimMessage, Some(taskSupport))
-          .encodeAndDecode(
-            iterations = 10,
-            decodingCtx,
-            typeLabels.map(_._1),
-            logEmbeddingMagnitudeAndChanges
-          )
-
-      eventLogger.log(
-        "certainty",
-        step,
-        getVar(Symbol("decode:certainty"))(throw new Error()).value
-      )
-
-      val accuracy = analyzeResults(
-        typeLabels,
-        logits.value,
-        transEnv,
-        decodingCtx,
-        printResults = false
-      )
-      eventLogger.log("accuracy", step, Tensor(accuracy))
-
-      println("annotated places number: " + typeLabels.length)
-      val targets = typeLabels.map(p => decodingCtx.indexOfType(p._2))
-      println("max Idx: " + decodingCtx.maxIndex)
-      val loss = mean(
-        crossEntropyOnSoftmax(logits, oneHot(targets, decodingCtx.maxIndex))
-      )
-
-      if (loss.value.squeeze() > 20) {
-        println(s"Abnormally large loss: ${loss.value}")
-        println("logits: ")
-        println { logits.value }
-      }
-      eventLogger.log("loss", step, loss.value)
-
-      DebugTime.logTime('optimization) {
-        optimizer.minimize(loss, params.allParams, backPropInParallel = Some(parallelCtx))
-      }
-
-      println(DebugTime.show)
-
-      eventLogger.log(
-        "iteration-time",
-        step,
-        Tensor(System.currentTimeMillis() - startTime)
-      )
+      GraphEmbedding(embedCtx, factory, dimMessage, Some(taskSupport))
+        .encodeAndDecode(
+          iterations = 10,
+          decodingCtx,
+          typeLabels.map(_._1)
+        )
     }
+
   }
 
-  def trainOnSingleExample() = {
-    TensorExtension.checkNaN = false // uncomment to train faster
+  def trainOnModules(
+    trainingModules: IS[PredicateModule],
+    testingModules: IS[PredicateModule],
+    trainingIRModules: IS[IRModule],
+    transEnv: TranslationEnv
+  ): Unit = {
 
-    val example = JSExamples.Collection.doublyLinkedList
-    val transEnv = new TranslationEnv()
-
-    println("Program statements: === ")
-    println { example.program }
-
-    val stmts = IRTranslation.translateStmt(example.program)(Set(), transEnv)
-
-//    println("IR statements: === ")
-//    stmts.foreach(println)
-
-    val libraryTypes = JSExamples.typeContext.typeUnfold.keySet
-
-    val (predicates, newTypes, annotatedPlaces) = {
-      val (ps, ctx, typeLabels) =
-        PredicateGraphConstruction.encodeIR(
-          stmts,
-          PredicateContext.jsCtx(transEnv),
-          libraryTypes.map(TyVar)
-        )
-      val ups =
-        PredicateGraphConstruction.encodeUnaryPredicates(transEnv.idTypeMap.values)
-      (ps ++ ups, ctx.newTypeMap.toIndexedSeq, typeLabels.toVector)
+    /** any symbols that are not defined within the project */
+    val libraryFields: Vector[Symbol] = {
+      var allDefined, allUsed = Set[Symbol]()
+      trainingIRModules.foreach(m => {
+        val stats = m.moduleStats
+        allDefined ++= stats.fieldsDefined
+        allUsed ++= stats.fieldsUsed
+      })
+      (allUsed -- allDefined).toVector
     }
+    println("libraryFields: " + libraryFields)
+
+    val libraryTypes = JSExamples.libraryTypes.toVector
+
+    val trainBuilder =
+      GraphNetBuilder(trainingModules, transEnv, libraryFields, libraryTypes)
+
+    val typeLabels = trainBuilder.typeLabels
+    val decodingCtx = trainBuilder.decodingCtx
+    println("max Idx: " + decodingCtx.maxIndex)
 
     println("Predicate numbers:")
     println {
-      predicates.groupBy(PredicateGraph.predicateCategory).mapValuesNow { _.length }
+      trainBuilder.predicates.groupBy(PredicateGraph.predicateCategory).mapValuesNow {
+        _.length
+      }
     }
-    println {
-      val wrongNodes = Seq(GTHole(1), GTHole(2)).map(transEnv.holeTyVarMap)
-      val graphString = PredicateGraph
-        .displayPredicateGraph(
-          (transEnv.idTypeMap.values.toSet -- wrongNodes.toSet).toSeq,
-          wrongNodes,
-          predicates,
-          transEnv.tyVarHoleMap.toMap
-        )
-        .toMamFormat("Automatic", directed = false)
-      import ammonite.ops._
-      write.over(pwd / "running-result" / "graph.txt", graphString)
-      graphString
-    }
-
-    val knownFields = (JSExamples.typeContext.typeUnfold.values.flatMap {
-      case ObjectType(fields) => fields.keySet
-      case _                  => Set[Symbol]()
-    } ++ JSExamples.exprContext.varAssign.keySet).toIndexedSeq
-    println("knownFields: " + knownFields)
-
-    val dimMessage = 64
-
-    val factory = LayerFactory('GraphEmbedding, ParamCollection())
-    import factory._
-
-    def randomVar(path: SymbolPath): CompNode =
-      getVar(path)(numsca.randn(1, dimMessage) * 0.01)
 
     val eventLogger = {
       import ammonite.ops._
@@ -283,7 +172,7 @@ object TrainingCenter {
         printToConsole = true,
         overrideMode = true,
         configs = Seq(
-//          "embedding-magnitudes" -> PlotConfig("ImageSize->Medium"),
+          //          "embedding-magnitudes" -> PlotConfig("ImageSize->Medium"),
           "embedding-changes" -> PlotConfig("ImageSize->Medium"),
           "embedding-max-length" -> PlotConfig("ImageSize->Medium"),
           "certainty" -> PlotConfig("ImageSize->Medium"),
@@ -297,64 +186,21 @@ object TrainingCenter {
       )
     }
 
-    import GraphEmbedding._
     import TensorExtension.oneHot
 
     val optimizer = Optimizers.Adam(learningRate = 4e-4)
-
-    val numOfThreads = Runtime.getRuntime.availableProcessors()
-    val taskSupport = new ForkJoinTaskSupport(new ForkJoinPool(numOfThreads))
-    val parallelCtx =
-      concurrent.ExecutionContext.fromExecutorService(new ForkJoinPool(numOfThreads))
 
     // training loop
     for (step <- 0 until 1000) {
       val startTime = System.currentTimeMillis()
 
-      val libraryTypeMap: Map[Symbol, CompNode] = {
-        libraryTypes.toList.map { k =>
-          k -> randomVar('TyVar / k)
-        }
-      }.toMap
-
-      val fieldKnowledge =
-        knownFields.map { k =>
-          k -> (randomVar('fieldKey / k), randomVar('fieldValue / k))
-        }.toMap
-
-      val unknownTypeVec = randomVar('TyVar / GraphEmbedding.unknownTypeSymbol)
-      val extendedTypeMap = BufferedTotalMap(libraryTypeMap.get) { _ =>
-        unknownTypeVec
+      val (logits, embeddings) = DebugTime.logTime('encodeDecode){
+        note("encodeDecode")
+        trainBuilder.encodeDecode()
       }
 
-      val labelEncoding = BufferedTotalMap((_: Symbol) => None) { _ =>
-        const(TensorExtension.randomUnitVec(dimMessage)) ~>
-          linear('UnknownLabel, dimMessage) ~> relu //todo: see if this is useful
-      }
-
-      val embedCtx = EmbeddingCtx(
-        transEnv.idTypeMap.toMap,
-        extendedTypeMap,
-        predicates,
-        labelEncoding,
-        fieldKnowledge
-      )
-      val decodingCtx = DecodingCtx(
-        Vector(AnyType, TyVar(unknownTypeSymbol)) ++ libraryTypeMap.keys.toIndexedSeq
-          .map(TyVar),
-        newTypes.map(_._2)
-      )
-
-      def logEmbeddingMagnitudeAndChanges(
-        embeddings: IS[GraphEmbedding.Embedding]
-      ): Unit = {
-//        val magnitudes = Tensor(embeddings.map { e =>
-//          SimpleMath.mean(e.nodeMap.values.map { n =>
-//            math.sqrt(numsca.sum(numsca.square(n.value)))
-//          }.toVector)
-//        }: _*)
-//        eventLogger.log("embedding-magnitudes", step, magnitudes)
-
+      DebugTime.logTime('loggingTime) {
+        note("loggingTime")
         val diffs = embeddings
           .zip(embeddings.tail)
           .par
@@ -371,22 +217,25 @@ object TrainingCenter {
         val maxEmbeddingLength = embeddings.map { _.stat.trueEmbeddingLengths.max }.max
         eventLogger.log("embedding-max-length", step, Tensor(maxEmbeddingLength))
       }
-      val logits =
-        GraphEmbedding(embedCtx, factory, dimMessage, Some(taskSupport))
-          .encodeAndDecode(
-            iterations = 10,
-            decodingCtx,
-            annotatedPlaces.map(_._1),
-            logEmbeddingMagnitudeAndChanges
-          )
-//      println("Predictions: ====")
-//      println(logits)
-      eventLogger.log("certainty", step, getVar(Symbol("decode:certainty"))(???).value)
 
-      val accuracy = analyzeResults(annotatedPlaces, logits.value, transEnv, decodingCtx)
+      eventLogger.log(
+        "certainty",
+        step,
+        trainBuilder.factory.getVar(Symbol("decode:certainty"))(throw new Error()).value
+      )
+
+      note("analyzeResults")
+      val accuracy = analyzeResults(
+        typeLabels,
+        logits.value,
+        transEnv,
+        decodingCtx,
+        printResults = printCorrectWrongs
+      )
       eventLogger.log("accuracy", step, Tensor(accuracy))
 
-      val targets = annotatedPlaces.map(p => decodingCtx.indexOfType(p._2))
+      println("annotated places number: " + typeLabels.length)
+      val targets = typeLabels.map(p => decodingCtx.indexOfType(p._2))
       val loss = mean(
         crossEntropyOnSoftmax(logits, oneHot(targets, decodingCtx.maxIndex))
       )
@@ -398,8 +247,13 @@ object TrainingCenter {
       }
       eventLogger.log("loss", step, loss.value)
 
+      note("optimization")
       DebugTime.logTime('optimization) {
-        optimizer.minimize(loss, params.allParams, backPropInParallel = Some(parallelCtx))
+        optimizer.minimize(
+          loss,
+          trainBuilder.factory.paramCollection.allParams,
+          backPropInParallel = Some(parallelCtx)
+        )
       }
 
       println(DebugTime.show)
@@ -442,7 +296,7 @@ object TrainingCenter {
           println(s"[correct] \t$tv: $t")
     }
 
-    val holeTypeMap = annotatedPlaces.toMap
+//    val holeTypeMap = annotatedPlaces.toMap
     val labelMap = annotatedPlaces.toMap
     incorrect.foreach {
       case (id, pred) =>

@@ -58,6 +58,9 @@ class ParserTests extends WordSpec with MyTest {
   "Expressions parsing test" in {
     val content =
       """
+        |class Generics {
+        |  id<T>(x: T): T {}
+        |}
         |let x = {a: 1, b: {c: "x"}};
         |let myAdd: (x: number, y: number) => number = undefined;
         |let o: {b: any, a: number} = undefined;
@@ -180,7 +183,6 @@ class ParserTests extends WordSpec with MyTest {
     val root = pwd / RelPath("data/ts-algorithms")
     val parsed = infer.PredicateGraphConstruction
           .fromSourceFiles(root)
-    println("Hole type map: " + parsed.typeHoleContext.holeTypeMap)
     parsed.predModules
       .foreach { m =>
         println(m.display)

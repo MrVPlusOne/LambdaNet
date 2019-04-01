@@ -64,7 +64,7 @@ case class GraphEmbedding(
   ctx: EmbeddingCtx,
   layerFactory: LayerFactory,
   dimMessage: Int,
-  taskSupport: Option[ForkJoinTaskSupport]
+  taskSupport: Option[ForkJoinTaskSupport],
 ) {
   import ctx._
   import layerFactory._
@@ -81,22 +81,18 @@ case class GraphEmbedding(
     iterations: Int,
     decodingCtx: DecodingCtx,
     placesToDecode: IS[IRTypeId],
-    iterateLogger: IS[Embedding] => Unit = _ => ()
-  ): CompNode = {
+  ): (CompNode, IS[Embedding]) = {
     val embeddings = DebugTime.logTime('iterTime) {
       val stat = EmbeddingStat(idTypeMap.mapValuesNow(_ => 1.0).values.toVector)
       val init = Embedding(idTypeMap.mapValuesNow(_ => nodeInitVec), stat)
       IS.iterate(init, iterations)(iterate)
     }
 
-    DebugTime.logTime('loggingTime) {
-      iterateLogger(embeddings)
-    }
     val result = DebugTime.logTime('decodingTime) {
       decode(decodingCtx, placesToDecode, embeddings.last)
     }
 
-    result
+    (result, embeddings)
   }
 
   /** Each message consists of a key-value pair */

@@ -16,17 +16,16 @@ object LayerFactory {
   }
 }
 
-case class LayerFactory(nameSpace: SymbolPath, params: ParamCollection) {
-  import params._
+case class LayerFactory(nameSpace: SymbolPath, paramCollection: ParamCollection) {
 
   def getVar(
     relativePath: SymbolPath,
     attributes: Set[ParameterAttribute] = Set()
   )(init: => Tensor): ParamNode =
-    params.getVar(nameSpace ++ relativePath, attributes)(init)
+    paramCollection.getVar(nameSpace ++ relativePath, attributes)(init)
 
   def getConst(relativePath: SymbolPath)(init: => Tensor): Tensor =
-    params.getConst(nameSpace ++ relativePath)(init)
+    paramCollection.getConst(nameSpace ++ relativePath)(init)
 
   def withPrefix[A](prefix: SymbolPath)(f: SymbolPath => A): A = {
     val p = nameSpace ++ prefix
@@ -96,13 +95,13 @@ case class LayerFactory(nameSpace: SymbolPath, params: ParamCollection) {
     val inputSize = input.shape(1)
     val stateSize = state.shape(1)
 
-    val Wg = params.getVar(prefix / 'Wg, attributes = Set(NeedRegularization)) {
+    val Wg = paramCollection.getVar(prefix / 'Wg, attributes = Set(NeedRegularization)) {
       initializer(inputSize, 2 * stateSize)
     }
-    val Ug = params.getVar(prefix / 'Ug, attributes = Set(NeedRegularization)) {
+    val Ug = paramCollection.getVar(prefix / 'Ug, attributes = Set(NeedRegularization)) {
       initializer(stateSize, 2 * stateSize)
     }
-    val bg = params.getVar(prefix / 'bg) {
+    val bg = paramCollection.getVar(prefix / 'bg) {
       ns.zeros(1, 2 * stateSize)
     }
 
@@ -110,13 +109,13 @@ case class LayerFactory(nameSpace: SymbolPath, params: ParamCollection) {
     val updateGate = gates.slice(:>, 0 :> stateSize)
     val restGate = gates.slice(:>, stateSize :>)
 
-    val Wh = params.getVar(prefix / 'Wh, attributes = Set(NeedRegularization)) {
+    val Wh = paramCollection.getVar(prefix / 'Wh, attributes = Set(NeedRegularization)) {
       initializer(inputSize, stateSize)
     }
-    val Uh = params.getVar(prefix / 'Uh, attributes = Set(NeedRegularization)) {
+    val Uh = paramCollection.getVar(prefix / 'Uh, attributes = Set(NeedRegularization)) {
       initializer(stateSize, stateSize)
     }
-    val bh = params.getVar(prefix / 'bh) {
+    val bh = paramCollection.getVar(prefix / 'bh) {
       ns.zeros(1, stateSize)
     }
 
@@ -137,13 +136,13 @@ case class LayerFactory(nameSpace: SymbolPath, params: ParamCollection) {
     val stateSize = h.shape(1)
     require(c.shape(1) == stateSize)
 
-    val Wg = params.getVar(prefix / 'Wg, attributes = Set(NeedRegularization)) {
+    val Wg = paramCollection.getVar(prefix / 'Wg, attributes = Set(NeedRegularization)) {
       initializer(inputSize, 3 * stateSize)
     }
-    val Ug = params.getVar(prefix / 'Ug, attributes = Set(NeedRegularization)) {
+    val Ug = paramCollection.getVar(prefix / 'Ug, attributes = Set(NeedRegularization)) {
       initializer(stateSize, 3 * stateSize)
     }
-    val bg = params.getVar(prefix / 'bg) {
+    val bg = paramCollection.getVar(prefix / 'bg) {
       ns.zeros(1, 3 * stateSize)
     }
 
@@ -152,13 +151,13 @@ case class LayerFactory(nameSpace: SymbolPath, params: ParamCollection) {
     val inputGate = gates.slice(:>, stateSize :> 2 * stateSize)
     val outputGate = gates.slice(:>, 2 * stateSize :>)
 
-    val Wc = params.getVar(prefix / 'Wc, attributes = Set(NeedRegularization)) {
+    val Wc = paramCollection.getVar(prefix / 'Wc, attributes = Set(NeedRegularization)) {
       initializer(inputSize, stateSize)
     }
-    val Uc = params.getVar(prefix / 'Uc, attributes = Set(NeedRegularization)) {
+    val Uc = paramCollection.getVar(prefix / 'Uc, attributes = Set(NeedRegularization)) {
       initializer(stateSize, stateSize)
     }
-    val bc = params.getVar(prefix / 'bc) {
+    val bc = paramCollection.getVar(prefix / 'bc) {
       ns.zeros(1, stateSize)
     }
 

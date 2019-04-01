@@ -170,10 +170,11 @@ object IRTranslation {
   def translateFunc(
     func: gtype.FuncDef
   )(
-    implicit quantifiedTypes: Set[Symbol],
+    quantifiedTypes: Set[Symbol],
     env: TranslationEnv
   ): IR.FuncDef = {
     import func._
+    implicit val newTyVars: Set[Symbol] = quantifiedTypes ++ tyVars
     val args1 = args.map {
       case (argName, mark) =>
         namedVar(argName) -> env.getTyVar(mark, Some(argName))
@@ -182,7 +183,7 @@ object IRTranslation {
       name,
       args1,
       env.getTyVar(returnType, None),
-      BlockStmt(translateStmt(body)),
+      BlockStmt(translateStmt(body)(newTyVars, env)),
       env.newTyVar(None, Some(name)),
       exportLevel
     )
