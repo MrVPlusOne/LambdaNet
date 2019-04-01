@@ -4,6 +4,7 @@ import funcdiff.SimpleMath.Extensions._
 import gtype.ExportStmt.ExportTypeAlias
 import gtype._
 import funcdiff.SimpleMath.Extensions._
+import gtype.GStmt.TypeAnnotation
 
 object IRTranslation {
   import IR._
@@ -38,10 +39,11 @@ object IRTranslation {
     def newTyVar(
       origin: Option[GTHole],
       name: Option[Symbol],
-      freezeToType: Option[gtype.GType] = None
+      freezeToType: Option[TypeAnnotation] = None
     )(implicit tyVars: Set[Symbol]): IRType = {
       assert(tyVarIdx >= 0)
-      val tv = IRType(tyVarIdx, name, freezeToType.map(translateType))
+      val tv =
+        IRType(tyVarIdx, name, freezeToType.map(a => a.copy(ty = translateType(a.ty))))
       idTypeMap(tv.id) = tv
       origin.foreach { h =>
         holeTyVarMap(h) = tv
@@ -63,7 +65,8 @@ object IRTranslation {
     ): IRType = {
       gMark match {
         case h: gtype.GTHole => newTyVar(Some(h), name, None)
-        case ty: gtype.GType => newTyVar(None, name, Some(ty))
+        case ty: gtype.GType =>
+          newTyVar(None, name, Some(TypeAnnotation(ty, needInfer = true)))
       }
     }
   }
@@ -140,7 +143,7 @@ object IRTranslation {
         condDef ++ condDef2 :+ WhileStmt(condV, bodyStmt)
       case gtype.CommentStmt(_) => Vector()
       case gtype.BlockStmt(stmts) =>
-        stmts.flatMap(translateStmt)
+        Vector(groupInBlock(stmts.flatMap(translateStmt)))
       case f: gtype.FuncDef =>
         val newTyVars = quantifiedTypes ++ f.tyVars.toSet
         Vector(translateFunc(f)(newTyVars, env))
@@ -179,7 +182,7 @@ object IRTranslation {
       name,
       args1,
       env.getTyVar(returnType, None),
-      translateStmt(body),
+      BlockStmt(translateStmt(body)),
       env.newTyVar(None, Some(name)),
       exportLevel
     )
@@ -306,7 +309,11 @@ object IRTranslation {
     module.exportStmts.collect {
       case ExportTypeAlias(name, tVars, t) =>
         aliases(name) = (
-          env.newTyVar(None, Some(name), freezeToType = Some(t))(tVars.toSet),
+          env.newTyVar(
+            None,
+            Some(name),
+            freezeToType = Some(TypeAnnotation(t, needInfer = false))
+          )(tVars.toSet),
           ExportCategory.TypeAlias
         )
     }
@@ -341,7 +348,10 @@ object IRTranslation {
     }
 
     println {
-      "newCtx: " + PredicateGraphConstruction.encodeIR(stmts, ctx)._2.newTypeMap
+      "newCtx: " + PredicateGraphConstruction
+        .encodeIR(stmts, ctx, JSExamples.libraryTypes.map(TyVar))
+        ._2
+        .newTypeMap
     }
   }
 }

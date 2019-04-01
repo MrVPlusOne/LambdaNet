@@ -78,6 +78,8 @@ object JSExamples {
     subRel = Set()
   )
 
+  val libraryTypes: Set[Symbol] = typeContext.typeUnfold.keySet
+
   val exprContext: ExprContext = {
     val varAssign = Map[Symbol, GType](
       'undefined -> any,

@@ -205,7 +205,7 @@ object GStmt {
     }
   }
 
-  case class TypeAnnotation(ty: GType, userAnnotated: Boolean)
+  case class TypeAnnotation(ty: GType, needInfer: Boolean)
 
   /** An context used for constructing programs written in [[GStmt]] */
   class TypeHoleContext {
@@ -219,7 +219,7 @@ object GStmt {
       mark.foreach { m =>
         assert(!holeTypeMap.contains(h))
         holeTypeMap(h) = m.ty
-        if (m.userAnnotated) {
+        if (m.needInfer) {
           userAnnotatedSet += h
         }
       }
@@ -242,7 +242,7 @@ object GStmt {
     )(init: GExpr): VarDef = {
       VarDef(
         x,
-        typeHoleContext.newTHole(Some(TypeAnnotation(ty, userAnnotated = true))),
+        typeHoleContext.newTHole(Some(TypeAnnotation(ty, needInfer = true))),
         init,
         isConst,
         exportLevel = ExportLevel.Public
@@ -284,12 +284,12 @@ object GStmt {
     def stripArgs(args: Seq[(Symbol, GType)]): List[(Symbol, GTHole)] = {
       args.toList.map {
         case (s, t) =>
-          s -> typeHoleContext.newTHole(Some(TypeAnnotation(t, userAnnotated = true)))
+          s -> typeHoleContext.newTHole(Some(TypeAnnotation(t, needInfer = true)))
       }
     }
 
     def stripType(t: GType): GTHole = {
-      typeHoleContext.newTHole(Some(TypeAnnotation(t, userAnnotated = true)))
+      typeHoleContext.newTHole(Some(TypeAnnotation(t, needInfer = true)))
     }
 
     def FUNC(name: Symbol, returnType: GType)(

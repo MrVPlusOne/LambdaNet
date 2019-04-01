@@ -191,7 +191,7 @@ object SimpleMath {
     }
   }
 
-  def noDuplicate[T](xs: Seq[T]): Boolean ={
+  def noDuplicate[T](xs: Seq[T]): Boolean = {
     xs.toSet.size == xs.length
   }
 
@@ -569,17 +569,19 @@ object SimpleMath {
     }
   }
 
-  def addMessagesForExceptions[T](msg: => String, prepend: Boolean = true)(computation: => T): T = {
+  /** Print the error message if there is an exception or error when executing the computation */
+  def withErrorMessage[T](msg: => String, prepend: Boolean = true)(
+    computation: => T
+  ): T = {
     try {
       computation
     } catch {
       case e: Exception =>
-        if(prepend){
-          System.err.println(msg)
-          throw e
-        }else {
-          ???
-        }
+        System.err.println(msg)
+        throw e
+      case e: Error =>
+        System.err.println(msg)
+        throw e
     }
   }
 

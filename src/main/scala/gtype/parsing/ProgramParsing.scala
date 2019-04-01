@@ -10,7 +10,7 @@ import gtype.{ExportLevel, _}
 object ProgramParsing {
 
   def parseJson(text: String): Js.Val = {
-    SimpleMath.addMessagesForExceptions(s"JSON source text: $text") {
+    SimpleMath.withErrorMessage(s"JSON source text: $text") {
       fastparse.parse(text, JsonParsing.jsonExpr(_)).get.value
     }
   }
@@ -94,7 +94,7 @@ class ProgramParsing(
 ) {
 
   def parseContent(content: String): Vector[GStmt] = {
-    SimpleMath.addMessagesForExceptions(
+    SimpleMath.withErrorMessage(
       "failed when parsing content: \n" + content
     ) {
       val r = %%('node, "./parsingFromString.js", content)(pwd / 'scripts / 'ts)
@@ -147,7 +147,7 @@ class ProgramParsing(
       case _ =>
         val ty = parseType(v)
         if (marksToHoles)
-          tHoleContext.newTHole(Some(TypeAnnotation(ty, userAnnotated = true)))
+          tHoleContext.newTHole(Some(TypeAnnotation(ty, needInfer = true)))
         else ty
     }
   }
@@ -203,91 +203,92 @@ class ProgramParsing(
     DefModifiers(isConst, exportLevel)
   }
 
-  def parseGStmt(v: Js.Val): GStmt = {
-    val map = asObj(v)
-    asString(map("category")) match {
-      case "VarDef" =>
-        val name = asString(map("x"))
-        val t = parseGTMark(map("mark"))
-        val init = parseGExpr(map("init"))
-        val ms = parseModifiers(map("modifiers"))
-        val b = asBoolean(map("isConst")) || ms.isConst
-        VarDef(Symbol(name), t, init, isConst = b, ms.exportLevel)
-      case "AssignStmt" =>
-        val lhs = parseGExpr(map("lhs"))
-        val rhs = parseGExpr(map("rhs"))
-        AssignStmt(lhs, rhs)
-      case "ExprStmt" =>
-        val e = parseGExpr(map("expr"))
-        val isReturn = asBoolean(map("isReturn"))
-        ExprStmt(e, isReturn)
-      case "IfStmt" =>
-        val cond = parseGExpr(map("cond"))
-        val branch1 = parseGStmt(map("branch1"))
-        val branch2 = parseGStmt(map("branch2"))
-        IfStmt(cond, branch1, branch2)
-      case "WhileStmt" =>
-        val cond = parseGExpr(map("cond"))
-        val body = parseGStmt(map("body"))
-        WhileStmt(cond, body)
-      case "CommentStmt" =>
-        val text = asString(map("text"))
-        CommentStmt(text)
-      case "BlockStmt" =>
-        val stmts = asVector(map("stmts")).map(parseGStmt)
-        BlockStmt(stmts)
-      case "FuncDef" =>
-        val name = Symbol(asString(map("name")))
-        val args = parseArgList(map("args"))
-        val returnType =
-          if (name == 'Constructor) GType.voidType
-          else parseGTMark(map("returnType"))
-        val body = parseGStmt(map("body"))
+  def parseGStmt(v: Js.Val): GStmt =
+    SimpleMath.withErrorMessage(s"Error when parsing $v") {
+      val map = asObj(v)
+      asString(map("category")) match {
+        case "VarDef" =>
+          val name = asString(map("x"))
+          val t = parseGTMark(map("mark"))
+          val init = parseGExpr(map("init"))
+          val ms = parseModifiers(map("modifiers"))
+          val b = asBoolean(map("isConst")) || ms.isConst
+          VarDef(Symbol(name), t, init, isConst = b, ms.exportLevel)
+        case "AssignStmt" =>
+          val lhs = parseGExpr(map("lhs"))
+          val rhs = parseGExpr(map("rhs"))
+          AssignStmt(lhs, rhs)
+        case "ExprStmt" =>
+          val e = parseGExpr(map("expr"))
+          val isReturn = asBoolean(map("isReturn"))
+          ExprStmt(e, isReturn)
+        case "IfStmt" =>
+          val cond = parseGExpr(map("cond"))
+          val branch1 = parseGStmt(map("branch1"))
+          val branch2 = parseGStmt(map("branch2"))
+          IfStmt(cond, branch1, branch2)
+        case "WhileStmt" =>
+          val cond = parseGExpr(map("cond"))
+          val body = parseGStmt(map("body"))
+          WhileStmt(cond, body)
+        case "CommentStmt" =>
+          val text = asString(map("text"))
+          CommentStmt(text)
+        case "BlockStmt" =>
+          val stmts = asVector(map("stmts")).map(parseGStmt)
+          BlockStmt(stmts)
+        case "FuncDef" =>
+          val name = Symbol(asString(map("name")))
+          val args = parseArgList(map("args"))
+          val returnType =
+            if (name == 'Constructor) GType.voidType
+            else parseGTMark(map("returnType"))
+          val body = parseGStmt(map("body"))
 
-        val tyVars = asVector(map("tyVars")).map(asSymbol).toList
-        val ms = parseModifiers(map("modifiers"))
-        FuncDef(name, tyVars, args, returnType, body, ms.exportLevel)
-      case "ClassDef" =>
-        val name = asSymbol(map("name"))
-        val superType = asOptionSymbol(map("superType"))
-        val ms = parseModifiers(map("modifiers"))
-        val constructor = {
-          val consName = ClassDef.constructorName(name)
-          val constructorValue = map("constructor")
-          val f = if (constructorValue == Null) {
-            // make an empty constructor
-            val tyVars = List() //fixme
-            FuncDef(
-              consName,
-              tyVars,
-              List(),
-              GType.voidType,
-              BlockStmt(Vector()),
-              ms.exportLevel
-            )
-          } else {
-            parseGStmt(constructorValue).asInstanceOf[FuncDef]
+          val tyVars = asVector(map("tyVars")).map(asSymbol).toList
+          val ms = parseModifiers(map("modifiers"))
+          FuncDef(name, tyVars, args, returnType, body, ms.exportLevel)
+        case "ClassDef" =>
+          val name = asSymbol(map("name"))
+          val superType = asOptionSymbol(map("superType"))
+          val ms = parseModifiers(map("modifiers"))
+          val constructor = {
+            val consName = ClassDef.constructorName(name)
+            val constructorValue = map("constructor")
+            val f = if (constructorValue == Null) {
+              // make an empty constructor
+              val tyVars = List() //fixme
+              FuncDef(
+                consName,
+                tyVars,
+                List(),
+                GType.voidType,
+                BlockStmt(Vector()),
+                ms.exportLevel
+              )
+            } else {
+              parseGStmt(constructorValue).asInstanceOf[FuncDef]
+            }
+            f.copy(name = consName)
           }
-          f.copy(name = consName)
-        }
-        val vars = parseArgList(map("vars"))
-        val funcDefs =
-          asVector(map("funcDefs"))
-            .map(x => parseGStmt(x).asInstanceOf[FuncDef])
-        val tyVars = asVector(map("tyVars")).map(asSymbol).toList
-        ClassDef(
-          name,
-          tyVars,
-          superType,
-          constructor,
-          vars.toMap,
-          funcDefs,
-          ms.exportLevel
-        )
+          val vars = parseArgList(map("vars"))
+          val funcDefs =
+            asVector(map("funcDefs"))
+              .map(x => parseGStmt(x).asInstanceOf[FuncDef])
+          val tyVars = asVector(map("tyVars")).map(asSymbol).toList
+          ClassDef(
+            name,
+            tyVars,
+            superType,
+            constructor,
+            vars.toMap,
+            funcDefs,
+            ms.exportLevel
+          )
 
-      case other => throw new Error(s"Unknown category: $other")
+        case other => throw new Error(s"Unknown category: $other")
+      }
     }
-  }
 
   def parseGModule(v: Js.Val): GModule = {
     val obj = asObj(v)
@@ -296,13 +297,15 @@ class ProgramParsing(
     var exports = Vector[ExportStmt]()
     var stmts = Vector[GStmt]()
 
-    asVector(obj("stmts")).foreach {
-      case ImportPattern(ss) =>
-        imports ++= ss
-      case ExportPattern(ss) =>
-        exports ++= ss
-      case other =>
-        stmts :+= parseGStmt(other)
+    SimpleMath.withErrorMessage(s"Error when parsing module: $name") {
+      asVector(obj("stmts")).foreach {
+        case ImportPattern(ss) =>
+          imports ++= ss
+        case ExportPattern(ss) =>
+          exports ++= ss
+        case other =>
+          stmts :+= parseGStmt(other)
+      }
     }
 
     val modulePath = RelPath(name.replace("." + RelPath(name).ext, ""))

@@ -169,7 +169,7 @@ class ParserTests extends WordSpec with MyTest {
   "Export Import tests" in {
     val root = pwd / RelPath("data/tests/export-import")
     infer.PredicateGraphConstruction
-      .fromSourceFiles(root, marksToHoles = false)
+          .fromSourceFiles(root)
       .predModules
       .foreach { m =>
         println(m.display)
@@ -179,7 +179,7 @@ class ParserTests extends WordSpec with MyTest {
   "Project parsing integration test" in {
     val root = pwd / RelPath("data/ts-algorithms")
     val parsed = infer.PredicateGraphConstruction
-      .fromSourceFiles(root, marksToHoles = true)
+          .fromSourceFiles(root)
     println("Hole type map: " + parsed.typeHoleContext.holeTypeMap)
     parsed.predModules
       .foreach { m =>

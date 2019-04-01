@@ -14,9 +14,12 @@ import infer.GraphEmbedding._
 import infer.IRTranslation.TranslationEnv
 import infer.PredicateGraphConstruction._
 
-import scala.collection.{mutable}
+import scala.collection.mutable
 import scala.collection.parallel.ForkJoinTaskSupport
 import ammonite.ops._
+import gtype.GStmt.TypeAnnotation
+import infer.IR.IRTypeId
+import infer.PredicateGraph.TypeLabel
 
 object TrainingCenter {
 
@@ -25,16 +28,21 @@ object TrainingCenter {
     trainOnModules()
   }
 
-  def trainOnModules() = {
+  def trainOnModules(): Unit = {
     val root = pwd / RelPath("data/ts-algorithms")
+
+    /** any types that are not defined within the project */
+    val libraryTypes = JSExamples.libraryTypes
+
     val parsed = infer.PredicateGraphConstruction
-      .fromSourceFiles(root, marksToHoles = true)
+      .fromSourceFiles(root, libraryTypes = libraryTypes.map(TyVar))
     val modules = parsed.predModules
 
     val transEnv = parsed.irEnv
-    val annotatedPlaces = parsed.typeHoleContext.holeTypeMap.map {
-      case (h, t) => transEnv.holeTyVarMap(h).id -> t
-    }.toIndexedSeq
+//    val annotatedPlaces = parsed.typeHoleContext.holeTypeMap.map {
+//      case (h, t) => transEnv.holeTyVarMap(h).id -> t
+//    }.toIndexedSeq
+    val typeLabels = parsed.predModules.flatMap(m => m.typeLabels)
 
     val predicates = parsed.predModules.flatMap(m => m.predicates) ++ PredicateGraphConstruction
       .encodeUnaryPredicates(transEnv.idTypeMap.values)
@@ -56,10 +64,6 @@ object TrainingCenter {
       (allUsed -- allDefined).toVector
     }
     println("libraryFields: " + libraryFields)
-
-    /** any types that are not defined within the project */
-    val libraryTypes
-      : Vector[Symbol] = JSExamples.typeContext.typeUnfold.keys.toVector //todo: improve
 
     val dimMessage = 64
 
@@ -115,8 +119,10 @@ object TrainingCenter {
           k -> (randomVar('fieldKey / k), randomVar('fieldValue / k))
         }.toMap
 
+      val unknownTypeVec = randomVar('TyVar / GraphEmbedding.unknownTypeSymbol)
+
       val extendedTypeMap = BufferedTotalMap(libraryTypeMap.get) { _ =>
-        randomVar('TyVar / GraphEmbedding.unknownTypeSymbol)
+        unknownTypeVec
       }
 
       val labelEncoding = BufferedTotalMap((_: Symbol) => None) { _ =>
@@ -162,7 +168,7 @@ object TrainingCenter {
           .encodeAndDecode(
             iterations = 10,
             decodingCtx,
-            annotatedPlaces.map(_._1),
+            typeLabels.map(_._1),
             logEmbeddingMagnitudeAndChanges
           )
 
@@ -173,7 +179,7 @@ object TrainingCenter {
       )
 
       val accuracy = analyzeResults(
-        annotatedPlaces,
+        typeLabels,
         logits.value,
         transEnv,
         decodingCtx,
@@ -181,8 +187,8 @@ object TrainingCenter {
       )
       eventLogger.log("accuracy", step, Tensor(accuracy))
 
-      println("annotated places number: " + annotatedPlaces.length)
-      val targets = annotatedPlaces.map(p => decodingCtx.indexOfType(p._2))
+      println("annotated places number: " + typeLabels.length)
+      val targets = typeLabels.map(p => decodingCtx.indexOfType(p._2))
       println("max Idx: " + decodingCtx.maxIndex)
       val loss = mean(
         crossEntropyOnSoftmax(logits, oneHot(targets, decodingCtx.maxIndex))
@@ -223,17 +229,20 @@ object TrainingCenter {
 //    println("IR statements: === ")
 //    stmts.foreach(println)
 
-    val annotatedPlaces = example.holeTypeMap.map {
-      case (h, t) => transEnv.holeTyVarMap(h).id -> t
-    }.toIndexedSeq
+    val libraryTypes = JSExamples.typeContext.typeUnfold.keySet
 
-    val (predicates, newTypes) = {
-      val (ps, ctx) =
-        PredicateGraphConstruction.encodeIR(stmts, PredicateContext.jsCtx(transEnv))
+    val (predicates, newTypes, annotatedPlaces) = {
+      val (ps, ctx, typeLabels) =
+        PredicateGraphConstruction.encodeIR(
+          stmts,
+          PredicateContext.jsCtx(transEnv),
+          libraryTypes.map(TyVar)
+        )
       val ups =
         PredicateGraphConstruction.encodeUnaryPredicates(transEnv.idTypeMap.values)
-      (ps ++ ups, ctx.newTypeMap.toIndexedSeq)
+      (ps ++ ups, ctx.newTypeMap.toIndexedSeq, typeLabels.toVector)
     }
+
     println("Predicate numbers:")
     println {
       predicates.groupBy(PredicateGraph.predicateCategory).mapValuesNow { _.length }
@@ -303,8 +312,7 @@ object TrainingCenter {
       val startTime = System.currentTimeMillis()
 
       val libraryTypeMap: Map[Symbol, CompNode] = {
-        val keys = JSExamples.typeContext.typeUnfold.keySet
-        keys.toList.map { k =>
+        libraryTypes.toList.map { k =>
           k -> randomVar('TyVar / k)
         }
       }.toMap
@@ -314,8 +322,9 @@ object TrainingCenter {
           k -> (randomVar('fieldKey / k), randomVar('fieldValue / k))
         }.toMap
 
+      val unknownTypeVec = randomVar('TyVar / GraphEmbedding.unknownTypeSymbol)
       val extendedTypeMap = BufferedTotalMap(libraryTypeMap.get) { _ =>
-        randomVar('TyVar / GraphEmbedding.unknownTypeSymbol)
+        unknownTypeVec
       }
 
       val labelEncoding = BufferedTotalMap((_: Symbol) => None) { _ =>
@@ -404,45 +413,44 @@ object TrainingCenter {
   }
 
   def analyzeResults(
-    annotatedPlaces: IS[(Int, GType)],
+    annotatedPlaces: IS[(IRTypeId, TypeLabel)],
     logits: Tensor,
     transEnv: TranslationEnv,
     ctx: DecodingCtx,
     printResults: Boolean = true
   ): Double = {
-    type TypeIdx = Int
+    type Prediction = Int
     val predictions = numsca.argmax(logits, axis = 1)
-    val correct = mutable.ListBuffer[(GTHole, TypeIdx)]()
-    val incorrect = mutable.ListBuffer[(GTHole, TypeIdx)]()
+    val correct = mutable.ListBuffer[(IRTypeId, Prediction)]()
+    val incorrect = mutable.ListBuffer[(IRTypeId, Prediction)]()
     for (row <- annotatedPlaces.indices) {
       val (nodeId, t) = annotatedPlaces(row)
-      val hole = transEnv.tyVarHoleMap(nodeId)
       val expected = ctx.indexOfType(t)
       val actual = predictions(row, 0).squeeze().toInt
-
       if (expected == actual)
-        correct += (hole -> actual)
+        correct += (nodeId -> actual)
       else {
-        incorrect += (hole -> actual)
+        incorrect += (nodeId -> actual)
       }
     }
 
     correct.foreach {
-      case (hole, tId) =>
-        val t = ctx.typeOfIndex(tId)
-        val tv = transEnv.holeTyVarMap(hole)
+      case (id, pred) =>
+        val t = ctx.typeFromIndex(pred)
+        val tv = transEnv.idTypeMap(id)
         if (printResults)
-          println(s"[correct] \t$tv $hole: $t")
+          println(s"[correct] \t$tv: $t")
     }
 
     val holeTypeMap = annotatedPlaces.toMap
+    val labelMap = annotatedPlaces.toMap
     incorrect.foreach {
-      case (hole, tId) =>
-        val tv = transEnv.holeTyVarMap(hole)
-        val actualType = ctx.typeOfIndex(tId)
-        val expected = holeTypeMap(transEnv.holeTyVarMap(hole).id)
+      case (id, pred) =>
+        val tv = transEnv.idTypeMap(id)
+        val actualType = ctx.typeFromIndex(pred)
+        val expected = labelMap(id)
         if (printResults)
-          println(s"[incorrect] \t$tv $hole: $actualType not match $expected")
+          println(s"[incorrect] \t$tv: $actualType not match $expected")
     }
 
     val accuracy = correct.length.toDouble / (correct.length + incorrect.length)

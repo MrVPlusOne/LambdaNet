@@ -3,6 +3,7 @@ package infer
 import gtype._
 import gtype.ExportLevel.asPrefix
 import gtype.GModule.ProjectPath
+import gtype.GStmt.TypeAnnotation
 
 /**
   * An intermediate program representation useful for type inference
@@ -22,6 +23,7 @@ object IR {
     def moduleStats: IRModuleStats = {
       var fieldsUsed, fieldsDefined: Set[Symbol] = Set()
 
+      /** collects fields definitions and usages */
       def processExpr(expr: IRExpr): Unit = expr match {
         case ObjLiteral(fields) =>
           fieldsDefined ++= fields.keySet
@@ -30,6 +32,7 @@ object IR {
         case _ =>
       }
 
+      /** collects fields definitions and usages */
       def processStmt(stmt: IRStmt): Unit = stmt match {
         case s: VarDef => processExpr(s.rhs)
         case s: IfStmt =>
@@ -37,7 +40,7 @@ object IR {
           processStmt(s.e2)
         case s: WhileStmt => processStmt(s.body)
         case s: BlockStmt => s.stmts.foreach(processStmt)
-        case s: FuncDef => s.body.foreach(processStmt)
+        case s: FuncDef   => s.body.stmts.foreach(processStmt)
         case s: ClassDef =>
           processStmt(s.constructor)
           s.funcDefs.foreach(processStmt)
@@ -127,9 +130,9 @@ object IR {
     def prettyPrint: String = s"($cond ? $e1 : $e2)"
   }
 
-  case class IRType(id: Int, name: Option[Symbol], freezeToType: Option[GType]) {
+  case class IRType(id: Int, name: Option[Symbol], annotation: Option[TypeAnnotation]) {
     override def toString: String = {
-      val parts = name.map(n => s"{${n.name}}").toList ++ freezeToType
+      val parts = name.map(n => s"{${n.name}}").toList ++ annotation
         .map(t => s"[$t]")
         .toList
       s"𝒯$id${parts.mkString}"
@@ -189,7 +192,7 @@ object IR {
     name: Symbol,
     args: List[(Var, IRType)],
     returnType: IRType,
-    body: Vector[IRStmt],
+    body: BlockStmt,
     funcT: IRType,
     exportLevel: ExportLevel.Value
   ) extends IRStmt
@@ -234,14 +237,12 @@ object IR {
             .map { case (v, tv) => s"$v: $tv" }
             .mkString("(", ", ", ")")
           val returnMark =
-            if (returnType.freezeToType.contains(GType.voidType)) ""
+            if (returnType.annotation.contains(GType.voidType)) ""
             else s": $returnType"
           Vector(
-            indent -> s"${asPrefix(level)}function ${funcName.name}:$funcT $argList$returnMark {"
-          ) ++
-            body.flatMap(s => prettyPrintHelper(indent + 1, s)) ++ Vector(
-            indent -> "}"
-          )
+            indent -> s"${asPrefix(level)}function ${funcName.name}:$funcT $argList$returnMark"
+          ) ++ prettyPrintHelper(indent, body)
+
         case ClassDef(name, superType, constructor, vars, funcDefs, classT, level) =>
           val superPart = superType
             .map(t => s"extends $t")

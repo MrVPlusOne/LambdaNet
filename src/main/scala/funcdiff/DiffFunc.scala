@@ -375,7 +375,7 @@ object DiffFunc {
 
   // ================ Loss functions ======================
   case class CrossEntropyOnSoftmax(logits: CompNode, targets: CompNode) extends UnaryFunc {
-    require(targets.shape == logits.shape, "Targets have different shape than logits.")
+    require(targets.shape == logits.shape, s"Targets shape (${targets.shape}) is different from logits (${logits.shape}).")
     require(logits.shape.rank == 2, "Logits should be of rank 2.")
 
     def x1: CompNode = logits

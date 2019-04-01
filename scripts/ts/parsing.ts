@@ -97,6 +97,15 @@ function parseType(node: ts.TypeNode, checker: ts.TypeChecker): GType {
       x => {
         if (x.name != undefined)
           fields[x.name.getText()] = parseType((x as ts.PropertySignature).type, checker);
+        else if(x.kind == SyntaxKind.IndexSignature){
+          let sig = x as ts.IndexSignatureDeclaration;
+          let argTypes = sig.parameters.map(p => parseType(p.type, checker));
+          let retType = parseType(sig.type, checker);
+          let t = new FuncType(argTypes, retType); //todo: handle potential type parameters
+          fields["access"] = t;
+        } else {
+          console.log("Unknown type element: " + ts.SyntaxKind[x.kind])
+        }
         // else throw new Error("members without a name: " + node.getText()); todo: uncomment and handle other cases
       }
     );
@@ -746,7 +755,7 @@ export function forNode<T>(node: ts.Node, action: () => T): T {
   try {
     return action()
   } catch (e) {
-    console.debug("Error occurred when processing node: " + node.getText())
+    console.debug("Error occurred when processing node: " + node.getText());
     throw e
   }
 }

@@ -11,13 +11,12 @@ import scala.collection.mutable
 import scala.collection.parallel.ForkJoinTaskSupport
 import GraphEmbedding._
 
-
 object GraphEmbedding {
 
   val unknownTypeSymbol = 'UNKNOWN
 
   case class EmbeddingCtx(
-    idTypeMap: Map[IR.IRTypeId, IRType],
+    idTypeMap: Map[IRTypeId, IRType],
     libraryTypeMap: Symbol => CompNode,
     predicates: Seq[TyVarPredicate],
     labelMap: Symbol => CompNode,
@@ -29,44 +28,32 @@ object GraphEmbedding {
   case class EmbeddingStat(trueEmbeddingLengths: IS[Double])
 
   case class DecodingCtx(
-    concreteTypes: IS[GType],
+    libraryTypes: IS[GType],
     projectTypes: IS[IRType]
   ) {
-    private val indexMap = {
-      require(SimpleMath.noDuplicate(concreteTypes.collect{ case TyVar(n) => n }))
-      require(SimpleMath.noDuplicate(projectTypes.map(t => t.name.get)), {
-        projectTypes.groupBy(_.name.get).collect{ case (n, irTypes) if irTypes.length > 1 =>
-            s"name: $n, irTypes: $irTypes"
-        }.mkString("[", "; ", "]")
-      })
 
-      val concreteVars = concreteTypes.collect{
-        case TyVar(n) => n
-      }.toSet
-      val projectVars = projectTypes.map(t => t.name.get).toSet
-      val inter = concreteVars.intersect(projectVars)
-      assert(inter.isEmpty, "There are name clashes with concrete and project types: " + inter)
+    require(SimpleMath.noDuplicate(libraryTypes))
+    require(SimpleMath.noDuplicate(projectTypes))
+    private val libraryTypeIndexMap = libraryTypes.zipWithIndex.toMap
 
-      val vec = (concreteTypes
-        ++ projectTypes.map { t =>
-        assert(t.name.nonEmpty, s"project type has no name: $t")
-        TyVar(t.name.get)
-      }).zipWithIndex
-      vec.toMap
+    private val projectTypeIndexMap = {
+      val base = libraryTypeIndexMap.size
+      projectTypes.zipWithIndex.map { case (t, idx) => t.id -> (idx + base) }.toMap
+    }
+    val outOfScopeIdx: Int = libraryTypeIndexMap.size + projectTypeIndexMap.size
+    val maxIndex: Int = outOfScopeIdx + 1
+
+    def indexOfType(t: TypeLabel): Int = t match {
+      case LibraryType(ty) => libraryTypeIndexMap(ty)
+      case ProjectType(ty) => projectTypeIndexMap(ty.id)
+      case OutOfScope      => outOfScopeIdx
     }
 
-    val maxIndex: Int = indexMap.size
-
-    def indexOfType(t: GType): Int = {
-      val i = indexMap.getOrElse(t, indexMap(TyVar(unknownTypeSymbol)))
-      assert(i < maxIndex, s"$i not < $maxIndex")
-      i
-    }
-
-    def typeOfIndex(i: Int): Either[GType, IRType] = {
-      if (i < concreteTypes.length)
-        Left(concreteTypes(i))
-      else Right(projectTypes(i - concreteTypes.length))
+    def typeFromIndex(i: Int): TypeLabel = {
+      if (i == outOfScopeIdx) OutOfScope
+      else if (i < libraryTypes.length)
+        LibraryType(libraryTypes(i))
+      else ProjectType(projectTypes(i - libraryTypes.length))
     }
   }
 }
@@ -96,7 +83,7 @@ case class GraphEmbedding(
     placesToDecode: IS[IRTypeId],
     iterateLogger: IS[Embedding] => Unit = _ => ()
   ): CompNode = {
-    val embeddings = DebugTime.logTime('iterTime){
+    val embeddings = DebugTime.logTime('iterTime) {
       val stat = EmbeddingStat(idTypeMap.mapValuesNow(_ => 1.0).values.toVector)
       val init = Embedding(idTypeMap.mapValuesNow(_ => nodeInitVec), stat)
       IS.iterate(init, iterations)(iterate)
@@ -313,12 +300,13 @@ case class GraphEmbedding(
             )
             if (fieldDefs.contains(label)) {
               messages(v.id) += {
-                val att = attentionLayer('FieldAccess / 'defs, dimMessage, transformKey = true)(
-                  nodeMap(objType.id),
-                  fieldDefs(label)
-                    .map { case (k, n) => nodeMap(k.id) -> nodeMap(n.id) } ++
-                    fieldKnowledge.get(label).toIndexedSeq
-                )
+                val att =
+                  attentionLayer('FieldAccess / 'defs, dimMessage, transformKey = true)(
+                    nodeMap(objType.id),
+                    fieldDefs(label)
+                      .map { case (k, n) => nodeMap(k.id) -> nodeMap(n.id) } ++
+                      fieldKnowledge.get(label).toIndexedSeq
+                  )
                 messageModel('FieldAccess / 'defsMessage, att)
               }
             }
@@ -337,7 +325,7 @@ case class GraphEmbedding(
           _messages(id).toIndexedSeq :+ (node, node)
         )
         val outLen = sqrt(sum(square(out)))
-        outLengths.synchronized{
+        outLengths.synchronized {
           outLengths += outLen.value.squeeze()
         }
         val newEmbed = out / outLen
@@ -358,9 +346,10 @@ case class GraphEmbedding(
     placesToDecode: IS[IRTypeId],
     embedding: Embedding
   ): CompNode = {
+    require(placesToDecode.nonEmpty)
 
     val attentionHeads = 16
-    val concretes = decodingCtx.concreteTypes.map(encodeGType)
+    val concretes = decodingCtx.libraryTypes.map(encodeGType)
 
     val certainty = getVar(Symbol("decode:certainty"))(Tensor(6.0))
     val logits = for (head <- par(0 until attentionHeads)) yield {
@@ -385,7 +374,10 @@ case class GraphEmbedding(
           mlp(concretes, "decode:concreteType", 2)
         val p =
           mlp(decodingCtx.projectTypes.map(t => nodeMap(t.id)), "decode:projectType", 2)
-        c.concat(p, axis = 0)
+        val unknownTypeVector = getVar(Symbol(s"unknownTypeVec$head")) {
+          numsca.randn(1, c.shape(1)) * 0.01
+        }
+        c.concat(p, axis = 0).concat(unknownTypeVector, axis = 0)
       }
 
       val transformedNodes = mlp(placesToDecode.map(embedding.nodeMap), "decode:nodes", 2)
@@ -437,7 +429,8 @@ case class GraphEmbedding(
   def par[T](xs: Seq[T]) = {
     taskSupport match {
       case None => xs
-      case Some(ts) => val r = xs.par
+      case Some(ts) =>
+        val r = xs.par
         r.tasksupport = ts
         r
     }
