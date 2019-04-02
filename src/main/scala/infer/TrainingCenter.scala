@@ -186,9 +186,11 @@ object TrainingCenter {
     trainingState: TrainingState
   ): Unit = {
 
+    throw new Error("Test")
+
     val emailService = {
       println("reading email credentials from 'emails.txt'...")
-      val Array(email, password) = read(pwd / "emails.txt").split("\n")
+      val Array(email, password) = read(pwd / "emails.txt").trim.split("\n")
       EmailService(email, password)
     }
 
@@ -351,8 +353,8 @@ object TrainingCenter {
     } catch {
       case ex: Throwable =>
         emailService.sendMail(emailService.userEmail)(
-          "TypingNet: Training stopped due to an error",
-          "Error details:\n" + ex.getMessage
+          s"TypingNet: Training stopped at step $step due to an error",
+          s"Error details:\n" + ex.getMessage
         )
         saveTraining(step, "error-save")
         throw ex
