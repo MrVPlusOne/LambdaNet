@@ -23,7 +23,6 @@ import scala.concurrent.ExecutionContextExecutorService
 
 object TrainingCenter {
 
-
   val numOfThreads: Int = Runtime.getRuntime.availableProcessors()
   val forkJoinPool = new ForkJoinPool(numOfThreads)
   val taskSupport: ForkJoinTaskSupport = new ForkJoinTaskSupport(forkJoinPool)
@@ -34,8 +33,8 @@ object TrainingCenter {
   TensorExtension.checkNaN = false // uncomment to train faster
   val printNote = false
 
-  def note(msg: String): Unit ={
-    if(printNote) println("note: " + msg)
+  def note(msg: String): Unit = {
+    if (printNote) println("note: " + msg)
   }
 
   def main(args: Array[String]): Unit = {
@@ -43,17 +42,28 @@ object TrainingCenter {
     val libraryTypes = JSExamples.libraryTypes
 
 //    val projectRoot = pwd / RelPath("data/toy")
-    val projectRoot = pwd / RelPath("data/ts-algorithms")
-    val parsed = infer.PredicateGraphConstruction
+    val trainRoot = pwd / RelPath("data/train/algorithms-train")
+    val trainParsed = infer.PredicateGraphConstruction
       .fromSourceFiles(
-        projectRoot,
+        trainRoot,
         libraryTypes = libraryTypes.map(TyVar)
       )
 
-    println(s"=== Training on $projectRoot ===")
-//    parsed.irModules.foreach(m => m.stmts.foreach(s => println(s.prettyPrint())))
+    val testRoot = pwd / RelPath("data/test/algorithms-test")
+    val testParsed = infer.PredicateGraphConstruction
+      .fromSourceFiles(
+        testRoot,
+        libraryTypes = libraryTypes.map(TyVar)
+      )
 
-    trainOnModules(parsed.predModules, parsed.predModules, parsed.irModules, parsed.irEnv)
+    println(s"=== Training on $trainRoot ===")
+
+    trainOnModules(
+      trainParsed.predModules,
+      testParsed.predModules,
+      trainParsed.irModules,
+      trainParsed.irEnv
+    )
   }
 
   //noinspection TypeAnnotation
@@ -152,6 +162,9 @@ object TrainingCenter {
     val trainBuilder =
       GraphNetBuilder(trainingModules, transEnv, libraryFields, libraryTypes)
 
+    val testBuilder =
+      GraphNetBuilder(testingModules, transEnv, libraryFields, libraryTypes)
+
     val typeLabels = trainBuilder.typeLabels
     val decodingCtx = trainBuilder.decodingCtx
     println("max Idx: " + decodingCtx.maxIndex)
@@ -173,13 +186,13 @@ object TrainingCenter {
           //          "embedding-magnitudes" -> PlotConfig("ImageSize->Medium"),
           "embedding-changes" -> PlotConfig("ImageSize->Medium"),
           "embedding-max-length" -> PlotConfig("ImageSize->Medium"),
-          "certainty" -> PlotConfig("ImageSize->Medium"),
           "iteration-time" -> PlotConfig(
             "ImageSize->Medium",
             """AxesLabel->{"step","ms"}"""
           ),
-          "loss" -> PlotConfig("ImageSize->Large"),
-          "accuracy" -> PlotConfig("ImageSize->Large")
+          "accuracy" -> PlotConfig("ImageSize->Medium"),
+          "test-accuracy" -> PlotConfig("ImageSize->Medium"),
+          "loss" -> PlotConfig("ImageSize->Large")
         )
       )
     }
@@ -216,11 +229,6 @@ object TrainingCenter {
         eventLogger.log("embedding-max-length", step, Tensor(maxEmbeddingLength))
       }
 
-      eventLogger.log(
-        "certainty",
-        step,
-        trainBuilder.factory.getVar(Symbol("decode:certainty"))(throw new Error()).value
-      )
 
       note("analyzeResults")
       val accuracy = analyzeResults(
@@ -261,6 +269,21 @@ object TrainingCenter {
         step,
         Tensor(System.currentTimeMillis() - startTime)
       )
+
+      if(step % 10 == 0) {
+        println("start testing...")
+        SimpleMath.measureTimeAsSeconds {
+          val (testLogits, _) = testBuilder.encodeDecode()
+          val testAcc = analyzeResults(
+            testBuilder.typeLabels,
+            testLogits.value,
+            transEnv,
+            testBuilder.decodingCtx,
+            printResults = true
+          )
+          eventLogger.log("test-accuracy", step, Tensor(testAcc))
+        }
+      }
     }
   }
 

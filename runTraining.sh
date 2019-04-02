@@ -7,4 +7,4 @@
 # When you come back again and want to check the status of your process you
 # can use tmux attach to attach to your tmux session.
 
-sbt -mem 28000 "runMain infer.TrainingCenter"
+sbt -mem 28000 "runMain infer.TrainingCenter" |& tee console.txt
