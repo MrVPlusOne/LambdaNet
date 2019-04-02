@@ -16,6 +16,7 @@ object LayerFactory {
   }
 }
 
+@SerialVersionUID(0)
 case class LayerFactory(nameSpace: SymbolPath, paramCollection: ParamCollection) {
 
   def getVar(

@@ -2,7 +2,9 @@ package funcdiff
 
 import java.io._
 
-import botkop.numsca.{Tensor, Shape}
+import botkop.numsca.{Shape, Tensor}
+
+import scala.collection.immutable
 
 trait ParameterAttribute extends Serializable
 
@@ -37,14 +39,14 @@ object SymbolPath {
 
 object ParamCollection {
 
-  def fromFile(file: File): ParamCollection = {
-    val (paramMap, constMap) = SimpleMath.readObjectFromFile[
-      (
-        List[(SymbolPath, Map[String, Object])],
-        List[(SymbolPath, (Shape, Array[Double]))]
-      )
-    ](file)
+  @SerialVersionUID(0)
+  case class SerializableFormat(
+    parameterData: Seq[(SymbolPath, Map[String, Serializable])],
+    constantData: Seq[(SymbolPath, (Shape, Array[Real]))]
+  )
 
+  def fromSerializable(data: SerializableFormat): ParamCollection = {
+    val SerializableFormat(paramMap, constMap) = data
     val pc = ParamCollection()
 
     paramMap.foreach {
@@ -63,6 +65,11 @@ object ParamCollection {
         pc.getConst(path) { Tensor(data).reshape(shape) }
     }
     pc
+  }
+
+  def fromFile(file: File): ParamCollection = {
+    val data = SimpleMath.readObjectFromFile[SerializableFormat](file)
+    fromSerializable(data)
   }
 }
 
@@ -94,22 +101,27 @@ case class ParamCollection() {
 
   def constMap: Map[SymbolPath, Tensor] = _constMap.toMap
 
-  def saveToFile(file: File): Unit = {
-    val parameterData = paramMap.mapValues { param =>
-      val node = param.node
-      val paramData = Map[String, Serializable](
-        "shape" -> node.shape,
-        "data" -> node.value.data,
-        "attributes" -> param.attributes.toList,
-        "path" -> param.path
-      )
-      paramData
+  def toSerializable: ParamCollection.SerializableFormat = {
+    val parameterData: Seq[(SymbolPath, Map[String, Serializable])] = paramMap.mapValues {
+      param =>
+        val node = param.node
+        val paramData = Map[String, Serializable](
+          "shape" -> node.shape,
+          "data" -> node.value.data,
+          "attributes" -> param.attributes.toList,
+          "path" -> param.path
+        )
+        paramData
     }.toList
 
-    val constantData = constMap.mapValues { t =>
+    val constantData: immutable.Seq[(SymbolPath, (Shape, Array[Real]))] = constMap.mapValues { t =>
       (t.shape, t.data)
     }.toList
 
-    SimpleMath.saveObjectToFile(file)((parameterData, constantData))
+    ParamCollection.SerializableFormat(parameterData, constantData)
+  }
+
+  def saveToFile(file: File): Unit = {
+    SimpleMath.saveObjectToFile(file)(toSerializable)
   }
 }

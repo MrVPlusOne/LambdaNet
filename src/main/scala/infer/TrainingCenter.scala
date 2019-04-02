@@ -31,11 +31,40 @@ object TrainingCenter {
 
   TensorExtension.checkNaN = false // uncomment to train faster
 
+  case class TrainingState(
+    step: Int,
+    dimMessage: Int,
+    layerFactory: LayerFactory,
+    optimizer: Optimizer
+  ) {
+    def saveToFile(file: Path): Unit = {
+      val toSave =
+        (step, dimMessage, layerFactory.paramCollection.toSerializable, optimizer)
+      SimpleMath.saveObjectToFile(file.toIO)(toSave)
+    }
+  }
+
+  object TrainingState {
+    def fromFile(file: Path): TrainingState = {
+      val (step, dimMessage, data, optimizer) = SimpleMath
+        .readObjectFromFile[(Int, Int, ParamCollection.SerializableFormat, Optimizer)](
+          file.toIO
+        )
+      val factory = LayerFactory(
+        SymbolPath.empty / 'TypingNet,
+        ParamCollection.fromSerializable(data)
+      )
+      TrainingState(step, dimMessage, factory, optimizer)
+    }
+  }
+
   def main(args: Array[String]): Unit = {
 
     val libraryTypes = JSExamples.libraryTypes
 
-//    val projectRoot = pwd / RelPath("data/toy")
+//    val trainRoot = pwd / RelPath("data/toy")
+//    val testRoot = trainRoot
+
     val trainRoot = pwd / RelPath("data/train/algorithms-train")
     val trainParsed = infer.PredicateGraphConstruction
       .fromSourceFiles(
@@ -52,27 +81,28 @@ object TrainingCenter {
 
     println(s"=== Training on $trainRoot ===")
 
-    val loadFromFile: Option[Path] = Some(pwd / RelPath("running-result/saved/step0"))
-    val (pc, optimizer) = loadFromFile
+    val loadFromFile
+      : Option[Path] = None // Some(pwd / RelPath("running-result/saved/step20/trainingState.serialized"))
+    val trainingState = loadFromFile
       .map { p =>
         println("Loading training from file: " + p)
-        (
-          ParamCollection.fromFile((p / "params.serialized").toIO),
-          SimpleMath.readObjectFromFile[Optimizer](
-            (p / "optimizer.serialized").toIO
-          )
-        )
+        TrainingState.fromFile(p)
       }
-      .getOrElse(ParamCollection() -> Optimizers.Adam(learningRate = 4e-4))
-    val factory = LayerFactory('GraphEmbedding, pc)
+      .getOrElse(
+        TrainingState(
+          step = 0,
+          layerFactory = LayerFactory(SymbolPath.empty / 'TypingNet, ParamCollection()),
+          dimMessage = 64,
+          optimizer = Optimizers.Adam(learningRate = 4e-4)
+        )
+      )
 
     trainOnModules(
       trainParsed.predModules,
       testParsed.predModules,
       trainParsed.irModules,
       trainParsed.irEnv,
-      factory,
-      optimizer
+      trainingState
     )
   }
 
@@ -153,9 +183,10 @@ object TrainingCenter {
     testingModules: IS[PredicateModule],
     trainingIRModules: IS[IRModule],
     transEnv: TranslationEnv,
-    factory: LayerFactory,
-    optimizer: Optimizer
+    trainingState: TrainingState
   ): Unit = {
+
+    val TrainingState(initStep, dimMessage, factory, optimizer) = trainingState
 
     /** any symbols that are not defined within the project */
     val libraryFields: Vector[Symbol] = {
@@ -172,10 +203,24 @@ object TrainingCenter {
     val libraryTypes = JSExamples.libraryTypes.toVector
 
     val trainBuilder =
-      GraphNetBuilder(trainingModules, transEnv, libraryFields, libraryTypes, factory)
+      GraphNetBuilder(
+        trainingModules,
+        transEnv,
+        libraryFields,
+        libraryTypes,
+        factory,
+        dimMessage
+      )
 
     val testBuilder =
-      GraphNetBuilder(testingModules, transEnv, libraryFields, libraryTypes, factory)
+      GraphNetBuilder(
+        testingModules,
+        transEnv,
+        libraryFields,
+        libraryTypes,
+        factory,
+        dimMessage
+      )
 
     val typeLabels = trainBuilder.typeLabels
     val decodingCtx = trainBuilder.decodingCtx
@@ -212,7 +257,7 @@ object TrainingCenter {
     import TensorExtension.oneHot
 
     // training loop
-    for (step <- 0 until 1000) try {
+    for (step <- initStep until initStep + 1000) try {
       val startTime = System.currentTimeMillis()
 
       val (logits, embeddings) = {
@@ -293,25 +338,28 @@ object TrainingCenter {
           eventLogger.log("test-accuracy", step, Tensor(testAcc))
         }
       }
-      if (step % 100 == 0) {
-        saveTraining(s"step$step")
+      if (step % 20 == 0) {
+        saveTraining(step+1, s"step$step")
       }
     } catch {
       case ex: Throwable =>
-        saveTraining("error-save")
+        saveTraining(step, "error-save")
         throw ex
     }
 
-    def saveTraining(dirName: String): Unit = {
+    def saveTraining(step: Int, dirName: String): Unit = {
       println("save training...")
       val saveDir = pwd / "running-result" / "saved" / dirName
       if (!exists(saveDir)) {
         mkdir(saveDir)
       }
-      val paramPath = saveDir / "params.serialized"
-      factory.paramCollection.saveToFile(paramPath.toIO)
-      SimpleMath.saveObjectToFile((saveDir / "optimizer.serialized").toIO)(optimizer)
-      println("Params saved into: " + saveDir)
+      val savePath = saveDir / "trainingState.serialized"
+      TrainingState(
+        step,
+        dimMessage,
+        factory,
+        optimizer).saveToFile(savePath)
+      println("Training state saved into: " + saveDir)
     }
   }
 
