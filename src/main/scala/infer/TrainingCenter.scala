@@ -186,8 +186,6 @@ object TrainingCenter {
     trainingState: TrainingState
   ): Unit = {
 
-    throw new Error("Test")
-
     val emailService = {
       println("reading email credentials from 'emails.txt'...")
       val Array(email, password) = read(pwd / "emails.txt").trim.split("\n")
