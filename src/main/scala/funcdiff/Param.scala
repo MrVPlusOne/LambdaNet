@@ -80,10 +80,10 @@ object ParamCollection {
 
 case class ParamCollection() {
   import collection.mutable
-  private val _paramMap =  mutable.Map[SymbolPath, Param]()
+  private val _paramMap = mutable.Map[SymbolPath, Param]()
   private val _constMap = mutable.Map[SymbolPath, Tensor]()
 
-  def getParam(path: SymbolPath, attributes: => Set[ParameterAttribute] = Set())(init: => Tensor): Param = synchronized {
+  def getParam(path: SymbolPath, attributes: => Set[ParameterAttribute] = Set())(init: => Tensor): Param = {
     _paramMap.getOrElse(path, {
       val p = new Param(new ParamNode(init, path), attributes)
       _paramMap(path) = p
@@ -96,14 +96,14 @@ case class ParamCollection() {
     p.node
   }
 
-  def getConst(path: SymbolPath)(init: => Tensor): Tensor = synchronized {
+  def getConst(path: SymbolPath)(init: => Tensor): Tensor = {
     _constMap.getOrElse(path, {
       _constMap(path) = init
       init
     })
   }
 
-  def allParams: List[Param] = synchronized{
+  def allParams: List[Param] = {
     _paramMap.values.toList
   }
 

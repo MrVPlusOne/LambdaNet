@@ -64,7 +64,7 @@ case class GraphEmbedding(
   ctx: EmbeddingCtx,
   layerFactory: LayerFactory,
   dimMessage: Int,
-  taskSupport: Option[ForkJoinTaskSupport],
+  taskSupport: Option[ForkJoinTaskSupport]
 ) {
   import ctx._
   import layerFactory._
@@ -80,7 +80,7 @@ case class GraphEmbedding(
   def encodeAndDecode(
     iterations: Int,
     decodingCtx: DecodingCtx,
-    placesToDecode: IS[IRTypeId],
+    placesToDecode: IS[IRTypeId]
   ): (CompNode, IS[Embedding]) = {
     val embeddings = DebugTime.logTime('iterTime) {
       val stat = EmbeddingStat(idTypeMap.mapValuesNow(_ => 1.0).values.toVector)
@@ -156,13 +156,19 @@ case class GraphEmbedding(
     import funcdiff.API._
     import embedding._
 
-    val _messages = mutable.HashMap[IRTypeId, mutable.ListBuffer[Message]]()
-    ctx.idTypeMap.keys.foreach(id => _messages(id) = mutable.ListBuffer())
+    TrainingCenter.note("iterate")
 
-    def messages(id: IRTypeId): MessageChannel = MessageChannel(_messages(id))
+    val _messages =
+      ctx.idTypeMap.keys
+        .map(id => id -> mutable.ListBuffer[Message]())
+        .toMap
 
-    case class MessageChannel(receiver: mutable.ListBuffer[Message]) {
+    def messages(id: IRTypeId): MessageChannel =
+      MessageChannel(ctx.idTypeMap(id), _messages(id))
+
+    case class MessageChannel(node: IRType, receiver: mutable.ListBuffer[Message]) {
       def +=(msg: Message): Unit = receiver.synchronized {
+        println(s"Sending message to node $node")
         receiver.append(msg)
       }
     }
@@ -309,7 +315,9 @@ case class GraphEmbedding(
         }
     }
 
+    TrainingCenter.note("iterate/Before sending messages")
     par(ctx.predicates).foreach(sendPredicateMessages)
+    TrainingCenter.note("iterate/After sending messages")
 
     val outLengths = mutable.ListBuffer[Double]()
     val newNodeMap = par(_messages.keys.toSeq)
@@ -330,6 +338,7 @@ case class GraphEmbedding(
       }
       .seq
       .toMap
+    TrainingCenter.note("iterate/After updating")
     val stat = EmbeddingStat(outLengths.toIndexedSeq)
     Embedding(newNodeMap, stat)
   }
@@ -343,6 +352,8 @@ case class GraphEmbedding(
     embedding: Embedding
   ): CompNode = {
     require(placesToDecode.nonEmpty)
+
+    TrainingCenter.note("decode")
 
     val attentionHeads = 16
     val concretes = decodingCtx.libraryTypes.map(encodeGType)

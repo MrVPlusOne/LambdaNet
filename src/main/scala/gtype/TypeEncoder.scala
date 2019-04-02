@@ -34,13 +34,13 @@ object ArgsEncodingMethod extends Enumeration {
 
 @SerialVersionUID(0)
 case class EncoderParams(
-    labelDim: Size,
-    typeDim: Size,
-    fieldDim: Size,
-    fieldCombineMethod: FieldCombineMethod.Value = FieldCombineMethod.Attention,
-    argsEncodingMethod: ArgsEncodingMethod.Value = ArgsEncodingMethod.Separate,
-    updateWithRNN: Boolean = false,
-    activationName: Symbol
+  labelDim: Size,
+  typeDim: Size,
+  fieldDim: Size,
+  fieldCombineMethod: FieldCombineMethod.Value = FieldCombineMethod.Attention,
+  argsEncodingMethod: ArgsEncodingMethod.Value = ArgsEncodingMethod.Separate,
+  updateWithRNN: Boolean = false,
+  activationName: Symbol
 )
 
 object EncoderParams {
@@ -48,8 +48,7 @@ object EncoderParams {
   def getActivation(activation: Symbol): CompNode => CompNode = {
     activation match {
       case 'leakyRelu =>
-        x =>
-          funcdiff.API.leakyRelu(x)
+        x => funcdiff.API.leakyRelu(x)
       case 'relu => funcdiff.API.relu
     }
   }
@@ -59,7 +58,7 @@ object EncoderParams {
       labelDim = dim,
       typeDim = dim,
       fieldDim = dim,
-      activationName = 'leakyRelu,
+      activationName = 'leakyRelu
     )
   }
 
@@ -67,33 +66,35 @@ object EncoderParams {
     labelDim = 20,
     typeDim = 20,
     fieldDim = 20,
-    activationName = 'leakyRelu,
+    activationName = 'leakyRelu
   )
 
   val small = EncoderParams(
     labelDim = 40,
     typeDim = 40,
     fieldDim = 40,
-    activationName = 'leakyRelu,
+    activationName = 'leakyRelu
   )
 
   val medium = EncoderParams(
     labelDim = 60,
     typeDim = 60,
     fieldDim = 60,
-    activationName = 'leakyRelu,
+    activationName = 'leakyRelu
   )
 
   val large = EncoderParams(
     labelDim = 80,
     typeDim = 80,
     fieldDim = 80,
-    activationName = 'leakyRelu,
+    activationName = 'leakyRelu
   )
 }
 
-class TypeEncoder(val encoderParams: EncoderParams,
-                  val pc: ParamCollection = ParamCollection()) {
+class TypeEncoder(
+  val encoderParams: EncoderParams,
+  val pc: ParamCollection = ParamCollection()
+) {
 
   import encoderParams._
 
@@ -111,9 +112,11 @@ class TypeEncoder(val encoderParams: EncoderParams,
     *                  prevent the encoding network from
     *                  overfitting to any particular set of field vectors.
     */
-  def encode(symbolDefMap: Map[Symbol, TypeAliasing],
-             iterations: Int,
-             batchSize: Int): TypeEncoding = {
+  def encode(
+    symbolDefMap: Map[Symbol, TypeAliasing],
+    iterations: Int,
+    batchSize: Int
+  ): TypeEncoding = {
     import collection.mutable
     val labelMap = mutable.HashMap[Symbol, CompNode]()
 
@@ -121,19 +124,23 @@ class TypeEncoder(val encoderParams: EncoderParams,
       labelMap.getOrElseUpdate(
         label,
         const {
-          numsca.concatenate(Vector.fill(batchSize) { TensorExtension.randomUnitVec(labelDim) },
-                             axis = 0)
+          numsca.concatenate(Vector.fill(batchSize) {
+            TensorExtension.randomUnitVec(labelDim)
+          }, axis = 0)
         }
       )
     }
 
     val anyInit =
-      pc.getVar(typePath / 'anyInit)(numsca.randn(1, typeDim) * 0.01).repeat(batchSize, axis = 0)
+      pc.getVar(typePath / 'anyInit)(numsca.randn(1, typeDim) * 0.01)
+        .repeat(batchSize, axis = 0)
     val fieldZeroInit = const(numsca.zeros(batchSize, fieldDim))
     val typeInit =
-      pc.getVar(typePath / 'typeInit)(numsca.randn(1, typeDim) * 0.01).repeat(batchSize, axis = 0)
+      pc.getVar(typePath / 'typeInit)(numsca.randn(1, typeDim) * 0.01)
+        .repeat(batchSize, axis = 0)
     val funcArgInit: CompNode =
-      pc.getVar(typePath / 'funcArgInit)(numsca.rand(1, typeDim) * 0.01).repeat(batchSize, axis = 0)
+      pc.getVar(typePath / 'funcArgInit)(numsca.rand(1, typeDim) * 0.01)
+        .repeat(batchSize, axis = 0)
 
     val attentionTypeKernel = pc.getVar(typePath / 'attentionTypeKernel)(
       numsca.rand(typeDim, typeDim) * 0.001
@@ -187,7 +194,9 @@ class TypeEncoder(val encoderParams: EncoderParams,
                   // see the paper 'Graph Attention Networks'
                   val transformedThis = typeMap(tyName) dot attentionTypeKernel
                   assert(transformedThis.shape(1) == typeDim)
-                  val transformedFields = fieldEncodings.map { _ dot attentionFieldKernel }
+                  val transformedFields = fieldEncodings.map {
+                    _ dot attentionFieldKernel
+                  }
                   val allTransformed = transformedFields :+ transformedThis
                   val attentionLogits = allTransformed.map { ft =>
                     val w = transformedThis
@@ -217,7 +226,10 @@ class TypeEncoder(val encoderParams: EncoderParams,
     TypeEncoding(labelMap.toMap, typeMap)
   }
 
-  def subtypePredict(encoding: TypeEncoding, typePairs: Seq[(Symbol, Symbol)]): CompNode = {
+  def subtypePredict(
+    encoding: TypeEncoding,
+    typePairs: Seq[(Symbol, Symbol)]
+  ): CompNode = {
     val (t1s, t2s) = typePairs.unzip
     val t1 = concatN(t1s.map(encoding.typeMap).toVector, axis = 0)
     val t2 = concatN(t2s.map(encoding.typeMap).toVector, axis = 0)
@@ -228,14 +240,16 @@ class TypeEncoder(val encoderParams: EncoderParams,
     val classifierNeurons = 40 // lets fix this to 40
 
     val layer1 = activation(
-      linear('linear1, nOut = classifierNeurons)(t1.concat(t2, axis = 1).concat(t1 * t2, axis = 1))
+      linear('linear1, nOut = classifierNeurons)(
+        t1.concat(t2, axis = 1).concat(t1 * t2, axis = 1)
+      )
     )
     activation(linear('linear2, nOut = 2)(layer1))
 
 //    linear('simpleLinear, nOut = 2)((t1 * t2).concat(t1 + t2, axis = 1).concat(t2 - t1, axis = 1))
   }
 
-  def saveToPath(dir: ammonite.ops.Path, name: String): Unit ={
+  def saveToPath(dir: ammonite.ops.Path, name: String): Unit = {
     pc.saveToFile((dir / s"$name.pc").toIO)
     ParamCollection.saveObjectToFile((dir / s"$name.params").toIO)(encoderParams)
   }
@@ -244,9 +258,10 @@ class TypeEncoder(val encoderParams: EncoderParams,
 
 object TypeEncoder {
 
-  def readEncoderFromFiles(dir: ammonite.ops.Path, name: String): TypeEncoder ={
+  def readEncoderFromFiles(dir: ammonite.ops.Path, name: String): TypeEncoder = {
     val pc = ParamCollection.fromFile((dir / s"$name.pc").toIO)
-    val params = ParamCollection.readObjectFromFile[EncoderParams]((dir / s"$name.params").toIO)
+    val params =
+      ParamCollection.readObjectFromFile[EncoderParams]((dir / s"$name.params").toIO)
     new TypeEncoder(params, pc)
   }
 
@@ -278,13 +293,17 @@ object TypeEncoder {
 
     val posVec = Tensor(1, 0).reshape(1, -1)
     val negVec = Tensor(0, 1).reshape(1, -1)
-    def forwardPredict(symbolDefMap: Map[Symbol, TypeAliasing],
-                       posExamples: Seq[(Symbol, Symbol)],
-                       negExamples: Seq[(Symbol, Symbol)],
-                       encodingBatch: Int) = {
-      val target = numsca.concatenate(Vector.fill(posExamples.length * encodingBatch)(posVec)
-                                        ++ Vector.fill(posExamples.length * encodingBatch)(negVec),
-                                      axis = 0)
+    def forwardPredict(
+      symbolDefMap: Map[Symbol, TypeAliasing],
+      posExamples: Seq[(Symbol, Symbol)],
+      negExamples: Seq[(Symbol, Symbol)],
+      encodingBatch: Int
+    ) = {
+      val target = numsca.concatenate(
+        Vector.fill(posExamples.length * encodingBatch)(posVec)
+          ++ Vector.fill(posExamples.length * encodingBatch)(negVec),
+        axis = 0
+      )
 
       val typeEncoding = encoder.encode(symbolDefMap, encodingIterations, encodingBatch)
       val examples = posExamples ++ negExamples
@@ -294,12 +313,16 @@ object TypeEncoder {
 
     import TrainingTypeGeneration.augmentWithRandomTypes
 
-    def generateTestData(baseContext: TypeContext, sampleNum: Int)
-      : (Map[Symbol, TypeAliasing], List[(Symbol, Symbol)], List[(Symbol, Symbol)]) = {
+    def generateTestData(
+      baseContext: TypeContext,
+      sampleNum: Int
+    ): (Map[Symbol, TypeAliasing], List[(Symbol, Symbol)], List[(Symbol, Symbol)]) = {
       val context = augmentWithRandomTypes(baseContext, sampleNum)
       val symbolDefMap = typeContextToAliasings(context)
       println(s"data set graph size: " + symbolDefMap.size)
-      val (reflexivity, posRelations, negRelations) = typeAliasingsToGroundTruths(symbolDefMap)
+      val (reflexivity, posRelations, negRelations) = typeAliasingsToGroundTruths(
+        symbolDefMap
+      )
       println(
         s"pos relations: ${posRelations.length}, neg relations: ${negRelations.length}, " +
           s"reflexivity: ${reflexivity.length}"
@@ -321,8 +344,11 @@ object TypeEncoder {
     for (epoch <- 0 until 1000) {
       val trainingSet = {
         val (name, context) = SimpleMath.randomSelect(
-          Vector("Train" -> TrainingTypeGeneration.trainingContext,
-                 "JSCore" -> JSExamples.typeContext))
+          Vector(
+            "Train" -> TrainingTypeGeneration.trainingContext,
+            "JSCore" -> JSExamples.typeContext
+          )
+        )
         val newTypeNum = 100 + random.nextInt(101)
         s"$name$newTypeNum" -> augmentWithRandomTypes(context, newTypeNum)
       }
@@ -330,7 +356,9 @@ object TypeEncoder {
       val (dataSetName, context) = trainingSet
       val symbolDefMap = typeContextToAliasings(context)
 
-      val (reflexivity, posRelations, negRelations) = typeAliasingsToGroundTruths(symbolDefMap)
+      val (reflexivity, posRelations, negRelations) = typeAliasingsToGroundTruths(
+        symbolDefMap
+      )
 
       val posData = random.shuffle(posRelations)
       val reflData = random.shuffle(reflexivity).take(posData.length / 4)
@@ -342,9 +370,16 @@ object TypeEncoder {
       val loss = mean(crossEntropyOnSoftmax(predictions, target))
 
       val accuracy =
-        API.accuracy(predictions.value, target(:>, 1).data.map(_.toInt), trainingEncodingBatch)._1
+        API
+          .accuracy(
+            predictions.value,
+            target(:>, 1).data.map(_.toInt),
+            trainingEncodingBatch
+          )
+          ._1
       println(
-        s"[$epoch] $dataSetName \t loss: ${loss.value},\t accuracy = %.4f".format(accuracy)
+        s"[$epoch] $dataSetName \t loss: ${loss.value},\t accuracy = %.4f"
+          .format(accuracy)
       )
 
       optimizer.minimize(loss, encoder.pc.allParams, weightDecay = Some(1e-4))
@@ -352,19 +387,30 @@ object TypeEncoder {
       if ((epoch != 0) && (epoch % 25 == 0)) {
         val testEncodingBatch = 5
 
-        def evaluate(dataName: String,
-                     dataSet: (Map[Symbol, TypeAliasing],
-                               List[(Symbol, Symbol)],
-                               List[(Symbol, Symbol)])): Unit = {
+        def evaluate(
+          dataName: String,
+          dataSet: (
+            Map[Symbol, TypeAliasing],
+            List[(Symbol, Symbol)],
+            List[(Symbol, Symbol)]
+          )
+        ): Unit = {
           val (symbolDefMap, posData, negData) = dataSet
           val (target, predictions) =
             forwardPredict(symbolDefMap, posData, negData, testEncodingBatch)
           val loss = mean(crossEntropyOnSoftmax(predictions, target))
 
           val (accuracy, (correct, wrong)) = {
-            API.accuracy(predictions.value, target(:>, 1).data.map(_.toInt), testEncodingBatch)
+            API.accuracy(
+              predictions.value,
+              target(:>, 1).data.map(_.toInt),
+              testEncodingBatch
+            )
           }
-          println(s"[$epoch] $dataName \t loss: ${loss.value},\t accuracy = %.4f".format(accuracy))
+          println(
+            s"[$epoch] $dataName \t loss: ${loss.value},\t accuracy = %.4f"
+              .format(accuracy)
+          )
 
         }
 

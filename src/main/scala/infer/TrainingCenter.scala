@@ -27,7 +27,7 @@ object TrainingCenter {
 
   val numOfThreads: Int = Runtime.getRuntime.availableProcessors()
   val taskSupport: ForkJoinTaskSupport = new ForkJoinTaskSupport(
-    new ForkJoinPool(numOfThreads)
+    new ForkJoinPool(1)
   )
   val parallelCtx: ExecutionContextExecutorService =
     concurrent.ExecutionContext.fromExecutorService(new ForkJoinPool(numOfThreads))
@@ -194,7 +194,7 @@ object TrainingCenter {
     for (step <- 0 until 1000) {
       val startTime = System.currentTimeMillis()
 
-      val (logits, embeddings) = DebugTime.logTime('encodeDecode){
+      val (logits, embeddings) = {
         note("encodeDecode")
         trainBuilder.encodeDecode()
       }
