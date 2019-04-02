@@ -22,3 +22,4 @@ out
 gen### Scala template
 *.class
 *.log
+emails.txt

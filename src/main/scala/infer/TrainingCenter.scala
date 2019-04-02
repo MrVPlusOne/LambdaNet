@@ -186,6 +186,12 @@ object TrainingCenter {
     trainingState: TrainingState
   ): Unit = {
 
+    val emailService = {
+      println("reading email credentials from 'emails.txt'...")
+      val Array(email, password) = read(pwd / "emails.txt").split("\n")
+      EmailService(email, password)
+    }
+
     val TrainingState(initStep, dimMessage, factory, optimizer) = trainingState
 
     /** any symbols that are not defined within the project */
@@ -256,8 +262,9 @@ object TrainingCenter {
 
     import TensorExtension.oneHot
 
+    val maxTrainingSteps = 1000
     // training loop
-    for (step <- initStep until initStep + 1000) try {
+    for (step <- initStep until maxTrainingSteps) try {
       val startTime = System.currentTimeMillis()
 
       val (logits, embeddings) = {
@@ -339,13 +346,24 @@ object TrainingCenter {
         }
       }
       if (step % 20 == 0) {
-        saveTraining(step+1, s"step$step")
+        saveTraining(step + 1, s"step$step")
       }
     } catch {
       case ex: Throwable =>
+        emailService.sendMail(emailService.userEmail)(
+          "TypingNet: Training stopped due to an error",
+          "Error details:\n" + ex.getMessage
+        )
         saveTraining(step, "error-save")
         throw ex
     }
+
+    emailService.sendMail(emailService.userEmail)(
+      "TypingNet: Training finished!",
+      "Training finished!"
+    )
+
+    saveTraining(maxTrainingSteps+1, "finished")
 
     def saveTraining(step: Int, dirName: String): Unit = {
       println("save training...")
@@ -354,11 +372,7 @@ object TrainingCenter {
         mkdir(saveDir)
       }
       val savePath = saveDir / "trainingState.serialized"
-      TrainingState(
-        step,
-        dimMessage,
-        factory,
-        optimizer).saveToFile(savePath)
+      TrainingState(step, dimMessage, factory, optimizer).saveToFile(savePath)
       println("Training state saved into: " + saveDir)
     }
   }

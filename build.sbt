@@ -17,6 +17,8 @@ libraryDependencies ++= Seq(
   "com.lihaoyi" %% "ammonite-ops" % "1.0.3",
   "org.json4s" %% "json4s-native" % "3.6.3",
 
+  "com.github.daddykotex" %% "courier" % "1.0.0",
+  
   //  "be.botkop" %% "numsca" % "0.1.4",
   // for building numsca
   "org.nd4j" % "nd4j-native-platform" % "1.0.0-beta3",
