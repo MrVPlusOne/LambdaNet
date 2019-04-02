@@ -30,20 +30,20 @@ object TrainingCenter {
   val parallelCtx: ExecutionContextExecutorService =
     concurrent.ExecutionContext.fromExecutorService(forkJoinPool)
 
-  val printCorrectWrongs = true
-  val debugFreeze = false
+  val printCorrectWrongs = false
+  TensorExtension.checkNaN = false // uncomment to train faster
+  val printNote = false
 
   def note(msg: String): Unit ={
-    if(debugFreeze) println("note: " + msg)
+    if(printNote) println("note: " + msg)
   }
 
   def main(args: Array[String]): Unit = {
-    TensorExtension.checkNaN = false // uncomment to train faster
 
     val libraryTypes = JSExamples.libraryTypes
 
-    val projectRoot = pwd / RelPath("data/toy")
-//    val projectRoot = pwd / RelPath("data/ts-algorithms")
+//    val projectRoot = pwd / RelPath("data/toy")
+    val projectRoot = pwd / RelPath("data/ts-algorithms")
     val parsed = infer.PredicateGraphConstruction
       .fromSourceFiles(
         projectRoot,
