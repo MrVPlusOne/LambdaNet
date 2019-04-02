@@ -29,13 +29,7 @@ object TrainingCenter {
   val parallelCtx: ExecutionContextExecutorService =
     concurrent.ExecutionContext.fromExecutorService(forkJoinPool)
 
-  val printCorrectWrongs = false
   TensorExtension.checkNaN = false // uncomment to train faster
-  val printNote = false
-
-  def note(msg: String): Unit = {
-    if (printNote) println("note: " + msg)
-  }
 
   def main(args: Array[String]): Unit = {
 
@@ -58,11 +52,27 @@ object TrainingCenter {
 
     println(s"=== Training on $trainRoot ===")
 
+    val loadFromFile: Option[Path] = Some(pwd / RelPath("running-result/saved/step0"))
+    val (pc, optimizer) = loadFromFile
+      .map { p =>
+        println("Loading training from file: " + p)
+        (
+          ParamCollection.fromFile((p / "params.serialized").toIO),
+          SimpleMath.readObjectFromFile[Optimizer](
+            (p / "optimizer.serialized").toIO
+          )
+        )
+      }
+      .getOrElse(ParamCollection() -> Optimizers.Adam(learningRate = 4e-4))
+    val factory = LayerFactory('GraphEmbedding, pc)
+
     trainOnModules(
       trainParsed.predModules,
       testParsed.predModules,
       trainParsed.irModules,
-      trainParsed.irEnv
+      trainParsed.irEnv,
+      factory,
+      optimizer
     )
   }
 
@@ -72,6 +82,7 @@ object TrainingCenter {
     transEnv: TranslationEnv,
     libraryFields: Vector[Symbol],
     libraryTypes: Vector[Symbol],
+    factory: LayerFactory,
     dimMessage: Int = 64
   ) {
     val typeLabels = predModules.flatMap(m => m.typeLabels)
@@ -89,7 +100,6 @@ object TrainingCenter {
       newTypes.toVector
     )
 
-    val factory = LayerFactory('GraphEmbedding, ParamCollection())
     import factory._
 
     def randomVar(path: SymbolPath): CompNode =
@@ -142,7 +152,9 @@ object TrainingCenter {
     trainingModules: IS[PredicateModule],
     testingModules: IS[PredicateModule],
     trainingIRModules: IS[IRModule],
-    transEnv: TranslationEnv
+    transEnv: TranslationEnv,
+    factory: LayerFactory,
+    optimizer: Optimizer
   ): Unit = {
 
     /** any symbols that are not defined within the project */
@@ -160,10 +172,10 @@ object TrainingCenter {
     val libraryTypes = JSExamples.libraryTypes.toVector
 
     val trainBuilder =
-      GraphNetBuilder(trainingModules, transEnv, libraryFields, libraryTypes)
+      GraphNetBuilder(trainingModules, transEnv, libraryFields, libraryTypes, factory)
 
     val testBuilder =
-      GraphNetBuilder(testingModules, transEnv, libraryFields, libraryTypes)
+      GraphNetBuilder(testingModules, transEnv, libraryFields, libraryTypes, factory)
 
     val typeLabels = trainBuilder.typeLabels
     val decodingCtx = trainBuilder.decodingCtx
@@ -199,10 +211,8 @@ object TrainingCenter {
 
     import TensorExtension.oneHot
 
-    val optimizer = Optimizers.Adam(learningRate = 4e-4)
-
     // training loop
-    for (step <- 0 until 1000) {
+    for (step <- 0 until 1000) try {
       val startTime = System.currentTimeMillis()
 
       val (logits, embeddings) = {
@@ -229,14 +239,13 @@ object TrainingCenter {
         eventLogger.log("embedding-max-length", step, Tensor(maxEmbeddingLength))
       }
 
-
       note("analyzeResults")
       val accuracy = analyzeResults(
         typeLabels,
         logits.value,
         transEnv,
         decodingCtx,
-        printResults = printCorrectWrongs
+        printResults = false
       )
       eventLogger.log("accuracy", step, Tensor(accuracy))
 
@@ -270,7 +279,7 @@ object TrainingCenter {
         Tensor(System.currentTimeMillis() - startTime)
       )
 
-      if(step % 10 == 0) {
+      if (step % 10 == 0) {
         println("start testing...")
         SimpleMath.measureTimeAsSeconds {
           val (testLogits, _) = testBuilder.encodeDecode()
@@ -284,6 +293,25 @@ object TrainingCenter {
           eventLogger.log("test-accuracy", step, Tensor(testAcc))
         }
       }
+      if (step % 100 == 0) {
+        saveTraining(s"step$step")
+      }
+    } catch {
+      case ex: Throwable =>
+        saveTraining("error-save")
+        throw ex
+    }
+
+    def saveTraining(dirName: String): Unit = {
+      println("save training...")
+      val saveDir = pwd / "running-result" / "saved" / dirName
+      if (!exists(saveDir)) {
+        mkdir(saveDir)
+      }
+      val paramPath = saveDir / "params.serialized"
+      factory.paramCollection.saveToFile(paramPath.toIO)
+      SimpleMath.saveObjectToFile((saveDir / "optimizer.serialized").toIO)(optimizer)
+      println("Params saved into: " + saveDir)
     }
   }
 
@@ -330,5 +358,10 @@ object TrainingCenter {
 
     val accuracy = correct.length.toDouble / (correct.length + incorrect.length)
     accuracy
+  }
+
+  def note(msg: String): Unit = {
+    val printNote = false
+    if (printNote) println("note: " + msg)
   }
 }

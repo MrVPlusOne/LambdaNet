@@ -3,11 +3,13 @@ package funcdiff
 import botkop.numsca.Tensor
 import botkop.{numsca => ns}
 import API._
+import funcdiff.Optimizers.Adam.Momentum
 import funcdiff.ParameterAttribute.NeedRegularization
+import collection.mutable
 
 import scala.concurrent.ExecutionContext
 
-trait Optimizer {
+trait Optimizer extends Serializable {
 
   /** Given gradients, how much each gradient should change when maximizing the objective? */
   def parameterChangeAmount(param: Param, grad: Gradient): Gradient
@@ -74,15 +76,20 @@ object Optimizers {
 
   }
 
+  object Adam{
+    @SerialVersionUID(0)
+    case class Momentum(m: Tensor, v: Tensor, var t: Int = 0)
 
+  }
+
+
+  @SerialVersionUID(0)
   case class Adam(learningRate: Double,
                   beta1: Double = 0.9,
                   beta2: Double = 0.999,
-                  epsilon: Double = 1e-8) extends Optimizer {
-    import collection.mutable
-    case class Momentum(m: Tensor, v: Tensor, var t: Int = 0)
-    private val momenta = mutable.HashMap[SymbolPath, Momentum]()
-
+                  epsilon: Double = 1e-8,
+                  momenta: mutable.HashMap[SymbolPath, Momentum] = mutable.HashMap()
+                 ) extends Optimizer {
 
     def parameterChangeAmount(p: Param, g: Gradient): Gradient = {
       val mem@ Momentum(m, v, _) = momenta.getOrElse(p.path, Momentum(ns.zeros(g.shape), ns.zeros(g.shape)))

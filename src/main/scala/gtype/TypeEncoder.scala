@@ -251,7 +251,7 @@ class TypeEncoder(
 
   def saveToPath(dir: ammonite.ops.Path, name: String): Unit = {
     pc.saveToFile((dir / s"$name.pc").toIO)
-    ParamCollection.saveObjectToFile((dir / s"$name.params").toIO)(encoderParams)
+    SimpleMath.saveObjectToFile((dir / s"$name.params").toIO)(encoderParams)
   }
 
 }
@@ -261,7 +261,7 @@ object TypeEncoder {
   def readEncoderFromFiles(dir: ammonite.ops.Path, name: String): TypeEncoder = {
     val pc = ParamCollection.fromFile((dir / s"$name.pc").toIO)
     val params =
-      ParamCollection.readObjectFromFile[EncoderParams]((dir / s"$name.params").toIO)
+      SimpleMath.readObjectFromFile[EncoderParams]((dir / s"$name.params").toIO)
     new TypeEncoder(params, pc)
   }
 

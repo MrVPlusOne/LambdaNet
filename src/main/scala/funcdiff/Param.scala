@@ -36,27 +36,9 @@ object SymbolPath {
 }
 
 object ParamCollection {
-  def saveObjectToFile(path: File)(obj: Serializable): Unit = {
-    val oos = new ObjectOutputStream(new FileOutputStream(path))
-    try {
-      oos.writeObject(obj)
-    } finally {
-      oos.close()
-    }
-  }
-
-  def readObjectFromFile[T](path: File): T = {
-    val ois = new ObjectInputStream(new FileInputStream(path))
-    try {
-      val obj = ois.readObject.asInstanceOf[T]
-      obj
-    } finally {
-      ois.close()
-    }
-  }
 
   def fromFile(file: File): ParamCollection = {
-    val (paramMap, constMap) = readObjectFromFile[
+    val (paramMap, constMap) = SimpleMath.readObjectFromFile[
       (
         List[(SymbolPath, Map[String, Object])],
         List[(SymbolPath, (Shape, Array[Double]))]
@@ -128,6 +110,6 @@ case class ParamCollection() {
       (t.shape, t.data)
     }.toList
 
-    ParamCollection.saveObjectToFile(file)((parameterData, constantData))
+    SimpleMath.saveObjectToFile(file)((parameterData, constantData))
   }
 }
