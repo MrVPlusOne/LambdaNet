@@ -12,7 +12,7 @@ object ParameterAttribute {
 }
 
 @SerialVersionUID(0)
-class Param(var node: ParamNode, val attributes: Set[ParameterAttribute] = Set()){
+class Param(var node: ParamNode, val attributes: Set[ParameterAttribute] = Set()) {
   def path: SymbolPath = node.path
 
   override def toString: String = {
@@ -21,24 +21,24 @@ class Param(var node: ParamNode, val attributes: Set[ParameterAttribute] = Set()
 }
 
 @SerialVersionUID(0)
-case class SymbolPath(path: Vector[Symbol]){
-  def / (symbol: Symbol): SymbolPath = SymbolPath(path :+ symbol)
+case class SymbolPath(path: Vector[Symbol]) {
+  def /(symbol: Symbol): SymbolPath = SymbolPath(path :+ symbol)
 
-  def ++ (other: SymbolPath) = SymbolPath(path ++ other.path)
+  def ++(other: SymbolPath) = SymbolPath(path ++ other.path)
 
   override def toString: String = {
     path.mkString("(", "/", ")")
   }
 }
 
-object SymbolPath{
+object SymbolPath {
   val empty = SymbolPath(Vector())
 }
 
 object ParamCollection {
   def saveObjectToFile(path: File)(obj: Serializable): Unit = {
     val oos = new ObjectOutputStream(new FileOutputStream(path))
-    try{
+    try {
       oos.writeObject(obj)
     } finally {
       oos.close()
@@ -47,7 +47,7 @@ object ParamCollection {
 
   def readObjectFromFile[T](path: File): T = {
     val ois = new ObjectInputStream(new FileInputStream(path))
-    try{
+    try {
       val obj = ois.readObject.asInstanceOf[T]
       obj
     } finally {
@@ -57,51 +57,52 @@ object ParamCollection {
 
   def fromFile(file: File): ParamCollection = {
     val (paramMap, constMap) = readObjectFromFile[
-      (List[(SymbolPath, Map[String, Object])], List[(SymbolPath, (Shape, Array[Double]))])](file)
+      (
+        List[(SymbolPath, Map[String, Object])],
+        List[(SymbolPath, (Shape, Array[Double]))]
+      )
+    ](file)
 
     val pc = ParamCollection()
 
-    paramMap.foreach{ case( path, param) =>
-      val shape = param("shape").asInstanceOf[Shape]
-      val data = param("data").asInstanceOf[Array[Double]]
-      val attributes = param("attributes").asInstanceOf[List[ParameterAttribute]].toSet
-      val p1 = param("path").asInstanceOf[SymbolPath]
-      assert(p1 == path, s"path: $path, restored: $p1")
+    paramMap.foreach {
+      case (path, param) =>
+        val shape = param("shape").asInstanceOf[Shape]
+        val data = param("data").asInstanceOf[Array[Double]]
+        val attributes = param("attributes").asInstanceOf[List[ParameterAttribute]].toSet
+        val p1 = param("path").asInstanceOf[SymbolPath]
+        assert(p1 == path, s"path: $path, restored: $p1")
 
-      val value = Tensor(data).reshape(shape)
-      pc.getParam(path, attributes){ value }
+        val value = Tensor(data).reshape(shape)
+        pc.getParam(path, attributes) { value }
     }
-    constMap.foreach{ case (path, (shape, data)) =>
-      pc.getConst(path){ Tensor(data).reshape(shape) }
+    constMap.foreach {
+      case (path, (shape, data)) =>
+        pc.getConst(path) { Tensor(data).reshape(shape) }
     }
     pc
   }
 }
 
 case class ParamCollection() {
-  import collection.mutable
-  private val _paramMap = mutable.Map[SymbolPath, Param]()
-  private val _constMap = mutable.Map[SymbolPath, Tensor]()
+  import collection.concurrent
+  private val _paramMap = concurrent.TrieMap[SymbolPath, Param]()
+  private val _constMap = concurrent.TrieMap[SymbolPath, Tensor]()
 
-  def getParam(path: SymbolPath, attributes: => Set[ParameterAttribute] = Set())(init: => Tensor): Param = {
-    _paramMap.getOrElse(path, {
-      val p = new Param(new ParamNode(init, path), attributes)
-      _paramMap(path) = p
-      p
-    })
-  }
+  def getParam(path: SymbolPath, attributes: => Set[ParameterAttribute] = Set())(
+    init: => Tensor
+  ): Param =
+    _paramMap.getOrElseUpdate(path, new Param(new ParamNode(init, path), attributes))
 
-  def getVar(path: SymbolPath, attributes: => Set[ParameterAttribute] = Set())(init: => Tensor): ParamNode = {
+  def getVar(path: SymbolPath, attributes: => Set[ParameterAttribute] = Set())(
+    init: => Tensor
+  ): ParamNode = {
     val p = getParam(path, attributes)(init)
     p.node
   }
 
-  def getConst(path: SymbolPath)(init: => Tensor): Tensor = {
-    _constMap.getOrElse(path, {
-      _constMap(path) = init
-      init
-    })
-  }
+  def getConst(path: SymbolPath)(init: => Tensor): Tensor =
+    _constMap.getOrElseUpdate(path, init)
 
   def allParams: List[Param] = {
     _paramMap.values.toList
@@ -123,7 +124,7 @@ case class ParamCollection() {
       paramData
     }.toList
 
-    val constantData = constMap.mapValues{ t =>
+    val constantData = constMap.mapValues { t =>
       (t.shape, t.data)
     }.toList
 

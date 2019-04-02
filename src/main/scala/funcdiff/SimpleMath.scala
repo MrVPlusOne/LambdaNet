@@ -50,8 +50,8 @@ object SimpleMath {
 
   class BufferedTotalMap[K, V](partialMap: K => Option[V], default: K => V)
       extends Function[K, V] {
-    import collection.mutable
-    val map: mutable.HashMap[K, V] = mutable.HashMap[K, V]()
+    import collection.concurrent.TrieMap
+    val map: TrieMap[K, V] = TrieMap[K, V]()
 
     def apply(k: K): V = {
       partialMap(k).getOrElse {
@@ -188,6 +188,17 @@ object SimpleMath {
       p.map(f).toIndexedSeq
     } else {
       seq.map(f).toIndexedSeq
+    }
+  }
+
+  def threadSafeGetOrElseUpdate[K,V](map: mutable.Map[K,V], k: K, default: => V): V = {
+    map.get(k) match {
+      case Some(v) => v
+      case None =>
+        val v = default
+        map.synchronized{
+          map.getOrElseUpdate(k, v)
+        }
     }
   }
 

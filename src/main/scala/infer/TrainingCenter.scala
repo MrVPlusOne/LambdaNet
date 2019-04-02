@@ -24,16 +24,14 @@ import scala.concurrent.ExecutionContextExecutorService
 object TrainingCenter {
 
 
-
   val numOfThreads: Int = Runtime.getRuntime.availableProcessors()
-  val taskSupport: ForkJoinTaskSupport = new ForkJoinTaskSupport(
-    new ForkJoinPool(1)
-  )
+  val forkJoinPool = new ForkJoinPool(numOfThreads)
+  val taskSupport: ForkJoinTaskSupport = new ForkJoinTaskSupport(forkJoinPool)
   val parallelCtx: ExecutionContextExecutorService =
-    concurrent.ExecutionContext.fromExecutorService(new ForkJoinPool(numOfThreads))
+    concurrent.ExecutionContext.fromExecutorService(forkJoinPool)
 
   val printCorrectWrongs = true
-  val debugFreeze = true
+  val debugFreeze = false
 
   def note(msg: String): Unit ={
     if(debugFreeze) println("note: " + msg)

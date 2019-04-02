@@ -168,7 +168,6 @@ case class GraphEmbedding(
 
     case class MessageChannel(node: IRType, receiver: mutable.ListBuffer[Message]) {
       def +=(msg: Message): Unit = receiver.synchronized {
-        println(s"Sending message to node $node")
         receiver.append(msg)
       }
     }
