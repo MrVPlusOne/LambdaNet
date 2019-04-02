@@ -51,7 +51,7 @@ object TrainingCenter {
       )
 
     println(s"=== Training on $projectRoot ===")
-    parsed.irModules.foreach(m => m.stmts.foreach(s => println(s.prettyPrint())))
+//    parsed.irModules.foreach(m => m.stmts.foreach(s => println(s.prettyPrint())))
 
     trainOnModules(parsed.predModules, parsed.predModules, parsed.irModules, parsed.irEnv)
   }

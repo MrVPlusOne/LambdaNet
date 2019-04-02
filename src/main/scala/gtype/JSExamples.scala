@@ -12,11 +12,11 @@ object JSExamples {
   val string = 'string
   val boolean: Symbol = GType.boolType.id
   val void: Symbol = GType.voidType.id
-  val anyArray = 'anyArray
+  val anyArray = 'Array
   val numArray = 'numberArray
 
   def mkArrayType(baseType: GroundType): (Symbol, ObjectType) = {
-    val arrayType = Symbol(s"${baseType.id.name}Array")
+    val arrayType = if(baseType == any) 'Array else Symbol(s"${baseType.id.name}Array")
     arrayType -> obj(
       'length -> number,
       'pop -> (List() -: baseType),
