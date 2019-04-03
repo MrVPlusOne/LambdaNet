@@ -21,6 +21,15 @@ import infer.PredicateGraph.{PredicateModule, TypeLabel}
 
 import scala.concurrent.ExecutionContextExecutorService
 
+/**
+  * How to control the training:
+  * * To stop: Inside 'running-result/control', put a file called 'stop.txt' to make the
+  *   training stop and save at the beginning of the next training step.
+  *
+  * * To restore: Inside 'running-result/control', put a file called 'restore.txt' with
+  *   the path pointing to a trainingState.serialized file inside it before the training
+  *   starts to restore the training state.
+  */
 object TrainingCenter {
 
   val numOfThreads: Int = Runtime.getRuntime.availableProcessors()
@@ -82,7 +91,7 @@ object TrainingCenter {
     println(s"=== Training on $trainRoot ===")
 
     val loadFromFile
-      : Option[Path] = None // Some(pwd / RelPath("running-result/saved/step20/trainingState.serialized"))
+      : Option[Path] = TrainingControl.restoreFrom(consumeFile = true)
     val trainingState = loadFromFile
       .map { p =>
         println("Loading training from file: " + p)
@@ -261,6 +270,11 @@ object TrainingCenter {
     val maxTrainingSteps = 1000
     // training loop
     for (step <- initStep until maxTrainingSteps) try {
+      if(TrainingControl.shouldStop(true)){
+        saveTraining(step-1, s"stopped-step$step")
+        throw new Exception("Stopped by 'stop.txt'.")
+      }
+
       val startTime = System.currentTimeMillis()
 
       val (logits, embeddings) = {
@@ -342,13 +356,13 @@ object TrainingCenter {
         }
       }
       if (step % 50 == 0) {
-        saveTraining(step + 1, s"step$step")
+        saveTraining(step, s"step$step")
       }
     } catch {
       case ex: Throwable =>
         emailService.sendMail(emailService.userEmail)(
-          s"TypingNet: Training on $machineName stopped at step $step due to an error",
-          s"Error details:\n" + ex.getMessage
+          s"TypingNet: Training on $machineName stopped at step $step",
+          s"Details:\n" + ex.getMessage
         )
         saveTraining(step, "error-save")
         throw ex
@@ -359,7 +373,7 @@ object TrainingCenter {
       "Training finished!"
     )
 
-    saveTraining(maxTrainingSteps+1, "finished")
+    saveTraining(maxTrainingSteps, "finished")
 
     def saveTraining(step: Int, dirName: String): Unit = {
       println("save training...")
@@ -421,5 +435,33 @@ object TrainingCenter {
   def note(msg: String): Unit = {
     val printNote = false
     if (printNote) println("note: " + msg)
+  }
+
+
+  object TrainingControl {
+    val stopFile: Path = pwd / "running-result"/ "control" / "stop.txt"
+    val restoreFile: Path = pwd / "running-result"/ "control" / "restore.txt"
+
+    def shouldStop(consumeFile: Boolean): Boolean = {
+      val stop = exists(stopFile)
+      if(consumeFile && stop){
+        rm(stopFile)
+      }
+      stop
+    }
+
+    def restoreFrom(consumeFile: Boolean): Option[Path] = {
+      val restore = exists(restoreFile)
+      if(restore){
+        val content = read(restoreFile).trim
+        val p = try Path(content) catch {
+          case _: IllegalArgumentException => pwd / RelPath(content)
+        }
+        if(consumeFile){
+          rm(restoreFile)
+        }
+        Some(p)
+      } else None
+    }
   }
 }
