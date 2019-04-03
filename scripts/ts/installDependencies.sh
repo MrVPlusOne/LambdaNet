@@ -1,0 +1,1 @@
+npm i fs source-map-support typescript yargs @types/node @types/source-map-support @types/typescript @types/yargs

@@ -186,11 +186,7 @@ object TrainingCenter {
     trainingState: TrainingState
   ): Unit = {
 
-    val emailService = {
-      println("reading email credentials from 'emails.txt'...")
-      val Array(email, password) = read(pwd / "emails.txt").trim.split("\n")
-      EmailService(email, password)
-    }
+    val (machineName, emailService) = ReportFinish.readEmailInfo()
 
     val TrainingState(initStep, dimMessage, factory, optimizer) = trainingState
 
@@ -345,13 +341,13 @@ object TrainingCenter {
           eventLogger.log("test-accuracy", step, Tensor(testAcc))
         }
       }
-      if (step % 20 == 0) {
+      if (step % 50 == 0) {
         saveTraining(step + 1, s"step$step")
       }
     } catch {
       case ex: Throwable =>
         emailService.sendMail(emailService.userEmail)(
-          s"TypingNet: Training stopped at step $step due to an error",
+          s"TypingNet: Training on $machineName stopped at step $step due to an error",
           s"Error details:\n" + ex.getMessage
         )
         saveTraining(step, "error-save")
@@ -359,7 +355,7 @@ object TrainingCenter {
     }
 
     emailService.sendMail(emailService.userEmail)(
-      "TypingNet: Training finished!",
+      s"TypingNet: Training finished on $machineName!",
       "Training finished!"
     )
 
