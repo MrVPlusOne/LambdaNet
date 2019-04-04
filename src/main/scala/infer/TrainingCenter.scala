@@ -32,7 +32,7 @@ import scala.concurrent.ExecutionContextExecutorService
   */
 object TrainingCenter {
 
-  val numOfThreads: Int = Runtime.getRuntime.availableProcessors()
+  val numOfThreads: Int = Runtime.getRuntime.availableProcessors().min(16)
   val forkJoinPool = new ForkJoinPool(numOfThreads)
   val taskSupport: ForkJoinTaskSupport = new ForkJoinTaskSupport(forkJoinPool)
   val parallelCtx: ExecutionContextExecutorService =
@@ -68,6 +68,7 @@ object TrainingCenter {
   }
 
   def main(args: Array[String]): Unit = {
+    println(s"Using threads: $numOfThreads")
 
     val libraryTypes = JSExamples.libraryTypes
 
