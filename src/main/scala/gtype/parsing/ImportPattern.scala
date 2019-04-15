@@ -41,7 +41,7 @@ object ImportPattern {
     def clause[_: P]: P[(String, Option[String])] = P(identifier ~ ("as" ~/ identifier).?)
 
     def importSingles[_: P]: P[Vector[ImportSingle]] =
-      P("{" ~/ clause.rep(min = 1, sep = ",") ~ "}" ~/ "from" ~ path).map {
+      P("{" ~/ clause.rep(min = 1, sep = ",") ~ ",".? ~ "}" ~/ "from" ~ path).map {
         case (clauses, path) =>
           clauses.map {
             case (oldName, newNameOpt) =>
@@ -88,26 +88,38 @@ object ExportPattern {
   def parseExports(str: String): Vector[ExportStmt] = {
     import ImportPattern.{identifier, path}
 
-    type Creator = ProjectPath => Vector[ExportStmt]
+    type Creator = Option[ProjectPath] => Vector[ExportStmt]
 
     def exportDefault[_: P]: P[Creator] =
       P("{" ~ "default" ~/ ("as" ~/ identifier).? ~ "}").map { newNameOpt => p =>
-        Vector(ExportDefault(p, newNameOpt.map(Symbol.apply)))
+        Vector(ExportDefault(newNameOpt.map(Symbol.apply), p))
       }
 
-    def exportSingle[_: P]: P[Creator] =
-      P("{" ~ identifier ~/ ("as" ~/ identifier).? ~ "}").map {
-        case (oldName, newNameOpt) =>
-          p =>
-            Vector(
-              ExportSingle(Symbol(oldName), p, Symbol(newNameOpt.getOrElse(oldName)))
-            )
+    def exportSingles[_: P]: P[Creator] =
+      P(
+        "{" ~ (identifier ~/ ("as" ~/ identifier).?).rep(min = 1, sep = ",") ~ ",".? ~ "}"
+      ).map { clauses => p =>
+        clauses.toVector.map {
+          case (oldName, newNameOpt) =>
+            ExportSingle(Symbol(oldName), Symbol(newNameOpt.getOrElse(oldName)), p)
+        }
       }
+
+    def exportFromOther[_: P]: P[Creator] = {
+      P("*").map(
+        _ =>
+          p => {
+            Vector(ExportOtherModule(p.get))
+          }
+      )
+    }
 
     def stmt[_: P] =
-      P("export" ~/ (exportDefault | exportSingle) ~ "from" ~/ path ~ ";").map {
-        case (creator, p) =>
-          creator(p)
+      P(
+        "export" ~/ (exportFromOther | exportDefault | exportSingles)
+          ~ ("from" ~/ path).? ~ ";".?
+      ).map {
+        case (creator, p) => creator(p)
       }
 
     parse(str, stmt(_)) match {

@@ -14,6 +14,7 @@ case class GModule(
 
 object GModule {
   import ammonite.ops.RelPath
+
   /** the path related to the project root */
   type ProjectPath = RelPath
 }
@@ -31,8 +32,8 @@ object ExportLevel extends Enumeration {
   val Default = Value
 
   def asPrefix(level: ExportLevel.Value): String = level match {
-    case Public     => "export "
-    case Private    => ""
+    case Public  => "export "
+    case Private => ""
     case Default => "export default "
   }
 }
@@ -50,8 +51,10 @@ object ImportStmt {
 sealed trait ExportStmt
 
 object ExportStmt {
-  case class ExportDefault(from: ProjectPath, newName: Option[Symbol]) extends ExportStmt
-  case class ExportSingle(oldName: Symbol, from: ProjectPath, newName: Symbol)
+  case class ExportDefault(newName: Option[Symbol], from: Option[ProjectPath]) extends ExportStmt
+  case class ExportSingle(oldName: Symbol, newName: Symbol, from: Option[ProjectPath])
       extends ExportStmt
-  case class ExportTypeAlias(name: Symbol, tVars: Vector[Symbol], `type`: GType) extends ExportStmt
+  case class ExportTypeAlias(name: Symbol, tVars: Vector[Symbol], `type`: GType)
+      extends ExportStmt
+  case class ExportOtherModule(from: ProjectPath) extends ExportStmt
 }

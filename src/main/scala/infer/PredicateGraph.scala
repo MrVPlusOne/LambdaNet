@@ -212,6 +212,8 @@ object PredicateGraphConstruction {
     libraryTypes: Set[GType] = JSExamples.libraryTypes.map(TyVar),
     excludeIndexFile: Boolean = true
   ): ParsedProject = {
+    val indexFileNames = Set("index.ts", "public_api.ts")
+
     val sources = ls
       .rec(root)
       .filter { f =>
@@ -220,7 +222,7 @@ object PredicateGraphConstruction {
         }
         f.ext == "ts"
       }
-      .filterNot(f => excludeIndexFile && f.last == "index.ts")
+      .filterNot(f => excludeIndexFile && indexFileNames.contains(f.last))
       .map(_.relativeTo(root))
     val parser = new ProgramParsing(marksToHoles = false)
     val modules = parser.parseModulesFromFiles(

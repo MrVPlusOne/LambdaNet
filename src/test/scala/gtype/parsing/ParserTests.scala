@@ -162,6 +162,16 @@ class ParserTests extends WordSpec with MyTest {
       )
     )
     test(
+      """import {
+        |  A,
+        |  B,
+        |} from "./ZipCodeValidator";""".stripMargin,
+      Vector(
+        ImportSingle('A, RelPath("./ZipCodeValidator"), 'A),
+        ImportSingle('B, RelPath("./ZipCodeValidator"), 'B)
+      )
+    )
+    test(
       """import {foo as fool} from "./file1";""",
       Vector(ImportSingle('foo, RelPath("./file1"), 'fool))
     )
