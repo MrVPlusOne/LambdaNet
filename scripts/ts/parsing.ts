@@ -122,6 +122,11 @@ function parseType(node: ts.TypeNode, checker: ts.TypeChecker): GType {
       }
     }
     return anyType;
+  } else if(node.kind == SyntaxKind.ParenthesizedType){
+    let n = node as ts.ParenthesizedTypeNode;
+    return parseType(n.type, checker);
+  } else if (node.kind == SyntaxKind.FirstTypeNode){
+    return new TVar("boolean");
   } else{
     throw new Error("Unknown Type Kind: " + ts.SyntaxKind[node.kind]);
   }
@@ -305,6 +310,7 @@ export function parseExpr(node: ts.Node, checker: ts.TypeChecker,
 
   function rec(node: ts.Node): GExpr {
     mustExist(node);
+
     switch (node.kind) {
       case SyntaxKind.Identifier:
         let name = tryFullyQualifiedName(node, checker);
@@ -360,11 +366,14 @@ export function parseExpr(node: ts.Node, checker: ts.TypeChecker,
         return constExpr("number");
       case SyntaxKind.StringLiteral:
         return constExpr("string");
+      case SyntaxKind.RegularExpressionLiteral:
+        return constExpr("RegExpr");
       case SyntaxKind.TrueKeyword:
       case SyntaxKind.FalseKeyword:
         return constExpr("bool");
       case SyntaxKind.NullKeyword:
         return new Const("null", anyType);
+
       case SyntaxKind.ArrayLiteralExpression:
         return constExpr("array"); //todo: might need to distinguish array types
 
@@ -400,12 +409,19 @@ export function parseExpr(node: ts.Node, checker: ts.TypeChecker,
         let n = node as ts.TypeOfExpression;
         return new FuncCall(SpecialVars.typeOf, [rec(n.expression)]);
       }
+      case SyntaxKind.FirstTemplateToken:
       case SyntaxKind.TemplateExpression: {
         return constExpr("string");
       }
       case SyntaxKind.DeleteExpression: {
         let n = node as ts.DeleteExpression;
         return new FuncCall(SpecialVars.DELETE, [rec(n.expression)]);
+      }
+      // type assertions are ignored
+      case SyntaxKind.AsExpression:
+      case SyntaxKind.TypeAssertionExpression:{
+        let n = node as ts.TypeAssertion;
+        return rec(n.expression);
       }
 
       default:
@@ -420,7 +436,9 @@ export function parseExpr(node: ts.Node, checker: ts.TypeChecker,
 
     function parseObjectLiteralElementLike(p: ts.ObjectLiteralElementLike): NamedValue<GExpr> {
       let a = (<ts.PropertyAssignment>p);
-      return new NamedValue<GExpr>((<ts.StringLiteral>a.name).text, rec(a.initializer));
+      let fieldName = (<ts.StringLiteral>a.name).text;
+      return new NamedValue<GExpr>(fieldName ,
+        a.initializer? rec(a.initializer) : new Var(fieldName));
     }
   }
 
@@ -493,6 +511,8 @@ export class StmtParser {
 
 
     function rec(node: ts.Node): StmtsHolder {
+      mustExist(node);
+
       let EP = new ExprProcessor();
 
       function parseVarDecList(node: ts.VariableDeclarationList, modifiers: string[]): VarDef[] {
@@ -526,6 +546,7 @@ export class StmtParser {
       }
 
       switch (node.kind) {
+        case SyntaxKind.ThrowStatement:
         case SyntaxKind.ExpressionStatement: {
           let n = <ts.ExpressionStatement>node;
           if (n.expression.kind == SyntaxKind.BinaryExpression) {
@@ -540,7 +561,9 @@ export class StmtParser {
         }
         case SyntaxKind.ReturnStatement: {
           let n = <ts.ReturnStatement>node;
-          return EP.alongWith(new ExprStmt(EP.processExpr(n.expression), true));
+          return n.expression ?
+            EP.alongWith(new ExprStmt(EP.processExpr(n.expression), true))
+            : EP.alongWith(new CommentStmt("return;"));
         }
         case SyntaxKind.VariableStatement: {
           let n = node as ts.VariableStatement;
@@ -591,15 +614,25 @@ export class StmtParser {
         }
         case SyntaxKind.FunctionDeclaration:
         case SyntaxKind.MethodDeclaration:
+        case SyntaxKind.GetAccessor:
+        case SyntaxKind.SetAccessor:
         case SyntaxKind.Constructor: {
           let name = (node.kind == SyntaxKind.Constructor) ? "Constructor" :
             tryFullyQualifiedName((node as any).name, checker);
           let n = <ts.FunctionLikeDeclaration>node;
-          return EP.alongWith(parseFunction(name, n, parseModifiers(n.modifiers)));
+          let modifiers = parseModifiers(n.modifiers);
+          if(node.kind == SyntaxKind.SetAccessor)
+            modifiers.push("set");
+          else if(node.kind == SyntaxKind.GetAccessor)
+            modifiers.push("get");
+          return EP.alongWith(parseFunction(name, n, modifiers));
         }
 
         case SyntaxKind.ClassDeclaration: {
           let n = node as ts.ClassDeclaration;
+
+          if(n.modifiers && n.modifiers.map(x => x.kind).includes(SyntaxKind.AbstractKeyword))
+            return EP.alongWith(new CommentStmt(n.getText()));
 
           let name = tryFullyQualifiedName(n.name, checker);
 
@@ -622,12 +655,14 @@ export class StmtParser {
             if (ts.isPropertyDeclaration(v)) {
               let v1 = v as ts.PropertyDeclaration;
               vars.push(new NamedValue(getPropertyName(v1.name), parseMark(v1.type, checker)));
-            } else if (ts.isMethodDeclaration(v)) {
+            } else if (ts.isMethodDeclaration(v) || ts.isAccessor(v)) {
               funcDefs.push(getSingleton(rec(v).stmts) as FuncDef)
             } else if (ts.isConstructorDeclaration(v)) {
               constructor = getSingleton(rec(v).stmts) as FuncDef;
+            } else if (ts.isSemicolonClassElement(v)){
+              // ignore
             } else {
-              throw new Error("Unknown statements in class definitions: " + v);
+              throw new Error("Unknown statements in class definitions: " + SyntaxKind[v.kind]);
             }
           }
 
@@ -681,14 +716,27 @@ export class StmtParser {
         }
         case SyntaxKind.TypeAliasDeclaration: {
           let n = node as ts.TypeAliasDeclaration;
-          let tVars = n.typeParameters.map(p => p.name.text);
+          let tVars = n.typeParameters ? n.typeParameters.map(p => p.name.text) : [];
           return EP.alongWith(new TypeAliasStmt(n.name.text, tVars, parseMark(n.type, checker)));
         }
+        case SyntaxKind.TryStatement:{
+          let n = node as ts.TryStatement;
+
+          let tryPart = rec(n.tryBlock).stmts;
+          let finallyPart = n.finallyBlock ? rec(n.finallyBlock).stmts : [];
+          return EP.alongWithMany(tryPart.concat(finallyPart));
+        }
+
+
+        //todo: support these
+        case SyntaxKind.ForOfStatement:
+        case SyntaxKind.ForInStatement:
+          return EP.alongWith(new CommentStmt(node.getText()));
 
         // ignored statements:
         case SyntaxKind.BreakStatement:
-          return EP.alongWith(new CommentStmt("break;"));
-        //todo: support the followings
+        case SyntaxKind.InterfaceDeclaration:
+          return EP.alongWith(new CommentStmt(node.getText()));
 
         default:
           throw new Error("Unknown stmt category: " + ts.SyntaxKind[node.kind]);

@@ -190,7 +190,12 @@ class ProgramParsing(
     }
   }
 
-  case class DefModifiers(isConst: Boolean, exportLevel: ExportLevel.Value)
+  case class DefModifiers(
+    isConst: Boolean,
+    exportLevel: ExportLevel.Value,
+    isGetter: Boolean,
+    isSetter: Boolean
+  )
 
   def parseModifiers(v: Js.Val): DefModifiers = {
     val modifiers = asArray(v).map(asString).toSet
@@ -200,7 +205,9 @@ class ProgramParsing(
         if (modifiers.contains("default")) ExportLevel.Default
         else ExportLevel.Public
       else ExportLevel.Private
-    DefModifiers(isConst, exportLevel)
+    val isGetter = modifiers.contains("get")
+    val isSetter = modifiers.contains("set")
+    DefModifiers(isConst, exportLevel, isGetter, isSetter)
   }
 
   def parseGStmt(v: Js.Val): GStmt =

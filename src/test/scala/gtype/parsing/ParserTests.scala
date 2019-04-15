@@ -180,12 +180,15 @@ class ParserTests extends WordSpec with MyTest {
   }
 
   "Project parsing integration test" in {
-    val root = pwd / RelPath("data/ts-algorithms")
-    val parsed = infer.PredicateGraphConstruction
-          .fromSourceFiles(root)
-    parsed.predModules
-      .foreach { m =>
-        println(m.display)
-      }
+    val projectRoots = Seq(
+      "data/train/mojiito-master/packages",
+      "data/train/algorithms-train"
+    ).map(p => pwd / RelPath(p))
+
+    projectRoots.foreach(r => {
+      infer.PredicateGraphConstruction
+        .fromSourceFiles(r)
+    })
+
   }
 }

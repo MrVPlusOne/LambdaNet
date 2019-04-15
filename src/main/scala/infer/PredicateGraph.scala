@@ -214,7 +214,12 @@ object PredicateGraphConstruction {
   ): ParsedProject = {
     val sources = ls
       .rec(root)
-      .filter(f => f.ext == "ts")
+      .filter { f =>
+        if (f.last.endsWith("d.ts")) {
+          throw new Error(s"d.ts file encountered: $f")
+        }
+        f.ext == "ts"
+      }
       .filterNot(f => excludeIndexFile && f.last == "index.ts")
       .map(_.relativeTo(root))
     val parser = new ProgramParsing(marksToHoles = false)
