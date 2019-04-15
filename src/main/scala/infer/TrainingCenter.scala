@@ -18,6 +18,7 @@ import scala.collection.parallel.ForkJoinTaskSupport
 import ammonite.ops._
 import infer.IR.{IRModule, IRTypeId}
 import infer.PredicateGraph.{PredicateModule, TypeLabel}
+import infer.PredicateGraphConstruction.ParsedProject
 
 import scala.concurrent.ExecutionContextExecutorService
 
@@ -75,24 +76,25 @@ object TrainingCenter {
 //    val trainRoot = pwd / RelPath("data/toy")
 //    val testRoot = trainRoot
 
-    val trainRoot = pwd / RelPath("data/train/algorithms-train")
-    val trainParsed = infer.PredicateGraphConstruction
-      .fromSourceFiles(
-        trainRoot,
-        libraryTypes = libraryTypes.map(TyVar)
-      )
+    val trainRoots = Vector(
+      "data/train/algorithms-train",
+      "data/train/mojiito-master"
+    ).map(p => pwd / RelPath(p))
 
-    val testRoot = pwd / RelPath("data/test/algorithms-test")
-    val testParsed = infer.PredicateGraphConstruction
-      .fromSourceFiles(
-        testRoot,
-        libraryTypes = libraryTypes.map(TyVar)
-      )
+    val trainParsed = trainRoots.map { r =>
+      infer.PredicateGraphConstruction
+        .fromSourceFiles(r, libraryTypes = libraryTypes.map(TyVar))
+    }
 
-    println(s"=== Training on $trainRoot ===")
+    val testRoots = Vector(pwd / RelPath("data/test/algorithms-test"))
+    val testParsed = testRoots.map { r =>
+      infer.PredicateGraphConstruction
+        .fromSourceFiles(r, libraryTypes = libraryTypes.map(TyVar))
+    }
 
-    val loadFromFile
-      : Option[Path] = TrainingControl.restoreFrom(consumeFile = true)
+    println(s"=== Training on $trainRoots ===")
+
+    val loadFromFile: Option[Path] = TrainingControl.restoreFrom(consumeFile = true)
     val trainingState = loadFromFile
       .map { p =>
         println("Loading training from file: " + p)
@@ -108,16 +110,15 @@ object TrainingCenter {
       )
 
     trainOnModules(
-      trainParsed.predModules,
-      testParsed.predModules,
-      trainParsed.irModules,
-      trainParsed.irEnv,
+      trainParsed,
+      testParsed,
       trainingState
     )
   }
 
   //noinspection TypeAnnotation
   case class GraphNetBuilder(
+    graphName: String,
     predModules: IS[PredicateModule],
     transEnv: TranslationEnv,
     libraryFields: Vector[Symbol],
@@ -189,10 +190,8 @@ object TrainingCenter {
   }
 
   def trainOnModules(
-    trainingModules: IS[PredicateModule],
-    testingModules: IS[PredicateModule],
-    trainingIRModules: IS[IRModule],
-    transEnv: TranslationEnv,
+    trainingProjects: IS[ParsedProject],
+    testingModules: IS[ParsedProject],
     trainingState: TrainingState
   ): Unit = {
 
@@ -203,47 +202,49 @@ object TrainingCenter {
     /** any symbols that are not defined within the project */
     val libraryFields: Vector[Symbol] = {
       var allDefined, allUsed = Set[Symbol]()
-      trainingIRModules.foreach(m => {
-        val stats = m.moduleStats
-        allDefined ++= stats.fieldsDefined
-        allUsed ++= stats.fieldsUsed
-      })
+      trainingProjects.foreach { p =>
+        p.irModules.foreach(m => {
+          val stats = m.moduleStats
+          allDefined ++= stats.fieldsDefined
+          allUsed ++= stats.fieldsUsed
+        })
+      }
       (allUsed -- allDefined).toVector
     }
     println("libraryFields: " + libraryFields)
 
     val libraryTypes = JSExamples.libraryTypes.toVector
 
-    val trainBuilder =
+    val trainBuilders = trainingProjects.map { p =>
       GraphNetBuilder(
-        trainingModules,
-        transEnv,
+        p.projectName,
+        p.predModules,
+        p.irEnv,
         libraryFields,
         libraryTypes,
         factory,
         dimMessage
       )
-
-    val testBuilder =
-      GraphNetBuilder(
-        testingModules,
-        transEnv,
-        libraryFields,
-        libraryTypes,
-        factory,
-        dimMessage
-      )
-
-    val typeLabels = trainBuilder.typeLabels
-    val decodingCtx = trainBuilder.decodingCtx
-    println("max Idx: " + decodingCtx.maxIndex)
-
-    println("Predicate numbers:")
-    println {
-      trainBuilder.predicates.groupBy(PredicateGraph.predicateCategory).mapValuesNow {
-        _.length
-      }
     }
+
+    val testBuilders = testingModules.map { p =>
+      GraphNetBuilder(
+        p.projectName,
+        p.predModules,
+        p.irEnv,
+        libraryFields,
+        libraryTypes,
+        factory,
+        dimMessage
+      )
+    }
+
+    trainBuilders.foreach(builder => {
+      println("Predicate numbers:")
+      println {
+        builder.predicateCategoryNumbers
+      }
+    })
 
     val eventLogger = {
       import ammonite.ops._
@@ -271,90 +272,103 @@ object TrainingCenter {
     val maxTrainingSteps = 1000
     // training loop
     for (step <- initStep until maxTrainingSteps) try {
-      if(TrainingControl.shouldStop(true)){
-        saveTraining(step-1, s"stopped-step$step")
+      if (TrainingControl.shouldStop(true)) {
+        saveTraining(step - 1, s"stopped-step$step")
         throw new Exception("Stopped by 'stop.txt'.")
       }
 
       val startTime = System.currentTimeMillis()
 
-      val (logits, embeddings) = {
-        note("encodeDecode")
-        trainBuilder.encodeDecode()
-      }
+      for (trainBuilder <- trainBuilders) {
+        println(s"training on ${trainBuilder.graphName}...")
 
-      DebugTime.logTime('loggingTime) {
-        note("loggingTime")
-        val diffs = embeddings
-          .zip(embeddings.tail)
-          .par
-          .map {
-            case (e1, e0) =>
-              val diffMap = e1.nodeMap.elementwiseCombine(e0.nodeMap) { (x, y) =>
-                math.sqrt(numsca.sum(numsca.square(x.value - y.value)))
-              }
-              SimpleMath.mean(diffMap.values.toSeq)
+        val (logits, embeddings) = {
+          note("encodeDecode")
+          trainBuilder.encodeDecode()
+        }
+
+        DebugTime.logTime('loggingTime) {
+          note("loggingTime")
+          val diffs = embeddings
+            .zip(embeddings.tail)
+            .par
+            .map {
+              case (e1, e0) =>
+                val diffMap = e1.nodeMap.elementwiseCombine(e0.nodeMap) { (x, y) =>
+                  math.sqrt(numsca.sum(numsca.square(x.value - y.value)))
+                }
+                SimpleMath.mean(diffMap.values.toSeq)
+            }
+            .seq
+          eventLogger.log("embedding-changes", step, Tensor(diffs: _*))
+
+          val maxEmbeddingLength = embeddings.map {
+            _.stat.trueEmbeddingLengths.max
+          }.max
+          eventLogger.log("embedding-max-length", step, Tensor(maxEmbeddingLength))
+        }
+
+        note("analyzeResults")
+        val typeLabels = trainBuilder.typeLabels
+        val decodingCtx = trainBuilder.decodingCtx
+        println("max Idx: " + decodingCtx.maxIndex)
+
+        val accuracy = analyzeResults(
+          typeLabels,
+          logits.value,
+          trainBuilder.transEnv,
+          decodingCtx,
+          printResults = false
+        )
+        eventLogger.log("accuracy", step, Tensor(accuracy))
+
+        println("annotated places number: " + typeLabels.length)
+        val targets = typeLabels.map(p => decodingCtx.indexOfType(p._2))
+        val loss = mean(
+          crossEntropyOnSoftmax(logits, oneHot(targets, decodingCtx.maxIndex))
+        )
+
+        if (loss.value.squeeze() > 20) {
+          println(s"Abnormally large loss: ${loss.value}")
+          println("logits: ")
+          println {
+            logits.value
           }
-          .seq
-        eventLogger.log("embedding-changes", step, Tensor(diffs: _*))
+        }
+        eventLogger.log("loss", step, loss.value)
 
-        val maxEmbeddingLength = embeddings.map { _.stat.trueEmbeddingLengths.max }.max
-        eventLogger.log("embedding-max-length", step, Tensor(maxEmbeddingLength))
-      }
+        note("optimization")
+        DebugTime.logTime('optimization) {
+          optimizer.minimize(
+            loss,
+            trainBuilder.factory.paramCollection.allParams,
+            backPropInParallel = Some(parallelCtx)
+          )
+        }
 
-      note("analyzeResults")
-      val accuracy = analyzeResults(
-        typeLabels,
-        logits.value,
-        transEnv,
-        decodingCtx,
-        printResults = false
-      )
-      eventLogger.log("accuracy", step, Tensor(accuracy))
+        println(DebugTime.show)
 
-      println("annotated places number: " + typeLabels.length)
-      val targets = typeLabels.map(p => decodingCtx.indexOfType(p._2))
-      val loss = mean(
-        crossEntropyOnSoftmax(logits, oneHot(targets, decodingCtx.maxIndex))
-      )
-
-      if (loss.value.squeeze() > 20) {
-        println(s"Abnormally large loss: ${loss.value}")
-        println("logits: ")
-        println { logits.value }
-      }
-      eventLogger.log("loss", step, loss.value)
-
-      note("optimization")
-      DebugTime.logTime('optimization) {
-        optimizer.minimize(
-          loss,
-          trainBuilder.factory.paramCollection.allParams,
-          backPropInParallel = Some(parallelCtx)
+        eventLogger.log(
+          "iteration-time",
+          step,
+          Tensor(System.currentTimeMillis() - startTime)
         )
       }
 
-      println(DebugTime.show)
-
-      eventLogger.log(
-        "iteration-time",
-        step,
-        Tensor(System.currentTimeMillis() - startTime)
-      )
-
       if (step % 10 == 0) {
         println("start testing...")
-        SimpleMath.measureTimeAsSeconds {
+        val testAccs = testBuilders.map { testBuilder =>
           val (testLogits, _) = testBuilder.encodeDecode()
           val testAcc = analyzeResults(
             testBuilder.typeLabels,
             testLogits.value,
-            transEnv,
-            testBuilder.decodingCtx,
-            printResults = true
+            testBuilder.transEnv,
+            testBuilder.decodingCtx
           )
-          eventLogger.log("test-accuracy", step, Tensor(testAcc))
+          testAcc
         }
+        val avgAcc = SimpleMath.mean(testAccs)
+        eventLogger.log("test-accuracy", step, Tensor(avgAcc))
       }
       if (step % 50 == 0) {
         saveTraining(step, s"step$step")
@@ -438,14 +452,13 @@ object TrainingCenter {
     if (printNote) println("note: " + msg)
   }
 
-
   object TrainingControl {
-    val stopFile: Path = pwd / "running-result"/ "control" / "stop.txt"
-    val restoreFile: Path = pwd / "running-result"/ "control" / "restore.txt"
+    val stopFile: Path = pwd / "running-result" / "control" / "stop.txt"
+    val restoreFile: Path = pwd / "running-result" / "control" / "restore.txt"
 
     def shouldStop(consumeFile: Boolean): Boolean = {
       val stop = exists(stopFile)
-      if(consumeFile && stop){
+      if (consumeFile && stop) {
         rm(stopFile)
       }
       stop
@@ -453,12 +466,13 @@ object TrainingCenter {
 
     def restoreFrom(consumeFile: Boolean): Option[Path] = {
       val restore = exists(restoreFile)
-      if(restore){
+      if (restore) {
         val content = read(restoreFile).trim
-        val p = try Path(content) catch {
+        val p = try Path(content)
+        catch {
           case _: IllegalArgumentException => pwd / RelPath(content)
         }
-        if(consumeFile){
+        if (consumeFile) {
           rm(restoreFile)
         }
         Some(p)

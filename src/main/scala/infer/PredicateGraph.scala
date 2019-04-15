@@ -185,23 +185,25 @@ object PredicateGraphConstruction {
     }
   }
 
-  case class ParsedModules(
+  case class ParsedProject(
+    projectName: String,
     irEnv: TranslationEnv,
     irModules: Vector[IRModule],
     predModules: Vector[PredicateModule]
   )
 
   def fromModules(
+    projectName: String,
     modules: Seq[GModule],
     libraryTypes: Set[GType]
-  ): ParsedModules = {
+  ): ParsedProject = {
     val env = new TranslationEnv()
     val irModules = modules.map(m => IRTranslation.translateModule(m)(env)).toVector
 
     val ctx = PredicateContext.jsCtx(env)
     val pModules = PredicateGraphConstruction.encodeModules(irModules, ctx, libraryTypes)
 
-    ParsedModules(env, irModules, pModules)
+    ParsedProject(projectName, env, irModules, pModules)
   }
 
   def fromSourceFiles(
@@ -209,7 +211,7 @@ object PredicateGraphConstruction {
     libraryFiles: Set[ProjectPath] = Set(),
     libraryTypes: Set[GType] = JSExamples.libraryTypes.map(TyVar),
     excludeIndexFile: Boolean = true
-  ): ParsedModules = {
+  ): ParsedProject = {
     val sources = ls
       .rec(root)
       .filter(f => f.ext == "ts")
@@ -222,7 +224,7 @@ object PredicateGraphConstruction {
       root
     )
 
-    fromModules(modules, libraryTypes)
+    fromModules(root.last, modules, libraryTypes)
   }
 
   def resolveImports(
@@ -344,7 +346,7 @@ object PredicateGraphConstruction {
     def encodeStmt(stmt: IRStmt)(implicit ctx: PredicateContext): Unit = {
       import ctx._
       def resolveLabel(ty: GType): TypeLabel = {
-        def outOfScope(): OutOfScope.type ={
+        def outOfScope(): OutOfScope.type = {
           System.err.println(s"[warn] out of scope type label: $ty")
           OutOfScope
         }

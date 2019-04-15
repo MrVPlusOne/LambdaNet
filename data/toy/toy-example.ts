@@ -94,3 +94,19 @@ class LinkedList{
     this._size = this._size + 1;
   }
 }
+
+function f<T,U>(x: {plus: (_:T)=>U} & T): U {
+  return x.plus(x)
+}
+
+class Number{
+  constructor(public value: number){}
+
+  public plus(n: Number): Number { throw new Error() }
+}
+
+f(new Number(5));
+
+function g<T>(x: {plus: (_:T)=>T} & T): T {
+  return x.plus(x)
+}
