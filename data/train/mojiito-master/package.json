@@ -1,0 +1,37 @@
+{
+  "name": "mojiito",
+  "version": "2.0.0-alpha.3",
+  "private": true,
+  "description": "Mojiito is a JavaScript framework, heavily inspired by Angular and Ember, which brings the benefits of components, services, ... to your (static) website.",
+  "author": "Mojiito Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mojiito/mojiito"
+  },
+  "bugs": "https://github.com/mojiito/mojiito/issues",
+  "engines": {
+    "node": ">= 5.4.1"
+  },
+  "scripts": {
+    "lint": "node_modules/.bin/tslint -c ./tslint.json 'modules/**/*.ts'",
+    "build": "./build.sh",
+    "deploy": "./scripts/deploy.sh",
+    "build-playground": "./scripts/build_playground.sh",
+    "serve-playground": "npm run build-playground -- --serve"
+  },
+  "devDependencies": {
+    "@angular/tsc-wrapped": "^4.0.0",
+    "http-server": "^0.9.0",
+    "rollup": "^0.41.4",
+    "sorcery": "^0.10.0",
+    "tslint": "^4.4.2",
+    "typescript": "^2.1.5",
+    "uglifyjs": "^2.4.10",
+    "yargs": "^7.0.2"
+  },
+  "dependencies": {
+    "core-js": "^2.4.1",
+    "reflect-metadata": "^0.1.9"
+  }
+}

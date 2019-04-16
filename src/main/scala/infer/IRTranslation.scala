@@ -1,6 +1,5 @@
 package infer
 
-import funcdiff.SimpleMath.Extensions._
 import gtype.ExportStmt.ExportTypeAlias
 import gtype._
 import funcdiff.SimpleMath.Extensions._
@@ -294,8 +293,11 @@ object IRTranslation {
     }
     stmts.foreach(rec)
 
-    val exports = terms.toMap.mapValuesNow(t => (t, ExportCategory.Term)) ++ classes.toMap
-      .mapValuesNow(t => (t, ExportCategory.Class))
+    val exports = terms.toMap.map {
+      case (n, v) => (n, ExportCategory.Term) -> v
+    } ++ classes.toMap.map {
+      case (n, v) => (n, ExportCategory.Class) -> v
+    }
     ModuleExports(exports, defaultVar, defaultClass)
   }
 
@@ -304,19 +306,16 @@ object IRTranslation {
   ): IRModule = {
     val irStmts = module.stmts.flatMap(s => translateStmt(s)(Set(), env))
 
-    val aliases = mutable.HashMap[Symbol, (IRType, ExportCategory.Value)]()
+    val aliases = mutable.HashMap[(Symbol, ExportCategory.Value), IRType]()
 
     //fixme: introduce type aliases at inner scope. Currently they are only visible at export scope.
     module.exportStmts.collect {
       case ExportTypeAlias(name, tVars, t) =>
-        aliases(name) = (
-          env.newTyVar(
-            None,
-            Some(name),
-            freezeToType = Some(TypeAnnotation(t, needInfer = false))
-          )(tVars.toSet),
-          ExportCategory.TypeAlias
-        )
+        aliases(name -> ExportCategory.TypeAlias) = env.newTyVar(
+          None,
+          Some(name),
+          freezeToType = Some(TypeAnnotation(t, needInfer = false))
+        )(tVars.toSet)
     }
 
     val moduleExports = collectExports(irStmts)

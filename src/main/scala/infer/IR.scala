@@ -65,19 +65,23 @@ object IR {
   }
 
   case class ModuleExports(
-    definitions: Map[Symbol, (IRType, ExportCategory.Value)],
+    definitions: Map[(Symbol, ExportCategory.Value), IRType],
     defaultVar: Option[(Var, IRType)],
     defaultType: Option[(ClassName, IRType)]
   ) {
-    def terms: Iterator[(Symbol, IRType)] = definitions.toIterator.collect {
-      case (n, (t, ExportCategory.Term)) => n -> t
-    }
+    lazy val terms: Map[Symbol, IRType] = definitions.toIterator.collect {
+      case ((n, ExportCategory.Term), t) => n -> t
+    }.toMap
 
-    def types: Iterator[(Symbol, IRType)] = definitions.toIterator.collect {
-      case (n, (t, cat))
-          if cat == ExportCategory.Class || cat == ExportCategory.TypeAlias =>
+    lazy val typeAliases: Map[Symbol, IRType] = definitions.toIterator.collect {
+      case ((n, cat), t) if cat == ExportCategory.TypeAlias =>
         n -> t
-    }
+    }.toMap
+
+    lazy val classes: Map[Symbol, IRType] = definitions.toIterator.collect {
+      case ((n, cat), t) if cat == ExportCategory.Class =>
+        n -> t
+    }.toMap
   }
 
   // @formatter:off

@@ -1,0 +1,18 @@
+{
+  "name": "mojiito-platform-browser",
+  "version": "0.0.0-PLACEHOLDER",
+  "description": "Mojiito Platform Browser",
+  "main": "./bundles/platform-browser.umd.js",
+  "module": "./mojiito/platform-browser.es5.js",
+  "es2015": "./mojiito/platform-browser.js",
+  "typings": "./platform-browser.d.ts",
+  "author": "Mojiito Team",
+  "license": "MIT",
+  "peerDependencies": {
+    "mojiito-core": "0.0.0-PLACEHOLDER"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mojiito/mojiito"
+  }
+}

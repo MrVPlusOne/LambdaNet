@@ -1,0 +1,5 @@
+/**
+ * @license Mojiito v0.0.0-PLACEHOLDER
+ * (c) 2010-2017 Thomas Pink
+ * License: MIT
+ */

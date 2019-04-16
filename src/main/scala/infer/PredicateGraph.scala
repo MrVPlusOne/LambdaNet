@@ -3,10 +3,11 @@ package infer
 import funcdiff.SimpleMath
 import funcdiff.SimpleMath.Extensions._
 import funcdiff.SimpleMath.{LabeledGraph, wrapInQuotes}
+import gtype.ExportStmt.{ExportOtherModule, ExportSingle}
 import gtype.GModule.ProjectPath
 import gtype.GStmt.{TypeAnnotation, TypeHoleContext}
 import gtype.ImportStmt._
-import gtype.{AnyType, GModule, GStmt, GTHole, GType, JSExamples, TyVar}
+import gtype.{AnyType, ExportStmt, GModule, GStmt, GTHole, GType, JSExamples, TyVar}
 import infer.IR._
 import infer.IRTranslation.TranslationEnv
 import infer.PredicateGraph._
@@ -234,17 +235,47 @@ object PredicateGraphConstruction {
     fromModules(root.last, modules, libraryTypes)
   }
 
+  /** Try to turn export statements into export definitions, may need multiple
+    * iteration of this function to achieve fixed-point */
+  def processExports(
+    allModules: Map[ProjectPath, IRModule]
+  ): Map[ProjectPath, IRModule] = {
+    allModules.map {
+      case (modulePath, md) =>
+        val dir = modulePath / ammonite.ops.up
+        var newDefs = md.exports.definitions
+        md.exportStmts.foreach {
+          case ExportSingle(oldName, newName, Some(from)) => //todo: handle the None case
+            val ex = allModules(dir / from).exports
+            ex.terms.get(oldName).foreach { tv =>
+              newDefs = newDefs.updated((newName, ExportCategory.Term), tv)
+            }
+            ex.typeAliases.get(oldName).foreach{ tv =>
+              newDefs = newDefs.updated((newName, ExportCategory.TypeAlias), tv)
+            }
+          case ExportOtherModule(from) =>
+            val ex = allModules(dir / from).exports
+            newDefs = newDefs ++ ex.definitions
+          case _ => //do nothing yet
+        }
+        modulePath -> md.copy(exports = md.exports.copy(definitions = newDefs))
+    }
+  }
+
   def resolveImports(
     module: IRModule,
     baseCtx: PredicateContext,
-    allModules: Map[ProjectPath, IRModule]
+    allModules: Map[ProjectPath, IRModule],
+    maxIteration: Int = 10
   ): PredicateContext = {
     var varTypeMap = baseCtx.varTypeMap
     var newTypeMap = baseCtx.newTypeMap
     val currentDir = module.path / ammonite.ops.up
 
+    val processedModules = Vector.iterate(allModules, maxIteration)(processExports).last
+
     def getExports(path: ProjectPath): ModuleExports = {
-      allModules
+      processedModules
         .getOrElse(
           currentDir / path,
           throw new Error(s"Cannot find source file: '${currentDir / path}'.")
@@ -257,24 +288,24 @@ object PredicateGraphConstruction {
     module.imports.foreach {
       case ImportSingle(oldName, path, newName) =>
         val exports = getExports(path)
-        val (t, category) = exports.definitions(oldName)
-        category match {
-          case ExportCategory.Term =>
-            varTypeMap = varTypeMap.updated(Var(Right(newName)), t)
-          case ExportCategory.TypeAlias =>
-            newTypeMap = newTypeMap.updated(newName, t)
-          case ExportCategory.Class =>
-            newTypeMap = newTypeMap.updated(newName, t)
-            val constructorT = exports.definitions(constructorName(oldName))._1
-            varTypeMap += (Var(Right(constructorName(newName))) -> constructorT)
-        }
+        exports.terms.get(oldName).foreach(t => {
+          varTypeMap = varTypeMap.updated(Var(Right(newName)), t)
+        })
+        exports.typeAliases.get(oldName).foreach(t => {
+          newTypeMap = newTypeMap.updated(newName, t)
+        })
+        exports.classes.get(oldName).foreach(t => {
+          newTypeMap = newTypeMap.updated(newName, t)
+          val constructorT = exports.terms(constructorName(oldName))
+          varTypeMap += (Var(Right(constructorName(newName))) -> constructorT)
+        })
       case ImportModule(path, newName) =>
         val exports = getExports(path)
         varTypeMap = varTypeMap ++ exports.terms.map {
           case (n, t) =>
             Var(Right(Symbol(newName.name + "." + n.name))) -> t
         }
-        newTypeMap ++= exports.types.map {
+        newTypeMap ++= exports.typeAliases.map {
           case (n, t) => Symbol(newName.name + "." + n.name) -> t
         }
       case ImportDefault(path, newName) =>

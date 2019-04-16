@@ -14,6 +14,7 @@ object JSExamples {
   val void: Symbol = GType.voidType.id
   val anyArray = 'Array
   val numArray = 'numberArray
+  val function = 'Function //fixme: this should not be treated as object type
 
   def mkArrayType(baseType: GroundType): (Symbol, ObjectType) = {
     val arrayType = if(baseType == any) 'Array else Symbol(s"${baseType.id.name}Array")
@@ -54,6 +55,7 @@ object JSExamples {
   val typeContext = TypeContext(
     baseTypes = Set(),
     typeUnfold = Map(
+      function -> obj('Function_UNIQUE -> function),
       boolean -> obj('Bool_UNIQUE -> boolean),
       void -> obj('Void_UNIQUE -> void),
       number -> obj(
@@ -78,7 +80,7 @@ object JSExamples {
     subRel = Set()
   )
 
-  val libraryTypes: Set[Symbol] = typeContext.typeUnfold.keySet + 'Function
+  val libraryTypes: Set[Symbol] = typeContext.typeUnfold.keySet
 
   val exprContext: ExprContext = {
     val varAssign = Map[Symbol, GType](
@@ -111,6 +113,8 @@ object JSExamples {
       'String -> any,
       'Object -> any,
       'Number -> (List(any) -: number),
+      function -> (List(any) -: function),
+      'Array -> (List(number) -: 'Array)
     )
 
     ExprContext(varAssign, typeContext)

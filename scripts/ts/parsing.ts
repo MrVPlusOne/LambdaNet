@@ -648,15 +648,24 @@ export class StmtParser {
           }
 
           let vars: NamedValue<GMark>[] = [];
+          let staticVars: NamedValue<GExpr>[] = [];
           let funcDefs: FuncDef[] = [];
+          let staticFuncs: FuncDef[] = [];
           let constructor: FuncDef | null = null;
 
           for (const v of n.members) {
+            const isStatic = parseModifiers(v.modifiers).includes("static");
             if (ts.isPropertyDeclaration(v)) {
               let v1 = v as ts.PropertyDeclaration;
-              vars.push(new NamedValue(getPropertyName(v1.name), parseMark(v1.type, checker)));
+              if(isStatic){
+                staticVars.push(
+                  new NamedValue(getPropertyName(v1.name), new Const("undefined", anyType)))
+              } else {
+                vars.push(new NamedValue(getPropertyName(v1.name), parseMark(v1.type, checker)));
+              }
             } else if (ts.isMethodDeclaration(v) || ts.isAccessor(v)) {
-              funcDefs.push(getSingleton(rec(v).stmts) as FuncDef)
+              let toPush = isStatic ? staticFuncs : funcDefs;
+              toPush.push(getSingleton(rec(v).stmts) as FuncDef)
             } else if (ts.isConstructorDeclaration(v)) {
               constructor = getSingleton(rec(v).stmts) as FuncDef;
             } else if (ts.isSemicolonClassElement(v)){
@@ -665,6 +674,14 @@ export class StmtParser {
               throw new Error("Unknown statements in class definitions: " + SyntaxKind[v.kind]);
             }
           }
+
+          let classModifiers = parseModifiers(n.modifiers);
+          let funcPairs = staticFuncs.map(f => new NamedValue(f.name, f));
+          let allMembers = staticVars.concat(funcPairs);
+          let staticInstance = new ObjLiteral(allMembers);
+          let staticDef = (allMembers.length > 0) ?
+            [new VarDef(name, null, staticInstance, true, classModifiers)] :
+            [];
 
 
           let type_params = n.typeParameters;
@@ -675,8 +692,8 @@ export class StmtParser {
           else
             t_vars = null;
 
-          return EP.alongWith(new ClassDef(name, constructor, vars, funcDefs,
-            superType, parseModifiers(n.modifiers), t_vars));
+          return EP.alongWithMany([new ClassDef(name, constructor, vars, funcDefs,
+            superType, classModifiers, t_vars) as GStmt].concat(staticDef));
         }
         case SyntaxKind.SwitchStatement: {
           let n = node as ts.SwitchStatement;
@@ -764,6 +781,9 @@ function parseModifiers(modifiersNode: ts.ModifiersArray): string[] {
           break;
         case SyntaxKind.ConstKeyword:
           modifiers.push("const");
+          break;
+        case SyntaxKind.StaticKeyword:
+          modifiers.push("static");
           break;
         default:
       }
