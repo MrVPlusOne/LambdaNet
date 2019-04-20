@@ -7,7 +7,7 @@ import scala.language.implicitConversions
 sealed trait GTMark
 
 /** An annotation hole that needs to be inferred. */
-case class GTHole(id: Int) extends GTMark{
+case class GTHole(id: Int) extends GTMark {
   override def toString: String = s"#$id"
 }
 
@@ -95,9 +95,11 @@ case class ObjectType(fields: Map[Symbol, GType]) extends CompoundType {
   * @param subRel     records the currently assumed sub typing relations
   * @param typeUnfold defines how to unfold a type var once
   */
-case class TypeContext(baseTypes: Set[Symbol],
-                       typeUnfold: Map[Symbol, CompoundType],
-                       subRel: Set[(GType, GType)]) {
+case class TypeContext(
+  baseTypes: Set[Symbol],
+  typeUnfold: Map[Symbol, CompoundType],
+  subRel: Set[(GType, GType)]
+) {
 
   def isSubtype(child: GType, parent: GType): Boolean = {
     GType.checkSubtype(child, parent, this).nonEmpty
@@ -111,7 +113,9 @@ case class TypeContext(baseTypes: Set[Symbol],
 
   def newTypeVar(name: Symbol, objectType: CompoundType): TypeContext = {
     if (typeUnfold.contains(name)) {
-      println(s"warning: Redefine type var: ($name, $objectType), old value: ${typeUnfold(name)}")
+      println(
+        s"warning: Redefine type var: ($name, $objectType), old value: ${typeUnfold(name)}"
+      )
     }
     copy(typeUnfold = typeUnfold.updated(name, objectType))
   }
@@ -135,7 +139,11 @@ object GType {
   object API extends GTypeAPI
 
   /** the consistent-subtyping relation */
-  def checkSubtype(child: GType, parent: GType, context: TypeContext): Option[TypeContext] = {
+  def checkSubtype(
+    child: GType,
+    parent: GType,
+    context: TypeContext
+  ): Option[TypeContext] = {
     import context._
 
     if (child == AnyType || parent == AnyType || subRel.contains(child -> parent))
@@ -146,7 +154,8 @@ object GType {
     lazy val context1 = context.copy(subRel = subRel + (child -> parent))
 
     (child, parent) match {
-      case (b1: TyVar, b2: TyVar) if baseTypes.contains(b1.id) && baseTypes.contains(b2.id) =>
+      case (b1: TyVar, b2: TyVar)
+          if baseTypes.contains(b1.id) && baseTypes.contains(b2.id) =>
         if (b1 == b2) Some(context1) else None
       case (TyVar(id), _) =>
         if (typeUnfold.contains(id)) {
@@ -194,15 +203,20 @@ object GType {
   // === GType random sampling ===
 
   val shortSymbolGen: Gen[Symbol] = {
-    for (c <- Gen.alphaChar;
-         suffixLen <- Gen.choose(0, 4);
-         s <- Gen.listOfN(suffixLen, Gen.alphaNumChar)) yield Symbol((c +: s).mkString)
+    for {
+      c <- Gen.alphaChar
+      suffixLen <- Gen.choose(0, 4)
+      s <- Gen.listOfN(suffixLen, Gen.alphaNumChar)
+    } yield Symbol((c +: s).mkString)
   }
 
   val simpleBaseTypes = List('x, 'y, 'z, 'x1, 'x2, 'int, 'number, 'string)
 
   val simpleGroundGen: Gen[GroundType] = {
-    Gen.frequency(1 -> Gen.const(AnyType), 3 -> Gen.oneOf(simpleBaseTypes).map(API.symbol2TyVar))
+    Gen.frequency(
+      1 -> Gen.const(AnyType),
+      3 -> Gen.oneOf(simpleBaseTypes).map(API.symbol2TyVar)
+    )
   }
 
   val simpleNameGen: Gen[Symbol] = {
@@ -220,8 +234,10 @@ object GType {
     Gen.choose(1, math.min(size - 1, 4)).flatMap { argNum =>
       var s0 = size - argNum - 1
       val argGen =
-        for (s1 <- Gen.choose(1, math.max(1, s0 / 2));
-             t <- gTypeGen(s1)) yield {
+        for {
+          s1 <- Gen.choose(1, math.max(1, s0 / 2))
+          t <- gTypeGen(s1)
+        } yield {
           s0 -= s1
           t
         }
@@ -240,9 +256,11 @@ object GType {
     Gen.choose(1, math.min(size, 3)).flatMap { fNum =>
       var s0 = size - fNum - 1
       val fieldGen =
-        for (fieldName <- fNameGen;
-             s1 <- Gen.choose(1, math.max(1, s0));
-             t <- gTypeGen(s1)) yield {
+        for {
+          fieldName <- fNameGen
+          s1 <- Gen.choose(1, math.max(1, s0))
+          t <- gTypeGen(s1)
+        } yield {
           s0 -= s1
           (fieldName, t)
         }
@@ -274,7 +292,11 @@ object GType {
     }
   }
 
-  case class GTypeGenParams(groundGen: Gen[GroundType], fNameGen: Gen[Symbol], tyVarGen: Gen[TyVar])
+  case class GTypeGenParams(
+    groundGen: Gen[GroundType],
+    fNameGen: Gen[Symbol],
+    tyVarGen: Gen[TyVar]
+  )
 
   val abcSymbols = List('A, 'B, 'C)
 
@@ -284,9 +306,10 @@ object GType {
       yield TypeContext(simpleBaseTypes.toSet, subRel = Set(), typeUnfold = map)
   }
 
-  val simpleGenParams = GTypeGenParams(simpleGroundGen, simpleNameGen, Gen.oneOf(abcSymbols).map {
-    TyVar
-  })
+  val simpleGenParams =
+    GTypeGenParams(simpleGroundGen, simpleNameGen, Gen.oneOf(abcSymbols).map {
+      TyVar
+    })
 
   val simpleGTypeGen: Gen[GType] = {
     Gen.sized { size =>
