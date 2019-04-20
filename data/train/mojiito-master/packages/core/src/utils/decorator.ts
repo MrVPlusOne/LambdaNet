@@ -6,7 +6,7 @@
  * found in the LICENSE file at https://angular.io/license
  */
 
-import { global, stringify } from '../facade/lang';
+import { global, stringify } from '../../../facade/src/lang';
 import { ClassType } from '../type';
 
 let _nextClassId = 0;

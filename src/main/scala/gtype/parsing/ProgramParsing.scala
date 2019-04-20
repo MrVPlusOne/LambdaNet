@@ -90,8 +90,9 @@ import gtype.parsing.ProgramParsing._
 
 class ProgramParsing(
   val tHoleContext: TypeHoleContext = new TypeHoleContext(),
-  val marksToHoles: Boolean
 ) {
+
+  val marksToHoles: Boolean = false
 
   def parseContent(content: String): Vector[GStmt] = {
     SimpleMath.withErrorMessage(
@@ -186,7 +187,7 @@ class ProgramParsing(
         //        val resultType = parseType(map("resultType"))
         IfExpr(cond, e1, e2, newTyHole(None))
 
-      case _ => throw new Error("Unhandled GExpr case.")
+      case cat => throw new Error(s"Unhandled GExpr case: $cat")
     }
   }
 

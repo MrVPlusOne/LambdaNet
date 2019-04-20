@@ -163,6 +163,16 @@ class Const implements GExpr {
   }
 }
 
+/** Library constants that's outside of the project */
+class LibConst implements GExpr{
+  category: string = "LibConst";
+
+  constructor(public name: string, public ty: GType) {
+    mustExist(name);
+    mustExist(ty);
+  }
+}
+
 class FuncCall implements GExpr {
   category: string = "FuncCall";
 
@@ -312,9 +322,11 @@ export function parseExpr(node: ts.Node, checker: ts.TypeChecker,
     mustExist(node);
 
     switch (node.kind) {
-      case SyntaxKind.Identifier:
-        let name = tryFullyQualifiedName(node, checker);
+      case SyntaxKind.Identifier: {
+        let n = node as ts.Identifier;
+        let name = n.getText();
         return new Var(name);
+      }
       case SyntaxKind.ThisKeyword:
         return SpecialVars.THIS;
       case SyntaxKind.SuperKeyword:
@@ -676,7 +688,11 @@ export class StmtParser {
           }
 
           let classModifiers = parseModifiers(n.modifiers);
-          let funcPairs = staticFuncs.map(f => new NamedValue(f.name, f));
+
+          let funcPairs = staticFuncs.map(f =>
+            new NamedValue(f.name, new Var(name + "." + f.name)));
+          staticFuncs.forEach(f => f.name = name + "." + f.name)
+
           let allMembers = staticVars.concat(funcPairs);
           let staticInstance = new ObjLiteral(allMembers);
           let staticDef = (allMembers.length > 0) ?
@@ -693,7 +709,7 @@ export class StmtParser {
             t_vars = null;
 
           return EP.alongWithMany([new ClassDef(name, constructor, vars, funcDefs,
-            superType, classModifiers, t_vars) as GStmt].concat(staticDef));
+            superType, classModifiers, t_vars) as GStmt].concat(staticFuncs).concat(staticDef));
         }
         case SyntaxKind.SwitchStatement: {
           let n = node as ts.SwitchStatement;
@@ -748,11 +764,11 @@ export class StmtParser {
         //todo: support these
         case SyntaxKind.ForOfStatement:
         case SyntaxKind.ForInStatement:
+        case SyntaxKind.InterfaceDeclaration:
           return EP.alongWith(new CommentStmt(node.getText()));
 
         // ignored statements:
         case SyntaxKind.BreakStatement:
-        case SyntaxKind.InterfaceDeclaration:
           return EP.alongWith(new CommentStmt(node.getText()));
 
         default:
@@ -856,4 +872,22 @@ export function parseFiles(sources: string[], libraryFiles: string[]): GModule[]
     });
     return new GModule(sources[index], stmts);
   });
+}
+
+export function parseEnvironments(content: string){
+  let src = ts.createSourceFile("temp.ts", content,
+    ts.ScriptTarget.ES2018, true, ts.ScriptKind.TS);
+  let program = ts.createProgram([], {
+    target: ts.ScriptTarget.ES2018,
+    module: ts.ModuleKind.CommonJS
+  });
+
+
+  let checker = program.getTypeChecker();
+  let stmt = src.statements[0];
+  let values = checker.getSymbolsInScope(stmt, ts.SymbolFlags.Value);
+  console.log(values);
+  values.forEach(v => {
+
+  })
 }

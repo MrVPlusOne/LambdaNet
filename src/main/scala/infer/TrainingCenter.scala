@@ -12,13 +12,12 @@ import gtype.EventLogger.PlotConfig
 import gtype._
 import infer.GraphEmbedding._
 import infer.IRTranslation.TranslationEnv
-
 import scala.collection.mutable
 import scala.collection.parallel.ForkJoinTaskSupport
 import ammonite.ops._
 import infer.IR.{IRModule, IRTypeId}
 import infer.PredicateGraph.{PredicateModule, TypeLabel}
-import infer.PredicateGraphConstruction.ParsedProject
+import infer.PredicateGraphConstruction.{ParsedProject, PathMapping}
 
 import scala.concurrent.ExecutionContextExecutorService
 
@@ -83,7 +82,10 @@ object TrainingCenter {
 
     val trainParsed = trainRoots.map { r =>
       infer.PredicateGraphConstruction
-        .fromSourceFiles(r, libraryTypes = libraryTypes.map(TyVar))
+        .fromSourceFiles(
+          r,
+          libraryTypes = libraryTypes.map(TyVar),
+        )
     }
 
     val testRoots = Vector(pwd / RelPath("data/test/algorithms-test"))

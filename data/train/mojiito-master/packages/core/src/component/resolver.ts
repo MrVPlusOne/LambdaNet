@@ -60,7 +60,7 @@ export class ComponentResolver {
       });
     });
 
-    const resolved = new Component({
+    const resolved = /*new Component*/({
       selector: meta.selector,
       host: meta.host ? StringMapWrapper.merge(meta.host, host) : host,
       childs: meta.childs ? StringMapWrapper.merge(meta.childs, childs) : childs,

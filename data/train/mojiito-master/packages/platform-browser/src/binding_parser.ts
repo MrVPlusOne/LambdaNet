@@ -1,6 +1,6 @@
-import { Injectable } from 'mojiito-core';
+import { Injectable } from '../../core/src/core'; //'mojiito-core';
 import { Expression, ExpressionParser } from './expression/expression';
-import { isPresent } from './facade/lang';
+import { isPresent } from '../../facade/src/lang';
 
 // tslint:disable-next-line:max-line-length
 const BIND_NAME_REGEXP = /^(?:(?:(?:(bind-)|(let-)|(ref-|#)|(on-)|(bindon-)|(@))(.+))|\[\(([^\)]+)\)\]|\[([^\]]+)\]|\(([^\)]+)\))$/;

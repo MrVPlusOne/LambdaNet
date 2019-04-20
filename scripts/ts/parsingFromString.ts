@@ -5,8 +5,12 @@ import {flattenBlock, GStmt} from "./parsing";
 
 let content = process.argv[2];
 
-let source = ts.createSourceFile("temp.ts", content, ts.ScriptTarget.ES5, true, ts.ScriptKind.TS);
-let program = ts.createProgram([], {});
+let source = ts.createSourceFile("temp.ts", content,
+  ts.ScriptTarget.ES2018, true, ts.ScriptKind.TS);
+let program = ts.createProgram([], {
+  target: ts.ScriptTarget.ES2018,
+  module: ts.ModuleKind.CommonJS
+});
 let checker = program.getTypeChecker();
 
 let out: GStmt[] = [];

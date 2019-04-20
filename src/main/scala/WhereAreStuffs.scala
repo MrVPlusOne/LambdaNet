@@ -15,12 +15,14 @@ import infer.IR.IRModule
   *
   *   ### Surface Language to Intermediate Representations
   *   * All the exports are collected and stored in [[IR.ModuleExports]] during this stage.
+  *   * All the user annotations are put into [[gtype.GStmt.TypeAnnotation]]s.
   *   [[IRTranslation.collectExports]]: Collects the top level exports of a module.
   *   [[IRTranslation.translateModule]]: Translates a [[GModule]] into an [[IRModule]].
   *   [[IRTranslation.TranslationEnv]]: Used during the translation to allocate new [[IR.Var]]s, [[IR.IRType]]s, and [[GTHole]]s.
   *
   *   ### Intermediate Representations to PredicateGraphs
   *   * All the import statements are resolved in this stage.
+  *   * All the [[gtype.GStmt.TypeAnnotation]]s are converted into typeLabels.
   *   [[PredicateGraphConstruction.resolveImports]]: Resolves all the imports and put the imported [[IR.IRType]]s into the [[PredicateGraphConstruction.PredicateContext]].
   *   [[PredicateGraphConstruction.encodeModules]]: Encodes a list of [[IRModule]]s into [[PredicateGraph.PredicateModule]]s.
   *

@@ -160,6 +160,17 @@ object PredicateGraphConstruction {
   import ammonite.ops._
   import gtype.parsing.ProgramParsing
 
+  trait PathMapping {
+    def map(currentPath: ProjectPath, pathToResolve: ProjectPath): ProjectPath
+  }
+
+  object PathMapping {
+    def identity: PathMapping =
+      (currentPath: ProjectPath, pathToResolve: ProjectPath) => {
+        currentPath / pathToResolve
+      }
+  }
+
   case class PredicateContext(
     varTypeMap: Map[Var, IRType],
     newTypeMap: Map[ClassName, IRType]
@@ -179,10 +190,15 @@ object PredicateGraphConstruction {
             Some(TypeAnnotation(t, needInfer = false))
           )
       }
-      //      val objDef = JSExamples.typeContext.typeUnfold.keys
-      //        .map(s => s -> env.newTyVar(None, Some(s), Some(TyVar(s))))
-      //        .toMap
-      PredicateContext(typeMap, Map())
+      val objDef = JSExamples.typeContext.typeUnfold.keys.map { s =>
+        s ->
+          env.newTyVar(
+            None,
+            Some(s),
+            Some(TypeAnnotation(TyVar(s), needInfer = false))
+          )
+      }.toMap
+      PredicateContext(typeMap, objDef)
     }
   }
 
@@ -196,13 +212,15 @@ object PredicateGraphConstruction {
   def fromModules(
     projectName: String,
     modules: Seq[GModule],
-    libraryTypes: Set[GType]
+    libraryTypes: Set[GType],
+    pathMapping: PathMapping
   ): ParsedProject = {
     val env = new TranslationEnv()
     val irModules = modules.map(m => IRTranslation.translateModule(m)(env)).toVector
 
     val ctx = PredicateContext.jsCtx(env)
-    val pModules = PredicateGraphConstruction.encodeModules(irModules, ctx, libraryTypes)
+    val pModules =
+      PredicateGraphConstruction.encodeModules(irModules, ctx, libraryTypes, pathMapping)
 
     ParsedProject(projectName, env, irModules, pModules)
   }
@@ -211,7 +229,8 @@ object PredicateGraphConstruction {
     root: Path,
     libraryFiles: Set[ProjectPath] = Set(),
     libraryTypes: Set[GType] = JSExamples.libraryTypes.map(TyVar),
-    excludeIndexFile: Boolean = true
+    excludeIndexFile: Boolean = true,
+    pathMapping: PathMapping = PathMapping.identity
   ): ParsedProject = {
     val indexFileNames = Set("index.ts", "public_api.ts")
 
@@ -225,14 +244,14 @@ object PredicateGraphConstruction {
       }
       .filterNot(f => excludeIndexFile && indexFileNames.contains(f.last))
       .map(_.relativeTo(root))
-    val parser = new ProgramParsing(marksToHoles = false)
+    val parser = new ProgramParsing()
     val modules = parser.parseModulesFromFiles(
       sources,
       libraryFiles,
       root
     )
 
-    fromModules(root.last, modules, libraryTypes)
+    fromModules(root.last, modules, libraryTypes, pathMapping)
   }
 
   /** Try to turn export statements into export definitions, may need multiple
@@ -250,7 +269,7 @@ object PredicateGraphConstruction {
             ex.terms.get(oldName).foreach { tv =>
               newDefs = newDefs.updated((newName, ExportCategory.Term), tv)
             }
-            ex.typeAliases.get(oldName).foreach{ tv =>
+            ex.typeAliases.get(oldName).foreach { tv =>
               newDefs = newDefs.updated((newName, ExportCategory.TypeAlias), tv)
             }
           case ExportOtherModule(from) =>
@@ -266,18 +285,16 @@ object PredicateGraphConstruction {
     module: IRModule,
     baseCtx: PredicateContext,
     allModules: Map[ProjectPath, IRModule],
-    maxIteration: Int = 10
+    pathMapping: PathMapping
   ): PredicateContext = {
     var varTypeMap = baseCtx.varTypeMap
     var newTypeMap = baseCtx.newTypeMap
     val currentDir = module.path / ammonite.ops.up
 
-    val processedModules = Vector.iterate(allModules, maxIteration)(processExports).last
-
     def getExports(path: ProjectPath): ModuleExports = {
-      processedModules
+      allModules
         .getOrElse(
-          currentDir / path,
+          pathMapping.map(currentDir, path),
           throw new Error(s"Cannot find source file: '${currentDir / path}'.")
         )
         .exports
@@ -288,17 +305,23 @@ object PredicateGraphConstruction {
     module.imports.foreach {
       case ImportSingle(oldName, path, newName) =>
         val exports = getExports(path)
-        exports.terms.get(oldName).foreach(t => {
-          varTypeMap = varTypeMap.updated(Var(Right(newName)), t)
-        })
-        exports.typeAliases.get(oldName).foreach(t => {
-          newTypeMap = newTypeMap.updated(newName, t)
-        })
-        exports.classes.get(oldName).foreach(t => {
-          newTypeMap = newTypeMap.updated(newName, t)
-          val constructorT = exports.terms(constructorName(oldName))
-          varTypeMap += (Var(Right(constructorName(newName))) -> constructorT)
-        })
+        exports.terms
+          .get(oldName)
+          .foreach(t => {
+            varTypeMap = varTypeMap.updated(Var(Right(newName)), t)
+          })
+        exports.typeAliases
+          .get(oldName)
+          .foreach(t => {
+            newTypeMap = newTypeMap.updated(newName, t)
+          })
+        exports.classes
+          .get(oldName)
+          .foreach(t => {
+            newTypeMap = newTypeMap.updated(newName, t)
+            val constructorT = exports.terms(constructorName(oldName))
+            varTypeMap += (Var(Right(constructorName(newName))) -> constructorT)
+          })
       case ImportModule(path, newName) =>
         val exports = getExports(path)
         varTypeMap = varTypeMap ++ exports.terms.map {
@@ -326,23 +349,30 @@ object PredicateGraphConstruction {
   def encodeModules(
     modules: Seq[IRModule],
     baseCtx: PredicateContext,
-    libraryTypes: Set[GType]
+    libraryTypes: Set[GType],
+    pathMapping: PathMapping,
+    maxIteration: Int = 10
   ): Vector[PredicateModule] = {
-    val irModules = modules.map(m => m.path -> m).toMap
-    //todo: properly handle export statements, currently ignored
-    modules.toVector.map { module =>
-      SimpleMath.withErrorMessage(
-        s"Predicate Graph Construction failed for module: '${module.path}'"
-      ) {
-        val (predicates, ctx1, labels) =
-          encodeIR(
-            module.stmts,
-            resolveImports(module, baseCtx, irModules),
-            libraryTypes
-          )
-        val newTypes = ctx1.newTypeMap.map(_.swap)
-        PredicateModule(module.path, predicates, newTypes, labels)
-      }
+
+    val irModules = {
+      val init = modules.map(m => m.path -> m).toMap
+      Vector.iterate(init, maxIteration)(processExports).last
+    }
+
+    irModules.toVector.map {
+      case (path, module) =>
+        SimpleMath.withErrorMessage(
+          s"Predicate Graph Construction failed for module: '$path'"
+        ) {
+          val (predicates, ctx1, labels) =
+            encodeIR(
+              module.stmts,
+              resolveImports(module, baseCtx, irModules, pathMapping),
+              libraryTypes
+            )
+          val newTypes = ctx1.newTypeMap.map(_.swap)
+          PredicateModule(module.path, predicates, newTypes, labels)
+        }
     }
   }
 

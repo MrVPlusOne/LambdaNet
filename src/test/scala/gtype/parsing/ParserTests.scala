@@ -6,6 +6,8 @@ import ammonite.ops._
 import infer.IRTranslation.{TranslationEnv, translateStmt}
 import infer.{IRTranslation, PredicateGraphConstruction}
 import ImportStmt._
+import gtype.GModule.ProjectPath
+import infer.PredicateGraphConstruction.PathMapping
 
 class ParserTests extends WordSpec with MyTest {
   def testParsing(printResult: Boolean)(pairs: (String, Class[_])*): Unit = {
@@ -19,7 +21,7 @@ class ParserTests extends WordSpec with MyTest {
     val (lines0, cls) = pairs.unzip
     val lines = lines0.toArray
     val parsed =
-      new ProgramParsing(marksToHoles = false).parseContent(lines.mkString("\n"))
+      new ProgramParsing().parseContent(lines.mkString("\n"))
     parsed.zip(cls).zipWithIndex.foreach {
       case ((r, c), i) =>
         assert(
@@ -39,7 +41,7 @@ class ParserTests extends WordSpec with MyTest {
       .filter(_.ext == "ts")
       .map(_.relativeTo(projectRoot))
 
-    val modules = new ProgramParsing(marksToHoles = false).parseModulesFromFiles(
+    val modules = new ProgramParsing().parseModulesFromFiles(
       files,
       Set(),
       projectRoot,
@@ -50,7 +52,7 @@ class ParserTests extends WordSpec with MyTest {
       module.stmts.foreach(println)
     }
 
-    val modules2 = new ProgramParsing(marksToHoles = false)
+    val modules2 = new ProgramParsing()
       .parseModulesFromJson(read(projectRoot / "parsed.json"))
     assert(modules == modules2, "Two parses do not match.")
   }
@@ -76,7 +78,7 @@ class ParserTests extends WordSpec with MyTest {
         |new A(1,2);
       """.stripMargin
 
-    val stmts = new ProgramParsing(marksToHoles = false).parseContent(content)
+    val stmts = new ProgramParsing().parseContent(content)
     stmts.foreach(println)
     val env = new TranslationEnv()
 
@@ -189,6 +191,21 @@ class ParserTests extends WordSpec with MyTest {
       }
   }
 
+  "LibConst parsing tests" in {
+    val root = pwd / RelPath("data/tests/lib-const")
+    infer.PredicateGraphConstruction
+      .fromSourceFiles(root)
+      .predModules
+      .foreach { m =>
+        println(m.display)
+      }
+  }
+
+  "EnvDef parsing" in {
+    val r = %%('node, "./getEnvDefs.js", "String;")(pwd / 'scripts / 'ts)
+    println(r)
+  }
+
   "Project parsing integration test" in {
     val projectRoots = Seq(
       "data/train/mojiito-master/packages",
@@ -197,7 +214,16 @@ class ParserTests extends WordSpec with MyTest {
 
     projectRoots.foreach(r => {
       infer.PredicateGraphConstruction
-        .fromSourceFiles(r)
+        .fromSourceFiles(r, pathMapping = new PathMapping {
+          def map(currentPath: ProjectPath, pathToResolve: ProjectPath): ProjectPath = {
+            val target = currentPath / pathToResolve
+            if(target.startsWith(RelPath("core/src/facade"))){
+              RelPath("facade/src") / target.segments.drop(3)
+            }else{
+              target
+            }
+          }
+        })
     })
 
   }

@@ -52,12 +52,19 @@ object JSExamples {
 
   val SUPER: Symbol = ClassDef.superSymbol
 
+  def baseType(name: Symbol): (Symbol, CompoundType) = {
+    name -> obj(Symbol(name.name + "_UNIQUE") -> name)
+  }
+
   val typeContext = TypeContext(
     baseTypes = Set(),
     typeUnfold = Map(
-      function -> obj('Function_UNIQUE -> function),
-      boolean -> obj('Bool_UNIQUE -> boolean),
-      void -> obj('Void_UNIQUE -> void),
+      baseType(function), //fixme: not an object
+      baseType('Error),
+      baseType('Map),
+      baseType('Window),
+      baseType(void),
+      baseType(boolean),
       number -> obj(
         'OP_Plus -> (List(number) -: number),
         'OP_Minus -> (List(number) -: number),
@@ -84,6 +91,7 @@ object JSExamples {
 
   val exprContext: ExprContext = {
     val varAssign = Map[Symbol, GType](
+      THIS -> any,
       'undefined -> any,
       'eq -> (List(any, any) -: boolean),
       'OP_Not -> (List(any) -: boolean),
@@ -109,12 +117,27 @@ object JSExamples {
       '$Case -> (List(number) -: void),
       '$Switch -> (List(number) -: void),
       '$Delete -> (List(any) -: void),
-      //todo: properly handle these:
+      'parseInt -> (List(string, number) -: number),
+      'isNaN -> (List(number) -: boolean),
+      'parseFloat -> (List(string) -: number),
+      //todo: properly handle these: (also inject library knowledge)
       'String -> any,
       'Object -> any,
       'Number -> (List(any) -: number),
       function -> (List(any) -: function),
-      'Array -> (List(number) -: 'Array)
+      'Array -> (List(number) -: 'Array),
+      'Error -> any,
+      'HTMLElement -> any,
+      'window -> 'Window,
+      'global -> 'Window,
+      'self -> 'Window,
+      'Injector -> any,
+      'ReflectiveInjector -> any,
+      'ReflectiveInjector_ -> any,
+      ClassDef.constructorName('undefined) -> any,
+      ClassDef.constructorName('Object) -> (List() -: 'Object),
+      ClassDef.constructorName('Map) -> (List() -: 'Map),
+      ClassDef.constructorName('Error) -> (List(string) -: 'Error),
     )
 
     ExprContext(varAssign, typeContext)
