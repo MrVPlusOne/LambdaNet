@@ -46,7 +46,7 @@ class AnyType implements GType {
 class FuncType implements GType {
   public category = "FuncType";
 
-  constructor(public fro: GMark[], public to: GMark) {
+  constructor(public fro: GMark[], public to: GMark) { //todo: check if can replace GMark with GType
 
   }
 }
@@ -69,7 +69,33 @@ basicTypes.add(SyntaxKind.SymbolKeyword);
 basicTypes.add(SyntaxKind.EnumKeyword);
 basicTypes.add(SyntaxKind.VoidKeyword);
 
-function parseType(node: ts.TypeNode, checker: ts.TypeChecker): GType {
+function parseTVars(n: {typeParameters? : ts.NodeArray<ts.TypeParameterDeclaration> }): string[] {
+  return n.typeParameters ? n.typeParameters.map(p => p.name.text) : [];
+}
+
+function parseTypeMembers(members: ts.NodeArray<ts.TypeElement>): { [k: string]: GType } {
+  let fields: { [k: string]: GMark } = {};
+  members.forEach(
+    x => {
+      if (x.name != undefined)
+        fields[x.name.getText()] = parseType((x as ts.PropertySignature).type);
+      else if(x.kind == SyntaxKind.IndexSignature){
+        let sig = x as ts.IndexSignatureDeclaration;
+        let argTypes = sig.parameters.map(p => parseType(p.type));
+        let retType = parseType(sig.type);
+        let t = new FuncType(argTypes, retType); //todo: handle potential type parameters
+        fields["access"] = t;
+      } else {
+        console.log("Unknown type element: " + ts.SyntaxKind[x.kind])
+      }
+      // else throw new Error("members without a name: " + node.getText()); todo: uncomment and handle other cases
+    }
+  );
+
+  return fields;
+}
+
+function parseType(node: ts.TypeNode): GType {
   if(node.kind == SyntaxKind.AnyKeyword){
     return anyType;
   } else if (ts.isTypeReferenceNode(node)){
@@ -82,41 +108,22 @@ function parseType(node: ts.TypeNode, checker: ts.TypeChecker): GType {
   } else if (node.kind == SyntaxKind.FunctionType || node.kind == SyntaxKind.ConstructorType) {
     let n = node as ts.FunctionOrConstructorTypeNode;
 
-    let ret: GMark = parseType(n.type, checker);
+    let ret: GMark = parseType(n.type);
     let args: GMark[] = n.parameters.map(p => {
-      return parseType(p.type, checker)
+      return parseType(p.type)
     });
 
     return new FuncType(args, ret);
   } else if (node.kind == SyntaxKind.TypeLiteral) {
-
-    let fields: { [k: string]: GMark } = {};
-
     let n = node as ts.TypeLiteralNode;
-    n.members.forEach(
-      x => {
-        if (x.name != undefined)
-          fields[x.name.getText()] = parseType((x as ts.PropertySignature).type, checker);
-        else if(x.kind == SyntaxKind.IndexSignature){
-          let sig = x as ts.IndexSignatureDeclaration;
-          let argTypes = sig.parameters.map(p => parseType(p.type, checker));
-          let retType = parseType(sig.type, checker);
-          let t = new FuncType(argTypes, retType); //todo: handle potential type parameters
-          fields["access"] = t;
-        } else {
-          console.log("Unknown type element: " + ts.SyntaxKind[x.kind])
-        }
-        // else throw new Error("members without a name: " + node.getText()); todo: uncomment and handle other cases
-      }
-    );
-
-    return new ObjectType(fields)
+    let members = parseTypeMembers(n.members);
+    return new ObjectType(members);
   } else if (node.kind == SyntaxKind.UnionType){
     let n = node as ts.UnionTypeNode;
     if(n.types.length == 2){
       let second = n.types[1].getText();
       if(second == "null" || second == "undefined"){
-        return parseType(n.types[0], checker);
+        return parseType(n.types[0]);
       }else{
         return anyType;
       }
@@ -124,7 +131,7 @@ function parseType(node: ts.TypeNode, checker: ts.TypeChecker): GType {
     return anyType;
   } else if(node.kind == SyntaxKind.ParenthesizedType){
     let n = node as ts.ParenthesizedTypeNode;
-    return parseType(n.type, checker);
+    return parseType(n.type);
   } else if (node.kind == SyntaxKind.FirstTypeNode){
     return new TVar("boolean");
   } else{
@@ -134,7 +141,7 @@ function parseType(node: ts.TypeNode, checker: ts.TypeChecker): GType {
 
 export function parseMark(node: ts.TypeNode, checker: ts.TypeChecker): GMark {
   if (!node) return null;
-  else return parseType(node, checker);
+  else return parseType(node);
 }
 
 
@@ -263,9 +270,9 @@ class ExportStmt implements GStmt {
 class TypeAliasStmt implements GStmt {
   category: string = "TypeAliasStmt";
 
-  constructor(public name: string, public tVars: string[], public type: GType) {
+  constructor(public name: string, public tyVars: string[], public type: GType) {
     mustExist(name);
-    mustExist(tVars);
+    mustExist(tyVars);
     mustExist(type);
   }
 }
@@ -700,16 +707,9 @@ export class StmtParser {
             [];
 
 
-          let type_params = n.typeParameters;
-          let t_vars: string[];
-
-          if (type_params)
-            t_vars = type_params.map(x => x.name.text);
-          else
-            t_vars = null;
-
+          let tVars = parseTVars(n);
           return EP.alongWithMany([new ClassDef(name, constructor, vars, funcDefs,
-            superType, classModifiers, t_vars) as GStmt].concat(staticFuncs).concat(staticDef));
+            superType, classModifiers, tVars) as GStmt].concat(staticFuncs).concat(staticDef));
         }
         case SyntaxKind.SwitchStatement: {
           let n = node as ts.SwitchStatement;
@@ -747,10 +747,17 @@ export class StmtParser {
           return EP.alongWith(new VarDef(n.name.text, null, rhs,
             true, parseModifiers(n.modifiers)));
         }
+        case SyntaxKind.InterfaceDeclaration: {
+          let n = node as ts.InterfaceDeclaration;
+          let tVars = parseTVars(n);
+          let members = parseTypeMembers(n.members);
+          let objT = new ObjectType(members);
+          return EP.alongWith(new TypeAliasStmt(n.name.text, tVars, objT));
+        }
         case SyntaxKind.TypeAliasDeclaration: {
           let n = node as ts.TypeAliasDeclaration;
-          let tVars = n.typeParameters ? n.typeParameters.map(p => p.name.text) : [];
-          return EP.alongWith(new TypeAliasStmt(n.name.text, tVars, parseMark(n.type, checker)));
+          let tVars = parseTVars(n);
+          return EP.alongWith(new TypeAliasStmt(n.name.text, tVars, parseType(n.type)));
         }
         case SyntaxKind.TryStatement:{
           let n = node as ts.TryStatement;
@@ -764,8 +771,6 @@ export class StmtParser {
         //todo: support these
         case SyntaxKind.ForOfStatement:
         case SyntaxKind.ForInStatement:
-        case SyntaxKind.InterfaceDeclaration:
-          return EP.alongWith(new CommentStmt(node.getText()));
 
         // ignored statements:
         case SyntaxKind.BreakStatement:

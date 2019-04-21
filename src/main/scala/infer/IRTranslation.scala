@@ -32,6 +32,7 @@ object IRTranslation {
     //noinspection TypeAnnotation
     val tyVarHoleMap = mutable.HashMap[IRTypeId, GTHole]()
 
+    val typeAlias = ??? //fixme
     /**
       * Create and register a new [[IRType]].
       */

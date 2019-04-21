@@ -12,6 +12,15 @@ class FieldTest{
   }
 }
 
+interface A {
+  foo: number;
+  bar: number;
+}
+
+type B = {foo: number; bar: number};
+
+let x: A = {foo: 5, bar: 4};
+
 class FieldTest2{
   f1: boolean;
   f2: number;

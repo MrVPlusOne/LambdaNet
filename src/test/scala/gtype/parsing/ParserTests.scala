@@ -59,9 +59,13 @@ class ParserTests extends WordSpec with MyTest {
 
   "Expressions parsing test" in {
     val content =
-      """
+      """type A = (_: number) => number;
         |class Generics {
         |  id<T>(x: T): T {}
+        |}
+        |interface A {
+        |  foo: number;
+        |  bar: number;
         |}
         |let x = {a: 1, b: {c: "x"}};
         |let myAdd: (x: number, y: number) => number = undefined;

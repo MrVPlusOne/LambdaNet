@@ -256,6 +256,11 @@ class ProgramParsing(
           val tyVars = asVector(map("tyVars")).map(asSymbol).toList
           val ms = parseModifiers(map("modifiers"))
           FuncDef(name, tyVars, args, returnType, body, ms.exportLevel)
+        case "TypeAliasStmt" =>
+          val name = Symbol(asString(map("name")))
+          val tyVars = asVector(map("tyVars")).map(asSymbol).toList
+          val ty = parseType(map("type"))
+          TypeAliasStmt(name, tyVars, ty)
         case "ClassDef" =>
           val name = asSymbol(map("name"))
           val superType = asOptionSymbol(map("superType"))

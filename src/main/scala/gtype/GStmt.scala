@@ -83,6 +83,12 @@ case class ClassDef(
   require(constructor.returnType == GType.voidType, s"Get: ${constructor.returnType}")
 }
 
+case class TypeAliasStmt(
+  name: Symbol,
+  tyVars: List[Symbol],
+  ty: GType
+) extends GStmt
+
 object ClassDef {
   val thisSymbol = 'this
   val superSymbol = 'super
@@ -159,11 +165,14 @@ object GStmt {
             fDef => prettyPrintHelper(indent + 1, fDef)
           ) ++
           Vector(indent -> "}")
+      case TypeAliasStmt(name, tyVars, ty) =>
+        val tyVarList = if(tyVars.isEmpty) "" else tyVars.map(_.name).mkString("<", ",", ">")
+        Vector(indent -> s"type ${name.name}$tyVarList = $ty;")
     }
   }
 
   def tyVarClause(tyVars: List[Symbol]): String = {
-    if(tyVars.isEmpty) ""
+    if (tyVars.isEmpty) ""
     else tyVars.map(_.name).mkString("<", ", ", ">")
   }
 
@@ -205,9 +214,9 @@ object GStmt {
     }
   }
 
-  case class TypeAnnotation(ty: GType, needInfer: Boolean){
+  case class TypeAnnotation(ty: GType, needInfer: Boolean) {
     override def toString: String = {
-      s"$ty${if(needInfer) "*" else ""}"
+      s"$ty${if (needInfer) "*" else ""}"
     }
   }
 
