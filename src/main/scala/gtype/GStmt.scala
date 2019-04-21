@@ -86,7 +86,8 @@ case class ClassDef(
 case class TypeAliasStmt(
   name: Symbol,
   tyVars: List[Symbol],
-  ty: GType
+  ty: GType,
+  level: ExportLevel.Value
 ) extends GStmt
 
 object ClassDef {
@@ -165,9 +166,9 @@ object GStmt {
             fDef => prettyPrintHelper(indent + 1, fDef)
           ) ++
           Vector(indent -> "}")
-      case TypeAliasStmt(name, tyVars, ty) =>
+      case TypeAliasStmt(name, tyVars, ty, level) =>
         val tyVarList = if(tyVars.isEmpty) "" else tyVars.map(_.name).mkString("<", ",", ">")
-        Vector(indent -> s"type ${name.name}$tyVarList = $ty;")
+        Vector(indent -> s"${asPrefix(level)}type ${name.name}$tyVarList = $ty;")
     }
   }
 

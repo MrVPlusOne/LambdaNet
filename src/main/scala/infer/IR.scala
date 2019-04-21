@@ -11,7 +11,7 @@ import gtype.GStmt.TypeAnnotation
 object IR {
 
   type IRTypeId = Int
-  type ClassName = Symbol
+  type TypeName = Symbol
 
   case class IRModule(
     path: ProjectPath,
@@ -67,7 +67,7 @@ object IR {
   case class ModuleExports(
     definitions: Map[(Symbol, ExportCategory.Value), IRType],
     defaultVar: Option[(Var, IRType)],
-    defaultType: Option[(ClassName, IRType)]
+    defaultType: Option[(TypeName, IRType)]
   ) {
     lazy val terms: Map[Symbol, IRType] = definitions.toIterator.collect {
       case ((n, ExportCategory.Term), t) => n -> t
@@ -214,6 +214,12 @@ object IR {
     require(constructor.returnType == classT)
   }
 
+  case class TypeAliasIRStmt(aliasT: IRType, level: ExportLevel.Value) extends IRStmt {
+    require(aliasT.annotation.nonEmpty)
+
+    val name: TypeName = aliasT.name.get
+  }
+
   object ClassDef {
     val thisVar = namedVar(gtype.ClassDef.thisSymbol)
     val superVar = namedVar(gtype.ClassDef.superSymbol)
@@ -260,6 +266,8 @@ object IR {
               fDef => prettyPrintHelper(indent + 1, fDef)
             ) ++
             Vector(indent -> "}")
+        case TypeAliasIRStmt(aliasT, level) =>
+          Vector(indent -> s"${asPrefix(level)}alias: $aliasT;")
       }
     }
   }

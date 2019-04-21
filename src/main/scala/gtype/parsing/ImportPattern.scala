@@ -76,11 +76,11 @@ object ExportPattern {
       case "ExportStmt" =>
         val str = StringContext.treatEscapes(asString(map("text")))
         Some(parseExports(str))
-      case "TypeAliasStmt" =>
-        val name = Symbol(asString(map("name")))
-        val tVars = asVector(map("tVars")).map(asSymbol)
-        val `type` = ProgramParsing.parseType(map("type"))
-        Some(Vector(ExportTypeAlias(name, tVars, `type`)))
+//      case "TypeAliasStmt" =>
+//        val name = Symbol(asString(map("name")))
+//        val tVars = asVector(map("tyVars")).map(asSymbol)
+//        val `type` = ProgramParsing.parseType(map("type"))
+//        Some(Vector(ExportTypeAlias(name, tVars, `type`)))
       case _ => None
     }
   }

@@ -46,7 +46,7 @@ class AnyType implements GType {
 class FuncType implements GType {
   public category = "FuncType";
 
-  constructor(public fro: GMark[], public to: GMark) { //todo: check if can replace GMark with GType
+  constructor(public fro: GType[], public to: GType) {
 
   }
 }
@@ -54,7 +54,7 @@ class FuncType implements GType {
 class ObjectType implements GType {
   public category = "ObjectType";
 
-  constructor(public fields: { [k: string]: GMark }) {
+  constructor(public fields: { [k: string]: GType }) {
 
   }
 }
@@ -73,18 +73,33 @@ function parseTVars(n: {typeParameters? : ts.NodeArray<ts.TypeParameterDeclarati
   return n.typeParameters ? n.typeParameters.map(p => p.name.text) : [];
 }
 
-function parseTypeMembers(members: ts.NodeArray<ts.TypeElement>): { [k: string]: GType } {
-  let fields: { [k: string]: GMark } = {};
+function parseSignatureType(sig: ts.SignatureDeclarationBase){
+  //todo: handle potential type parameters
+  let argTypes = sig.parameters.map(p => parseType(p.type));
+  let retType = parseType(sig.type);
+  return new FuncType(argTypes, retType);
+}
+
+function parseTypeMembers(members: ts.NamedDeclaration[]): { [k: string]: GType } {
+  let fields: { [k: string]: GType } = {};
   members.forEach(
     x => {
-      if (x.name != undefined)
-        fields[x.name.getText()] = parseType((x as ts.PropertySignature).type);
-      else if(x.kind == SyntaxKind.IndexSignature){
-        let sig = x as ts.IndexSignatureDeclaration;
-        let argTypes = sig.parameters.map(p => parseType(p.type));
-        let retType = parseType(sig.type);
-        let t = new FuncType(argTypes, retType); //todo: handle potential type parameters
-        fields["access"] = t;
+      if (x.name != undefined){
+        if(SyntaxKind.PropertyDeclaration == x.kind || SyntaxKind.PropertySignature == x.kind){
+          let pT = (x as any).type;
+          fields[x.name.getText()] = pT ? parseType(pT) : anyType;
+        }else if(SyntaxKind.MethodSignature == x.kind || SyntaxKind.MethodDeclaration == x.kind){
+          fields[x.name.getText()] = parseSignatureType(x as ts.MethodSignature);
+        }else{
+          throw new Error("Unknown type member kind: " + SyntaxKind[x.kind])
+        }
+      }
+      else if([SyntaxKind.IndexSignature, SyntaxKind.CallSignature,
+        SyntaxKind.ConstructSignature].includes(x.kind)){
+        let sig = x as ts.IndexSignatureDeclaration | ts.CallSignatureDeclaration | ts.ConstructSignatureDeclaration;
+        let methodName = x.kind == SyntaxKind.IndexSignature ? "access"
+          : (x.kind == SyntaxKind.ConstructSignature ? "construct" : "call");
+        fields[methodName] = parseSignatureType(sig);
       } else {
         console.log("Unknown type element: " + ts.SyntaxKind[x.kind])
       }
@@ -116,7 +131,7 @@ function parseType(node: ts.TypeNode): GType {
     return new FuncType(args, ret);
   } else if (node.kind == SyntaxKind.TypeLiteral) {
     let n = node as ts.TypeLiteralNode;
-    let members = parseTypeMembers(n.members);
+    let members = parseTypeMembers(n.members as any);
     return new ObjectType(members);
   } else if (node.kind == SyntaxKind.UnionType){
     let n = node as ts.UnionTypeNode;
@@ -134,7 +149,9 @@ function parseType(node: ts.TypeNode): GType {
     return parseType(n.type);
   } else if (node.kind == SyntaxKind.FirstTypeNode){
     return new TVar("boolean");
-  } else{
+  } else if (node.kind == SyntaxKind.TypeQuery) {
+    return anyType // fixme: handle type query
+  } else {
     throw new Error("Unknown Type Kind: " + ts.SyntaxKind[node.kind]);
   }
 }
@@ -270,10 +287,11 @@ class ExportStmt implements GStmt {
 class TypeAliasStmt implements GStmt {
   category: string = "TypeAliasStmt";
 
-  constructor(public name: string, public tyVars: string[], public type: GType) {
+  constructor(public name: string, public tyVars: string[], public type: GType, public modifiers: string[]) {
     mustExist(name);
     mustExist(tyVars);
     mustExist(type);
+    mustExist(modifiers);
   }
 }
 
@@ -564,6 +582,10 @@ export class StmtParser {
         });
       }
 
+      function isStatic(n: ts.ClassElement): boolean {
+        return parseModifiers(n.modifiers).includes("static");
+      }
+
       switch (node.kind) {
         case SyntaxKind.ThrowStatement:
         case SyntaxKind.ExpressionStatement: {
@@ -650,9 +672,6 @@ export class StmtParser {
         case SyntaxKind.ClassDeclaration: {
           let n = node as ts.ClassDeclaration;
 
-          if(n.modifiers && n.modifiers.map(x => x.kind).includes(SyntaxKind.AbstractKeyword))
-            return EP.alongWith(new CommentStmt(n.getText()));
-
           let name = tryFullyQualifiedName(n.name, checker);
 
           let superType: string | null = null;
@@ -672,18 +691,22 @@ export class StmtParser {
           let staticFuncs: FuncDef[] = [];
           let constructor: FuncDef | null = null;
 
+          let isAbstract = n.modifiers && n.modifiers.map(x => x.kind).includes(SyntaxKind.AbstractKeyword);
+
           for (const v of n.members) {
-            const isStatic = parseModifiers(v.modifiers).includes("static");
+            const staticQ = isStatic(v);
             if (ts.isPropertyDeclaration(v)) {
               let v1 = v as ts.PropertyDeclaration;
-              if(isStatic){
+              if(staticQ){
                 staticVars.push(
                   new NamedValue(getPropertyName(v1.name), new Const("undefined", anyType)))
               } else {
                 vars.push(new NamedValue(getPropertyName(v1.name), parseMark(v1.type, checker)));
               }
+            } else if (isAbstract && !staticQ){
+              // skip parsing
             } else if (ts.isMethodDeclaration(v) || ts.isAccessor(v)) {
-              let toPush = isStatic ? staticFuncs : funcDefs;
+              let toPush = staticQ ? staticFuncs : funcDefs;
               toPush.push(getSingleton(rec(v).stmts) as FuncDef)
             } else if (ts.isConstructorDeclaration(v)) {
               constructor = getSingleton(rec(v).stmts) as FuncDef;
@@ -698,18 +721,26 @@ export class StmtParser {
 
           let funcPairs = staticFuncs.map(f =>
             new NamedValue(f.name, new Var(name + "." + f.name)));
-          staticFuncs.forEach(f => f.name = name + "." + f.name)
+          staticFuncs.forEach(f => f.name = name + "." + f.name);
 
           let allMembers = staticVars.concat(funcPairs);
           let staticInstance = new ObjLiteral(allMembers);
-          let staticDef = (allMembers.length > 0) ?
-            [new VarDef(name, null, staticInstance, true, classModifiers)] :
-            [];
+          let staticDef = new VarDef(name, null, staticInstance, true, classModifiers);
 
 
           let tVars = parseTVars(n);
-          return EP.alongWithMany([new ClassDef(name, constructor, vars, funcDefs,
-            superType, classModifiers, tVars) as GStmt].concat(staticFuncs).concat(staticDef));
+
+          let classStmt: GStmt;
+          if(isAbstract){
+            let members = parseTypeMembers(n.members.filter(m => isStatic(m)));
+            let objType = new ObjectType(members);
+            classStmt = new TypeAliasStmt(name, parseTVars(n), objType, parseModifiers(n.modifiers));
+          } else {
+            classStmt = new ClassDef(name, constructor, vars, funcDefs,
+              superType, classModifiers, tVars);
+          }
+
+          return EP.alongWithMany([classStmt].concat(staticFuncs).concat([staticDef]));
         }
         case SyntaxKind.SwitchStatement: {
           let n = node as ts.SwitchStatement;
@@ -750,14 +781,16 @@ export class StmtParser {
         case SyntaxKind.InterfaceDeclaration: {
           let n = node as ts.InterfaceDeclaration;
           let tVars = parseTVars(n);
-          let members = parseTypeMembers(n.members);
+          let members = parseTypeMembers(n.members as any);
           let objT = new ObjectType(members);
-          return EP.alongWith(new TypeAliasStmt(n.name.text, tVars, objT));
+          return EP.alongWith(
+            new TypeAliasStmt(n.name.text, tVars, objT, parseModifiers(n.modifiers)));
         }
         case SyntaxKind.TypeAliasDeclaration: {
           let n = node as ts.TypeAliasDeclaration;
           let tVars = parseTVars(n);
-          return EP.alongWith(new TypeAliasStmt(n.name.text, tVars, parseType(n.type)));
+          return EP.alongWith(
+            new TypeAliasStmt(n.name.text, tVars, parseType(n.type), parseModifiers(n.modifiers)));
         }
         case SyntaxKind.TryStatement:{
           let n = node as ts.TryStatement;

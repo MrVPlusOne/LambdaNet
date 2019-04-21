@@ -1,6 +1,5 @@
 package infer
 
-import gtype.ExportStmt.ExportTypeAlias
 import gtype._
 import funcdiff.SimpleMath.Extensions._
 import gtype.GStmt.TypeAnnotation
@@ -32,7 +31,6 @@ object IRTranslation {
     //noinspection TypeAnnotation
     val tyVarHoleMap = mutable.HashMap[IRTypeId, GTHole]()
 
-    val typeAlias = ??? //fixme
     /**
       * Create and register a new [[IRType]].
       */
@@ -164,6 +162,13 @@ object IRTranslation {
             level
           )
         )
+      case gtype.TypeAliasStmt(name, tyVars, ty, level) =>
+        val aliasT = env.newTyVar(
+          None,
+          Some(name),
+          freezeToType = Some(TypeAnnotation(ty, needInfer = false))
+        )(quantifiedTypes ++ tyVars.toSet)
+        Vector(TypeAliasIRStmt(aliasT, level))
     }
   }
 
@@ -242,9 +247,10 @@ object IRTranslation {
   /** collect the <b>top-level</b> public exports */
   def collectExports(stmts: Vector[IRStmt]): ModuleExports = {
     val terms = mutable.HashMap[Symbol, IRType]()
-    val classes = mutable.HashMap[ClassName, IRType]()
+    val classes = mutable.HashMap[TypeName, IRType]()
+    val aliases = mutable.HashMap[TypeName, IRType]()
     var defaultVar: Option[(Var, IRType)] = None
-    var defaultClass: Option[(ClassName, IRType)] = None
+    var defaultClass: Option[(TypeName, IRType)] = None
 
     /*
      *   | var x: τ = e                      ([[VarDef]])
@@ -290,6 +296,15 @@ object IRTranslation {
             defaultVar = Some(Var(Right(c.constructor.name)) -> c.constructor.funcT)
           case ExportLevel.Private =>
         }
+      case c: TypeAliasIRStmt =>
+        c.level match {
+          case ExportLevel.Public =>
+            require(!aliases.contains(c.name))
+            aliases(c.name) = c.aliasT
+          case ExportLevel.Default =>
+            throw new Error("Type Alias default export not supported")
+          case ExportLevel.Private =>
+        }
       case _ =>
     }
     stmts.foreach(rec)
@@ -298,6 +313,8 @@ object IRTranslation {
       case (n, v) => (n, ExportCategory.Term) -> v
     } ++ classes.toMap.map {
       case (n, v) => (n, ExportCategory.Class) -> v
+    } ++ aliases.toMap.map{
+      case (n, v) => (n, ExportCategory.TypeAlias) -> v
     }
     ModuleExports(exports, defaultVar, defaultClass)
   }
@@ -307,25 +324,13 @@ object IRTranslation {
   ): IRModule = {
     val irStmts = module.stmts.flatMap(s => translateStmt(s)(Set(), env))
 
-    val aliases = mutable.HashMap[(Symbol, ExportCategory.Value), IRType]()
-
-    //fixme: introduce type aliases at inner scope. Currently they are only visible at export scope.
-    module.exportStmts.collect {
-      case ExportTypeAlias(name, tVars, t) =>
-        aliases(name -> ExportCategory.TypeAlias) = env.newTyVar(
-          None,
-          Some(name),
-          freezeToType = Some(TypeAnnotation(t, needInfer = false))
-        )(tVars.toSet)
-    }
-
     val moduleExports = collectExports(irStmts)
 
     IRModule(
       module.path,
       module.imports,
       module.exportStmts,
-      moduleExports.copy(definitions = moduleExports.definitions ++ aliases),
+      moduleExports,
       irStmts
     )
   }

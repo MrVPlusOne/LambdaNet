@@ -260,7 +260,8 @@ class ProgramParsing(
           val name = Symbol(asString(map("name")))
           val tyVars = asVector(map("tyVars")).map(asSymbol).toList
           val ty = parseType(map("type"))
-          TypeAliasStmt(name, tyVars, ty)
+          val ms = parseModifiers(map("modifiers"))
+          TypeAliasStmt(name, tyVars, ty, ms.exportLevel)
         case "ClassDef" =>
           val name = asSymbol(map("name"))
           val superType = asOptionSymbol(map("superType"))
@@ -311,13 +312,17 @@ class ProgramParsing(
     var stmts = Vector[GStmt]()
 
     SimpleMath.withErrorMessage(s"Error when parsing module: $name") {
-      asVector(obj("stmts")).foreach {
-        case ImportPattern(ss) =>
-          imports ++= ss
-        case ExportPattern(ss) =>
-          exports ++= ss
-        case other =>
-          stmts :+= parseGStmt(other)
+      asVector(obj("stmts")).foreach { s =>
+        SimpleMath.withErrorMessage(s"when parsing $s") {
+          s match {
+            case ImportPattern(ss) =>
+              imports ++= ss
+            case ExportPattern(ss) =>
+              exports ++= ss
+            case other =>
+              stmts :+= parseGStmt(other)
+          }
+        }
       }
     }
 

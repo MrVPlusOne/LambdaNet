@@ -21,10 +21,10 @@ object PredicateGraph {
     * @param typeLabels all the user-annotated type annotations, resolved as [[IRType]]s
     */
   case class PredicateModule(
-    path: ProjectPath,
-    predicates: Vector[TyVarPredicate],
-    newTypes: Map[IRType, ClassName],
-    typeLabels: Map[IRTypeId, TypeLabel]
+                              path: ProjectPath,
+                              predicates: Vector[TyVarPredicate],
+                              newTypes: Map[IRType, TypeName],
+                              typeLabels: Map[IRTypeId, TypeLabel]
   ) {
     def display: String = {
       s"""=== Module: $path ===
@@ -173,7 +173,7 @@ object PredicateGraphConstruction {
 
   case class PredicateContext(
     varTypeMap: Map[Var, IRType],
-    newTypeMap: Map[ClassName, IRType]
+    newTypeMap: Map[TypeName, IRType]
   )
 
   object PredicateContext {
@@ -395,8 +395,9 @@ object PredicateGraphConstruction {
     def collectDefinitions(
       stmts: Vector[IRStmt]
     )(implicit ctx: PredicateContext): PredicateContext = {
-      val classDefs = stmts.collect {
+      val typeDefs = stmts.collect {
         case c: ClassDef => c.name -> c.classT
+        case a: TypeAliasIRStmt => a.name -> a.aliasT
       }
 
       val defs = stmts.collect {
@@ -407,7 +408,7 @@ object PredicateGraphConstruction {
 
       ctx.copy(
         varTypeMap = ctx.varTypeMap ++ defs,
-        newTypeMap = ctx.newTypeMap ++ classDefs
+        newTypeMap = ctx.newTypeMap ++ typeDefs
       )
     }
 
@@ -506,6 +507,7 @@ object PredicateGraphConstruction {
                 varTypeMap = ctx.varTypeMap + (ClassDef.thisVar -> classT) ++ superMap.toList
               )
             (constructor +: funcDefs).foreach(s => encodeStmt(s)(innerCtx))
+          case _: TypeAliasIRStmt => //do nothing
         }
       }
     }

@@ -63,9 +63,11 @@ class ParserTests extends WordSpec with MyTest {
         |class Generics {
         |  id<T>(x: T): T {}
         |}
-        |interface A {
-        |  foo: number;
-        |  bar: number;
+        |export interface ClassType<T> extends Function {
+        |  new (...args: Array<any>): T;
+        |  constructor: Function | any[];
+        |  [propertyName: string]: any;
+        |  name: string;
         |}
         |let x = {a: 1, b: {c: "x"}};
         |let myAdd: (x: number, y: number) => number = undefined;
