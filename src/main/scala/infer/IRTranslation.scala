@@ -1,5 +1,6 @@
 package infer
 
+import funcdiff.SimpleMath
 import gtype._
 import funcdiff.SimpleMath.Extensions._
 import gtype.ExportStmt.ExportSingle
@@ -319,7 +320,7 @@ object IRTranslation {
       case (n, v) => (n, ExportCategory.Term) -> v
     } ++ classes.toMap.map {
       case (n, v) => (n, ExportCategory.Class) -> v
-    } ++ aliases.toMap.map{
+    } ++ aliases.toMap.map {
       case (n, v) => (n, ExportCategory.TypeAlias) -> v
     }
     ModuleExports(exports, defaultVar, defaultClass)
@@ -330,7 +331,10 @@ object IRTranslation {
   ): IRModule = {
     val irStmts = module.stmts.flatMap(s => translateStmt(s)(Set(), env))
 
-    val moduleExports = collectExports(irStmts)
+    val moduleExports =
+      SimpleMath.withErrorMessage(s"collectExports failed for ${module.path}") {
+        collectExports(irStmts)
+      }
 
     IRModule(
       module.path,

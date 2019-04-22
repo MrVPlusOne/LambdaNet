@@ -89,10 +89,13 @@ object JSExamples {
 
   val libraryTypes: Set[Symbol] = typeContext.typeUnfold.keySet
 
+  def treatAsAny(name: String): (Symbol, AnyType.type) = {
+    Symbol(name) -> any
+  }
+
   val exprContext: ExprContext = {
     val varAssign = Map[Symbol, GType](
       THIS -> any,
-      'undefined -> any,
       'eq -> (List(any, any) -: boolean),
       'OP_Not -> (List(any) -: boolean),
       'ExclamationToken -> (List(any) -: boolean),
@@ -110,6 +113,7 @@ object JSExamples {
       'MinusMinusToken -> (List(number) -: number),
       'POST_PlusPlusToken -> (List(number) -: number),
       'POST_MinusMinusToken -> (List(number) -: number),
+      'TildeToken -> (List(number) -: number),
       'isFinite -> (List(number) -: boolean),
       'Infinity -> number,
       '$TypeOf -> (List(any) -: string),
@@ -119,30 +123,27 @@ object JSExamples {
       '$Delete -> (List(any) -: void),
       'parseInt -> (List(string, number) -: number),
       'isNaN -> (List(number) -: boolean),
-      'parseFloat -> (List(string) -: number),
-      //todo: properly handle these: (also inject library knowledge)
-      'String -> any,
-      'Object -> any,
-      'Number -> (List(any) -: number),
-      function -> (List(any) -: function),
-      'Array -> (List(number) -: 'Array),
-      'Error -> any,
-      'HTMLElement -> any,
-      'window -> 'Window,
-      'global -> 'Window,
-      'self -> 'Window,
-      'Injector -> any,
-      'ReflectiveInjector -> any,
-      'ReflectiveInjector_ -> any,
-      GStmt.constructorName('undefined) -> any,
-      GStmt.constructorName('Object) -> (List() -: 'Object),
-      GStmt.constructorName('Map) -> (List() -: 'Map),
-      GStmt.constructorName('Error) -> (List(string) -: 'Error),
-      'document -> any,
-      'Node -> any
+      'parseFloat -> (List(string) -: number)
     )
 
-    ExprContext(varAssign, typeContext)
+    val additional = collection.mutable.ListBuffer[(Symbol, GType)]()
+
+    def addType(name: Symbol): Unit = {
+      additional += (name -> any)
+      additional += (GStmt.constructorName(name) -> any)
+    }
+    //todo: properly handle these: (also inject library knowledge)
+
+    Seq('String, 'Object, 'Number, 'Function, 'Array, 'Error, 'HTMLElement,
+      'Injector, 'ReflectiveInjector, 'ReflectiveInjector_,
+    'Map, 'Node, 'RegExp, 'WeakMap, 'undefined, 'Element, 'Text, 'Comment).foreach(addType)
+
+    Seq('window, 'global, 'self, 'document).foreach(s => {
+      additional += (s -> any)
+    })
+
+
+    ExprContext(varAssign ++ additional, typeContext)
   }
 
   // @formatter:off

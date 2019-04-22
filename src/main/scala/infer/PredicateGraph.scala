@@ -223,6 +223,10 @@ object PredicateGraphConstruction {
   ): ParsedProject = {
     val env = new TranslationEnv()
     val irModules = modules.map(m => IRTranslation.translateModule(m)(env)).toVector
+    irModules.foreach{ m =>
+      println(s"module: ${m.path}")
+      println(s"exports: ${m.exports}")
+    }
 
     val ctx = PredicateContext.jsCtx(env)
     val pModules =
@@ -243,8 +247,8 @@ object PredicateGraphConstruction {
     val sources = ls
       .rec(root)
       .filter { f =>
-        if (f.last.endsWith("d.ts")) {
-          throw new Error(s"d.ts file encountered: $f")
+        if (f.last.endsWith(".d.ts")) {
+          throw new Error(s".d.ts file encountered: $f")
         }
         f.ext == "ts"
       }
@@ -421,10 +425,11 @@ object PredicateGraphConstruction {
       Vector.iterate(init, exportIterations)(propagateExports).last
     }
 
-    irModules.toVector.map {
-      case (path, module) =>
+
+    irModules.toVector.zipWithIndex.map {
+      case ((path, module), idx) =>
         SimpleMath.withErrorMessage(
-          s"Predicate Graph Construction failed for module: '$path'"
+          s"[$idx parsed] Predicate Graph Construction failed for module: '$path'"
         ) {
           val (predicates, ctx1, labels) =
             encodeIR(

@@ -24,7 +24,7 @@ export class ReflectionCapabilities implements PlatformReflectionCapabilities {
 
   isReflectionEnabled(): boolean { return true; }
 
-  factory<T>(t: Type<T>): (args: any[]) => T { return (...args: any[]) => new t(...args); }
+  factory<T>(t: Type<T>): (args: any[]) => T { return (...args: any[]) => (t as any) (...args); }
 
   /** @internal */
   _zipTypesAndAnnotations(paramTypes: any[], paramAnnotations: any[]): any[][] {
@@ -242,7 +242,7 @@ function convertTsickleDecoratorIntoMetadata(decoratorInvocations: any[]): any[]
     const decoratorType = decoratorInvocation.type;
     const annotationCls = decoratorType.annotationCls;
     const annotationArgs = decoratorInvocation.args ? decoratorInvocation.args : [];
-    return new annotationCls(...annotationArgs);
+    // return new annotationCls(...annotationArgs); fixme
   });
 }
 
