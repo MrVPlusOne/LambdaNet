@@ -64,21 +64,23 @@ object IR {
     val Term, Class, TypeAlias = Value
   }
 
+  type Exported = Boolean
+
   case class ModuleExports(
-    definitions: Map[(Symbol, ExportCategory.Value), IRType],
+    definitions: Map[(Symbol, ExportCategory.Value), (IRType, Exported)],
     defaultVar: Option[(Var, IRType)],
     defaultType: Option[(TypeName, IRType)]
   ) {
-    lazy val terms: Map[Symbol, IRType] = definitions.toIterator.collect {
+    lazy val terms: Map[Symbol, (IRType, Exported)] = definitions.toIterator.collect {
       case ((n, ExportCategory.Term), t) => n -> t
     }.toMap
 
-    lazy val typeAliases: Map[Symbol, IRType] = definitions.toIterator.collect {
+    lazy val typeAliases: Map[Symbol, (IRType, Exported)] = definitions.toIterator.collect {
       case ((n, cat), t) if cat == ExportCategory.TypeAlias =>
         n -> t
     }.toMap
 
-    lazy val classes: Map[Symbol, IRType] = definitions.toIterator.collect {
+    lazy val classes: Map[Symbol, (IRType, Exported)] = definitions.toIterator.collect {
       case ((n, cat), t) if cat == ExportCategory.Class =>
         n -> t
     }.toMap
@@ -210,7 +212,7 @@ object IR {
     classT: IRType,
     exportLevel: ExportLevel.Value
   ) extends IRStmt {
-    require(constructor.name == gtype.ClassDef.constructorName(name))
+    require(constructor.name == gtype.GStmt.constructorName(name))
     require(constructor.returnType == classT)
   }
 
@@ -221,8 +223,8 @@ object IR {
   }
 
   object ClassDef {
-    val thisVar = namedVar(gtype.ClassDef.thisSymbol)
-    val superVar = namedVar(gtype.ClassDef.superSymbol)
+    val thisVar = namedVar(GStmt.thisSymbol)
+    val superVar = namedVar(GStmt.superSymbol)
   }
 
   object IRStmt {

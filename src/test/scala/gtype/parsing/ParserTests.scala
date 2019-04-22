@@ -225,7 +225,13 @@ class ParserTests extends WordSpec with MyTest {
             val target = currentPath / pathToResolve
             if(target.startsWith(RelPath("core/src/facade"))){
               RelPath("facade/src") / target.segments.drop(3)
-            }else{
+            } else if(target.startsWith(RelPath("platform-browser/src/facade"))){
+              RelPath("facade/src") / target.segments.drop(3)
+            } else if (pathToResolve == RelPath("mojiito-facade")){
+              RelPath("facade/index")
+            } else if (pathToResolve == RelPath("mojiito-core")){
+              RelPath("core/src/core")
+            }else {
               target
             }
           }

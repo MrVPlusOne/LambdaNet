@@ -2,6 +2,7 @@ package infer
 
 import gtype._
 import funcdiff.SimpleMath.Extensions._
+import gtype.ExportStmt.ExportSingle
 import gtype.GStmt.TypeAnnotation
 
 object IRTranslation {
@@ -246,9 +247,9 @@ object IRTranslation {
 
   /** collect the <b>top-level</b> public exports */
   def collectExports(stmts: Vector[IRStmt]): ModuleExports = {
-    val terms = mutable.HashMap[Symbol, IRType]()
-    val classes = mutable.HashMap[TypeName, IRType]()
-    val aliases = mutable.HashMap[TypeName, IRType]()
+    val terms = mutable.HashMap[Symbol, (IRType, Exported)]()
+    val classes = mutable.HashMap[TypeName, (IRType, Exported)]()
+    val aliases = mutable.HashMap[TypeName, (IRType, Exported)]()
     var defaultVar: Option[(Var, IRType)] = None
     var defaultClass: Option[(TypeName, IRType)] = None
 
@@ -264,31 +265,35 @@ object IRTranslation {
      */
     def rec(stmt: IRStmt): Unit = stmt match {
       case VarDef(v, mark, _, exportLevel) =>
+        v.nameOpt.foreach(n => terms(n) = (mark, false))
+
         exportLevel match {
           case ExportLevel.Public =>
-            require(!terms.contains(v.nameOpt.get), v + " already in var context!")
-            terms(v.nameOpt.get) = mark
+            terms(v.nameOpt.get) = (mark, true)
           case ExportLevel.Default =>
             require(defaultVar.isEmpty)
             defaultVar = Some(v -> mark)
           case ExportLevel.Private =>
         }
       case f: FuncDef =>
+        terms(f.name) = (f.funcT, false)
+
         f.exportLevel match {
           case ExportLevel.Public =>
-            require(!terms.contains(f.name))
-            terms(f.name) = f.funcT
+            terms(f.name) = (f.funcT, true)
           case ExportLevel.Default =>
             require(defaultVar.isEmpty)
             defaultVar = Some(Var(Right(f.name)) -> f.funcT)
           case ExportLevel.Private =>
         }
       case c: ClassDef =>
+        classes(c.name) = (c.classT, false)
+        terms(c.constructor.name) = (c.constructor.funcT, false)
+
         c.exportLevel match {
           case ExportLevel.Public =>
-            require(!classes.contains(c.name))
-            classes(c.name) = c.classT
-            terms(c.constructor.name) = c.constructor.funcT
+            classes(c.name) = (c.classT, true)
+            terms(c.constructor.name) = (c.constructor.funcT, true)
           case ExportLevel.Default =>
             require(defaultVar.isEmpty)
             require(defaultClass.isEmpty)
@@ -300,10 +305,11 @@ object IRTranslation {
         c.level match {
           case ExportLevel.Public =>
             require(!aliases.contains(c.name))
-            aliases(c.name) = c.aliasT
+            aliases(c.name) = (c.aliasT, true)
           case ExportLevel.Default =>
             throw new Error("Type Alias default export not supported")
           case ExportLevel.Private =>
+            aliases(c.name) = (c.aliasT, false)
         }
       case _ =>
     }

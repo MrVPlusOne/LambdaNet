@@ -48,9 +48,9 @@ object JSExamples {
     def unary_! : GExpr = 'OP_Not.call(expr)
   }
 
-  val THIS: Symbol = ClassDef.thisSymbol
+  val THIS: Symbol = GStmt.thisSymbol
 
-  val SUPER: Symbol = ClassDef.superSymbol
+  val SUPER: Symbol = GStmt.superSymbol
 
   def baseType(name: Symbol): (Symbol, CompoundType) = {
     name -> obj(Symbol(name.name + "_UNIQUE") -> name)
@@ -103,7 +103,7 @@ object JSExamples {
         'floor -> (List(number) -: number),
         'abs -> (List(number) -: number)
       ),
-      ClassDef.constructorName('Array) -> (List(number) -: anyArray),
+      GStmt.constructorName('Array) -> (List(number) -: anyArray),
       'MinusToken -> (List(number) -: number),
       'PlusToken -> (List(number) -: number),
       'PlusPlusToken -> (List(number) -: number),
@@ -134,10 +134,10 @@ object JSExamples {
       'Injector -> any,
       'ReflectiveInjector -> any,
       'ReflectiveInjector_ -> any,
-      ClassDef.constructorName('undefined) -> any,
-      ClassDef.constructorName('Object) -> (List() -: 'Object),
-      ClassDef.constructorName('Map) -> (List() -: 'Map),
-      ClassDef.constructorName('Error) -> (List(string) -: 'Error),
+      GStmt.constructorName('undefined) -> any,
+      GStmt.constructorName('Object) -> (List() -: 'Object),
+      GStmt.constructorName('Map) -> (List() -: 'Map),
+      GStmt.constructorName('Error) -> (List(string) -: 'Error),
     )
 
     ExprContext(varAssign, typeContext)

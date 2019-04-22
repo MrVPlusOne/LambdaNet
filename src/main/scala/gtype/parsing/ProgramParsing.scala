@@ -267,7 +267,7 @@ class ProgramParsing(
           val superType = asOptionSymbol(map("superType"))
           val ms = parseModifiers(map("modifiers"))
           val constructor = {
-            val consName = ClassDef.constructorName(name)
+            val consName = GStmt.constructorName(name)
             val constructorValue = map("constructor")
             val f = if (constructorValue == Null) {
               // make an empty constructor

@@ -6,7 +6,7 @@ import {
   ViewDefinitionFactory, ViewDefinition, DepFlags, constructDependencies, ProviderDef, DepDef,
   Visitor
 } from 'mojiito-core';
-import { ListWrapper } from '../facade/collection';
+import { ListWrapper } from 'mojiito-facade';
 import { stringify } from '../facade/lang';
 import { DomVisitor } from '../dom_visitor';
 import { DomTraverser } from '../dom_traverser';

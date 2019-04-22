@@ -79,7 +79,7 @@ case class ClassDef(
   funcDefs: Vector[FuncDef],
   exportLevel: ExportLevel.Value
 ) extends GStmt {
-  require(constructor.name == ClassDef.constructorName(name))
+  require(constructor.name == GStmt.constructorName(name))
   require(constructor.returnType == GType.voidType, s"Get: ${constructor.returnType}")
 }
 
@@ -90,12 +90,6 @@ case class TypeAliasStmt(
   level: ExportLevel.Value
 ) extends GStmt
 
-object ClassDef {
-  val thisSymbol = 'this
-  val superSymbol = 'super
-  def constructorName(className: Symbol): Symbol = Symbol(className.name + "-NEW")
-  def isConstructor(name: Symbol) = name.name.endsWith("-NEW")
-}
 
 // === End of Statement definitions ====
 
@@ -322,7 +316,7 @@ object GStmt {
 
     def CONSTRUCTOR(className: Symbol, args: (Symbol, GType)*)(body: GStmt*): FuncDef = {
       FuncDef(
-        ClassDef.constructorName(className),
+        constructorName(className),
         List(),
         stripArgs(args),
         GType.voidType,
@@ -442,9 +436,9 @@ object GStmt {
         ctx -> typeCheckBlock(block, ctx, returnType)
       case ClassDef(name, _, superType, constructor, _, funcDefs, _) =>
         val ctxWithThis = ctx
-          .newVar(ClassDef.thisSymbol, ctx.typeContext.typeUnfold(name))
+          .newVar(GStmt.thisSymbol, ctx.typeContext.typeUnfold(name))
           .newVar(
-            ClassDef.superSymbol,
+            GStmt.superSymbol,
             superType
               .map(ctx.typeContext.typeUnfold)
               .getOrElse(obj())
@@ -466,4 +460,11 @@ object GStmt {
       case _            => BlockStmt(Vector(stmt))
     }
   }
+
+  def constructorName(className: Symbol): Symbol = Symbol(className.name + "-NEW")
+
+  def isConstructor(name: Symbol) = name.name.endsWith("-NEW")
+
+  val thisSymbol = 'this
+  val superSymbol = 'super
 }

@@ -11,6 +11,7 @@ import gtype.{AnyType, ExportStmt, GModule, GStmt, GTHole, GType, JSExamples, Ty
 import infer.IR._
 import infer.IRTranslation.TranslationEnv
 import infer.PredicateGraph._
+import GStmt.constructorName
 
 /** Encodes the relationships between different type variables */
 object PredicateGraph {
@@ -21,10 +22,10 @@ object PredicateGraph {
     * @param typeLabels all the user-annotated type annotations, resolved as [[IRType]]s
     */
   case class PredicateModule(
-                              path: ProjectPath,
-                              predicates: Vector[TyVarPredicate],
-                              newTypes: Map[IRType, TypeName],
-                              typeLabels: Map[IRTypeId, TypeLabel]
+    path: ProjectPath,
+    predicates: Vector[TyVarPredicate],
+    newTypes: Map[IRType, TypeName],
+    typeLabels: Map[IRTypeId, TypeLabel]
   ) {
     def display: String = {
       s"""=== Module: $path ===
@@ -229,7 +230,7 @@ object PredicateGraphConstruction {
     root: Path,
     libraryFiles: Set[ProjectPath] = Set(),
     libraryTypes: Set[GType] = JSExamples.libraryTypes.map(TyVar),
-    excludeIndexFile: Boolean = true,
+    excludeIndexFile: Boolean = false,
     pathMapping: PathMapping = PathMapping.identity
   ): ParsedProject = {
     val indexFileNames = Set("index.ts", "public_api.ts")
@@ -254,39 +255,13 @@ object PredicateGraphConstruction {
     fromModules(root.last, modules, libraryTypes, pathMapping)
   }
 
-  /** Try to turn export statements into export definitions, may need multiple
-    * iteration of this function to achieve fixed-point */
-  def processExports(
-    allModules: Map[ProjectPath, IRModule]
-  ): Map[ProjectPath, IRModule] = {
-    allModules.map {
-      case (modulePath, md) =>
-        val dir = modulePath / ammonite.ops.up
-        var newDefs = md.exports.definitions
-        md.exportStmts.foreach {
-          case ExportSingle(oldName, newName, Some(from)) => //todo: handle the None case
-            val ex = allModules(dir / from).exports
-            ex.terms.get(oldName).foreach { tv =>
-              newDefs = newDefs.updated((newName, ExportCategory.Term), tv)
-            }
-            ex.typeAliases.get(oldName).foreach { tv =>
-              newDefs = newDefs.updated((newName, ExportCategory.TypeAlias), tv)
-            }
-          case ExportOtherModule(from) =>
-            val ex = allModules(dir / from).exports
-            newDefs = newDefs ++ ex.definitions
-          case _ => //do nothing yet
-        }
-        modulePath -> md.copy(exports = md.exports.copy(definitions = newDefs))
-    }
-  }
-
   def resolveImports(
     module: IRModule,
     baseCtx: PredicateContext,
     allModules: Map[ProjectPath, IRModule],
     pathMapping: PathMapping
   ): PredicateContext = {
+
     var varTypeMap = baseCtx.varTypeMap
     var newTypeMap = baseCtx.newTypeMap
     val currentDir = module.path / ammonite.ops.up
@@ -300,36 +275,36 @@ object PredicateGraphConstruction {
         .exports
     }
 
-    import gtype.ClassDef.{constructorName, isConstructor}
-
     module.imports.foreach {
       case ImportSingle(oldName, path, newName) =>
         val exports = getExports(path)
-        exports.terms
-          .get(oldName)
-          .foreach(t => {
-            varTypeMap = varTypeMap.updated(Var(Right(newName)), t)
-          })
-        exports.typeAliases
-          .get(oldName)
-          .foreach(t => {
-            newTypeMap = newTypeMap.updated(newName, t)
-          })
-        exports.classes
-          .get(oldName)
-          .foreach(t => {
-            newTypeMap = newTypeMap.updated(newName, t)
-            val constructorT = exports.terms(constructorName(oldName))
-            varTypeMap += (Var(Right(constructorName(newName))) -> constructorT)
-          })
+        var resolved = false
+        for ((t, exported) <- exports.terms.get(oldName) if exported) {
+          resolved = true
+          varTypeMap = varTypeMap.updated(Var(Right(newName)), t)
+        }
+        for ((t, exported) <- exports.typeAliases.get(oldName) if exported) {
+          resolved = true
+          newTypeMap = newTypeMap.updated(newName, t)
+        }
+        for ((t, exported) <- exports.classes.get(oldName) if exported) {
+          resolved = true
+          newTypeMap = newTypeMap.updated(newName, t)
+          val constructorT = exports.terms(constructorName(oldName))._1
+          varTypeMap += (Var(Right(constructorName(newName))) -> constructorT)
+        }
+
+        if (!resolved) {
+          throw new Error(s"Unresolved import single: $oldName from '$path'.")
+        }
       case ImportModule(path, newName) =>
         val exports = getExports(path)
-        varTypeMap = varTypeMap ++ exports.terms.map {
-          case (n, t) =>
+        varTypeMap = varTypeMap ++ exports.terms.collect {
+          case (n, (t, true)) =>
             Var(Right(Symbol(newName.name + "." + n.name))) -> t
         }
-        newTypeMap ++= exports.typeAliases.map {
-          case (n, t) => Symbol(newName.name + "." + n.name) -> t
+        newTypeMap ++= exports.typeAliases.collect {
+          case (n, (t, true)) => Symbol(newName.name + "." + n.name) -> t
         }
       case ImportDefault(path, newName) =>
         getExports(path).defaultType.foreach { p =>
@@ -338,7 +313,8 @@ object PredicateGraphConstruction {
         getExports(path).defaultVar.foreach {
           case (v, t) =>
             val name1 =
-              if (isConstructor(v.nameOpt.get)) constructorName(newName) else newName
+              if (GStmt.isConstructor(v.nameOpt.get)) constructorName(newName)
+              else newName
             varTypeMap += (Var(Right(name1)) -> t)
         }
     }
@@ -351,12 +327,87 @@ object PredicateGraphConstruction {
     baseCtx: PredicateContext,
     libraryTypes: Set[GType],
     pathMapping: PathMapping,
-    maxIteration: Int = 10
+    exportIterations: Int = 20
   ): Vector[PredicateModule] = {
+
+    /** Try to turn export statements into export definitions, may need multiple
+      * iteration of this function to achieve fixed-point */
+    def propagateExports(
+      allModules: Map[ProjectPath, IRModule]
+    ): Map[ProjectPath, IRModule] = {
+      def getExports(currentDir: ProjectPath, path: ProjectPath): ModuleExports = {
+        allModules
+          .getOrElse(
+            pathMapping.map(currentDir, path),
+            throw new Error(s"Cannot find source file: '${currentDir / path}'.")
+          )
+          .exports
+      }
+
+      allModules.map {
+        case (modulePath, md) =>
+          val dir = modulePath / ammonite.ops.up
+          var newDefs = md.exports.definitions
+
+          md.imports.foreach {
+            case ImportSingle(oldName, path, newName) =>
+              val exports = getExports(modulePath / up, path)
+
+              for ((t, exported) <- exports.terms.get(oldName) if exported) {
+                newDefs = newDefs.updated((newName, ExportCategory.Term), (t, false))
+              }
+              for ((t, exported) <- exports.typeAliases.get(oldName) if exported) {
+                newDefs = newDefs.updated((newName, ExportCategory.TypeAlias), (t, false))
+              }
+              for ((t, exported) <- exports.classes.get(oldName) if exported) {
+                newDefs = newDefs.updated((newName, ExportCategory.Class), (t, false))
+                val v = exports.terms(constructorName(oldName))
+                newDefs = newDefs.updated((constructorName(newName), ExportCategory.Term), v)
+              }
+            case _ =>
+          }
+
+          md.exportStmts.foreach {
+            case ExportSingle(oldName, newName, source) =>
+              val ex = source match {
+                case Some(from) =>
+                  allModules(dir / from).exports
+                case None => md.exports
+              }
+
+              def export(
+                map: Map[Symbol, (IRType, Exported)],
+                category: ExportCategory.Value,
+                isConstructor: Boolean
+              ): Unit = {
+                val oldName1 = if(isConstructor) constructorName(oldName) else oldName
+                val newName1 = if(isConstructor) constructorName(newName) else newName
+                map.get(oldName1).foreach {
+                  case (tv, exported) =>
+                    if (source.isEmpty) {
+                      newDefs = newDefs.updated((newName1, category), (tv, true))
+                    } else if (exported) {
+                      newDefs = newDefs.updated((newName1, category), (tv, exported))
+                    }
+                }
+              }
+
+              export(ex.terms, ExportCategory.Term, isConstructor = false)
+              export(ex.terms, ExportCategory.Term, isConstructor = true)
+              export(ex.typeAliases, ExportCategory.TypeAlias, isConstructor = false)
+              export(ex.classes, ExportCategory.Class, isConstructor = false)
+            case ExportOtherModule(from) =>
+              val ex = allModules(dir / from).exports
+              newDefs = newDefs ++ ex.definitions
+            case _ => //do nothing yet
+          }
+          modulePath -> md.copy(exports = md.exports.copy(definitions = newDefs))
+      }
+    }
 
     val irModules = {
       val init = modules.map(m => m.path -> m).toMap
-      Vector.iterate(init, maxIteration)(processExports).last
+      Vector.iterate(init, exportIterations)(propagateExports).last
     }
 
     irModules.toVector.map {
@@ -396,7 +447,7 @@ object PredicateGraphConstruction {
       stmts: Vector[IRStmt]
     )(implicit ctx: PredicateContext): PredicateContext = {
       val typeDefs = stmts.collect {
-        case c: ClassDef => c.name -> c.classT
+        case c: ClassDef        => c.name -> c.classT
         case a: TypeAliasIRStmt => a.name -> a.aliasT
       }
 
