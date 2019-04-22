@@ -174,12 +174,17 @@ object PredicateGraphConstruction {
 
   case class PredicateContext(
     varTypeMap: Map[Var, IRType],
-    newTypeMap: Map[TypeName, IRType]
+    newTypeMap: Map[TypeName, IRType],
+    packageNames: Set[Symbol]
   )
+
+  def qualifiedName(`package`: Symbol, name: Symbol): Symbol = {
+    Symbol(`package`.name + "." + name.name)
+  }
 
   object PredicateContext {
     val empty: PredicateContext =
-      PredicateContext(Map(), Map())
+      PredicateContext(Map(), Map(), Set())
 
     def jsCtx(env: TranslationEnv): PredicateContext = {
       implicit val tyVars: Set[Symbol] = Set()
@@ -199,7 +204,7 @@ object PredicateGraphConstruction {
             Some(TypeAnnotation(TyVar(s), needInfer = false))
           )
       }.toMap
-      PredicateContext(typeMap, objDef)
+      PredicateContext(typeMap, objDef, Set())
     }
   }
 
@@ -264,6 +269,7 @@ object PredicateGraphConstruction {
 
     var varTypeMap = baseCtx.varTypeMap
     var newTypeMap = baseCtx.newTypeMap
+    var packageNames = Set[Symbol]()
     val currentDir = module.path / ammonite.ops.up
 
     def getExports(path: ProjectPath): ModuleExports = {
@@ -301,11 +307,15 @@ object PredicateGraphConstruction {
         val exports = getExports(path)
         varTypeMap = varTypeMap ++ exports.terms.collect {
           case (n, (t, true)) =>
-            Var(Right(Symbol(newName.name + "." + n.name))) -> t
+            Var(Right(qualifiedName(newName, n))) -> t
         }
         newTypeMap ++= exports.typeAliases.collect {
-          case (n, (t, true)) => Symbol(newName.name + "." + n.name) -> t
+          case (n, (t, true)) => qualifiedName(newName, n) -> t
         }
+        newTypeMap ++= exports.classes.collect {
+          case (n, (t, true)) => qualifiedName(newName, n) -> t
+        }
+        packageNames += newName
       case ImportDefault(path, newName) =>
         getExports(path).defaultType.foreach { p =>
           newTypeMap += p
@@ -319,7 +329,7 @@ object PredicateGraphConstruction {
         }
     }
 
-    PredicateContext(varTypeMap, newTypeMap)
+    PredicateContext(varTypeMap, newTypeMap, packageNames)
   }
 
   def encodeModules(
@@ -362,7 +372,8 @@ object PredicateGraphConstruction {
               for ((t, exported) <- exports.classes.get(oldName) if exported) {
                 newDefs = newDefs.updated((newName, ExportCategory.Class), (t, false))
                 val v = exports.terms(constructorName(oldName))
-                newDefs = newDefs.updated((constructorName(newName), ExportCategory.Term), v)
+                newDefs =
+                  newDefs.updated((constructorName(newName), ExportCategory.Term), v)
               }
             case _ =>
           }
@@ -380,8 +391,8 @@ object PredicateGraphConstruction {
                 category: ExportCategory.Value,
                 isConstructor: Boolean
               ): Unit = {
-                val oldName1 = if(isConstructor) constructorName(oldName) else oldName
-                val newName1 = if(isConstructor) constructorName(newName) else newName
+                val oldName1 = if (isConstructor) constructorName(oldName) else oldName
+                val newName1 = if (isConstructor) constructorName(newName) else newName
                 map.get(oldName1).foreach {
                   case (tv, exported) =>
                     if (source.isEmpty) {
@@ -510,7 +521,16 @@ object PredicateGraphConstruction {
               case ObjLiteral(fields) =>
                 add(DefineRel(tv, ObjLiteralTypeExpr(fields.mapValuesNow(varTypeMap))))
               case FieldAccess(receiver, label) =>
-                add(DefineRel(tv, FieldAccessTypeExpr(varTypeMap(receiver), label)))
+                if (receiver.nameOpt.exists(n => packageNames.contains(n))) {
+                  add(
+                    EqualityRel(
+                      tv,
+                      varTypeMap(Var(Right(qualifiedName(receiver.nameOpt.get, label))))
+                    )
+                  )
+                }else {
+                  add(DefineRel(tv, FieldAccessTypeExpr(varTypeMap(receiver), label)))
+                }
               case IfExpr(cond, e1, e2) =>
                 add(SubtypeRel(varTypeMap(e1), tv))
                 add(SubtypeRel(varTypeMap(e2), tv))
