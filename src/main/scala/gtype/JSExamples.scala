@@ -138,6 +138,8 @@ object JSExamples {
       GStmt.constructorName('Object) -> (List() -: 'Object),
       GStmt.constructorName('Map) -> (List() -: 'Map),
       GStmt.constructorName('Error) -> (List(string) -: 'Error),
+      'document -> any,
+      'Node -> any
     )
 
     ExprContext(varAssign, typeContext)
