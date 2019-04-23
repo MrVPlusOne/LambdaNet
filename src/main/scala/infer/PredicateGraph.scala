@@ -223,10 +223,10 @@ object PredicateGraphConstruction {
   ): ParsedProject = {
     val env = new TranslationEnv()
     val irModules = modules.map(m => IRTranslation.translateModule(m)(env)).toVector
-    irModules.foreach{ m =>
-      println(s"module: ${m.path}")
-      println(s"exports: ${m.exports}")
-    }
+//    irModules.foreach { m =>
+//      println(s"module: ${m.path}")
+//      println(s"exports: ${m.exports}")
+//    }
 
     val ctx = PredicateContext.jsCtx(env)
     val pModules =
@@ -300,8 +300,6 @@ object PredicateGraphConstruction {
         for ((t, exported) <- exports.classes.get(oldName) if exported) {
           resolved = true
           newTypeMap = newTypeMap.updated(newName, t)
-          val constructorT = exports.terms(constructorName(oldName))._1
-          varTypeMap += (Var(Right(constructorName(newName))) -> constructorT)
         }
 
         if (!resolved) {
@@ -322,14 +320,10 @@ object PredicateGraphConstruction {
         packageNames += newName
       case ImportDefault(path, newName) =>
         getExports(path).defaultType.foreach { p =>
-          newTypeMap += p
+          newTypeMap += newName -> p._2
         }
         getExports(path).defaultVar.foreach {
-          case (v, t) =>
-            val name1 =
-              if (GStmt.isConstructor(v.nameOpt.get)) constructorName(newName)
-              else newName
-            varTypeMap += (Var(Right(name1)) -> t)
+          case (_, t) => varTypeMap += (Var(Right(newName)) -> t)
         }
     }
 
@@ -375,9 +369,6 @@ object PredicateGraphConstruction {
               }
               for ((t, exported) <- exports.classes.get(oldName) if exported) {
                 newDefs = newDefs.updated((newName, ExportCategory.Class), (t, false))
-                val v = exports.terms(constructorName(oldName))
-                newDefs =
-                  newDefs.updated((constructorName(newName), ExportCategory.Term), v)
               }
             case _ =>
           }
@@ -392,25 +383,21 @@ object PredicateGraphConstruction {
 
               def export(
                 map: Map[Symbol, (IRType, Exported)],
-                category: ExportCategory.Value,
-                isConstructor: Boolean
+                category: ExportCategory.Value
               ): Unit = {
-                val oldName1 = if (isConstructor) constructorName(oldName) else oldName
-                val newName1 = if (isConstructor) constructorName(newName) else newName
-                map.get(oldName1).foreach {
+                map.get(oldName).foreach {
                   case (tv, exported) =>
                     if (source.isEmpty) {
-                      newDefs = newDefs.updated((newName1, category), (tv, true))
+                      newDefs = newDefs.updated((newName, category), (tv, true))
                     } else if (exported) {
-                      newDefs = newDefs.updated((newName1, category), (tv, exported))
+                      newDefs = newDefs.updated((newName, category), (tv, exported))
                     }
                 }
               }
 
-              export(ex.terms, ExportCategory.Term, isConstructor = false)
-              export(ex.terms, ExportCategory.Term, isConstructor = true)
-              export(ex.typeAliases, ExportCategory.TypeAlias, isConstructor = false)
-              export(ex.classes, ExportCategory.Class, isConstructor = false)
+              export(ex.terms, ExportCategory.Term)
+              export(ex.typeAliases, ExportCategory.TypeAlias)
+              export(ex.classes, ExportCategory.Class)
             case ExportOtherModule(from) =>
               val ex = allModules(dir / from).exports
               newDefs = newDefs ++ ex.definitions
@@ -424,7 +411,6 @@ object PredicateGraphConstruction {
       val init = modules.map(m => m.path -> m).toMap
       Vector.iterate(init, exportIterations)(propagateExports).last
     }
-
 
     irModules.toVector.zipWithIndex.map {
       case ((path, module), idx) =>
@@ -468,9 +454,8 @@ object PredicateGraphConstruction {
       }
 
       val defs = stmts.collect {
-        case d: VarDef   => d.v -> d.mark
-        case f: FuncDef  => namedVar(f.name) -> f.funcT
-        case c: ClassDef => namedVar(c.constructor.name) -> c.constructor.funcT
+        case d: VarDef  => d.v -> d.mark
+        case f: FuncDef => namedVar(f.name) -> f.funcT
       }
 
       ctx.copy(
@@ -533,7 +518,7 @@ object PredicateGraphConstruction {
                       varTypeMap(Var(Right(qualifiedName(receiver.nameOpt.get, label))))
                     )
                   )
-                }else {
+                } else {
                   add(DefineRel(tv, FieldAccessTypeExpr(varTypeMap(receiver), label)))
                 }
               case IfExpr(cond, e1, e2) =>
@@ -565,7 +550,7 @@ object PredicateGraphConstruction {
             )
             add(DefineRel(funcT, FuncTypeExpr(args.map(_._2), newReturnType)))
             encodeStmt(body)(ctx1)
-          case ClassDef(_, superType, constructor, vars, funcDefs, classT, _) =>
+          case ClassDef(_, superType, vars, funcDefs, classT, _, _) =>
             vars.values.foreach(recordLabel)
 
             val superMap = superType.map { n =>
@@ -582,7 +567,7 @@ object PredicateGraphConstruction {
               ctx.copy(
                 varTypeMap = ctx.varTypeMap + (ClassDef.thisVar -> classT) ++ superMap.toList
               )
-            (constructor +: funcDefs).foreach(s => encodeStmt(s)(innerCtx))
+            funcDefs.foreach(s => encodeStmt(s)(innerCtx))
           case _: TypeAliasIRStmt => //do nothing
         }
       }

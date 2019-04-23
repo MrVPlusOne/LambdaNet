@@ -5,6 +5,9 @@ import gtype._
 import funcdiff.SimpleMath.Extensions._
 import gtype.ExportStmt.ExportSingle
 import gtype.GStmt.TypeAnnotation
+import gtype.SamplePrograms.Example
+
+import collection.mutable
 
 object IRTranslation {
   import IR._
@@ -147,23 +150,95 @@ object IRTranslation {
       case f: gtype.FuncDef =>
         val newTyVars = quantifiedTypes ++ f.tyVars.toSet
         Vector(translateFunc(f)(newTyVars, env))
-      case gtype.ClassDef(name, tyVars, superType, constructor, vars, funcDefs, level) =>
-        val classT = env.newTyVar(None, Some(name))
-        val newTyVars = quantifiedTypes ++ tyVars.toSet
-        Vector(
-          ClassDef(
-            name,
-            superType,
-            translateFunc(constructor)(newTyVars, env)
-              .copy(returnType = classT),
-            vars.map {
-              case (v, mark) => v -> env.getTyVar(mark, Some(v))(newTyVars)
-            },
-            funcDefs.map(f => translateFunc(f)(newTyVars, env)),
-            classT,
+      case gtype.ClassDef(
+          name,
+          tyVars,
+          superType,
+          constructor,
+          vars,
+          funcDefs,
+          level,
+          isAbstract
+          ) =>
+        val (instanceVars, staticVars) = {
+          val v1 = vars.groupBy(_._2._2)
+          v1.getOrElse(false, Map()).mapValuesNow(_._1) -> v1
+            .getOrElse(true, Map())
+            .mapValuesNow(_._1)
+        }
+        val (instanceMethods, staticMethods0) = {
+          val v1 = funcDefs.groupBy(_._2)
+          (
+            v1.getOrElse(false, Vector()).map(_._1),
+            v1.getOrElse(true, Vector()).map(_._1)
+          )
+        }
+
+        val staticMethods =
+          if (isAbstract) staticMethods0 else constructor +: staticMethods0
+
+        def renameStatic(methodName: Symbol): Symbol = {
+          Symbol(name.name + "." + methodName.name)
+        }
+
+        val staticMembers = staticVars.mapValuesNow {
+          case t: GType => gtype.Const("unparsed", t)
+          case _: GTHole =>
+            gtype.Const("unhandled", AnyType) //fixme: properly handle this
+        } ++ staticMethods.map { m =>
+          m.name -> gtype.Var(renameStatic(m.name))
+        }
+
+        val renamed = staticMethods.map { m =>
+          m.copy(name = renameStatic(m.name))
+        }
+
+        val defs = mutable.ListBuffer[IRStmt]()
+        val irObj = translateExpr(gtype.ObjLiteral(staticMembers))(Set(), env, defs)
+        val companionT = env.newTyVar(None, None, None)
+        val staticObject = {
+          VarDef(
+            Var(Right(name)),
+            companionT,
+            irObj,
             level
           )
-        )
+        }
+
+        val allMethods = renamed.flatMap(translateStmt)
+
+        val instanceStmts = if (isAbstract) {
+          val fields = staticVars.map {
+            case (n, m) =>
+              n -> m.asInstanceOf[GType]
+          } ++ staticMethods
+            .map { m =>
+              m.name -> m.functionType
+            }
+          val objType = ObjectType(fields)
+          translateStmt(TypeAliasStmt(name, tyVars, objType, level))
+        } else {
+          val classT = env.newTyVar(None, Some(name))
+          val newTyVars = quantifiedTypes ++ tyVars.toSet
+          val cons = allMethods.head.asInstanceOf[FuncDef]
+          Vector(
+            cons
+              .copy(returnType = classT), // need to modify the return type of constructor
+            ClassDef(
+              name,
+              superType,
+              instanceVars.map {
+                case (v, mark) => v -> env.getTyVar(mark, Some(v))(newTyVars)
+              },
+              instanceMethods.map(f => translateFunc(f)(newTyVars, env)),
+              classT,
+              companionT,
+              level
+            )
+          )
+        }
+
+        allMethods.drop(if (isAbstract) 0 else 1) ++ defs ++ instanceStmts :+ staticObject
       case gtype.TypeAliasStmt(name, tyVars, ty, level) =>
         val aliasT = env.newTyVar(
           None,
@@ -272,7 +347,10 @@ object IRTranslation {
           case ExportLevel.Public =>
             terms(v.nameOpt.get) = (mark, true)
           case ExportLevel.Default =>
-            require(defaultVar.isEmpty)
+            require(
+              defaultVar.isEmpty,
+              s"trying to set default to $mark, but get ${defaultVar.get}"
+            )
             defaultVar = Some(v -> mark)
           case ExportLevel.Private =>
         }
@@ -289,17 +367,15 @@ object IRTranslation {
         }
       case c: ClassDef =>
         classes(c.name) = (c.classT, false)
-        terms(c.constructor.name) = (c.constructor.funcT, false)
+        terms(c.name) = (c.companionT, false)
 
         c.exportLevel match {
           case ExportLevel.Public =>
             classes(c.name) = (c.classT, true)
-            terms(c.constructor.name) = (c.constructor.funcT, true)
+            terms(c.name) = (c.companionT, true)
           case ExportLevel.Default =>
-            require(defaultVar.isEmpty)
             require(defaultClass.isEmpty)
             defaultClass = Some(c.name -> c.classT)
-            defaultVar = Some(Var(Right(c.constructor.name)) -> c.constructor.funcT)
           case ExportLevel.Private =>
         }
       case c: TypeAliasIRStmt =>
@@ -332,7 +408,11 @@ object IRTranslation {
     val irStmts = module.stmts.flatMap(s => translateStmt(s)(Set(), env))
 
     val moduleExports =
-      SimpleMath.withErrorMessage(s"collectExports failed for ${module.path}") {
+      SimpleMath.withErrorMessage(
+        s"collectExports failed for ${module.path}\nmodule:\n${irStmts
+          .map(_.prettyPrint())
+          .mkString("\n")}"
+      ) {
         collectExports(irStmts)
       }
 
@@ -347,7 +427,7 @@ object IRTranslation {
 
   def main(args: Array[String]): Unit = {
     val env = new TranslationEnv()
-    val example = JSExamples.Collection.doublyLinkedList
+    val example: Example = ???
 
     println {
       example.program.prettyPrint()

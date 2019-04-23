@@ -195,7 +195,8 @@ class ProgramParsing(
     isConst: Boolean,
     exportLevel: ExportLevel.Value,
     isGetter: Boolean,
-    isSetter: Boolean
+    isSetter: Boolean,
+    isAbstract: Boolean
   )
 
   def parseModifiers(v: Js.Val): DefModifiers = {
@@ -208,7 +209,8 @@ class ProgramParsing(
       else ExportLevel.Private
     val isGetter = modifiers.contains("get")
     val isSetter = modifiers.contains("set")
-    DefModifiers(isConst, exportLevel, isGetter, isSetter)
+    val isAbstract = modifiers.contains("abstract")
+    DefModifiers(isConst, exportLevel, isGetter, isSetter, isAbstract)
   }
 
   def parseGStmt(v: Js.Val): GStmt =
@@ -267,28 +269,35 @@ class ProgramParsing(
           val superType = asOptionSymbol(map("superType"))
           val ms = parseModifiers(map("modifiers"))
           val constructor = {
-            val consName = GStmt.constructorName(name)
             val constructorValue = map("constructor")
             val f = if (constructorValue == Null) {
               // make an empty constructor
               val tyVars = List() //fixme
               FuncDef(
-                consName,
+                GStmt.constructorName,
                 tyVars,
                 List(),
                 GType.voidType,
                 BlockStmt(Vector()),
-                ms.exportLevel
+                ExportLevel.Private
               )
             } else {
               parseGStmt(constructorValue).asInstanceOf[FuncDef]
             }
-            f.copy(name = consName)
+            f.copy(name = GStmt.constructorName)
           }
-          val vars = parseArgList(map("vars"))
+          val vars = asArray(map("vars")).map{ v1 =>
+            val List(named, b) = asArray(v1)
+            val (name, mark) = parseNamedValue(named)
+            val ty = parseGTMark(mark)
+            val isStatic = asBoolean(b)
+            (Symbol(name), (ty, isStatic))
+          }
           val funcDefs =
-            asVector(map("funcDefs"))
-              .map(x => parseGStmt(x).asInstanceOf[FuncDef])
+            asVector(map("funcDefs")).map{v =>
+              val List(s, b) = asArray(v)
+              parseGStmt(s).asInstanceOf[FuncDef] -> asBoolean(b)
+            }
           val tyVars = asVector(map("tyVars")).map(asSymbol).toList
           ClassDef(
             name,
@@ -297,7 +306,8 @@ class ProgramParsing(
             constructor,
             vars.toMap,
             funcDefs,
-            ms.exportLevel
+            ms.exportLevel,
+            ms.isAbstract
           )
 
         case other => throw new Error(s"Unknown category: $other")

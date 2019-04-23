@@ -1,6 +1,6 @@
 package infer
 
-import gtype._
+import gtype.{ExportLevel, _}
 import gtype.ExportLevel.asPrefix
 import gtype.GModule.ProjectPath
 import gtype.GStmt.TypeAnnotation
@@ -42,7 +42,6 @@ object IR {
         case s: BlockStmt => s.stmts.foreach(processStmt)
         case s: FuncDef   => s.body.stmts.foreach(processStmt)
         case s: ClassDef =>
-          processStmt(s.constructor)
           s.funcDefs.foreach(processStmt)
           fieldsDefined ++= s.funcDefs.map(_.name)
           fieldsDefined ++= s.vars.keySet
@@ -75,10 +74,11 @@ object IR {
       case ((n, ExportCategory.Term), t) => n -> t
     }.toMap
 
-    lazy val typeAliases: Map[Symbol, (IRType, Exported)] = definitions.toIterator.collect {
-      case ((n, cat), t) if cat == ExportCategory.TypeAlias =>
-        n -> t
-    }.toMap
+    lazy val typeAliases: Map[Symbol, (IRType, Exported)] =
+      definitions.toIterator.collect {
+        case ((n, cat), t) if cat == ExportCategory.TypeAlias =>
+          n -> t
+      }.toMap
 
     lazy val classes: Map[Symbol, (IRType, Exported)] = definitions.toIterator.collect {
       case ((n, cat), t) if cat == ExportCategory.Class =>
@@ -204,17 +204,14 @@ object IR {
   ) extends IRStmt
 
   case class ClassDef(
-    name: Symbol,
-    superType: Option[Symbol] = None,
-    constructor: FuncDef,
-    vars: Map[Symbol, IRType],
+    name: TypeName,
+    superType: Option[TypeName] = None,
+    vars: Map[TypeName, IRType],
     funcDefs: Vector[FuncDef],
     classT: IRType,
+    companionT: IRType,
     exportLevel: ExportLevel.Value
-  ) extends IRStmt {
-    require(constructor.name == gtype.GStmt.constructorName(name))
-    require(constructor.returnType == classT)
-  }
+  ) extends IRStmt
 
   case class TypeAliasIRStmt(aliasT: IRType, level: ExportLevel.Value) extends IRStmt {
     require(aliasT.annotation.nonEmpty)
@@ -255,7 +252,7 @@ object IR {
             indent -> s"${asPrefix(level)}function ${funcName.name}:$funcT $argList$returnMark"
           ) ++ prettyPrintHelper(indent, body)
 
-        case ClassDef(name, superType, constructor, vars, funcDefs, classT, level) =>
+        case ClassDef(name, superType, vars, funcDefs, classT, _, level) =>
           val superPart = superType
             .map(t => s"extends $t")
             .getOrElse("")
@@ -264,7 +261,7 @@ object IR {
               case (fieldName, tv) =>
                 (indent + 1, s"${fieldName.name}: $tv;")
             } ++
-            (constructor +: funcDefs).flatMap(
+            funcDefs.flatMap(
               fDef => prettyPrintHelper(indent + 1, fDef)
             ) ++
             Vector(indent -> "}")
