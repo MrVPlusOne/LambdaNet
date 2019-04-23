@@ -12,11 +12,18 @@ import gtype.EventLogger.PlotConfig
 import gtype._
 import infer.GraphEmbedding._
 import infer.IRTranslation.TranslationEnv
+
 import scala.collection.mutable
 import scala.collection.parallel.ForkJoinTaskSupport
 import ammonite.ops._
 import infer.IR.{IRModule, IRTypeId}
-import infer.PredicateGraph.{PredicateModule, TypeLabel}
+import infer.PredicateGraph.{
+  LibraryType,
+  OutOfScope,
+  PredicateModule,
+  ProjectType,
+  TypeLabel
+}
 import infer.PredicateGraphConstruction.{ParsedProject, PathMapping}
 
 import scala.concurrent.ExecutionContextExecutorService
@@ -32,14 +39,16 @@ import scala.concurrent.ExecutionContextExecutorService
   */
 object TrainingCenter {
 
-  val numOfThreads: Int = Runtime.getRuntime.availableProcessors().min(16)
+  val numOfThreads
+    : Int = Runtime.getRuntime.availableProcessors().min(16) //use at most 16 cores
   val forkJoinPool = new ForkJoinPool(numOfThreads)
   val taskSupport: ForkJoinTaskSupport = new ForkJoinTaskSupport(forkJoinPool)
   val parallelCtx: ExecutionContextExecutorService =
     concurrent.ExecutionContext.fromExecutorService(forkJoinPool)
 
-  TensorExtension.checkNaN = false // uncomment to train faster
+  TensorExtension.checkNaN = false // skip checking to train faster
 
+  /** A complete representation of the current training, used to save/restore training */
   case class TrainingState(
     step: Int,
     dimMessage: Int,
@@ -74,19 +83,9 @@ object TrainingCenter {
 
 //    val trainRoot = pwd / RelPath("data/toy")
 //    val testRoot = trainRoot
-
-    val trainRoots = Vector(
-      "data/train/algorithms-train",
-      "data/train/mojiito-master"
-    ).map(p => pwd / RelPath(p))
-
-    val trainParsed = trainRoots.map { r =>
-      infer.PredicateGraphConstruction
-        .fromSourceFiles(
-          r,
-          libraryTypes = libraryTypes.map(TyVar),
-        )
-    }
+    println("Start loading projects")
+    val trainParsed = TrainingProjects.parsedProjects
+    println("Training projects loaded")
 
     val testRoots = Vector(pwd / RelPath("data/test/algorithms-test"))
     val testParsed = testRoots.map { r =>
@@ -94,9 +93,9 @@ object TrainingCenter {
         .fromSourceFiles(r, libraryTypes = libraryTypes.map(TyVar))
     }
 
-    println(s"=== Training on $trainRoots ===")
+    println(s"=== Training on ${trainParsed.map(_.projectName)} ===")
 
-    val loadFromFile: Option[Path] = TrainingControl.restoreFrom(consumeFile = true)
+    val loadFromFile: Option[Path] = TrainingControl.restoreFromFile(consumeFile = true)
     val trainingState = loadFromFile
       .map { p =>
         println("Loading training from file: " + p)
@@ -118,6 +117,7 @@ object TrainingCenter {
     )
   }
 
+  /** Builds a graph neural network over an entire typescript project */
   //noinspection TypeAnnotation
   case class GraphNetBuilder(
     graphName: String,
@@ -246,6 +246,7 @@ object TrainingCenter {
       println {
         builder.predicateCategoryNumbers
       }
+      println("# of nodes: " + builder.transEnv.idTypeMap.size)
     })
 
     val eventLogger = {
@@ -257,14 +258,16 @@ object TrainingCenter {
         configs = Seq(
           //          "embedding-magnitudes" -> PlotConfig("ImageSize->Medium"),
           "embedding-changes" -> PlotConfig("ImageSize->Medium"),
-          "embedding-max-length" -> PlotConfig("ImageSize->Medium"),
+//          "embedding-max-length" -> PlotConfig("ImageSize->Medium"),
           "iteration-time" -> PlotConfig(
             "ImageSize->Medium",
             """AxesLabel->{"step","ms"}"""
           ),
+          "loss" -> PlotConfig("ImageSize->Large"),
           "accuracy" -> PlotConfig("ImageSize->Medium"),
           "test-accuracy" -> PlotConfig("ImageSize->Medium"),
-          "loss" -> PlotConfig("ImageSize->Large")
+          "test-lib-accuracy" -> PlotConfig("ImageSize->Small"),
+          "test-proj-accuracy" -> PlotConfig("ImageSize->Small")
         )
       )
     }
@@ -304,10 +307,10 @@ object TrainingCenter {
             .seq
           eventLogger.log("embedding-changes", step, Tensor(diffs: _*))
 
-          val maxEmbeddingLength = embeddings.map {
-            _.stat.trueEmbeddingLengths.max
-          }.max
-          eventLogger.log("embedding-max-length", step, Tensor(maxEmbeddingLength))
+//          val maxEmbeddingLength = embeddings.map {
+//            _.stat.trueEmbeddingLengths.max
+//          }.max
+//          eventLogger.log("embedding-max-length", step, Tensor(maxEmbeddingLength))
         }
 
         note("analyzeResults")
@@ -322,7 +325,7 @@ object TrainingCenter {
           decodingCtx,
           printResults = false
         )
-        eventLogger.log("accuracy", step, Tensor(accuracy))
+        eventLogger.log("accuracy", step, Tensor(accuracy.totalAccuracy))
 
         println("annotated places number: " + typeLabels.length)
         val targets = typeLabels.map(p => decodingCtx.indexOfType(p._2))
@@ -369,8 +372,12 @@ object TrainingCenter {
           )
           testAcc
         }
-        val avgAcc = SimpleMath.mean(testAccs)
+        val avgAcc = SimpleMath.mean(testAccs.map(_.totalAccuracy))
+        val avgLibAcc = SimpleMath.mean(testAccs.map(_.libraryTypeAccuracy))
+        val avgProjAcc = SimpleMath.mean(testAccs.map(_.projectTypeAccuracy))
         eventLogger.log("test-accuracy", step, Tensor(avgAcc))
+        eventLogger.log("test-lib-accuracy", step, Tensor(avgLibAcc))
+        eventLogger.log("test-proj-accuracy", step, Tensor(avgProjAcc))
       }
       if (step % 50 == 0) {
         saveTraining(step, s"step$step")
@@ -404,25 +411,46 @@ object TrainingCenter {
     }
   }
 
+  case class AccuracyStat(
+    totalAccuracy: Double,
+    projectTypeAccuracy: Double,
+    libraryTypeAccuracy: Double,
+    outOfScopeTypeAccuracy: Double
+  )
+
   def analyzeResults(
     annotatedPlaces: IS[(IRTypeId, TypeLabel)],
     logits: Tensor,
     transEnv: TranslationEnv,
     ctx: DecodingCtx,
     printResults: Boolean = true
-  ): Double = {
+  ): AccuracyStat = {
     type Prediction = Int
     val predictions = numsca.argmax(logits, axis = 1)
     val correct = mutable.ListBuffer[(IRTypeId, Prediction)]()
     val incorrect = mutable.ListBuffer[(IRTypeId, Prediction)]()
+    var projCorrect, projIncorrect = 0
+    var libCorrect, libIncorrect = 0
+    var outOfScopeCorrect, outOfScopeIncorrect = 0
+
     for (row <- annotatedPlaces.indices) {
       val (nodeId, t) = annotatedPlaces(row)
       val expected = ctx.indexOfType(t)
       val actual = predictions(row, 0).squeeze().toInt
-      if (expected == actual)
+      if (expected == actual) {
         correct += (nodeId -> actual)
-      else {
+        t match {
+          case _: ProjectType => projCorrect += 1
+          case _: LibraryType => libCorrect += 1
+          case OutOfScope     => outOfScopeCorrect += 1
+        }
+      } else {
         incorrect += (nodeId -> actual)
+        t match {
+          case _: ProjectType => projIncorrect += 1
+          case _: LibraryType => libIncorrect += 1
+          case OutOfScope     => outOfScopeIncorrect += 1
+        }
       }
     }
 
@@ -445,8 +473,18 @@ object TrainingCenter {
           println(s"[incorrect] \t$tv: $actualType not match $expected")
     }
 
+    def calcAccuracy(correct: Int, incorrect: Int): Double = {
+      val s = correct + incorrect
+      if (s == 0) 1.0
+      else correct.toDouble / s
+    }
+
     val accuracy = correct.length.toDouble / (correct.length + incorrect.length)
-    accuracy
+    val libAccuracy = calcAccuracy(libCorrect, libIncorrect)
+    val projAccuracy = calcAccuracy(projCorrect, projIncorrect)
+    val outOfScopeAccuracy = calcAccuracy(outOfScopeCorrect, outOfScopeIncorrect)
+
+    AccuracyStat(accuracy, libAccuracy, projAccuracy, outOfScopeAccuracy)
   }
 
   def note(msg: String): Unit = {
@@ -466,7 +504,9 @@ object TrainingCenter {
       stop
     }
 
-    def restoreFrom(consumeFile: Boolean): Option[Path] = {
+    /** If [[restoreFile]] exists, read the path from the file.
+      * @param consumeFile if set to true, delete [[restoreFile]] after reading. */
+    def restoreFromFile(consumeFile: Boolean): Option[Path] = {
       val restore = exists(restoreFile)
       if (restore) {
         val content = read(restoreFile).trim

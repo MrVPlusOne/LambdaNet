@@ -44,13 +44,15 @@ See [typingNet-Formalizations.pdf](typingNet-Formalizations.pdf).
 
 Todo: 
 
+- [ ] implement predicate graph pruning
+
 - [ ] collapse constant nodes
 
-- [ ] fix generic variables parsing
-
-- [ ] fix types parsing
-
 Done:
+
+- [X] fix generic variables parsing
+
+- [X] fix types parsing
 
 - [X] implement type decoding from predicate graphs
 
@@ -71,11 +73,13 @@ into IR
 
 Todo:
 
-- [ ] implement training loop for multiple modules
+- [ ] obtain statistics about projects
 
 - [ ] implement predicate-level loss
 
 Done:
+
+- [X] implement training loop for multiple projects
 
 - [X] properly handle module imports/exports
 

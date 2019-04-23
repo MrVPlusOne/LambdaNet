@@ -197,11 +197,11 @@ case class LayerFactory(nameSpace: SymbolPath, paramCollection: ParamCollection)
   /** performs weighted-sum over ys using dot-product attention */
   def attentionLayer(
     name: SymbolPath,
-    attentionDim: Int,
     transformKey: Boolean = false,
-    transformValue: Boolean = false
+    transformValue: Boolean = false,
   )(xKey: CompNode, ys: IS[(CompNode, CompNode)]): CompNode =
     withPrefix(name) { _ =>
+      require (ys.nonEmpty)
       val keyDim = xKey.shape(1)
       val valueDim = ys.head._2.shape(1)
       val sqrtN = math.sqrt(keyDim)

@@ -245,7 +245,7 @@ case class GraphEmbedding(
                 )
             }
 
-            val fEmbed = attentionLayer('CallTypeExpr / 'fEmbed, dimMessage)(
+            val fEmbed = attentionLayer('CallTypeExpr / 'fEmbed)(
               fKey,
               fPair +: argPairs
             )
@@ -276,7 +276,6 @@ case class GraphEmbedding(
                     val att =
                       attentionLayer(
                         'ObjLiteralTypeExpr / 'fieldUsage,
-                        dimMessage,
                         transformKey = true
                       )(
                         nodeMap(v.id),
@@ -302,7 +301,7 @@ case class GraphEmbedding(
             if (fieldDefs.contains(label)) {
               messages(v.id) += {
                 val att =
-                  attentionLayer('FieldAccess / 'defs, dimMessage, transformKey = true)(
+                  attentionLayer('FieldAccess / 'defs, transformKey = true)(
                     nodeMap(objType.id),
                     fieldDefs(label)
                       .map { case (k, n) => nodeMap(k.id) -> nodeMap(n.id) } ++
@@ -323,7 +322,7 @@ case class GraphEmbedding(
       .map { id =>
         val node = nodeMap(id)
 //        val nodePair = messageModel('MessageAggregate / 'nodeMessage, nodeMap(id))
-        val out = attentionLayer('MessageAggregate, dimMessage, transformKey = true)(
+        val out = attentionLayer('MessageAggregate, transformKey = true)(
           node,
           _messages(id).toIndexedSeq :+ (node, node)
         )
@@ -413,19 +412,23 @@ case class GraphEmbedding(
               case (t, i) =>
                 argAccessMessage('funcType / 'arg, rec(t), i - 1)
             }.toIndexedSeq
-            attentionLayer('funcType / 'aggregate, dimMessage)(
+            attentionLayer('funcType / 'aggregate)(
               funcInitKey,
               messages
             )
           case ObjectType(fields) =>
-            val messages = fields.toIndexedSeq.map {
-              case (label, t) =>
-                fieldAccessMessage('objectType / 'field, rec(t), label)
+            if(fields.isEmpty){
+              getVar('objectType/'emptyObject)(randomVec())
+            }else {
+              val messages = fields.toIndexedSeq.map {
+                case (label, t) =>
+                  fieldAccessMessage('objectType / 'field, rec(t), label)
+              }
+              attentionLayer('objectType / 'aggregate)(
+                objectInitKey,
+                messages
+              )
             }
-            attentionLayer('objectType / 'aggregate, dimMessage)(
-              objectInitKey,
-              messages
-            )
         }
 
         rec(t)

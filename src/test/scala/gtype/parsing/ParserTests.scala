@@ -4,7 +4,7 @@ import gtype._
 import org.scalatest.WordSpec
 import ammonite.ops._
 import infer.IRTranslation.{TranslationEnv, translateStmt}
-import infer.{IRTranslation, PredicateGraphConstruction}
+import infer.{IRTranslation, PredicateGraphConstruction, TrainingProjects}
 import ImportStmt._
 import gtype.GModule.ProjectPath
 import infer.PredicateGraphConstruction.PathMapping
@@ -213,30 +213,6 @@ class ParserTests extends WordSpec with MyTest {
   }
 
   "Project parsing integration test" in {
-    val projectRoots = Seq(
-      "data/train/mojiito-master/packages",
-      "data/train/algorithms-train"
-    ).map(p => pwd / RelPath(p))
-
-    projectRoots.foreach(r => {
-      infer.PredicateGraphConstruction
-        .fromSourceFiles(r, pathMapping = new PathMapping {
-          def map(currentPath: ProjectPath, pathToResolve: ProjectPath): ProjectPath = {
-            val target = currentPath / pathToResolve
-            if(target.startsWith(RelPath("core/src/facade"))){
-              RelPath("facade/src") / target.segments.drop(3)
-            } else if(target.startsWith(RelPath("platform-browser/src/facade"))){
-              RelPath("facade/src") / target.segments.drop(3)
-            } else if (pathToResolve == RelPath("mojiito-facade")){
-              RelPath("facade/index")
-            } else if (pathToResolve == RelPath("mojiito-core")){
-              RelPath("core/src/core")
-            }else {
-              target
-            }
-          }
-        })
-    })
-
+    TrainingProjects.parsedProjects
   }
 }
