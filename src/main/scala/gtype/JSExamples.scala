@@ -1,10 +1,6 @@
 package gtype
 
 import gtype.GStmt.API._
-import SamplePrograms.Example
-import gtype.GStmt.TypeHoleContext
-
-import scala.collection.mutable.ListBuffer
 
 object JSExamples {
 
@@ -56,13 +52,10 @@ object JSExamples {
     name -> obj(Symbol(name.name + "_UNIQUE") -> name)
   }
 
-  val typeContext = TypeContext(
-    baseTypes = Set(),
-    typeUnfold = Map(
+  val exprContext: ExprContext = {
+    var typeUnfold = Map(
       baseType(function), //fixme: not an object
-      baseType('Error),
       baseType('Map),
-      baseType('Window),
       baseType(void),
       baseType(boolean),
       number -> obj(
@@ -80,21 +73,9 @@ object JSExamples {
       'Comparator -> obj(
         'equal -> (List(any, any) -: boolean)
       )
-    ) ++ Seq[GroundType](boolean, number, string, any)
-      .map(mkArrayType)
-      .toMap // create array types for basic types
-    ,
-    subRel = Set()
-  )
+    )
 
-  val libraryTypes: Set[Symbol] = typeContext.typeUnfold.keySet
-
-  def treatAsAny(name: String): (Symbol, AnyType.type) = {
-    Symbol(name) -> any
-  }
-
-  val exprContext: ExprContext = {
-    val varAssign = Map[Symbol, GType](
+    var varAssign = Map[Symbol, GType](
       THIS -> any,
       'eq -> (List(any, any) -: boolean),
       'OP_Not -> (List(any) -: boolean),
@@ -125,24 +106,32 @@ object JSExamples {
       'parseFloat -> (List(string) -: number)
     )
 
-    val additional = collection.mutable.ListBuffer[(Symbol, GType)]()
-
     def addType(name: Symbol): Unit = {
-      additional += (name -> any)
+      typeUnfold += baseType(name)
+      varAssign += (name -> any)
     }
-    //todo: properly handle these: (also inject library knowledge)
-    Seq('String, 'Object, 'Number, 'Function, 'Array, 'Error, 'HTMLElement,
-      'Injector, 'ReflectiveInjector, 'ReflectiveInjector_,
-    'Map, 'Node, 'RegExp, 'WeakMap, 'undefined, 'Element, 'Text, 'Comment).foreach(addType)
 
-    Seq('super, 'window, 'global, 'self, 'document).foreach(s => {
-      additional += (s -> any)
-    })
+      //todo: properly handle these: (also inject library knowledge)
+      Seq('String, 'Object, 'Number, 'Function, 'Array, 'Error, 'Window, 'HTMLElement,
+        'Injector, 'ReflectiveInjector, 'ReflectiveInjector_,
+        'Map, 'Node, 'RegExp, 'WeakMap, 'undefined, 'Element, 'Text, 'Comment).foreach(addType)
+
+      Seq('super, 'window, 'global, 'self, 'document).foreach(s => {
+        varAssign += (s -> any)
+      })
 
 
-    ExprContext(varAssign ++ additional, typeContext)
+    val typeContext = TypeContext(Set(), typeUnfold, Set())
+    ExprContext(varAssign, typeContext)
   }
 
+  val typeContext: TypeContext = exprContext.typeContext
+
+  val libraryTypes: Set[Symbol] = typeContext.typeUnfold.keySet
+
+  def treatAsAny(name: String): (Symbol, AnyType.type) = {
+    Symbol(name) -> any
+  }
 
   // @formatter:on
   val realWorldExamples = {

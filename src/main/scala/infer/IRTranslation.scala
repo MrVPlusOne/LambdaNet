@@ -205,21 +205,22 @@ object IRTranslation {
           )
         }
 
-        val allMethods = renamed.flatMap(translateStmt)
+        val newTyVars = quantifiedTypes ++ tyVars.toSet
+
+        val allMethods = renamed.flatMap(m => translateStmt(m)(newTyVars, env))
 
         val instanceStmts = if (isAbstract) {
-          val fields = staticVars.map {
+          val fields = instanceVars.map {
             case (n, m) =>
               n -> m.asInstanceOf[GType]
-          } ++ staticMethods
+          } ++ instanceMethods
             .map { m =>
               m.name -> m.functionType
             }
           val objType = ObjectType(fields)
-          translateStmt(TypeAliasStmt(name, tyVars, objType, level))
+          translateStmt(TypeAliasStmt(name, tyVars, objType, level))(newTyVars, env)
         } else {
           val classT = env.newTyVar(None, Some(name))
-          val newTyVars = quantifiedTypes ++ tyVars.toSet
           val cons = allMethods.head.asInstanceOf[FuncDef]
           Vector(
             cons

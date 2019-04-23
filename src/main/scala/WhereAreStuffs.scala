@@ -22,7 +22,7 @@ import infer.IR.IRModule
   *
   *   ### Intermediate Representations to PredicateGraphs
   *   * All the import statements are resolved in this stage.
-  *   * All the [[gtype.GStmt.TypeAnnotation]]s are converted into typeLabels.
+  *   * All the [[gtype.GStmt.TypeAnnotation]]s are converted into typeLabels [[PredicateGraph.TypeLabel]].
   *   [[PredicateGraphConstruction.resolveImports]]: Resolves all the imports and put the imported [[IR.IRType]]s into the [[PredicateGraphConstruction.PredicateContext]].
   *   [[PredicateGraphConstruction.encodeModules]]: Encodes a list of [[IRModule]]s into [[PredicateGraph.PredicateModule]]s.
   *
