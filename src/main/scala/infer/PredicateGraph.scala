@@ -3,7 +3,7 @@ package infer
 import funcdiff.SimpleMath
 import funcdiff.SimpleMath.Extensions._
 import funcdiff.SimpleMath.{LabeledGraph, wrapInQuotes}
-import gtype.ExportStmt.{ExportOtherModule, ExportSingle}
+import gtype.ExportStmt.{ExportDefault, ExportOtherModule, ExportSingle}
 import gtype.GModule.ProjectPath
 import gtype.GStmt.{TypeAnnotation, TypeHoleContext}
 import gtype.ImportStmt._
@@ -318,13 +318,19 @@ object PredicateGraphConstruction {
           case (n, (t, true)) => qualifiedName(newName, n) -> t
         }
         packageNames += newName
-      case ImportDefault(path, newName) =>
+      case im @ ImportDefault(path, newName) =>
+        var resolved = false
         getExports(path).defaultType.foreach { p =>
+          resolved = true
           newTypeMap += newName -> p._2
         }
         getExports(path).defaultVar.foreach {
-          case (_, t) => varTypeMap += (Var(Right(newName)) -> t)
+          case (_, t) =>
+            resolved = true
+            varTypeMap += (Var(Right(newName)) -> t)
         }
+        if (!resolved)
+          throw new Error(im + " not resolved!")
     }
 
     PredicateContext(varTypeMap, newTypeMap, packageNames)
@@ -356,54 +362,88 @@ object PredicateGraphConstruction {
         case (modulePath, md) =>
           val dir = modulePath / ammonite.ops.up
           var newDefs = md.exports.definitions
+          var newDefaultVar = md.exports.defaultVar
+          var newDefaultType = md.exports.defaultType
 
-          md.imports.foreach {
-            case ImportSingle(oldName, path, newName) =>
-              val exports = getExports(modulePath / up, path)
+          SimpleMath.withErrorMessage(s"when parsing $modulePath") {
+            md.imports.foreach {
+              case ImportSingle(oldName, path, newName) =>
+                val exports = getExports(modulePath / up, path)
 
-              for ((t, exported) <- exports.terms.get(oldName) if exported) {
-                newDefs = newDefs.updated((newName, ExportCategory.Term), (t, false))
-              }
-              for ((t, exported) <- exports.typeAliases.get(oldName) if exported) {
-                newDefs = newDefs.updated((newName, ExportCategory.TypeAlias), (t, false))
-              }
-              for ((t, exported) <- exports.classes.get(oldName) if exported) {
-                newDefs = newDefs.updated((newName, ExportCategory.Class), (t, false))
-              }
-            case _ =>
-          }
+                for ((t, exported) <- exports.terms.get(oldName) if exported) {
+                  newDefs = newDefs.updated((newName, ExportCategory.Term), (t, false))
+                }
+                for ((t, exported) <- exports.typeAliases.get(oldName) if exported) {
+                  newDefs =
+                    newDefs.updated((newName, ExportCategory.TypeAlias), (t, false))
+                }
+                for ((t, exported) <- exports.classes.get(oldName) if exported) {
+                  newDefs = newDefs.updated((newName, ExportCategory.Class), (t, false))
+                }
+              case _ =>
+            }
 
-          md.exportStmts.foreach {
-            case ExportSingle(oldName, newName, source) =>
-              val ex = source match {
-                case Some(from) =>
-                  allModules(dir / from).exports
-                case None => md.exports
-              }
+            md.exportStmts.foreach {
+              case ExportSingle(oldName, newName, source) =>
+                val ex = source match {
+                  case Some(from) =>
+                    allModules(pathMapping.map(dir, from)).exports
+                  case None => md.exports
+                }
 
-              def export(
-                map: Map[Symbol, (IRType, Exported)],
-                category: ExportCategory.Value
-              ): Unit = {
-                map.get(oldName).foreach {
-                  case (tv, exported) =>
-                    if (source.isEmpty) {
-                      newDefs = newDefs.updated((newName, category), (tv, true))
-                    } else if (exported) {
-                      newDefs = newDefs.updated((newName, category), (tv, exported))
+                def export(
+                  map: Map[Symbol, (IRType, Exported)],
+                  category: ExportCategory.Value
+                ): Unit = {
+                  map.get(oldName).foreach {
+                    case (tv, exported) =>
+                      if (source.isEmpty) {
+                        newDefs = newDefs.updated((newName, category), (tv, true))
+                      } else if (exported) {
+                        newDefs = newDefs.updated((newName, category), (tv, exported))
+                      }
+                  }
+                }
+
+                export(ex.terms, ExportCategory.Term)
+                export(ex.typeAliases, ExportCategory.TypeAlias)
+                export(ex.classes, ExportCategory.Class)
+              case ExportOtherModule(from) =>
+                val ex = allModules(pathMapping.map(dir, from)).exports
+                newDefs = newDefs ++ ex.definitions
+              case ExportDefault(newName, from) =>
+                from match {
+                  case Some(path) =>
+                    val ex = allModules(pathMapping.map(dir, path)).exports
+                    ex.defaultType.foreach {
+                      case (name, t) =>
+                        newDefaultType = Some(newName.getOrElse(name) -> t)
+                    }
+                    ex.defaultVar.foreach {
+                      case (v, t) =>
+                        val newVar = newName.map(n => Var(Right(n))).getOrElse(v)
+                        newDefaultVar = Some(newVar -> t)
+                    }
+                  case None =>
+                    val name = newName.get
+                    md.exports.terms.get(name).foreach {
+                      case (tv, _) =>
+                        newDefaultVar = Some(Var(Right(name)) -> tv)
+                    }
+                    md.exports.classes.get(name).foreach {
+                      case (tv, _) =>
+                        newDefaultType = Some(name -> tv)
                     }
                 }
-              }
-
-              export(ex.terms, ExportCategory.Term)
-              export(ex.typeAliases, ExportCategory.TypeAlias)
-              export(ex.classes, ExportCategory.Class)
-            case ExportOtherModule(from) =>
-              val ex = allModules(dir / from).exports
-              newDefs = newDefs ++ ex.definitions
-            case _ => //do nothing yet
+            }
           }
-          modulePath -> md.copy(exports = md.exports.copy(definitions = newDefs))
+          modulePath -> md.copy(
+            exports = md.exports.copy(
+              definitions = newDefs,
+              defaultType = newDefaultType,
+              defaultVar = newDefaultVar
+            )
+          )
       }
     }
 

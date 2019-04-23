@@ -116,7 +116,8 @@ object JSExamples {
         'Injector, 'ReflectiveInjector, 'ReflectiveInjector_,
         'Map, 'Node, 'RegExp, 'WeakMap, 'undefined, 'Element, 'Text, 'Comment).foreach(addType)
 
-      Seq('super, 'window, 'global, 'self, 'document).foreach(s => {
+      Seq('super, 'window, 'global, 'self, 'document, 'setTimeout,
+        'getComputedStyle, 'JSON).foreach(s => {
         varAssign += (s -> any)
       })
 

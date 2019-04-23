@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "jsx": "react",
+    "reactNamespace": "Th",
+    "outDir": "lib",
+    "lib": [
+      "es6",
+      "dom"
+    ],
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
+  },
+  "include": [
+    "src"
+  ]
+}

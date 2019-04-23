@@ -95,6 +95,9 @@ object ExportPattern {
         Vector(ExportDefault(newNameOpt.map(Symbol.apply), p))
       }
 
+    def exportDefault2[_: P]: P[Creator] =
+      P("default" ~ identifier).map(n => p => Vector(ExportDefault(Some(Symbol(n)), p)))
+
     def exportSingles[_: P]: P[Creator] =
       P(
         "{" ~ (identifier ~/ ("as" ~/ identifier).?).rep(min = 1, sep = ",") ~ ",".? ~ "}"
@@ -116,7 +119,7 @@ object ExportPattern {
 
     def stmt[_: P] =
       P(
-        "export" ~/ (exportFromOther | exportDefault | exportSingles)
+        "export" ~/ (exportFromOther | exportDefault | exportDefault2 | exportSingles)
           ~ ("from" ~/ path).? ~ ";".?
       ).map {
         case (creator, p) => creator(p)

@@ -76,7 +76,7 @@ function parseTVars(n: {typeParameters? : ts.NodeArray<ts.TypeParameterDeclarati
 function parseSignatureType(sig: ts.SignatureDeclarationBase){
   //todo: handle potential type parameters
   let argTypes = sig.parameters.map(p => parseType(p.type));
-  let retType = parseType(sig.type);
+  let retType = sig.type ? parseType(sig.type): new TVar("void");
   return new FuncType(argTypes, retType);
 }
 
@@ -144,6 +144,8 @@ function parseType(node: ts.TypeNode): GType {
       }
     }
     return anyType;
+  } else if (node.kind == SyntaxKind.IntersectionType){
+    return anyType;
   } else if(node.kind == SyntaxKind.ParenthesizedType){
     let n = node as ts.ParenthesizedTypeNode;
     return parseType(n.type);
@@ -151,6 +153,8 @@ function parseType(node: ts.TypeNode): GType {
     return new TVar("boolean");
   } else if (node.kind == SyntaxKind.TypeQuery) {
     return anyType // fixme: handle type query
+  } else if (node.kind == SyntaxKind.MappedType){
+    return anyType
   } else {
     throw new Error("Unknown Type Kind: " + ts.SyntaxKind[node.kind]);
   }
@@ -412,6 +416,9 @@ export function parseExpr(node: ts.Node, checker: ts.TypeChecker,
         return constExpr("bool");
       case SyntaxKind.NullKeyword:
         return new Const("null", anyType);
+      case SyntaxKind.VoidExpression:{
+        return new Const("void", anyType);
+      }
 
       case SyntaxKind.ArrayLiteralExpression:
         return constExpr("array"); //todo: might need to distinguish array types
@@ -504,8 +511,15 @@ export class StmtParser {
         let lambdas = this.lambdaDefs;
 
         function allocateLambda(f: ts.FunctionLikeDeclaration): Var {
-          let name = "$Lambda" + getNLambda[0];
-          getNLambda[0] += 1;
+          let n0 = (f as ts.FunctionExpression).name;
+
+          let name: string;
+          if(n0) {
+            name = n0.getText();
+          } else {
+            name = "$Lambda" + getNLambda[0];
+            getNLambda[0] += 1;
+          }
           lambdas.push(parseFunction(name, f, []));
           return new Var(name);
         }
@@ -745,6 +759,7 @@ export class StmtParser {
 
         case SyntaxKind.ImportDeclaration:
           return EP.alongWith(new ImportStmt(node.getText()));
+        case SyntaxKind.ExportAssignment:
         case SyntaxKind.ExportDeclaration:
           return EP.alongWith(new ExportStmt(node.getText()));
         case SyntaxKind.EnumDeclaration: {
@@ -786,8 +801,11 @@ export class StmtParser {
         case SyntaxKind.ForInStatement:
 
         // ignored statements:
+        case SyntaxKind.ImportEqualsDeclaration:
         case SyntaxKind.BreakStatement:
           return EP.alongWith(new CommentStmt(node.getText()));
+        case SyntaxKind.EmptyStatement:
+          return EP.alongWithMany([]);
 
         default:
           throw new Error("Unknown stmt category: " + ts.SyntaxKind[node.kind]);
