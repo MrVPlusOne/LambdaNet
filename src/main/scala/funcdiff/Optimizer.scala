@@ -6,6 +6,7 @@ import API._
 import funcdiff.Optimizers.Adam.Momentum
 import funcdiff.ParameterAttribute.NeedRegularization
 import collection.mutable
+import concurrent.duration.Duration
 
 import scala.concurrent.ExecutionContext
 
@@ -22,11 +23,13 @@ trait Optimizer extends Serializable {
                params: Seq[Param],
                weightDecay: Option[Double] = None,
                gradientTransform: Gradient => Gradient = identity,
-               backPropInParallel: Option[ExecutionContext] = None): Unit = {
+               backPropInParallel: Option[(ExecutionContext, Duration)] = None): Unit = {
 
     if(warnEmptyUpdates && params.isEmpty){
       println("Warning: optimizer's param list is empty.")
     }
+
+    val gradients = objective.backpropForParams(backPropInParallel)
 
     import collection.mutable
     val newlyCreated = mutable.HashSet[ParamNode]()
@@ -39,7 +42,6 @@ trait Optimizer extends Serializable {
     }
 
     val paramMap = params.map(p => p.path -> p).toMap
-    val gradients = objective.backpropForParams(backPropInParallel)
     for((path, g0) <- gradients;
         p <- paramMap.get(path);
         g = parameterChangeAmount(p, gradientTransform(g0))){
@@ -62,7 +64,7 @@ trait Optimizer extends Serializable {
                params: Seq[Param],
                weightDecay: Option[Double] = None,
                gradientTransform: Gradient => Gradient = identity,
-               backPropInParallel: Option[ExecutionContext] = None): Unit = {
+               backPropInParallel: Option[(ExecutionContext, Duration)] = None): Unit = {
     maximize(-objective, params, weightDecay, gradientTransform, backPropInParallel)
   }
 }

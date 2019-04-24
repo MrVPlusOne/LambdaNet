@@ -13,7 +13,7 @@ object JSExamples {
   val function = 'Function //fixme: this should not be treated as object type
 
   def mkArrayType(baseType: GroundType): (Symbol, ObjectType) = {
-    val arrayType = if(baseType == any) 'Array else Symbol(s"${baseType.id.name}Array")
+    val arrayType = if (baseType == any) 'Array else Symbol(s"${baseType.id.name}Array")
     arrayType -> obj(
       'length -> number,
       'pop -> (List() -: baseType),
@@ -111,16 +111,15 @@ object JSExamples {
       varAssign += (name -> any)
     }
 
-      //todo: properly handle these: (also inject library knowledge)
-      Seq('String, 'Object, 'Number, 'Function, 'Array, 'Error, 'Window, 'HTMLElement,
-        'Injector, 'ReflectiveInjector, 'ReflectiveInjector_,
-        'Map, 'Node, 'RegExp, 'WeakMap, 'undefined, 'Element, 'Text, 'Comment).foreach(addType)
+    //todo: properly handle these: (query compiler for type definitions)
+    Seq('String, 'Object, 'Number, 'Function, 'Array, 'Error, 'Window, 'HTMLElement,
+      'Injector, 'ReflectiveInjector, 'ReflectiveInjector_, 'Map, 'Node, 'RegExp,
+      'WeakMap, 'undefined, 'Element, 'Text, 'Comment).foreach(addType)
 
-      Seq('super, 'window, 'global, 'self, 'document, 'setTimeout,
-        'getComputedStyle, 'JSON).foreach(s => {
+    Seq('super, 'window, 'global, 'self, 'document, 'setTimeout, 'getComputedStyle, 'JSON)
+      .foreach(s => {
         varAssign += (s -> any)
       })
-
 
     val typeContext = TypeContext(Set(), typeUnfold, Set())
     ExprContext(varAssign, typeContext)

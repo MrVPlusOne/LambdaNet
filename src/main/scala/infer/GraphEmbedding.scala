@@ -7,9 +7,13 @@ import funcdiff.SimpleMath.Extensions._
 import gtype.{AnyType, GType, TyVar}
 import infer.IR.{IRType, IRTypeId}
 import infer.PredicateGraph._
+
 import scala.collection.mutable
 import scala.collection.parallel.ForkJoinTaskSupport
 import GraphEmbedding._
+import infer.TrainingCenter.Timeouts
+
+import scala.concurrent.{Await, Future}
 
 object GraphEmbedding {
 
@@ -420,9 +424,9 @@ case class GraphEmbedding(
               messages
             )
           case ObjectType(fields) =>
-            if(fields.isEmpty){
-              getVar('objectType/'emptyObject)(randomVec())
-            }else {
+            if (fields.isEmpty) {
+              getVar('objectType / 'emptyObject)(randomVec())
+            } else {
               val messages = fields.toIndexedSeq.map {
                 case (label, t) =>
                   fieldAccessMessage('objectType / 'field, rec(t), label)

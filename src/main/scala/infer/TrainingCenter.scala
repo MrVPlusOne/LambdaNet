@@ -1,6 +1,6 @@
 package infer
 
-import java.util.concurrent.ForkJoinPool
+import java.util.concurrent.{ForkJoinPool, TimeoutException}
 
 import botkop.numsca
 import botkop.numsca.Tensor
@@ -17,10 +17,16 @@ import scala.collection.mutable
 import scala.collection.parallel.ForkJoinTaskSupport
 import ammonite.ops._
 import infer.IR.{IRModule, IRType, IRTypeId}
-import infer.PredicateGraph.{LibraryType, OutOfScope, PredicateModule, ProjectType, TypeLabel}
+import infer.PredicateGraph.{
+  LibraryType,
+  OutOfScope,
+  PredicateModule,
+  ProjectType,
+  TypeLabel
+}
 import infer.PredicateGraphConstruction.{ParsedProject, PathMapping}
 
-import scala.concurrent.ExecutionContextExecutorService
+import scala.concurrent.{Await, ExecutionContextExecutorService, Future}
 
 /**
   * How to control the training:
@@ -129,7 +135,7 @@ object TrainingCenter {
       .encodeUnaryPredicates(transEnv.idTypeMap.values, libraryVars)
     val newTypes = predModules.flatMap(m => m.newTypes.keys).toSet
 
-    def predicateCategoryNumbers: Map[Symbol, IRTypeId] = {
+    def predicateCategoryNumbers: Map[Symbol, Int] = {
       predicates.groupBy(PredicateGraph.predicateCategory).mapValuesNow { _.length }
     }
 
@@ -152,8 +158,9 @@ object TrainingCenter {
         }
       }.toMap
 
-      val varKnowledge = libraryVars.map{ case (_, s) =>
-        s -> randomVar('libVarKnowledge / s)
+      val varKnowledge = libraryVars.map {
+        case (_, s) =>
+          s -> randomVar('libVarKnowledge / s)
       }
 
       val fieldKnowledge =
@@ -181,12 +188,17 @@ object TrainingCenter {
         varKnowledge
       )
 
-      GraphEmbedding(embedCtx, factory, dimMessage, Some(taskSupport))
-        .encodeAndDecode(
-          iterations = 10,
-          decodingCtx,
-          typeLabels.map(_._1)
-        )
+      Await.result(
+        Future(
+          GraphEmbedding(embedCtx, factory, dimMessage, Some(taskSupport))
+            .encodeAndDecode(
+              iterations = 10,
+              decodingCtx,
+              typeLabels.map(_._1)
+            )
+        )(parallelCtx),
+        Timeouts.encodeDecodeTimeout
+      )
     }
 
   }
@@ -244,9 +256,12 @@ object TrainingCenter {
     }
 
     trainBuilders.foreach(builder => {
-      println("Predicate numbers:")
+      val total = builder.predicates.length
+      println(s"# of predicates: $total")
       println {
-        builder.predicateCategoryNumbers
+        builder.predicateCategoryNumbers.mapValuesNow(
+          n => "%.1f".format(n.toDouble / total * 100) + "%"
+        )
       }
       println("# of nodes: " + builder.transEnv.idTypeMap.size)
     })
@@ -278,7 +293,7 @@ object TrainingCenter {
 
     val maxTrainingSteps = 1000
     // training loop
-    for (step <- initStep until maxTrainingSteps) try {
+    for (step <- initStep + 1 to maxTrainingSteps) try {
       if (TrainingControl.shouldStop(true)) {
         saveTraining(step - 1, s"stopped-step$step")
         throw new Exception("Stopped by 'stop.txt'.")
@@ -349,7 +364,7 @@ object TrainingCenter {
           optimizer.minimize(
             loss,
             trainBuilder.factory.paramCollection.allParams,
-            backPropInParallel = Some(parallelCtx)
+            backPropInParallel = Some(parallelCtx -> Timeouts.optimizationTimeout)
           )
         }
 
@@ -386,12 +401,18 @@ object TrainingCenter {
       }
     } catch {
       case ex: Throwable =>
+        val isTimeout = ex.isInstanceOf[TimeoutException]
+        val errorName = if(isTimeout) "timeout" else "stopped"
         emailService.sendMail(emailService.userEmail)(
-          s"TypingNet: Training on $machineName stopped at step $step",
+          s"TypingNet: $errorName on $machineName at step $step",
           s"Details:\n" + ex.getMessage
         )
-        saveTraining(step, "error-save")
-        throw ex
+        if(isTimeout && Timeouts.restartOnTimeout){
+          println("Timeout... training restarted (skip one training step)...")
+        }else {
+          saveTraining(step, "error-save")
+          throw ex
+        }
     }
 
     emailService.sendMail(emailService.userEmail)(
@@ -411,9 +432,18 @@ object TrainingCenter {
       TrainingState(step, dimMessage, factory, optimizer).saveToFile(savePath)
       println("Training state saved into: " + saveDir)
     }
+
   }
 
-  case class AccuracyStat(
+  object Timeouts {
+    import concurrent.duration._
+
+    var restartOnTimeout = true
+    var optimizationTimeout = 1000.seconds
+    var encodeDecodeTimeout = 400.seconds
+  }
+
+  case class AccuracyStats(
     totalAccuracy: Double,
     projectTypeAccuracy: Double,
     libraryTypeAccuracy: Double,
@@ -426,7 +456,7 @@ object TrainingCenter {
     transEnv: TranslationEnv,
     ctx: DecodingCtx,
     printResults: Boolean = true
-  ): AccuracyStat = {
+  ): AccuracyStats = {
     type Prediction = Int
     val predictions = numsca.argmax(logits, axis = 1)
     val correct = mutable.ListBuffer[(IRTypeId, Prediction)]()
@@ -486,7 +516,7 @@ object TrainingCenter {
     val projAccuracy = calcAccuracy(projCorrect, projIncorrect)
     val outOfScopeAccuracy = calcAccuracy(outOfScopeCorrect, outOfScopeIncorrect)
 
-    AccuracyStat(accuracy, libAccuracy, projAccuracy, outOfScopeAccuracy)
+    AccuracyStats(accuracy, libAccuracy, projAccuracy, outOfScopeAccuracy)
   }
 
   def note(msg: String): Unit = {
@@ -494,6 +524,7 @@ object TrainingCenter {
     if (printNote) println("note: " + msg)
   }
 
+  /** Use text files to control the training loop (stop, restore, etc) */
   object TrainingControl {
     val stopFile: Path = pwd / "running-result" / "control" / "stop.txt"
     val restoreFile: Path = pwd / "running-result" / "control" / "restore.txt"

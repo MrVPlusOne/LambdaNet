@@ -1,8 +1,11 @@
 package funcdiff
 
+import java.util.concurrent.TimeoutException
+
 import botkop.numsca._
 import funcdiff.DiffFunc.ConstFunc
 import SimpleMath.Extensions._
+import infer.TrainingCenter.Timeouts
 
 import concurrent._
 
@@ -14,10 +17,18 @@ class CompNode(val func: DiffFunc) {
   def backprop: Map[CompNode, Gradient] = CompNode.backprop(this)
 
   def backpropForParams(
-    runInParallel: Option[ExecutionContext]
+    runInParallel: Option[(ExecutionContext, duration.Duration)]
   ): Map[SymbolPath, Gradient] = {
     val br = runInParallel match {
-      case Some(ctx) => Await.result(this.backpropParallel(ctx), duration.Duration.Inf)
+      case Some((ctx, timeOut)) =>
+        try{
+          Await.result(this.backpropParallel(ctx), timeOut)
+        } catch {
+          case _: TimeoutException =>
+            throw new TimeoutException(
+              s"backpropForParams time out for the limit: $timeOut."
+            )
+        }
       case None      => this.backprop
     }
     br.collect { case (n: ParamNode, g) if g.nonZero => n.path -> g }
