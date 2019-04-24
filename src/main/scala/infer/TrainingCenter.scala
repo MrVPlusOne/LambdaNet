@@ -79,19 +79,22 @@ object TrainingCenter {
   def main(args: Array[String]): Unit = {
     println(s"Using threads: $numOfThreads")
 
-    val libraryTypes = JSExamples.libraryTypes
+//    val libraryTypes = JSExamples.libraryTypes
 
 //    val trainRoot = pwd / RelPath("data/toy")
 //    val testRoot = trainRoot
     println("Start loading projects")
-    val trainParsed = TrainingProjects.parsedProjects
-    println("Training projects loaded")
-
-    val testRoots = Vector(pwd / RelPath("data/test/algorithms-test"))
-    val testParsed = testRoots.map { r =>
-      infer.PredicateGraphConstruction
-        .fromSourceFiles(r, libraryTypes = libraryTypes.map(TyVar))
+    val (trainParsed, testParsed) = {
+      val all = TrainingProjects.parsedProjects
+      (all.drop(1), Vector(all.head))
     }
+    println("Training/testing projects loaded")
+//
+//    val testRoots = Vector(pwd / RelPath("data/test/algorithms-test"))
+//    val testParsed = testRoots.map { r =>
+//      infer.PredicateGraphConstruction
+//        .fromSourceFiles(r, libraryTypes = libraryTypes.map(TyVar))
+//    }
 
     println(s"=== Training on ${trainParsed.map(_.projectName)} ===")
 
@@ -259,9 +262,11 @@ object TrainingCenter {
       val total = builder.predicates.length
       println(s"# of predicates: $total")
       println {
-        builder.predicateCategoryNumbers.mapValuesNow(
-          n => "%.1f".format(n.toDouble / total * 100) + "%"
-        )
+        builder.predicateCategoryNumbers.toVector
+          .sortBy { case (_, n) => -n }
+          .map {
+            case (cat, n) => s"$cat -> %.1f".format(n.toDouble / total * 100) + "%"
+          }
       }
       println("# of nodes: " + builder.transEnv.idTypeMap.size)
     })
@@ -402,14 +407,14 @@ object TrainingCenter {
     } catch {
       case ex: Throwable =>
         val isTimeout = ex.isInstanceOf[TimeoutException]
-        val errorName = if(isTimeout) "timeout" else "stopped"
+        val errorName = if (isTimeout) "timeout" else "stopped"
         emailService.sendMail(emailService.userEmail)(
           s"TypingNet: $errorName on $machineName at step $step",
           s"Details:\n" + ex.getMessage
         )
-        if(isTimeout && Timeouts.restartOnTimeout){
+        if (isTimeout && Timeouts.restartOnTimeout) {
           println("Timeout... training restarted (skip one training step)...")
-        }else {
+        } else {
           saveTraining(step, "error-save")
           throw ex
         }
