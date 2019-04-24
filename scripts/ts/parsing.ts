@@ -2,6 +2,7 @@ import * as ts from "typescript";
 import {SyntaxKind} from "typescript";
 
 
+
 export class GModule {
   constructor(public name: string, public stmts: GStmt[]) {
   }
@@ -376,7 +377,7 @@ export function parseExpr(node: ts.Node, checker: ts.TypeChecker,
       }
       case SyntaxKind.ObjectLiteralExpression: {
         let n = (<ts.ObjectLiteralExpression>node);
-        let fields = n.properties.flatMap((p: ts.ObjectLiteralElementLike) => {
+        let fields = flatMap(n.properties, (p: ts.ObjectLiteralElementLike) => {
           if(p.kind == SyntaxKind.PropertyAssignment) {
             return [parseObjectLiteralElementLike(p)];
           }else{
@@ -619,7 +620,7 @@ export class StmtParser {
           }
 
           let dec = node.declarations;
-          return flatMap(dec, (x: ts.VariableDeclaration) => parseBinding(x));
+          return flatMap(dec, (x: ts.VariableDeclaration) => parseBinding(x, null));
         });
       }
 
