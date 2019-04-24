@@ -44,6 +44,8 @@ See [typingNet-Formalizations.pdf](typingNet-Formalizations.pdf).
 
 Todo: 
 
+- [ ] properly handle library definitions
+
 - [ ] implement predicate graph pruning
 
 - [ ] collapse constant nodes

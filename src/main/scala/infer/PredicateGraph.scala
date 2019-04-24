@@ -11,7 +11,7 @@ import gtype.{AnyType, ExportStmt, GModule, GStmt, GTHole, GType, JSExamples, Ty
 import infer.IR._
 import infer.IRTranslation.TranslationEnv
 import infer.PredicateGraph._
-import GStmt.constructorName
+import collection.mutable
 
 /** Encodes the relationships between different type variables */
 object PredicateGraph {
@@ -47,6 +47,7 @@ object PredicateGraph {
   case class EqualityRel(v1: IRType, v2: IRType) extends TyVarPredicate
   case class FreezeType(v: IRType, ty: GType) extends TyVarPredicate
   case class HasName(v: IRType, name: Symbol) extends TyVarPredicate
+  case class IsLibraryType(v: IRType, name: Symbol) extends TyVarPredicate
   case class SubtypeRel(sub: IRType, sup: IRType) extends TyVarPredicate
   case class AssignRel(lhs: IRType, rhs: IRType) extends TyVarPredicate
   case class UsedAsBoolean(tyVar: IRType) extends TyVarPredicate
@@ -62,6 +63,7 @@ object PredicateGraph {
   def predicateCategory(p: TyVarPredicate): Symbol = p match {
     case _: EqualityRel    => 'equality
     case _: FreezeType     => 'freeze
+    case _: IsLibraryType  => 'isLibType
     case _: HasName        => 'hasName
     case _: SubtypeRel     => 'subtype
     case _: AssignRel      => 'assign
@@ -120,6 +122,8 @@ object PredicateGraph {
         newPredicate("=", "Equality", Seq(v1.id -> "L", v2.id -> "R"))
       case FreezeType(v, ty) =>
         newPredicate(s"=$ty", s"Freeze to $ty", Seq(v.id -> ""))
+      case IsLibraryType(v, name) =>
+        newPredicate(s"[${name.name}]", s"Is library type: $name", Seq(v.id -> ""))
       case HasName(v, name) =>
         newPredicate(s"{${name.name}}", s"Has name $name", Seq(v.id -> ""))
       case SubtypeRel(sub, sup) =>
@@ -175,6 +179,7 @@ object PredicateGraphConstruction {
   case class PredicateContext(
     varTypeMap: Map[Var, IRType],
     newTypeMap: Map[TypeName, IRType],
+    libVars: Map[IRTypeId, Symbol],
     packageNames: Set[Symbol]
   )
 
@@ -183,18 +188,20 @@ object PredicateGraphConstruction {
   }
 
   object PredicateContext {
-    val empty: PredicateContext =
-      PredicateContext(Map(), Map(), Set())
 
     def jsCtx(env: TranslationEnv): PredicateContext = {
       implicit val tyVars: Set[Symbol] = Set()
+
+      val libVars = mutable.Map[IRTypeId, Symbol]()
       val typeMap = JSExamples.exprContext.varAssign.map {
         case (s, t) =>
-          namedVar(s) -> env.newTyVar(
+          val irType = env.newTyVar(
             None,
             Some(s),
             Some(TypeAnnotation(t, needInfer = false))
           )
+          libVars(irType.id) = s
+          namedVar(s) -> irType
       }
       val objDef = JSExamples.typeContext.typeUnfold.keys.map { s =>
         s ->
@@ -204,7 +211,7 @@ object PredicateGraphConstruction {
             Some(TypeAnnotation(TyVar(s), needInfer = false))
           )
       }.toMap
-      PredicateContext(typeMap, objDef, Set())
+      PredicateContext(typeMap, objDef, libVars.toMap, Set())
     }
   }
 
@@ -212,7 +219,8 @@ object PredicateGraphConstruction {
     projectName: String,
     irEnv: TranslationEnv,
     irModules: Vector[IRModule],
-    predModules: Vector[PredicateModule]
+    predModules: Vector[PredicateModule],
+    predCtx: PredicateContext
   )
 
   def fromModules(
@@ -232,7 +240,7 @@ object PredicateGraphConstruction {
     val pModules =
       PredicateGraphConstruction.encodeModules(irModules, ctx, libraryTypes, pathMapping)
 
-    ParsedProject(projectName, env, irModules, pModules)
+    ParsedProject(projectName, env, irModules, pModules, ctx)
   }
 
   def fromSourceFiles(
@@ -261,7 +269,7 @@ object PredicateGraphConstruction {
       root
     )
 
-    fromModules(root.last, modules, libraryTypes, pathMapping)
+    fromModules(root.toString(), modules, libraryTypes, pathMapping)
   }
 
   def resolveImports(
@@ -333,7 +341,7 @@ object PredicateGraphConstruction {
           throw new Error(im + " not resolved!")
     }
 
-    PredicateContext(varTypeMap, newTypeMap, packageNames)
+    PredicateContext(varTypeMap, newTypeMap, baseCtx.libVars, packageNames)
   }
 
   def encodeModules(
@@ -617,12 +625,18 @@ object PredicateGraphConstruction {
     (relations.toVector, collectDefinitions(stmts)(ctx), typeLabels.toMap)
   }
 
-  def encodeUnaryPredicates(vars: Iterable[IRType]): Vector[TyVarPredicate] = {
+  def encodeUnaryPredicates(
+    vars: Iterable[IRType],
+    libVars: Map[IRTypeId, Symbol]
+  ): Vector[TyVarPredicate] = {
     import collection.mutable
     var newPredicates = mutable.ListBuffer[TyVarPredicate]()
     vars.foreach { tv =>
       tv.annotation.foreach(a => if (!a.needInfer) newPredicates += FreezeType(tv, a.ty))
       tv.name.foreach(n => newPredicates += HasName(tv, n))
+      libVars.get(tv.id).foreach { s =>
+        newPredicates += IsLibraryType(tv, s)
+      }
     }
     newPredicates.toVector
   }

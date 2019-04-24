@@ -20,7 +20,8 @@ object GraphEmbedding {
     libraryTypeMap: Symbol => CompNode,
     predicates: Seq[TyVarPredicate],
     labelMap: Symbol => CompNode,
-    fieldKnowledge: Map[Symbol, (CompNode, CompNode)]
+    fieldKnowledge: Map[Symbol, (CompNode, CompNode)],
+    varKnowledge: Map[Symbol, CompNode]
   )
 
   case class Embedding(nodeMap: Map[IR.IRTypeId, CompNode], stat: EmbeddingStat)
@@ -192,6 +193,8 @@ case class GraphEmbedding(
         messages(v2.id) += binaryMessage('SubtypeRel, nodeMap(v2.id), nodeMap(v1.id))
       case FreezeType(v, ty) =>
         messages(v.id) += messageModel('FreezeType, encodeGType(ty))
+      case IsLibraryType(v, name) =>
+        messages(v.id) += messageModel('IsLibrary, varKnowledge(name))
       case HasName(v, name) =>
 //        messages(v.id) += messageModel('HasName, labelMap(name)) //todo: properly handle name info
       case SubtypeRel(sub, sup) =>

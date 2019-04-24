@@ -16,14 +16,8 @@ import infer.IRTranslation.TranslationEnv
 import scala.collection.mutable
 import scala.collection.parallel.ForkJoinTaskSupport
 import ammonite.ops._
-import infer.IR.{IRModule, IRTypeId}
-import infer.PredicateGraph.{
-  LibraryType,
-  OutOfScope,
-  PredicateModule,
-  ProjectType,
-  TypeLabel
-}
+import infer.IR.{IRModule, IRType, IRTypeId}
+import infer.PredicateGraph.{LibraryType, OutOfScope, PredicateModule, ProjectType, TypeLabel}
 import infer.PredicateGraphConstruction.{ParsedProject, PathMapping}
 
 import scala.concurrent.ExecutionContextExecutorService
@@ -123,6 +117,7 @@ object TrainingCenter {
     graphName: String,
     predModules: IS[PredicateModule],
     transEnv: TranslationEnv,
+    libraryVars: Map[IRTypeId, Symbol],
     libraryFields: Vector[Symbol],
     libraryTypes: Vector[Symbol],
     factory: LayerFactory,
@@ -131,7 +126,7 @@ object TrainingCenter {
     val typeLabels = predModules.flatMap(m => m.typeLabels)
 
     val predicates = predModules.flatMap(m => m.predicates) ++ PredicateGraphConstruction
-      .encodeUnaryPredicates(transEnv.idTypeMap.values)
+      .encodeUnaryPredicates(transEnv.idTypeMap.values, libraryVars)
     val newTypes = predModules.flatMap(m => m.newTypes.keys).toSet
 
     def predicateCategoryNumbers: Map[Symbol, IRTypeId] = {
@@ -157,6 +152,10 @@ object TrainingCenter {
         }
       }.toMap
 
+      val varKnowledge = libraryVars.map{ case (_, s) =>
+        s -> randomVar('libVarKnowledge / s)
+      }
+
       val fieldKnowledge =
         libraryFields.map { k =>
           k -> (randomVar('fieldKey / k), randomVar('fieldValue / k))
@@ -178,7 +177,8 @@ object TrainingCenter {
         extendedTypeMap,
         predicates,
         labelEncoding,
-        fieldKnowledge
+        fieldKnowledge,
+        varKnowledge
       )
 
       GraphEmbedding(embedCtx, factory, dimMessage, Some(taskSupport))
@@ -222,6 +222,7 @@ object TrainingCenter {
         p.projectName,
         p.predModules,
         p.irEnv,
+        p.predCtx.libVars,
         libraryFields,
         libraryTypes,
         factory,
@@ -234,6 +235,7 @@ object TrainingCenter {
         p.projectName,
         p.predModules,
         p.irEnv,
+        p.predCtx.libVars,
         libraryFields,
         libraryTypes,
         factory,
