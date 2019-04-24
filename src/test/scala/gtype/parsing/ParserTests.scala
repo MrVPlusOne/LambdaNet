@@ -95,6 +95,9 @@ class ParserTests extends WordSpec with MyTest {
 
   "Statements parsing test" in {
     testParsing(printResult = true)(
+      "let [a,b,c] = array;" -> classOf[BlockStmt],
+      "let {x,y} = {x: 10, y: 5};" -> classOf[BlockStmt],
+      "let {x,y} = o1" -> classOf[BlockStmt],
       """let x: number = 4;""" -> classOf[VarDef],
       """const y = "yyy";""" -> classOf[VarDef],
       """let x = {a: 1, b: {c: "x"}};""" -> classOf[VarDef],
@@ -136,7 +139,6 @@ class ParserTests extends WordSpec with MyTest {
       "let inc = (x: number) => {return x + 1;};" -> classOf[BlockStmt],
       "let inc = x => x+1;" -> classOf[BlockStmt],
       "let f = (x) => (y) => x + y;" -> classOf[BlockStmt],
-      "let {x,y} = {x: 10, y: 5};" -> classOf[BlockStmt],
       """switch(i){
         |  case 1:
         |    print(i); break;
@@ -213,6 +215,9 @@ class ParserTests extends WordSpec with MyTest {
   }
 
   "Project parsing integration test" in {
-    TrainingProjects.parsedProjects
+    TrainingProjects.parsedProjects.foreach{p =>
+      val size = p.predModules.map(_.predicates.length).sum
+      println(p.projectName +  ": size=" + size)
+    }
   }
 }

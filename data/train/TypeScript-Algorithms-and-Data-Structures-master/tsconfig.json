@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "module": "UMD",
+    "noImplicitAny": true,
+    "removeComments": true,
+    "preserveConstEnums": true,
+    "outDir": "dist/",
+    "sourceMap": true,
+    "declaration": true,
+    "types": ["jest"],
+    "target": "ES2017",
+  },
+  "exclude": [
+    "node_modules",
+    "wwwroot",
+    "dist",
+    "tests"
+  ]
+}

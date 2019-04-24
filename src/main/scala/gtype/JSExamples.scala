@@ -9,8 +9,8 @@ object JSExamples {
   val boolean: Symbol = GType.boolType.id
   val void: Symbol = GType.voidType.id
   val anyArray = 'Array
-  val numArray = 'numberArray
   val function = 'Function //fixme: this should not be treated as object type
+  val generator = 'Generator
 
   def mkArrayType(baseType: GroundType): (Symbol, ObjectType) = {
     val arrayType = if (baseType == any) 'Array else Symbol(s"${baseType.id.name}Array")
@@ -96,14 +96,17 @@ object JSExamples {
       'TildeToken -> (List(number) -: number),
       'isFinite -> (List(number) -: boolean),
       'Infinity -> number,
+      'parseInt -> (List(string, number) -: number),
+      'isNaN -> (List(number) -: boolean),
+      'parseFloat -> (List(string) -: number),
+      // special vars
       '$TypeOf -> (List(any) -: string),
       '$Spread -> (List(anyArray) -: any),
       '$Case -> (List(number) -: void),
       '$Switch -> (List(number) -: void),
       '$Delete -> (List(any) -: void),
-      'parseInt -> (List(string, number) -: number),
-      'isNaN -> (List(number) -: boolean),
-      'parseFloat -> (List(string) -: number)
+      '$ArrayAccess -> (List(anyArray) -: any),
+      '$Yield -> (List(any) -: generator)
     )
 
     def addType(name: Symbol): Unit = {
@@ -112,11 +115,13 @@ object JSExamples {
     }
 
     //todo: properly handle these: (query compiler for type definitions)
-    Seq('String, 'Object, 'Number, 'Function, 'Array, 'Error, 'Window, 'HTMLElement,
+    Seq('String, 'Object, 'Number, 'Function, 'Array, 'Float64Array, 'Uint32Array,
+      'Error, 'RangeError, 'Window, 'HTMLElement, generator,
       'Injector, 'ReflectiveInjector, 'ReflectiveInjector_, 'Map, 'Node, 'RegExp,
       'WeakMap, 'undefined, 'Element, 'Text, 'Comment).foreach(addType)
 
-    Seq('super, 'window, 'global, 'self, 'document, 'setTimeout, 'getComputedStyle, 'JSON)
+    Seq('super, 'window, 'global, 'self, 'document, 'setTimeout, 'getComputedStyle,
+      'JSON, 'NaN, 'console)
       .foreach(s => {
         varAssign += (s -> any)
       })
@@ -157,7 +162,7 @@ object JSExamples {
       'poll -> (List() -: void),
       'add -> (List(any) -: 'Heap),
       'remove -> (List(any, TyVar('Comparator)) -: 'Heap),
-      'find -> (List(any, TyVar('Comparator)) -: numArray),
+      'find -> (List(any, TyVar('Comparator)) -: 'numberArray),
       'isEmpty -> (List() -: boolean),
       'toString -> (List() -: string)
     )

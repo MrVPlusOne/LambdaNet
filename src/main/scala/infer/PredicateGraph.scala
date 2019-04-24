@@ -442,6 +442,10 @@ object PredicateGraphConstruction {
                       case (tv, _) =>
                         newDefaultType = Some(name -> tv)
                     }
+                    md.exports.typeAliases.get(name).foreach {
+                      case (tv, _) =>
+                        newDefaultType = Some(name -> tv)
+                    }
                 }
             }
           }

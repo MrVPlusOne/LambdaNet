@@ -54,7 +54,7 @@ object ImportPattern {
 
     def stmt[_: P]: P[Vector[ImportStmt]] =
       P(
-        "import" ~/ (importSingles | importModule | importDefault | importForEffects) ~ ";"
+        "import" ~/ (importSingles | importModule | importDefault | importForEffects) ~ (";" | End)
       )
 
     parse(importText, stmt(_)) match {

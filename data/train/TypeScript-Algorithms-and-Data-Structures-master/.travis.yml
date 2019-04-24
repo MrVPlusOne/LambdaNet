@@ -1,0 +1,9 @@
+sudo: required
+dist: trusty
+language: node_js
+node_js:
+  - '10.14.2'
+before_install:
+after_script:
+ - npm install -g codeclimate-test-reporter
+ - codeclimate-test-reporter < ./coverage/lcov.info

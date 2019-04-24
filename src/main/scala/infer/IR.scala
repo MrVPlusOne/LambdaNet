@@ -68,7 +68,7 @@ object IR {
   case class ModuleExports(
     definitions: Map[(Symbol, ExportCategory.Value), (IRType, Exported)],
     defaultVar: Option[(Var, IRType)],
-    defaultType: Option[(TypeName, IRType)]
+    defaultType: Option[(TypeName, IRType)],
   ) {
     lazy val terms: Map[Symbol, (IRType, Exported)] = definitions.toIterator.collect {
       case ((n, ExportCategory.Term), t) => n -> t

@@ -1,0 +1,39 @@
+{
+  "name": "typescript-algorithms-and-datastructures",
+  "version": "0.0.5",
+  "description": "",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/**/*"
+  ],
+  "keywords": ["TypeScript", "Data Structure", "Algorithm", "BitArray", "Trie", "RadixTrie"],
+  "scripts": {
+    "ci": "npm run test",
+    "clear": "npx rimraf dist",
+    "test": "npx jest --config jestconfig.json",
+    "build": "npm run clear && npx tsc",
+    "lint": "npx tslint",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm test",
+    "postversion": "git push && git push --tags"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sularome/TypeScript-Algorithms-and-Data-Structures.git"
+  },
+  "author": "Yordan Stoev",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/sularome/TypeScript-Algorithms-and-Data-Structures/issues"
+  },
+  "homepage": "https://github.com/sularome/TypeScript-Algorithms-and-Data-Structures",
+  "devDependencies": {
+    "@types/jest": "^24.0.11",
+    "jest": "^24.5.0",
+    "rimraf": "^2.6.3",
+    "ts-jest": "^24.0.1",
+    "tslint": "^5.14.0",
+    "typescript": "3.2.2"
+  }
+}

@@ -376,8 +376,12 @@ export function parseExpr(node: ts.Node, checker: ts.TypeChecker,
       }
       case SyntaxKind.ObjectLiteralExpression: {
         let n = (<ts.ObjectLiteralExpression>node);
-        let fields = n.properties.map((p: ts.ObjectLiteralElementLike) => {
-          return parseObjectLiteralElementLike(p);
+        let fields = n.properties.flatMap((p: ts.ObjectLiteralElementLike) => {
+          if(p.kind == SyntaxKind.PropertyAssignment) {
+            return [parseObjectLiteralElementLike(p)];
+          }else{
+            return [] //todo: other cases
+          }
         });
         return new ObjLiteral(fields);
       }
@@ -463,6 +467,10 @@ export function parseExpr(node: ts.Node, checker: ts.TypeChecker,
         let n = node as ts.DeleteExpression;
         return new FuncCall(SpecialVars.DELETE, [rec(n.expression)]);
       }
+      case SyntaxKind.YieldExpression: {
+        let n = node as ts.YieldExpression;
+        return new FuncCall(SpecialVars.YIELD, [rec(n.expression)]);
+      }
       // type assertions are ignored
       case SyntaxKind.AsExpression:
       case SyntaxKind.TypeAssertionExpression:{
@@ -470,9 +478,10 @@ export function parseExpr(node: ts.Node, checker: ts.TypeChecker,
         return rec(n.expression);
       }
 
-      default:
+      default: {
         throw new Error("Unknown expression category: " + ts.SyntaxKind[node.kind]
           + ". Text: " + node.getText());
+      }
     }
 
     function constExpr(typeName: string) {
@@ -480,7 +489,8 @@ export function parseExpr(node: ts.Node, checker: ts.TypeChecker,
       return new Const("CONST", new TVar(typeName));
     }
 
-    function parseObjectLiteralElementLike(p: ts.ObjectLiteralElementLike): NamedValue<GExpr> {
+    function parseObjectLiteralElementLike(p: ts.PropertyAssignment): NamedValue<GExpr> {
+      //todo: properly handle other cases like accessors
       let a = (<ts.PropertyAssignment>p);
       let fieldName = (<ts.StringLiteral>a.name).text;
       return new NamedValue<GExpr>(fieldName ,
@@ -545,12 +555,12 @@ export class StmtParser {
 
       let body: StmtsHolder;
       if(n.body) {
-        try {
+        if(n.body.kind == SyntaxKind.Block){
+          body = rec(n.body as ts.Statement);
+        }else{
           let ep = new ExprProcessor();
           // try to parse the body as a ConciseFunction body
           body = ep.alongWith(new ExprStmt(ep.processExpr((n.body as ts.Expression)), true))
-        } catch (_) {
-          body = rec(n.body);
         }
       } else {
         body = new ExprProcessor().alongWithMany([]);
@@ -577,8 +587,8 @@ export class StmtParser {
         return forNode(node, () => {
           let isConst = (node.flags & ts.NodeFlags.Const) != 0;
 
-          function parseBinding(x: ts.BindingElement | ts.VariableDeclaration): VarDef[] {
-            let initExpr = x.initializer ? EP.processExpr(x.initializer) : notDefinedValue;
+          function parseBinding(x: ts.BindingElement | ts.VariableDeclaration, rhs: GExpr): VarDef[] {
+            let initExpr = rhs ? rhs : (x.initializer ? EP.processExpr(x.initializer) : notDefinedValue);
             let lhs = x.name;
             switch (lhs.kind) {
               case SyntaxKind.Identifier:
@@ -590,10 +600,21 @@ export class StmtParser {
                   modifiers)];
               case SyntaxKind.ObjectBindingPattern:
                 return flatMap((lhs as ts.ObjectBindingPattern).elements, (e: ts.BindingElement) => {
-                  return parseBinding(e)
+                  let access = new Access(initExpr, (e.name as ts.Identifier).text);
+                  return parseBinding(e, access);
                 });
+              case SyntaxKind.ArrayBindingPattern:{
+                let arrayAccessed = new FuncCall(SpecialVars.ArrayAccess, [initExpr]);
+                return flatMap((lhs as ts.ArrayBindingPattern).elements, (e: ts.ArrayBindingElement) => {
+                  if(e.kind == SyntaxKind.OmittedExpression){
+                    return [];
+                  }else{
+                    return parseBinding(e as ts.BindingElement, arrayAccessed);
+                  }
+                });
+              }
               default:
-                throw new Error("Unsupported binding pattern: " + x.getText())
+                throw new Error("Unsupported binding pattern " + SyntaxKind[lhs.kind] + ": " + x.getText())
             }
           }
 
@@ -618,7 +639,8 @@ export class StmtParser {
               return EP.alongWith(new AssignStmt(l, r));
             }
           }
-          return EP.alongWith(new ExprStmt(EP.processExpr(n.expression), false));
+          let shouldReturn = n.expression.kind == SyntaxKind.YieldExpression;
+          return EP.alongWith(new ExprStmt(EP.processExpr(n.expression), shouldReturn));
         }
         case SyntaxKind.ReturnStatement: {
           let n = <ts.ReturnStatement>node;
@@ -801,8 +823,9 @@ export class StmtParser {
         case SyntaxKind.ForInStatement:
 
         // ignored statements:
-        case SyntaxKind.ImportEqualsDeclaration:
+        case SyntaxKind.ImportEqualsDeclaration: //fixme: may need to handle this
         case SyntaxKind.BreakStatement:
+        case SyntaxKind.ContinueStatement:
           return EP.alongWith(new CommentStmt(node.getText()));
         case SyntaxKind.EmptyStatement:
           return EP.alongWithMany([]);
@@ -863,7 +886,9 @@ class SpecialVars {
   static SUPER = new Var("super");
   static CASE = new Var("$Case");
   static SWITCH = new Var("$Switch");
-  static DELETE = new Var("$Delete")
+  static DELETE = new Var("$Delete");
+  static ArrayAccess = new Var("$ArrayAccess");
+  static YIELD = new Var("$Yield");
 }
 
 // utilities
