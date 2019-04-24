@@ -41,8 +41,8 @@ object ParamCollection {
 
   @SerialVersionUID(0)
   case class SerializableFormat(
-    parameterData: Seq[(SymbolPath, Map[String, Serializable])],
-    constantData: Seq[(SymbolPath, (Shape, Array[Real]))]
+    parameterData: List[(SymbolPath, Map[String, Serializable])],
+    constantData: List[(SymbolPath, (Shape, Array[Real]))]
   )
 
   def fromSerializable(data: SerializableFormat): ParamCollection = {
@@ -102,7 +102,7 @@ case class ParamCollection() {
   def constMap: Map[SymbolPath, Tensor] = _constMap.toMap
 
   def toSerializable: ParamCollection.SerializableFormat = {
-    val parameterData: Seq[(SymbolPath, Map[String, Serializable])] = paramMap.mapValues {
+    val parameterData: List[(SymbolPath, Map[String, Serializable])] = paramMap.mapValues {
       param =>
         val node = param.node
         val paramData = Map[String, Serializable](
@@ -114,7 +114,7 @@ case class ParamCollection() {
         paramData
     }.toList
 
-    val constantData: immutable.Seq[(SymbolPath, (Shape, Array[Real]))] = constMap.mapValues { t =>
+    val constantData: List[(SymbolPath, (Shape, Array[Real]))] = constMap.mapValues { t =>
       (t.shape, t.data)
     }.toList
 
