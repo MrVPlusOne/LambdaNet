@@ -27,6 +27,7 @@ import infer.PredicateGraph.{
 import infer.PredicateGraphConstruction.{ParsedProject, PathMapping}
 
 import scala.concurrent.{Await, ExecutionContextExecutorService, Future}
+import scala.util.Random
 
 /**
   * How to control the training:
@@ -345,7 +346,7 @@ object TrainingCenter {
           logits.value,
           trainBuilder.transEnv,
           decodingCtx,
-          printResults = false
+          printResults = None
         )
         eventLogger.log("accuracy", step, Tensor(accuracy.totalAccuracy))
 
@@ -460,7 +461,7 @@ object TrainingCenter {
     logits: Tensor,
     transEnv: TranslationEnv,
     ctx: DecodingCtx,
-    printResults: Boolean = true
+    printResults: Option[Int] = Some(100)
   ): AccuracyStats = {
     type Prediction = Int
     val predictions = numsca.argmax(logits, axis = 1)
@@ -491,23 +492,22 @@ object TrainingCenter {
       }
     }
 
-    correct.foreach {
-      case (id, pred) =>
-        val t = ctx.typeFromIndex(pred)
-        val tv = transEnv.idTypeMap(id)
-        if (printResults)
+    printResults.foreach { num =>
+      val rand = new Random()
+      rand.shuffle(correct).take(num).foreach {
+        case (id, pred) =>
+          val t = ctx.typeFromIndex(pred)
+          val tv = transEnv.idTypeMap(id)
           println(s"[correct] \t$tv: $t")
-    }
-
-//    val holeTypeMap = annotatedPlaces.toMap
-    val labelMap = annotatedPlaces.toMap
-    incorrect.foreach {
-      case (id, pred) =>
-        val tv = transEnv.idTypeMap(id)
-        val actualType = ctx.typeFromIndex(pred)
-        val expected = labelMap(id)
-        if (printResults)
+      }
+      val labelMap = annotatedPlaces.toMap
+      rand.shuffle(incorrect).take(num).foreach {
+        case (id, pred) =>
+          val tv = transEnv.idTypeMap(id)
+          val actualType = ctx.typeFromIndex(pred)
+          val expected = labelMap(id)
           println(s"[incorrect] \t$tv: $actualType not match $expected")
+      }
     }
 
     def calcAccuracy(correct: Int, incorrect: Int): Double = {
