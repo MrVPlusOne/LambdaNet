@@ -24,7 +24,7 @@ import infer.PredicateGraph.{
   ProjectType,
   TypeLabel
 }
-import infer.PredicateGraphConstruction.{ParsedProject, PathMapping}
+import infer.PredicateGraphConstruction.{LibraryContext, ParsedProject, PathMapping}
 
 import scala.concurrent.{Await, ExecutionContextExecutorService, Future}
 import scala.util.Random
@@ -87,15 +87,9 @@ object TrainingCenter {
     println("Start loading projects")
     val (trainParsed, testParsed) = {
       val all = TrainingProjects.parsedProjects
-      (all.drop(1), Vector(all.head))
+      (all.drop(3), all.take(3))
     }
     println("Training/testing projects loaded")
-//
-//    val testRoots = Vector(pwd / RelPath("data/test/algorithms-test"))
-//    val testParsed = testRoots.map { r =>
-//      infer.PredicateGraphConstruction
-//        .fromSourceFiles(r, libraryTypes = libraryTypes.map(TyVar))
-//    }
 
     println(s"=== Training on ${trainParsed.map(_.projectName)} ===")
 
@@ -127,16 +121,17 @@ object TrainingCenter {
     graphName: String,
     predModules: IS[PredicateModule],
     transEnv: TranslationEnv,
-    libraryVars: Map[IRTypeId, Symbol],
+    libraryVars: Vector[Symbol],
     libraryFields: Vector[Symbol],
-    libraryTypes: Vector[Symbol],
+    libraryTypes: Vector[GType],
     factory: LayerFactory,
     dimMessage: Int = 64
   ) {
+
     val typeLabels = predModules.flatMap(m => m.typeLabels)
 
     val predicates = predModules.flatMap(m => m.predicates) ++ PredicateGraphConstruction
-      .encodeUnaryPredicates(transEnv.idTypeMap.values, libraryVars)
+      .encodeUnaryPredicates(transEnv.idTypeMap.values)
     val newTypes = predModules.flatMap(m => m.newTypes.keys).toSet
 
     def predicateCategoryNumbers: Map[Symbol, Int] = {
@@ -144,7 +139,7 @@ object TrainingCenter {
     }
 
     val decodingCtx = DecodingCtx(
-      Vector(AnyType, TyVar(unknownTypeSymbol)) ++ libraryTypes.map(TyVar),
+      Vector(TyVar(unknownTypeSymbol)) ++ libraryTypes,
       newTypes.toVector
     )
 
@@ -158,14 +153,15 @@ object TrainingCenter {
     def encodeDecode(): (CompNode, IS[Embedding]) = {
       val libraryTypeMap: Map[Symbol, CompNode] = {
         libraryTypes.map { k =>
-          k -> randomVar('TyVar / k)
+          val s = Symbol(k.toString)
+          s -> randomVar('TyVar / s)
         }
       }.toMap
 
-      val varKnowledge = libraryVars.map {
-        case (_, s) =>
-          s -> randomVar('libVarKnowledge / s)
-      }
+      val varKnowledge = (libraryVars ++ libraryTypes
+        .collect { case TyVar(s) => s }).map { s =>
+        s -> randomVar('libVarKnowledge / s)
+      }.toMap
 
       val fieldKnowledge =
         libraryFields.map { k =>
@@ -231,14 +227,36 @@ object TrainingCenter {
     }
     println("libraryFields: " + libraryFields)
 
-    val libraryTypes = JSExamples.libraryTypes.toVector
+    val libraryTypes = {
+      val totalFreq = mutable.HashMap[GType, Int]()
+      trainingProjects.foreach { p =>
+        p.libCtx.libraryTypeFreq.foreach {
+          case (t, f) =>
+            totalFreq(t) = totalFreq.getOrElse(t, 0) + f
+        }
+      }
+      val all = totalFreq.toVector.sortBy(_._2).reverse
+      println("Total number of lib types: " + all.length)
+      val freqs = all.map(_._2)
+      println("Total usages: " + freqs.sum)
+      val numOfTypes = 100
+      val ratio = freqs.take(numOfTypes).sum.toDouble / freqs.sum
+      println(
+        s"Take at most the first $numOfTypes types, results in %${ratio * 100} coverage."
+      )
+      val taken = all.take(numOfTypes).map(_._1)
+      println(s"Types taken: $taken")
+      taken
+    }
+
+    val libraryVars = trainingProjects.flatMap(p => p.libCtx.libraryVars.keySet).toVector
 
     val trainBuilders = trainingProjects.map { p =>
       GraphNetBuilder(
         p.projectName,
         p.predModules,
-        p.irEnv,
-        p.predCtx.libVars,
+        p.libCtx.transEnv,
+        libraryVars,
         libraryFields,
         libraryTypes,
         factory,
@@ -250,8 +268,8 @@ object TrainingCenter {
       GraphNetBuilder(
         p.projectName,
         p.predModules,
-        p.irEnv,
-        p.predCtx.libVars,
+        p.libCtx.transEnv,
+        libraryVars,
         libraryFields,
         libraryTypes,
         factory,
@@ -374,14 +392,14 @@ object TrainingCenter {
           )
         }
 
-        println(DebugTime.show)
-
         eventLogger.log(
           "iteration-time",
           step,
           Tensor(System.currentTimeMillis() - startTime)
         )
       }
+
+      println(DebugTime.show)
 
       if (step % 10 == 0) {
         println("start testing...")

@@ -6,8 +6,11 @@ import infer.PredicateGraphConstruction.PathMapping
 
 object TrainingProjects {
   val projectRoots = Vector(
+    //testing
+    "data/train/algorithms-test",
     "data/train/TypeScript-Algorithms-and-Data-Structures-master/ts",
     "data/train/philmander-typescript-algorithms/src",
+    //training
     "data/train/typehtml-master/src",
     "data/train/mojiito-master/packages",
     "data/train/algorithms-train"

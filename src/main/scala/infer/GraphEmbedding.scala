@@ -49,7 +49,7 @@ object GraphEmbedding {
     val maxIndex: Int = outOfScopeIdx + 1
 
     def indexOfType(t: TypeLabel): Int = t match {
-      case LibraryType(ty) => libraryTypeIndexMap(ty)
+      case LibraryType(ty) => libraryTypeIndexMap.getOrElse(ty, outOfScopeIdx)
       case ProjectType(ty) => projectTypeIndexMap(ty.id)
       case OutOfScope      => outOfScopeIdx
     }
@@ -78,6 +78,9 @@ case class GraphEmbedding(
 
   val nodeInitVec: CompNode =
     getVar('nodeInitVec)(TensorExtension.randomUnitVec(dimMessage)) // randomVec()
+
+  val KnowledgeMissing: CompNode =
+    getVar('knowledgeMissingVec)(randomVec())
 
   /**
     * @return A prediction distribution matrix of shape (# of places) * (# of candidates)
@@ -198,7 +201,8 @@ case class GraphEmbedding(
       case FreezeType(v, ty) =>
         messages(v.id) += messageModel('FreezeType, encodeGType(ty))
       case IsLibraryType(v, name) =>
-        messages(v.id) += messageModel('IsLibrary, varKnowledge(name))
+        val knowledge = varKnowledge.getOrElse(name, KnowledgeMissing)
+        messages(v.id) += messageModel('IsLibrary, knowledge)
       case HasName(v, name) =>
 //        messages(v.id) += messageModel('HasName, labelMap(name)) //todo: properly handle name info
       case SubtypeRel(sub, sup) =>

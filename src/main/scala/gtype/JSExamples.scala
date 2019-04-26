@@ -116,7 +116,8 @@ object JSExamples {
 
     //todo: properly handle these: (query compiler for type definitions)
     Seq('String, 'Object, 'Number, 'Function, 'Array, 'Float64Array, 'Uint32Array,
-      'Error, 'RangeError, 'Window, 'HTMLElement, generator,
+      'Error, 'RangeError, 'Window, 'HTMLElement, generator, 'Event,
+      'CSSStyleDeclaration, 'TransitionEvent,
       'Injector, 'ReflectiveInjector, 'ReflectiveInjector_, 'Map, 'Node, 'RegExp,
       'WeakMap, 'undefined, 'Element, 'Text, 'Comment).foreach(addType)
 

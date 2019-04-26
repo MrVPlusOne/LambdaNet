@@ -42,11 +42,17 @@ object IRTranslation {
     def newTyVar(
       origin: Option[GTHole],
       name: Option[Symbol],
-      freezeToType: Option[TypeAnnotation] = None
+      freezeToType: Option[TypeAnnotation] = None,
+      libId: Option[Symbol]
     )(implicit tyVars: Set[Symbol]): IRType = {
       assert(tyVarIdx >= 0)
       val tv =
-        IRType(tyVarIdx, name, freezeToType.map(a => a.copy(ty = translateType(a.ty))))
+        IRType(
+          tyVarIdx,
+          name,
+          freezeToType.map(a => a.copy(ty = translateType(a.ty))),
+          libId
+        )
       idTypeMap(tv.id) = tv
       origin.foreach { h =>
         holeTyVarMap(h) = tv
@@ -67,9 +73,9 @@ object IRTranslation {
       implicit tyVars: Set[Symbol]
     ): IRType = {
       gMark match {
-        case h: gtype.GTHole => newTyVar(Some(h), name, None)
+        case h: gtype.GTHole => newTyVar(Some(h), name, None, None)
         case ty: gtype.GType =>
-          newTyVar(None, name, Some(TypeAnnotation(ty, needInfer = true)))
+          newTyVar(None, name, Some(TypeAnnotation(ty, needInfer = true)), None)
       }
     }
   }
@@ -90,7 +96,7 @@ object IRTranslation {
       case _ =>
         val v = env.newVar()
         Vector(
-          VarDef(v, env.newTyVar(None, None), expr, ExportLevel.Private)
+          VarDef(v, env.newTyVar(None, None, None, None), expr, ExportLevel.Private)
         ) -> v
     }
 
@@ -195,7 +201,7 @@ object IRTranslation {
 
         val defs = mutable.ListBuffer[IRStmt]()
         val irObj = translateExpr(gtype.ObjLiteral(staticMembers))(Set(), env, defs)
-        val companionT = env.newTyVar(None, None, None)
+        val companionT = env.newTyVar(None, None, None, None)
         val staticObject = {
           VarDef(
             Var(Right(name)),
@@ -220,7 +226,7 @@ object IRTranslation {
           val objType = ObjectType(fields)
           translateStmt(TypeAliasStmt(name, tyVars, objType, level))(newTyVars, env)
         } else {
-          val classT = env.newTyVar(None, Some(name))
+          val classT = env.newTyVar(None, Some(name), None, None)
           val cons = allMethods.head.asInstanceOf[FuncDef]
           Vector(
             cons
@@ -244,7 +250,8 @@ object IRTranslation {
         val aliasT = env.newTyVar(
           None,
           Some(name),
-          freezeToType = Some(TypeAnnotation(ty, needInfer = false))
+          freezeToType = Some(TypeAnnotation(ty, needInfer = false)),
+          None
         )(quantifiedTypes ++ tyVars.toSet)
         Vector(TypeAliasIRStmt(aliasT, level))
     }
@@ -267,7 +274,7 @@ object IRTranslation {
       args1,
       env.getTyVar(returnType, None),
       BlockStmt(translateStmt(body)(newTyVars, env)),
-      env.newTyVar(None, Some(name)),
+      env.newTyVar(None, Some(name), None, None),
       exportLevel
     )
   }
@@ -424,31 +431,5 @@ object IRTranslation {
       moduleExports,
       irStmts
     )
-  }
-
-  def main(args: Array[String]): Unit = {
-    val env = new TranslationEnv()
-    val example: Example = ???
-
-    println {
-      example.program.prettyPrint()
-    }
-
-    val stmts = translateStmt(example.program)(Set(), env)
-    stmts.foreach(println)
-
-    import infer.PredicateGraphConstruction._
-    val ctx = PredicateContext.jsCtx(env)
-
-    println {
-      "oldCtx: " + ctx.newTypeMap
-    }
-
-    println {
-      "newCtx: " + PredicateGraphConstruction
-        .encodeIR(stmts, ctx, JSExamples.libraryTypes.map(TyVar))
-        ._2
-        .newTypeMap
-    }
   }
 }

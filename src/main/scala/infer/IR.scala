@@ -11,6 +11,7 @@ import gtype.GStmt.TypeAnnotation
 object IR {
 
   type IRTypeId = Int
+  type VarName = Symbol
   type TypeName = Symbol
 
   case class IRModule(
@@ -68,7 +69,7 @@ object IR {
   case class ModuleExports(
     definitions: Map[(Symbol, ExportCategory.Value), (IRType, Exported)],
     defaultVar: Option[(Var, IRType)],
-    defaultType: Option[(TypeName, IRType)],
+    defaultType: Option[(TypeName, IRType)]
   ) {
     lazy val terms: Map[Symbol, (IRType, Exported)] = definitions.toIterator.collect {
       case ((n, ExportCategory.Term), t) => n -> t
@@ -136,7 +137,12 @@ object IR {
     def prettyPrint: String = s"($cond ? $e1 : $e2)"
   }
 
-  case class IRType(id: Int, name: Option[Symbol], annotation: Option[TypeAnnotation]) {
+  case class IRType(
+    id: Int,
+    name: Option[Symbol],
+    annotation: Option[TypeAnnotation],
+    libId: Option[Symbol]
+  ) {
     override def toString: String = {
       val parts = name.map(n => s"{${n.name}}").toList ++ annotation
         .map(t => s"[$t]")
