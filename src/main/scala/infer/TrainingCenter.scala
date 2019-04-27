@@ -41,7 +41,7 @@ import scala.util.Random
 object TrainingCenter {
 
   val numOfThreads
-    : Int = Runtime.getRuntime.availableProcessors().min(14) //use at most 14 cores
+    : Int = Runtime.getRuntime.availableProcessors().min(24) //use at most 24 cores
   val forkJoinPool = new ForkJoinPool(numOfThreads)
   val taskSupport: ForkJoinTaskSupport = new ForkJoinTaskSupport(forkJoinPool)
   val parallelCtx: ExecutionContextExecutorService =
