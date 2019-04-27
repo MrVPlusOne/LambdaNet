@@ -41,7 +41,7 @@ import scala.util.Random
 object TrainingCenter {
 
   val numOfThreads
-    : Int = Runtime.getRuntime.availableProcessors().min(24) //use at most 24 cores
+    : Int = Runtime.getRuntime.availableProcessors()
   val forkJoinPool = new ForkJoinPool(numOfThreads)
   val taskSupport: ForkJoinTaskSupport = new ForkJoinTaskSupport(forkJoinPool)
   val parallelCtx: ExecutionContextExecutorService =
@@ -406,13 +406,15 @@ object TrainingCenter {
 
       if (step % 10 == 0) {
         println("start testing...")
+        val printNum = 100 / testBuilders.length + 1
         val testAccs = testBuilders.map { testBuilder =>
           val (testLogits, _) = testBuilder.encodeDecode()
           val testAcc = analyzeResults(
             testBuilder.typeLabels,
             testLogits.value,
             testBuilder.transEnv,
-            testBuilder.decodingCtx
+            testBuilder.decodingCtx,
+            printResults = Some(printNum)
           )
           testAcc
         }
