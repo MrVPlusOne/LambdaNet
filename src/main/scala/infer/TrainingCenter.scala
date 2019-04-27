@@ -41,7 +41,7 @@ import scala.util.Random
 object TrainingCenter {
 
   val numOfThreads
-    : Int = Runtime.getRuntime.availableProcessors().min(12) //use at most 12 cores
+    : Int = Runtime.getRuntime.availableProcessors().min(14) //use at most 14 cores
   val forkJoinPool = new ForkJoinPool(numOfThreads)
   val taskSupport: ForkJoinTaskSupport = new ForkJoinTaskSupport(forkJoinPool)
   val parallelCtx: ExecutionContextExecutorService =
@@ -80,10 +80,13 @@ object TrainingCenter {
   def main(args: Array[String]): Unit = {
     println(s"Using threads: $numOfThreads")
 
-//    val libraryTypes = JSExamples.libraryTypes
+//    println("loading toy examples")
+//    val trainParsed = Vector(
+//      infer.PredicateGraphConstruction
+//        .fromSourceFiles(pwd / RelPath("data/toy"))
+//    )
+//    val testParsed = Vector()
 
-//    val trainRoot = pwd / RelPath("data/toy")
-//    val testRoot = trainRoot
     println("Start loading projects")
     val (trainParsed, testParsed) = {
       val all = TrainingProjects.parsedProjects
@@ -463,7 +466,7 @@ object TrainingCenter {
     import concurrent.duration._
 
     var restartOnTimeout = true
-    var optimizationTimeout = 1000.seconds
+    var optimizationTimeout = 1200.seconds
     var encodeDecodeTimeout = 400.seconds
   }
 
