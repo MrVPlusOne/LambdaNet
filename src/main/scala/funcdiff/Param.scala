@@ -3,8 +3,7 @@ package funcdiff
 import java.io._
 
 import botkop.numsca.{Shape, Tensor}
-
-import scala.collection.immutable
+import SimpleMath.Extensions._
 
 trait ParameterAttribute extends Serializable
 
@@ -71,6 +70,23 @@ object ParamCollection {
     val data = SimpleMath.readObjectFromFile[SerializableFormat](file)
     fromSerializable(data)
   }
+
+  def main(args: Array[String]): Unit = {
+    import ammonite.ops._
+    import infer.TrainingCenter._
+    import funcdiff.Optimizers.Adam
+
+    val pc = new ParamCollection()
+    pc.getVar(SymbolPath.empty / 'abc)(Tensor(1, 2, 3))
+    val factory = LayerFactory(SymbolPath.empty / 'layers, pc)
+    val s = TrainingState(4, 64, factory, Adam(1e-4))
+
+    val file = pwd / "testFile"
+    s.saveToFile(file)
+    println {
+      TrainingState.fromFile(file)
+    }
+  }
 }
 
 case class ParamCollection() {
@@ -102,8 +118,8 @@ case class ParamCollection() {
   def constMap: Map[SymbolPath, Tensor] = _constMap.toMap
 
   def toSerializable: ParamCollection.SerializableFormat = {
-    val parameterData: List[(SymbolPath, Map[String, Serializable])] = paramMap.mapValues {
-      param =>
+    val parameterData: List[(SymbolPath, Map[String, Serializable])] =
+      paramMap.mapValuesNow { param =>
         val node = param.node
         val paramData = Map[String, Serializable](
           "shape" -> node.shape,
@@ -112,10 +128,10 @@ case class ParamCollection() {
           "path" -> param.path
         )
         paramData
-    }.toList
+      }.toList
 
-    val constantData: List[(SymbolPath, (Shape, Array[Real]))] = constMap.mapValues { t =>
-      (t.shape, t.data)
+    val constantData: List[(SymbolPath, (Shape, Array[Real]))] = constMap.mapValuesNow {
+      t => (t.shape, t.data)
     }.toList
 
     ParamCollection.SerializableFormat(parameterData, constantData)
