@@ -321,14 +321,14 @@ object TrainingCenter {
     val maxTrainingSteps = 1000
     // training loop
     for (step <- initStep + 1 to maxTrainingSteps) try {
-      if (TrainingControl.shouldStop(true)) {
-        saveTraining(step - 1, s"stopped-step$step")
-        throw new Exception("Stopped by 'stop.txt'.")
-      }
-
       val startTime = System.currentTimeMillis()
 
       for (trainBuilder <- trainBuilders) {
+        if (TrainingControl.shouldStop(true)) {
+          saveTraining(step - 1, s"stopped-step$step")
+          throw new Exception("Stopped by 'stop.txt'.")
+        }
+
         println(s"training on ${trainBuilder.graphName}...")
 
         val (logits, embeddings) = {
