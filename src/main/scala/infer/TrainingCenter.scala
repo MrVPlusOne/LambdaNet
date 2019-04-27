@@ -466,7 +466,7 @@ object TrainingCenter {
     import concurrent.duration._
 
     var restartOnTimeout = true
-    var optimizationTimeout = 1200.seconds
+    var optimizationTimeout = 1000.seconds
     var encodeDecodeTimeout = 400.seconds
   }
 
