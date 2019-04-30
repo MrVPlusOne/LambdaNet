@@ -40,8 +40,8 @@ object ParamCollection {
 
   @SerialVersionUID(0)
   case class SerializableFormat(
-    parameterData: List[(SymbolPath, Map[String, Serializable])],
-    constantData: List[(SymbolPath, (Shape, Array[Real]))]
+      parameterData: List[(SymbolPath, Map[String, Serializable])],
+      constantData: List[(SymbolPath, (Shape, Array[Real]))]
   )
 
   def fromSerializable(data: SerializableFormat): ParamCollection = {
@@ -95,12 +95,12 @@ case class ParamCollection() {
   private val _constMap = concurrent.TrieMap[SymbolPath, Tensor]()
 
   def getParam(path: SymbolPath, attributes: => Set[ParameterAttribute] = Set())(
-    init: => Tensor
+      init: => Tensor
   ): Param =
     _paramMap.getOrElseUpdate(path, new Param(new ParamNode(init, path), attributes))
 
   def getVar(path: SymbolPath, attributes: => Set[ParameterAttribute] = Set())(
-    init: => Tensor
+      init: => Tensor
   ): ParamNode = {
     val p = getParam(path, attributes)(init)
     p.node
@@ -131,7 +131,8 @@ case class ParamCollection() {
       }.toList
 
     val constantData: List[(SymbolPath, (Shape, Array[Real]))] = constMap.mapValuesNow {
-      t => (t.shape, t.data)
+      t =>
+        (t.shape, t.data)
     }.toList
 
     ParamCollection.SerializableFormat(parameterData, constantData)

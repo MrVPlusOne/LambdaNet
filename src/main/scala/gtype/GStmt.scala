@@ -42,11 +42,11 @@ sealed trait GStmt {
 // === Start of Statement definitions ====
 
 case class VarDef(
-  x: Symbol,
-  ty: GTMark,
-  init: GExpr,
-  isConst: Boolean,
-  exportLevel: ExportLevel.Value
+    x: Symbol,
+    ty: GTMark,
+    init: GExpr,
+    isConst: Boolean,
+    exportLevel: ExportLevel.Value
 ) extends GStmt
 
 case class AssignStmt(lhs: GExpr, rhs: GExpr) extends GStmt
@@ -62,12 +62,12 @@ case class CommentStmt(text: String) extends GStmt
 case class BlockStmt(stmts: Vector[GStmt]) extends GStmt
 
 case class FuncDef(
-  name: Symbol,
-  tyVars: List[Symbol],
-  args: List[(Symbol, GTMark)],
-  returnType: GTMark,
-  body: GStmt,
-  exportLevel: ExportLevel.Value
+    name: Symbol,
+    tyVars: List[Symbol],
+    args: List[(Symbol, GTMark)],
+    returnType: GTMark,
+    body: GStmt,
+    exportLevel: ExportLevel.Value
 ) extends GStmt {
   def functionType: FuncType = {
     FuncType(args.map(_._2.asInstanceOf[GType]), returnType.asInstanceOf[GType])
@@ -76,26 +76,25 @@ case class FuncDef(
 }
 
 case class ClassDef(
-  name: Symbol,
-  tyVars: List[Symbol],
-  superType: Option[Symbol] = None,
-  constructor: FuncDef,
-  vars: Map[Symbol, (GTMark, Boolean)],
-  funcDefs: Vector[(FuncDef, Boolean)],
-  exportLevel: ExportLevel.Value,
-  isAbstract: Boolean
+    name: Symbol,
+    tyVars: List[Symbol],
+    superType: Option[Symbol] = None,
+    constructor: FuncDef,
+    vars: Map[Symbol, (GTMark, Boolean)],
+    funcDefs: Vector[(FuncDef, Boolean)],
+    exportLevel: ExportLevel.Value,
+    isAbstract: Boolean
 ) extends GStmt {
   require(constructor.name == GStmt.constructorName)
   require(constructor.returnType == GType.voidType, s"but get: ${constructor.returnType}")
 }
 
 case class TypeAliasStmt(
-  name: Symbol,
-  tyVars: List[Symbol],
-  ty: GType,
-  level: ExportLevel.Value
+    name: Symbol,
+    tyVars: List[Symbol],
+    ty: GType,
+    level: ExportLevel.Value
 ) extends GStmt
-
 
 // === End of Statement definitions ====
 
@@ -154,23 +153,36 @@ object GStmt {
           indent -> s"${asPrefix(level)}function ${funcName.name}$tyVarPart $argList: $returnType"
         ) ++
           prettyPrintHelper(indent, makeSureInBlock(body))
-      case ClassDef(name, tyVars, superType, constructor, vars, funcDefs, level, isAbstract) =>
+      case ClassDef(
+          name,
+          tyVars,
+          superType,
+          constructor,
+          vars,
+          funcDefs,
+          level,
+          isAbstract
+          ) =>
         val superPart = superType
           .map(t => s" extends $t")
           .getOrElse("")
         val tyVarPart = tyVarClause(tyVars)
-        val abstractPart = if(isAbstract) "abstract " else ""
-        Vector(indent -> s"${asPrefix(level)}${abstractPart}class ${name.name}$tyVarPart$superPart {") ++
+        val abstractPart = if (isAbstract) "abstract " else ""
+        Vector(
+          indent -> s"${asPrefix(level)}${abstractPart}class ${name.name}$tyVarPart$superPart {"
+        ) ++
           vars.toList.map {
             case (fieldName, tv) =>
               (indent + 1, s"${fieldName.name}: $tv;")
           } ++
-          ((constructor, false) +: funcDefs).flatMap{
-            case (fDef, isStatic) => prettyPrintHelper(indent + 1, fDef.copy(name = staticName(name)))
+          ((constructor, false) +: funcDefs).flatMap {
+            case (fDef, isStatic) =>
+              prettyPrintHelper(indent + 1, fDef.copy(name = staticName(name)))
           } ++
           Vector(indent -> "}")
       case TypeAliasStmt(name, tyVars, ty, level) =>
-        val tyVarList = if(tyVars.isEmpty) "" else tyVars.map(_.name).mkString("<", ",", ">")
+        val tyVarList =
+          if (tyVars.isEmpty) "" else tyVars.map(_.name).mkString("<", ",", ">")
         Vector(indent -> s"${asPrefix(level)}type ${name.name}$tyVarList = $ty;")
     }
   }
@@ -192,8 +204,10 @@ object GStmt {
       case cDef: ClassDef =>
         val c1 = cDef.copy(
           constructor = rec(cDef.constructor).asInstanceOf[FuncDef],
-          funcDefs = cDef.funcDefs.map{ case (x, isStatic) =>
-            rec(x).asInstanceOf[FuncDef] -> isStatic }
+          funcDefs = cDef.funcDefs.map {
+            case (x, isStatic) =>
+              rec(x).asInstanceOf[FuncDef] -> isStatic
+          }
         )
         f(c1)
       case other => f(other)
@@ -254,9 +268,9 @@ object GStmt {
     def RETURN(expr: GExpr) = ExprStmt(expr, isReturn = true)
 
     def VAR(
-      x: Symbol,
-      ty: GType,
-      isConst: Boolean = false
+        x: Symbol,
+        ty: GType,
+        isConst: Boolean = false
     )(init: GExpr): VarDef = {
       VarDef(
         x,
@@ -311,7 +325,7 @@ object GStmt {
     }
 
     def FUNC(name: Symbol, returnType: GType)(
-      args: (Symbol, GType)*
+        args: (Symbol, GType)*
     )(body: GStmt*): FuncDef = {
       val a1s = stripArgs(args)
       FuncDef(
@@ -342,7 +356,6 @@ object GStmt {
   def extractSignature(funcDef: FuncDef): FuncType = {
     funcDef.args.map(_._2.asInstanceOf[GType]) -: funcDef.returnType.asInstanceOf[GType]
   }
-
 
   def makeSureInBlock(stmt: GStmt): BlockStmt = {
     stmt match {

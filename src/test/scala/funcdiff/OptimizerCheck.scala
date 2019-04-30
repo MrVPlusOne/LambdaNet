@@ -9,19 +9,19 @@ class OptimizerCheck extends TestUtils {
 
   "All Optimizers" should "be able to solve this linear regression problem" in {
 
-    for(optimizer <- optimizers){
+    for (optimizer <- optimizers) {
       val pc = ParamCollection()
 
       ns.rand.setSeed(1)
 
-      val data = ns.randn(3,3)
-      val w1 = ns.randn(3,3)
-      val b1 = ns.randn(3,1)
+      val data = ns.randn(3, 3)
+      val w1 = ns.randn(3, 3)
+      val b1 = ns.randn(3, 1)
       val y1 = w1 * data + b1
 
-      val errors = for(i <- 0 until 500) yield {
-        val w = pc.getVar(SymbolPath.empty / 'w)(ns.randn(3,3))
-        val b = pc.getVar(SymbolPath.empty / 'b)(ns.randn(3,1))
+      val errors = for (i <- 0 until 500) yield {
+        val w = pc.getVar(SymbolPath.empty / 'w)(ns.randn(3, 3))
+        val b = pc.getVar(SymbolPath.empty / 'b)(ns.randn(3, 1))
 
         val y = w * data + b
         val loss = mean(square(y - y1))
@@ -36,19 +36,18 @@ class OptimizerCheck extends TestUtils {
   }
 
   "All Optimizers" should "be able to solve this linear layer regression problem" in {
-    for(optimizer <- optimizers){
+    for (optimizer <- optimizers) {
       val pc: ParamCollection = ParamCollection()
       ns.rand.setSeed(1)
       val factory = new LayerFactory(SymbolPath.empty / 'testNet, pc)
 
-      val data = ns.randn(3,3)
-      val w1 = ns.randn(3,3)
-      val b1 = ns.randn(3,1)
+      val data = ns.randn(3, 3)
+      val w1 = ns.randn(3, 3)
+      val b1 = ns.randn(3, 1)
       val y1 = w1 * data + b1
 
-
-      val errors = for(i <- 0 until 500) yield {
-        if(i ==10){
+      val errors = for (i <- 0 until 500) yield {
+        if (i == 10) {
           factory.linear('newLinear, nOut = 23)(data)
         }
 

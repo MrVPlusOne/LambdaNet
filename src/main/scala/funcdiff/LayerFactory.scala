@@ -20,8 +20,8 @@ object LayerFactory {
 case class LayerFactory(nameSpace: SymbolPath, paramCollection: ParamCollection) {
 
   def getVar(
-    relativePath: SymbolPath,
-    attributes: Set[ParameterAttribute] = Set()
+      relativePath: SymbolPath,
+      attributes: Set[ParameterAttribute] = Set()
   )(init: => Tensor): ParamNode =
     paramCollection.getVar(nameSpace ++ relativePath, attributes)(init)
 
@@ -34,10 +34,10 @@ case class LayerFactory(nameSpace: SymbolPath, paramCollection: ParamCollection)
   }
 
   def linear(
-    name: SymbolPath,
-    nOut: Size,
-    useBias: Boolean = true,
-    initializer: WeightsInitializer = LayerFactory.xavier
+      name: SymbolPath,
+      nOut: Size,
+      useBias: Boolean = true,
+      initializer: WeightsInitializer = LayerFactory.xavier
   )(input: CompNode): CompNode = withPrefix(name) { prefix =>
     val nIn = input.shape(1)
     val w = getVar(prefix / 'w, attributes = Set(NeedRegularization)) {
@@ -61,10 +61,10 @@ case class LayerFactory(nameSpace: SymbolPath, paramCollection: ParamCollection)
   }
 
   def batchNorm(
-    name: SymbolPath,
-    inTraining: Boolean,
-    momentum: Double = 0.9,
-    eps: Double = 1e-5
+      name: SymbolPath,
+      inTraining: Boolean,
+      momentum: Double = 0.9,
+      eps: Double = 1e-5
   )(input: CompNode): CompNode = withPrefix(name) { prefix =>
     val inputMean = mean(input, axis = 0)
     val inputVariance = mean(square(input - inputMean), axis = 0)
@@ -90,8 +90,8 @@ case class LayerFactory(nameSpace: SymbolPath, paramCollection: ParamCollection)
     * Gated recurrent unit: [https://en.wikipedia.org/wiki/Gated_recurrent_unit]
     */
   def gru(
-    name: SymbolPath,
-    initializer: WeightsInitializer = LayerFactory.xavier
+      name: SymbolPath,
+      initializer: WeightsInitializer = LayerFactory.xavier
   )(state: CompNode, input: CompNode): CompNode = withPrefix(name) { prefix =>
     val inputSize = input.shape(1)
     val stateSize = state.shape(1)
@@ -128,8 +128,8 @@ case class LayerFactory(nameSpace: SymbolPath, paramCollection: ParamCollection)
     * Long short-term memory unit: [https://en.wikipedia.org/wiki/Long_short-term_memory]
     */
   def lstm(name: SymbolPath, initializer: WeightsInitializer = LayerFactory.xavier)(
-    hAndC: (CompNode, CompNode),
-    input: CompNode
+      hAndC: (CompNode, CompNode),
+      input: CompNode
   ): (CompNode, CompNode) = withPrefix(name) { prefix =>
     val (h, c) = hAndC
 
@@ -177,9 +177,9 @@ case class LayerFactory(nameSpace: SymbolPath, paramCollection: ParamCollection)
     * intermediate states
     */
   def bidirectionalGru(
-    name: SymbolPath,
-    stateShape: Shape,
-    combiner: (CompNode, CompNode) => CompNode
+      name: SymbolPath,
+      stateShape: Shape,
+      combiner: (CompNode, CompNode) => CompNode
   )(inputs: IS[CompNode]): IS[CompNode] = withPrefix(name) { prefix =>
     val leftInit: CompNode = getVar(prefix / 'leftInit) {
       ns.randn(stateShape)
@@ -196,12 +196,12 @@ case class LayerFactory(nameSpace: SymbolPath, paramCollection: ParamCollection)
 
   /** performs weighted-sum over ys using dot-product attention */
   def attentionLayer(
-    name: SymbolPath,
-    transformKey: Boolean = false,
-    transformValue: Boolean = false,
+      name: SymbolPath,
+      transformKey: Boolean = false,
+      transformValue: Boolean = false
   )(xKey: CompNode, ys: IS[(CompNode, CompNode)]): CompNode =
     withPrefix(name) { _ =>
-      require (ys.nonEmpty)
+      require(ys.nonEmpty)
       val keyDim = xKey.shape(1)
       val valueDim = ys.head._2.shape(1)
       val sqrtN = math.sqrt(keyDim)

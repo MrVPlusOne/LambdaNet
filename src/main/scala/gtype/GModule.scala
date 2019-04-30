@@ -4,10 +4,10 @@ import gtype.GModule.ProjectPath
 
 /** Models a source file */
 case class GModule(
-  path: ProjectPath,
-  imports: Vector[ImportStmt],
-  exportStmts: Vector[ExportStmt],
-  stmts: Vector[GStmt]
+    path: ProjectPath,
+    imports: Vector[ImportStmt],
+    exportStmts: Vector[ExportStmt],
+    stmts: Vector[GStmt]
 ) {
   val moduleName: String = path.segments.last
 }
@@ -51,7 +51,8 @@ object ImportStmt {
 sealed trait ExportStmt
 
 object ExportStmt {
-  case class ExportDefault(newName: Option[Symbol], from: Option[ProjectPath]) extends ExportStmt
+  case class ExportDefault(newName: Option[Symbol], from: Option[ProjectPath])
+      extends ExportStmt
   case class ExportSingle(oldName: Symbol, newName: Symbol, from: Option[ProjectPath])
       extends ExportStmt
 //  case class ExportTypeAlias(name: Symbol, tVars: Vector[Symbol], `type`: GType)

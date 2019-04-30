@@ -4,12 +4,8 @@ import funcdiff.SimpleMath
 import funcdiff.SimpleMath.Extensions._
 import funcdiff.SimpleMath.{LabeledGraph, wrapInQuotes}
 import gtype.GModule.ProjectPath
-import gtype.{
-  GTHole,
-  GType,
-}
+import gtype.{GTHole, GType}
 import infer.IR._
-
 
 import collection.mutable
 
@@ -22,10 +18,10 @@ object PredicateGraph {
     * @param typeLabels all the user-annotated type annotations, resolved as [[IRType]]s
     */
   case class PredicateModule(
-    path: ProjectPath,
-    predicates: Vector[TyVarPredicate],
-    newTypes: Map[IRType, TypeName],
-    typeLabels: Map[IRTypeId, TypeLabel]
+      path: ProjectPath,
+      predicates: Vector[TyVarPredicate],
+      newTypes: Map[IRType, TypeName],
+      typeLabels: Map[IRTypeId, TypeLabel]
   ) {
 
     def display(srcOpt: Option[IRModule] = None): String = {
@@ -51,7 +47,7 @@ object PredicateGraph {
 
   sealed trait TyVarPredicate
 
-  sealed trait TypingConstraint{
+  sealed trait TypingConstraint {
     def vars: Vector[IRType]
   }
 
@@ -59,14 +55,16 @@ object PredicateGraph {
   case class HasName(v: IRType, name: Symbol) extends TyVarPredicate
   case class IsLibraryType(v: IRType, name: Symbol) extends TyVarPredicate
   case class SubtypeRel(sub: IRType, sup: IRType)
-      extends TyVarPredicate with TypingConstraint{
-    val vars: Vector[IRType] = Vector(sub,sup)
+      extends TyVarPredicate
+      with TypingConstraint {
+    val vars: Vector[IRType] = Vector(sub, sup)
   }
   case class AssignRel(lhs: IRType, rhs: IRType) extends TyVarPredicate
   case class UsedAsBoolean(tyVar: IRType) extends TyVarPredicate
   case class InheritanceRel(child: IRType, parent: IRType) extends TyVarPredicate
   case class DefineRel(v: IRType, expr: TypeExpr)
-      extends TyVarPredicate with TypingConstraint{
+      extends TyVarPredicate
+      with TypingConstraint {
     lazy val vars: Vector[IRType] = v +: expr.vars
   }
 
@@ -74,22 +72,22 @@ object PredicateGraph {
     DefineRel(lhs, VarTypeExpr(rhs))
   }
 
-  sealed trait TypeExpr{
+  sealed trait TypeExpr {
     def vars: Vector[IRType]
   }
-  case class VarTypeExpr(v: IRType) extends TypeExpr{
+  case class VarTypeExpr(v: IRType) extends TypeExpr {
     val vars: Vector[IRType] = Vector(v)
   }
-  case class FuncTypeExpr(argTypes: List[IRType], returnType: IRType) extends TypeExpr{
+  case class FuncTypeExpr(argTypes: List[IRType], returnType: IRType) extends TypeExpr {
     lazy val vars: Vector[IRType] = (argTypes :+ returnType).toVector
   }
-  case class CallTypeExpr(f: IRType, args: List[IRType]) extends TypeExpr{
+  case class CallTypeExpr(f: IRType, args: List[IRType]) extends TypeExpr {
     lazy val vars: Vector[IRType] = (f +: args).toVector
   }
-  case class ObjLiteralTypeExpr(fields: Map[Symbol, IRType]) extends TypeExpr{
+  case class ObjLiteralTypeExpr(fields: Map[Symbol, IRType]) extends TypeExpr {
     lazy val vars: Vector[IRType] = fields.values.toVector
   }
-  case class FieldAccessTypeExpr(objType: IRType, field: Symbol) extends TypeExpr{
+  case class FieldAccessTypeExpr(objType: IRType, field: Symbol) extends TypeExpr {
     lazy val vars: Vector[IRType] = Vector(objType)
   }
 
@@ -103,7 +101,7 @@ object PredicateGraph {
     case _: InheritanceRel => 'inheritance
     case DefineRel(_, et) =>
       et match {
-        case _: VarTypeExpr => Symbol("define-var")
+        case _: VarTypeExpr         => Symbol("define-var")
         case _: FuncTypeExpr        => Symbol("define-func")
         case _: CallTypeExpr        => Symbol("define-call")
         case _: ObjLiteralTypeExpr  => Symbol("define-object")
@@ -112,10 +110,10 @@ object PredicateGraph {
   }
 
   def displayPredicateGraph(
-    correctNodes: Seq[IRType],
-    wrongNodes: Seq[IRType],
-    predicates: Seq[TyVarPredicate],
-    typeHoleMap: Map[IRTypeId, GTHole]
+      correctNodes: Seq[IRType],
+      wrongNodes: Seq[IRType],
+      predicates: Seq[TyVarPredicate],
+      typeHoleMap: Map[IRTypeId, GTHole]
   ): LabeledGraph = {
     def typeInfo(t: IR.IRType): String = {
       val holeInfo = typeHoleMap.get(t.id).map(h => s";Hole: ${h.id}").getOrElse("")
@@ -131,9 +129,9 @@ object PredicateGraph {
     val graph = new SimpleMath.LabeledGraph()
 
     def newPredicate(
-      shortName: String,
-      fullName: String,
-      connections: Seq[(Int, String)]
+        shortName: String,
+        fullName: String,
+        connections: Seq[(Int, String)]
     ): Unit = {
       val n = newNode()
       graph.addNode(n, shortName, wrapInQuotes(fullName), "Blue")
@@ -194,7 +192,3 @@ object PredicateGraph {
   val returnVar: Var = namedVar(gtype.GStmt.returnSymbol)
 
 }
-
-
-
-

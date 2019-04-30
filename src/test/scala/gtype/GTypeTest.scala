@@ -20,14 +20,12 @@ class GTypeTest extends WordSpec with MyTest {
     }.check()
   }
 
-
   "the consistent-subtyping relation" should {
     val (typeGen, contextGen) = (GType.simpleGTypeGen, GType.simpleContextGen)
     "be reflexive" in {
-      checkProp(
-        forAll(typeGen, contextGen) { (t, context) =>
-          checkSubtype(t, t, context).nonEmpty
-        })
+      checkProp(forAll(typeGen, contextGen) { (t, context) =>
+        checkSubtype(t, t, context).nonEmpty
+      })
     }
 
     "pass simple examples" in {
@@ -47,19 +45,27 @@ class GTypeTest extends WordSpec with MyTest {
 
     "properly deal with recursive types" in {
       val aliasGraph = Map[Symbol, TypeAliasing](
-        'A1 -> ObjectAliasing(Map(
-          'A1Filed -> 'A1
-        )),
-        'B2 -> ObjectAliasing(Map(
-          'B2Field -> 'B2, //depth 1
-          'A1Ref -> 'A1  //depth 2
-        )),
-        'C2 -> ObjectAliasing(Map(
-          'D2Ref -> 'D2
-        )),
-        'D2 -> ObjectAliasing(Map(
-          'C2ref -> 'C2
-        ))
+        'A1 -> ObjectAliasing(
+          Map(
+            'A1Filed -> 'A1
+          )
+        ),
+        'B2 -> ObjectAliasing(
+          Map(
+            'B2Field -> 'B2, //depth 1
+            'A1Ref -> 'A1 //depth 2
+          )
+        ),
+        'C2 -> ObjectAliasing(
+          Map(
+            'D2Ref -> 'D2
+          )
+        ),
+        'D2 -> ObjectAliasing(
+          Map(
+            'C2ref -> 'C2
+          )
+        )
       )
 
       def depth(n: Symbol) = typeDepth(n, aliasGraph)

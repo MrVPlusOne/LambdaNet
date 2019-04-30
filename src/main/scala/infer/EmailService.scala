@@ -10,8 +10,8 @@ case class EmailService(userEmail: String, password: String) {
   val Array(user, domain) = userEmail.split("@")
 
   def sendMail(
-    targetEmail: String,
-    timeOutSeconds: Int = 10
+      targetEmail: String,
+      timeOutSeconds: Int = 10
   )(subject: String, msg: String): Unit = {
     val Array(targetUser, targetDomain) = targetEmail.split("@")
 
@@ -20,12 +20,15 @@ case class EmailService(userEmail: String, password: String) {
       .as(s"$user@$domain", password)
       .startTls(true)()
 
-    Await.result(mailer(
-      Envelope
-        .from(user `@` domain)
-        .to(targetUser `@` targetDomain)
-        .subject(subject)
-        .content(Text(msg))
-    ), Duration(s"${timeOutSeconds}s"))
+    Await.result(
+      mailer(
+        Envelope
+          .from(user `@` domain)
+          .to(targetUser `@` targetDomain)
+          .subject(subject)
+          .content(Text(msg))
+      ),
+      Duration(s"${timeOutSeconds}s")
+    )
   }
 }

@@ -192,7 +192,7 @@ class ParserTests extends WordSpec with MyTest {
   "Export Import tests" in {
     val root = pwd / RelPath("data/tests/export-import")
     infer.PredicateGraphConstruction
-          .fromRootDirectory(root)
+      .fromRootDirectory(root)
       .predModules
       .foreach { m =>
         println(m.display())
@@ -215,9 +215,9 @@ class ParserTests extends WordSpec with MyTest {
   }
 
   "Project parsing integration test" in {
-    TrainingProjects.parsedProjects.foreach{p =>
+    TrainingProjects.parsedProjects.foreach { p =>
       val size = p.predModules.map(_.predicates.length).sum
-      println(p.projectName +  ": size=" + size)
+      println(p.projectName + ": size=" + size)
     }
   }
 }

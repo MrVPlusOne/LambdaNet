@@ -8,7 +8,6 @@ import org.nd4j.linalg.factory.Nd4j
 import org.nd4j.linalg.ops.transforms.Transforms
 import Tensor.{Size}
 
-
 object TensorExtension {
 
   def mamFormat(d: Double): String = {
@@ -16,9 +15,11 @@ object TensorExtension {
   }
 
   def mamFormat(t: Tensor): String = {
-    if(t.data.length == 1) mamFormat(t.squeeze())
+    if (t.data.length == 1) mamFormat(t.squeeze())
     else {
-      t.data.map(mamFormat).mkString("{",",","}") // fixme: support high-dimensional tensors
+      t.data
+        .map(mamFormat)
+        .mkString("{", ",", "}") // fixme: support high-dimensional tensors
     }
   }
 
@@ -35,14 +36,13 @@ object TensorExtension {
   def argmin(t: Tensor, axis: Int): Tensor =
     new Tensor(Nd4j.getExecutioner.exec(new IMin(t.array), axis))
 
-
   /** calculates which axes have been broadcasted */
   def broadcastAxes(oldShape: Shape, newShape: Shape): Seq[Int] = {
     val s1 = oldShape.sizes
     val s2 = newShape.sizes
-    for(i <- s1.indices;
-        l1 = s1(i);
-        l2 = s2(i) if l1 != l2) yield {
+    for (i <- s1.indices;
+         l1 = s1(i);
+         l2 = s2(i) if l1 != l2) yield {
       assert(l1 == 1, s"oldShape along axis $i is invalid! l1 = $l1, l2 = $l2")
       i
     }
@@ -52,13 +52,13 @@ object TensorExtension {
   def broadcastAxesWhenMerge(shape1: Shape, shape2: Shape): (Seq[Int], Seq[Int]) = {
     require(shape1.rank == shape2.rank)
     var axes1, axes2 = List[Int]()
-    for(i <- 0 until shape1.rank;
-        l1 = shape1(i);
-        l2 = shape2(i)) yield {
-      if(l1 < l2){
+    for (i <- 0 until shape1.rank;
+         l1 = shape1(i);
+         l2 = shape2(i)) yield {
+      if (l1 < l2) {
         assert(l1 == 1, s"shapes along axis $i are not compatible! l1 = $l1, l2 = $l2")
         axes1 = i :: axes1
-      }else if (l1 > l2){
+      } else if (l1 > l2) {
         assert(l2 == 1, s"shapes along axis $i are not compatible! l1 = $l1, l2 = $l2")
         axes2 = i :: axes2
       }
@@ -67,68 +67,79 @@ object TensorExtension {
   }
 
   def shapeConsistentWithRanges(shape: Shape, ranges: Seq[NumscaRange]): Boolean = {
-    shape.ints.zip(ranges).forall{ case (s, range) =>
-      range.to match {
-        case Some(to) =>
-          (to - range.from) == s
-        case None => true
-      }
+    shape.ints.zip(ranges).forall {
+      case (s, range) =>
+        range.to match {
+          case Some(to) =>
+            (to - range.from) == s
+          case None => true
+        }
     }
   }
 
   def rangesToShape(totalShape: Shape, ranges: Seq[NumscaRange]): Shape = {
-    Shape(ranges.zipWithIndex.map{ case(nr, i) =>
-      val to = nr.to.getOrElse(totalShape(i))
-      to - nr.from
+    Shape(ranges.zipWithIndex.map {
+      case (nr, i) =>
+        val to = nr.to.getOrElse(totalShape(i))
+        to - nr.from
     }.toVector)
   }
 
-  implicit class TensorWrapper(data: Tensor){
+  implicit class TensorWrapper(data: Tensor) {
     def unbroadcast(oldShape: Shape): Tensor = {
       val axes = broadcastAxes(oldShape, data.shape)
       sumAlongAxes(axes)
     }
 
     def sumAlongAxes(axes: Seq[Int]): Tensor = {
-      axes.foldLeft(data) { case (t, axis) => ns.sum(t, axis)}
+      axes.foldLeft(data) { case (t, axis) => ns.sum(t, axis) }
     }
 
     def broadcast(newShape: Shape): Tensor = {
-      new Tensor(data.array.broadcast(newShape.sizes :_*), data.isBoolean)
+      new Tensor(data.array.broadcast(newShape.sizes: _*), data.isBoolean)
     }
 
     def splitAlongAxis(axis: Int, splitAt: Long): (Tensor, Tensor) = {
       import ns._
 
       require(axis >= 0 && axis < data.shape.rank)
-      require(splitAt > 0 && splitAt < data.shape(axis), s"split at $splitAt along axis $axis would create empty matrix from $data")
-      val left = data(data.shape.sizes.indices.map{ dim =>
-        if(dim == axis) 0 :> splitAt
+      require(
+        splitAt > 0 && splitAt < data.shape(axis),
+        s"split at $splitAt along axis $axis would create empty matrix from $data"
+      )
+      val left = data(data.shape.sizes.indices.map { dim =>
+        if (dim == axis) 0 :> splitAt
         else :>
-      } :_*)
+      }: _*)
 
-      val right = data(data.shape.sizes.indices.map{ dim =>
-        if(dim == axis) splitAt :> data.shape(dim).toInt
+      val right = data(data.shape.sizes.indices.map { dim =>
+        if (dim == axis) splitAt :> data.shape(dim).toInt
         else :>
-      } :_*)
+      }: _*)
 
       (left, right)
     }
 
     def requireNonZero(tolerance: Double = zeroTolerance): Unit = {
-      if(checkNaN) {
-        require(data.data.forall(x => math.abs(x) >= tolerance), s"Tensor contains zero element: $data")
+      if (checkNaN) {
+        require(
+          data.data.forall(x => math.abs(x) >= tolerance),
+          s"Tensor contains zero element: $data"
+        )
       }
     }
 
     def requirePositive(info: String = "", tolerance: Double = zeroTolerance): Unit = {
-      if(checkNaN) {
-        require(ns.sum(data > tolerance) == data.shape.sizes.product, s"Tensor contains negative element: $data. $info")
+      if (checkNaN) {
+        require(
+          ns.sum(data > tolerance) == data.shape.sizes.product,
+          s"Tensor contains negative element: $data. $info"
+        )
       }
     }
 
-    def assertNoNaN(): Unit ={
-      if(checkNaN) {
+    def assertNoNaN(): Unit = {
+      if (checkNaN) {
         assert(data.data.forall(!_.isNaN))
       }
     }
@@ -136,8 +147,9 @@ object TensorExtension {
 
   def oneHot(labels: Seq[Int], categories: Int): Tensor = {
     val t = numsca.zeros(labels.length, categories)
-    labels.zipWithIndex.foreach{ case (l, i) =>
-      t(i, l) := 1
+    labels.zipWithIndex.foreach {
+      case (l, i) =>
+        t(i, l) := 1
     }
 
     t
@@ -152,9 +164,9 @@ object TensorExtension {
   def randomUnitVec(resultDim: Size): Tensor = {
     val x = numsca.randn(resultDim)
     val n = normL2(x)
-    if(n.squeeze() < TensorExtension.zeroTolerance){
-      randomUnitVec(resultDim)  // try again
-    }else {
+    if (n.squeeze() < TensorExtension.zeroTolerance) {
+      randomUnitVec(resultDim) // try again
+    } else {
       x / n
     }
   }
@@ -162,13 +174,12 @@ object TensorExtension {
   def sin(t: Tensor): Tensor = new Tensor(Transforms.sin(t.array))
   def cos(t: Tensor): Tensor = new Tensor(Transforms.cos(t.array))
 
-
   def matrix(rows: Seq[Array[Float]]): Tensor = {
     val ndArray = Nd4j.create(rows.toArray)
     new Tensor(ndArray)
   }
 
-  def tensor(data: Array[Double], shape: Array[Int]): Tensor ={
+  def tensor(data: Array[Double], shape: Array[Int]): Tensor = {
     new Tensor(Nd4j.create(data, shape))
   }
 
@@ -180,22 +191,22 @@ object TensorExtension {
     val Vector(kh, kw) = kernel.shape.ints
     val rh = h - kh + 1
     val rw = w - kw + 1
-    val data = new Array[Double](rh*rw)
-    for(
-      r <- 0 until rh;
-      c <- 0 until rw;
-      region = x(r :> r+kh, c :> c+kw)
-    ) {
-      data(r*rw + c) = sum(region * kernel)
+    val data = new Array[Double](rh * rw)
+    for {
+      r <- 0 until rh
+      c <- 0 until rw
+      region = x(r :> r + kh, c :> c + kw)
+    } {
+      data(r * rw + c) = sum(region * kernel)
     }
     new Tensor(Nd4j.create(data, Array(rh, rw), 'c'))
   }
 
-  implicit class RangeWrapper(range: NumscaRange){
+  implicit class RangeWrapper(range: NumscaRange) {
     def contains(index: Int): Boolean = {
       index >= range.from && (range.to match {
         case Some(t) => index < t
-        case None => true
+        case None    => true
       })
     }
 
@@ -209,6 +220,6 @@ object TensorExtension {
   }
 
   def showRanges(ranges: Seq[NumscaRange]): String = {
-    ranges.map(_.prettyPrint).mkString("[",",","]")
+    ranges.map(_.prettyPrint).mkString("[", ",", "]")
   }
 }

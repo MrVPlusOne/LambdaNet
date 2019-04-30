@@ -8,15 +8,15 @@
     </appender>
 
     <appender name="ASYNCSTDOUT" class="ch.qos.logback.classic.AsyncAppender">
-        <appender-ref ref="STDOUT" />
+        <appender-ref ref="STDOUT"/>
     </appender>
 
-    <logger name="botkop" level="OFF" />
-    <logger name="org.nd4j" level="OFF" />
-    <logger name="org.reflections" level="ERROR" />
+    <logger name="botkop" level="OFF"/>
+    <logger name="org.nd4j" level="OFF"/>
+    <logger name="org.reflections" level="ERROR"/>
 
     <root level="OFF">
-        <appender-ref ref="ASYNCSTDOUT" />
+        <appender-ref ref="ASYNCSTDOUT"/>
     </root>
 
 </configuration>

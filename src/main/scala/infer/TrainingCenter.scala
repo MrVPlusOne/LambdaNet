@@ -40,8 +40,7 @@ import scala.util.Random
   */
 object TrainingCenter {
 
-  val numOfThreads
-    : Int = Runtime.getRuntime.availableProcessors()
+  val numOfThreads: Int = Runtime.getRuntime.availableProcessors()
   val forkJoinPool = new ForkJoinPool(numOfThreads)
   val taskSupport: ForkJoinTaskSupport = new ForkJoinTaskSupport(forkJoinPool)
   val parallelCtx: ExecutionContextExecutorService =
@@ -51,10 +50,10 @@ object TrainingCenter {
 
   /** A complete representation of the current training, used to save/restore training */
   case class TrainingState(
-    step: Int,
-    dimMessage: Int,
-    layerFactory: LayerFactory,
-    optimizer: Optimizer
+      step: Int,
+      dimMessage: Int,
+      layerFactory: LayerFactory,
+      optimizer: Optimizer
   ) {
     def saveToFile(file: Path): Unit = {
       val toSave =
@@ -121,14 +120,14 @@ object TrainingCenter {
   /** Builds a graph neural network over an entire typescript project */
   //noinspection TypeAnnotation
   case class GraphNetBuilder(
-    graphName: String,
-    predModules: IS[PredicateModule],
-    transEnv: TranslationEnv,
-    libraryVars: Vector[Symbol],
-    libraryFields: Vector[Symbol],
-    libraryTypes: Vector[GType],
-    factory: LayerFactory,
-    dimMessage: Int = 64
+      graphName: String,
+      predModules: IS[PredicateModule],
+      transEnv: TranslationEnv,
+      libraryVars: Vector[Symbol],
+      libraryFields: Vector[Symbol],
+      libraryTypes: Vector[GType],
+      factory: LayerFactory,
+      dimMessage: Int = 64
   ) {
 
     val typeLabels = predModules.flatMap(m => m.typeLabels)
@@ -207,9 +206,9 @@ object TrainingCenter {
   }
 
   def trainOnModules(
-    trainingProjects: IS[ParsedProject],
-    testingModules: IS[ParsedProject],
-    trainingState: TrainingState
+      trainingProjects: IS[ParsedProject],
+      testingModules: IS[ParsedProject],
+      trainingState: TrainingState
   ): Unit = {
 
     val (machineName, emailService) = ReportFinish.readEmailInfo()
@@ -473,18 +472,18 @@ object TrainingCenter {
   }
 
   case class AccuracyStats(
-    totalAccuracy: Double,
-    projectTypeAccuracy: Double,
-    libraryTypeAccuracy: Double,
-    outOfScopeTypeAccuracy: Double
+      totalAccuracy: Double,
+      projectTypeAccuracy: Double,
+      libraryTypeAccuracy: Double,
+      outOfScopeTypeAccuracy: Double
   )
 
   def analyzeResults(
-    annotatedPlaces: IS[(IRTypeId, TypeLabel)],
-    logits: Tensor,
-    transEnv: TranslationEnv,
-    ctx: DecodingCtx,
-    printResults: Option[Int] = Some(100)
+      annotatedPlaces: IS[(IRTypeId, TypeLabel)],
+      logits: Tensor,
+      transEnv: TranslationEnv,
+      ctx: DecodingCtx,
+      printResults: Option[Int] = Some(100)
   ): AccuracyStats = {
     type Prediction = Int
     val predictions = numsca.argmax(logits, axis = 1)

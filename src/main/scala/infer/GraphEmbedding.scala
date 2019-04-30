@@ -20,12 +20,12 @@ object GraphEmbedding {
   val unknownTypeSymbol = 'UNKNOWN
 
   case class EmbeddingCtx(
-    idTypeMap: Map[IRTypeId, IRType],
-    libraryTypeMap: Symbol => CompNode,
-    predicates: Seq[TyVarPredicate],
-    labelMap: Symbol => CompNode,
-    fieldKnowledge: Map[Symbol, (CompNode, CompNode)],
-    varKnowledge: Map[Symbol, CompNode]
+      idTypeMap: Map[IRTypeId, IRType],
+      libraryTypeMap: Symbol => CompNode,
+      predicates: Seq[TyVarPredicate],
+      labelMap: Symbol => CompNode,
+      fieldKnowledge: Map[Symbol, (CompNode, CompNode)],
+      varKnowledge: Map[Symbol, CompNode]
   )
 
   case class Embedding(nodeMap: Map[IR.IRTypeId, CompNode], stat: EmbeddingStat)
@@ -33,8 +33,8 @@ object GraphEmbedding {
   case class EmbeddingStat(trueEmbeddingLengths: IS[Double])
 
   case class DecodingCtx(
-    libraryTypes: IS[GType],
-    projectTypes: IS[IRType]
+      libraryTypes: IS[GType],
+      projectTypes: IS[IRType]
   ) {
 
     require(SimpleMath.noDuplicate(libraryTypes))
@@ -66,10 +66,10 @@ object GraphEmbedding {
 import API._
 
 case class GraphEmbedding(
-  ctx: EmbeddingCtx,
-  layerFactory: LayerFactory,
-  dimMessage: Int,
-  taskSupport: Option[ForkJoinTaskSupport]
+    ctx: EmbeddingCtx,
+    layerFactory: LayerFactory,
+    dimMessage: Int,
+    taskSupport: Option[ForkJoinTaskSupport]
 ) {
   import ctx._
   import layerFactory._
@@ -86,9 +86,9 @@ case class GraphEmbedding(
     * @return A prediction distribution matrix of shape (# of places) * (# of candidates)
     */
   def encodeAndDecode(
-    iterations: Int,
-    decodingCtx: DecodingCtx,
-    placesToDecode: IS[IRTypeId]
+      iterations: Int,
+      decodingCtx: DecodingCtx,
+      placesToDecode: IS[IRTypeId]
   ): (CompNode, IS[Embedding]) = {
     val embeddings = DebugTime.logTime('iterTime) {
       val stat = EmbeddingStat(idTypeMap.mapValuesNow(_ => 1.0).values.toVector)
@@ -122,9 +122,9 @@ case class GraphEmbedding(
   }
 
   def fieldAccessMessage(
-    name: SymbolPath,
-    objEmbed: CompNode,
-    fieldLabel: Symbol
+      name: SymbolPath,
+      objEmbed: CompNode,
+      fieldLabel: Symbol
   ): Message = {
     val input = objEmbed.concat(labelMap(fieldLabel), axis = 1)
     messageModel(name, singleLayer(name / 'compress, input))
@@ -159,7 +159,7 @@ case class GraphEmbedding(
   }
 
   def iterate(
-    embedding: Embedding
+      embedding: Embedding
   ): Embedding = {
     import funcdiff.API._
     import embedding._
@@ -203,11 +203,27 @@ case class GraphEmbedding(
       case HasName(v, name) =>
 //        messages(v.id) += messageModel('HasName, labelMap(name)) //todo: properly handle name info
       case SubtypeRel(sub, sup) =>
-        messages(sub.id) += binaryMessage('SubtypeRel_sub, nodeMap(sub.id), nodeMap(sup.id))
-        messages(sup.id) += binaryMessage('SubtypeRel_sup, nodeMap(sub.id), nodeMap(sup.id))
+        messages(sub.id) += binaryMessage(
+          'SubtypeRel_sub,
+          nodeMap(sub.id),
+          nodeMap(sup.id)
+        )
+        messages(sup.id) += binaryMessage(
+          'SubtypeRel_sup,
+          nodeMap(sub.id),
+          nodeMap(sup.id)
+        )
       case AssignRel(lhs, rhs) =>
-        messages(lhs.id) += binaryMessage('AssignRel_lhs, nodeMap(lhs.id), nodeMap(rhs.id))
-        messages(rhs.id) += binaryMessage('AssignRel_rhs, nodeMap(lhs.id), nodeMap(rhs.id))
+        messages(lhs.id) += binaryMessage(
+          'AssignRel_lhs,
+          nodeMap(lhs.id),
+          nodeMap(rhs.id)
+        )
+        messages(rhs.id) += binaryMessage(
+          'AssignRel_rhs,
+          nodeMap(lhs.id),
+          nodeMap(rhs.id)
+        )
       case UsedAsBoolean(tyVar) =>
         messages(tyVar.id) += messageModel('UsedAsBoolean, nodeMap(tyVar.id))
       case InheritanceRel(child, parent) =>
@@ -224,8 +240,16 @@ case class GraphEmbedding(
       case DefineRel(v, expr) =>
         expr match {
           case VarTypeExpr(rhs) =>
-            messages(v.id) += binaryMessage('DefineVar_lhs, nodeMap(v.id), nodeMap(rhs.id))
-            messages(rhs.id) += binaryMessage('DefineVar_rhs, nodeMap(v.id), nodeMap(rhs.id))
+            messages(v.id) += binaryMessage(
+              'DefineVar_lhs,
+              nodeMap(v.id),
+              nodeMap(rhs.id)
+            )
+            messages(rhs.id) += binaryMessage(
+              'DefineVar_rhs,
+              nodeMap(v.id),
+              nodeMap(rhs.id)
+            )
           case FuncTypeExpr(argTypes, returnType) =>
             val ids = (returnType +: argTypes.toIndexedSeq).map(_.id)
             ids.zipWithIndex.foreach {
@@ -356,9 +380,9 @@ case class GraphEmbedding(
     * @return A prediction distribution logits matrix of shape (# of places) * (# of candidates)
     */
   def decode(
-    decodingCtx: DecodingCtx,
-    placesToDecode: IS[IRTypeId],
-    embedding: Embedding
+      decodingCtx: DecodingCtx,
+      placesToDecode: IS[IRTypeId],
+      embedding: Embedding
   ): CompNode = {
     require(placesToDecode.nonEmpty)
 

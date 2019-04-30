@@ -61,8 +61,5 @@ object SamplePrograms {
   }
 
   case class Example(program: BlockStmt, holeTypeMap: Map[GTHole, GType])
-
-
-  
   // @formatter:on
 }

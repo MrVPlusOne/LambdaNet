@@ -89,7 +89,7 @@ object ProgramParsing {
 import gtype.parsing.ProgramParsing._
 
 class ProgramParsing(
-  val tHoleContext: TypeHoleContext = new TypeHoleContext(),
+    val tHoleContext: TypeHoleContext = new TypeHoleContext()
 ) {
 
   val marksToHoles: Boolean = false
@@ -107,10 +107,10 @@ class ProgramParsing(
   }
 
   def parseModulesFromFiles(
-    srcFiles: Seq[RelPath],
-    libraryFiles: Set[RelPath],
-    projectRoot: Path,
-    writeToFile: Option[Path] = None
+      srcFiles: Seq[RelPath],
+      libraryFiles: Set[RelPath],
+      projectRoot: Path,
+      writeToFile: Option[Path] = None
   ): Seq[GModule] = {
     val totalLibraries = libraryFiles ++ srcFiles
     val r = %%(
@@ -192,11 +192,11 @@ class ProgramParsing(
   }
 
   case class DefModifiers(
-    isConst: Boolean,
-    exportLevel: ExportLevel.Value,
-    isGetter: Boolean,
-    isSetter: Boolean,
-    isAbstract: Boolean
+      isConst: Boolean,
+      exportLevel: ExportLevel.Value,
+      isGetter: Boolean,
+      isSetter: Boolean,
+      isAbstract: Boolean
   )
 
   def parseModifiers(v: Js.Val): DefModifiers = {
@@ -286,7 +286,7 @@ class ProgramParsing(
             }
             f.copy(name = GStmt.constructorName)
           }
-          val vars = asArray(map("vars")).map{ v1 =>
+          val vars = asArray(map("vars")).map { v1 =>
             val List(named, b) = asArray(v1)
             val (name, mark) = parseNamedValue(named)
             val ty = parseGTMark(mark)
@@ -294,7 +294,7 @@ class ProgramParsing(
             (Symbol(name), (ty, isStatic))
           }
           val funcDefs =
-            asVector(map("funcDefs")).map{v =>
+            asVector(map("funcDefs")).map { v =>
               val List(s, b) = asArray(v)
               parseGStmt(s).asInstanceOf[FuncDef] -> asBoolean(b)
             }

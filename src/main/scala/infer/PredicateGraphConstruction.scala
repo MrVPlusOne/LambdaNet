@@ -5,12 +5,35 @@ import gtype.GModule.ProjectPath
 import gtype.parsing.ProgramParsing
 import gtype.GStmt.{TypeAnnotation, TypeHoleContext}
 import gtype.ImportStmt._
-import gtype.{AnyType, ExportStmt, FuncType, GModule, GStmt, GTHole, GType, JSExamples, ObjectType, TyVar}
+import gtype.{
+  AnyType,
+  ExportStmt,
+  FuncType,
+  GModule,
+  GStmt,
+  GTHole,
+  GType,
+  JSExamples,
+  ObjectType,
+  TyVar
+}
 import infer.IRTranslation.TranslationEnv
 import infer.PredicateGraph._
 import PredicateGraphConstruction._
 import funcdiff.SimpleMath.Extensions._
-import IR.{ExportCategory, Exported, IRModule, IRStmt, IRType, IRTypeId, ModuleExports, TypeName, Var, VarName, namedVar}
+import IR.{
+  ExportCategory,
+  Exported,
+  IRModule,
+  IRStmt,
+  IRType,
+  IRTypeId,
+  ModuleExports,
+  TypeName,
+  Var,
+  VarName,
+  namedVar
+}
 import funcdiff.SimpleMath
 import gtype.ExportStmt.{ExportDefault, ExportOtherModule, ExportSingle}
 
@@ -36,13 +59,13 @@ object PredicateGraphConstruction {
   }
 
   class LibraryContext(
-    val transEnv: TranslationEnv,
-    val libraryVars: mutable.HashMap[VarName, IRType] = mutable.HashMap(),
-    val libraryTypeFreq: mutable.HashMap[GType, Int] = mutable.HashMap(),
-    val libraryTypes: mutable.HashMap[GType, IRType] = mutable.HashMap()
+      val transEnv: TranslationEnv,
+      val libraryVars: mutable.HashMap[VarName, IRType] = mutable.HashMap(),
+      val libraryTypeFreq: mutable.HashMap[GType, Int] = mutable.HashMap(),
+      val libraryTypes: mutable.HashMap[GType, IRType] = mutable.HashMap()
   ) {
     def newLibVar(name: VarName, ty: Option[GType])(
-      implicit tyVars: Set[Symbol]
+        implicit tyVars: Set[Symbol]
     ): IRType = {
       val n = LibraryContext.libIdForVar(name)
       val tv = transEnv.newTyVar(
@@ -56,7 +79,7 @@ object PredicateGraphConstruction {
     }
 
     def getVarType(
-      v: Var
+        v: Var
     )(implicit predCtx: PredicateContext, tyVars: Set[Symbol]): IRType = {
       predCtx.varTypeMap.getOrElse(
         v, {
@@ -102,9 +125,9 @@ object PredicateGraphConstruction {
   }
 
   case class PredicateContext(
-    varTypeMap: Map[Var, IRType],
-    newTypeMap: Map[TypeName, IRType],
-    packageNames: Set[Symbol]
+      varTypeMap: Map[Var, IRType],
+      newTypeMap: Map[TypeName, IRType],
+      packageNames: Set[Symbol]
   )
 
   def qualifiedName(`package`: Symbol, name: Symbol): Symbol = {
@@ -127,18 +150,18 @@ object PredicateGraphConstruction {
   }
 
   case class ParsedProject(
-    projectName: String,
-    libCtx: LibraryContext,
-    irModules: Vector[IRModule],
-    predModules: Vector[PredicateModule],
-    predCtx: PredicateContext
+      projectName: String,
+      libCtx: LibraryContext,
+      irModules: Vector[IRModule],
+      predModules: Vector[PredicateModule],
+      predCtx: PredicateContext
   )
 
   def fromModules(
-    projectName: String,
-    modules: Seq[GModule],
-    libraryTypes: Set[GType],
-    pathMapping: PathMapping
+      projectName: String,
+      modules: Seq[GModule],
+      libraryTypes: Set[GType],
+      pathMapping: PathMapping
   ): ParsedProject = {
     val env = new TranslationEnv()
     val libCtx = new LibraryContext(env)
@@ -153,11 +176,11 @@ object PredicateGraphConstruction {
   }
 
   def fromRootDirectory(
-    root: Path,
-    libraryFiles: Set[ProjectPath] = Set(),
-    libraryTypes: Set[GType] = JSExamples.libraryTypes.map(TyVar),
-    excludeIndexFile: Boolean = false,
-    pathMapping: PathMapping = PathMapping.identity
+      root: Path,
+      libraryFiles: Set[ProjectPath] = Set(),
+      libraryTypes: Set[GType] = JSExamples.libraryTypes.map(TyVar),
+      excludeIndexFile: Boolean = false,
+      pathMapping: PathMapping = PathMapping.identity
   ): ParsedProject = {
     val indexFileNames = Set("index.ts", "public_api.ts")
 
@@ -182,10 +205,10 @@ object PredicateGraphConstruction {
   }
 
   def resolveImports(
-    module: IRModule,
-    baseCtx: PredicateContext,
-    allModules: Map[ProjectPath, IRModule],
-    pathMapping: PathMapping
+      module: IRModule,
+      baseCtx: PredicateContext,
+      allModules: Map[ProjectPath, IRModule],
+      pathMapping: PathMapping
   ): PredicateContext = {
 
     var varTypeMap = baseCtx.varTypeMap
@@ -254,7 +277,7 @@ object PredicateGraphConstruction {
   }
 
   def encodeUnaryPredicates(
-    vars: Iterable[IRType]
+      vars: Iterable[IRType]
   ): Vector[TyVarPredicate] = {
     import collection.mutable
     var newPredicates = mutable.ListBuffer[TyVarPredicate]()
@@ -270,16 +293,16 @@ object PredicateGraphConstruction {
 class PredicateGraphConstruction(val libraryContext: LibraryContext) {
 
   def encodeModules(
-    modules: Seq[IRModule],
-    baseCtx: PredicateContext,
-    pathMapping: PathMapping,
-    exportIterations: Int = 20
+      modules: Seq[IRModule],
+      baseCtx: PredicateContext,
+      pathMapping: PathMapping,
+      exportIterations: Int = 20
   ): Vector[PredicateModule] = {
 
     /** Try to turn export statements into export definitions, may need multiple
       * iteration of this function to achieve fixed-point */
     def propagateExports(
-      allModules: Map[ProjectPath, IRModule]
+        allModules: Map[ProjectPath, IRModule]
     ): Map[ProjectPath, IRModule] = {
       def getExports(currentDir: ProjectPath, path: ProjectPath): ModuleExports = {
         allModules
@@ -324,8 +347,8 @@ class PredicateGraphConstruction(val libraryContext: LibraryContext) {
                 }
 
                 def export(
-                  map: Map[Symbol, (IRType, Exported)],
-                  category: ExportCategory.Value
+                    map: Map[Symbol, (IRType, Exported)],
+                    category: ExportCategory.Value
                 ): Unit = {
                   map.get(oldName).foreach {
                     case (tv, exported) =>
@@ -407,8 +430,8 @@ class PredicateGraphConstruction(val libraryContext: LibraryContext) {
   import infer.IR._
 
   def encodeStmts(
-    stmts: Vector[IRStmt],
-    ctx: PredicateContext
+      stmts: Vector[IRStmt],
+      ctx: PredicateContext
   ): (Vector[TyVarPredicate], PredicateContext, Map[IRTypeId, TypeLabel]) = {
     import collection.mutable
 
@@ -422,7 +445,7 @@ class PredicateGraphConstruction(val libraryContext: LibraryContext) {
     /** Collect the variable, function, and class definitions declared in a
       * block and return a new context */
     def collectDefinitions(
-      stmts: Vector[IRStmt]
+        stmts: Vector[IRStmt]
     )(implicit ctx: PredicateContext): PredicateContext = {
       val typeDefs = stmts.collect {
         case c: ClassDef        => c.name -> c.classT

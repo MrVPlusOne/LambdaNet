@@ -93,9 +93,9 @@ case class ObjectType(fields: Map[Symbol, GType]) extends CompoundType {
   * @param typeUnfold defines how to unfold a type var once
   */
 case class TypeContext(
-  baseTypes: Set[Symbol],
-  typeUnfold: Map[Symbol, CompoundType],
-  subRel: Set[(GType, GType)]
+    baseTypes: Set[Symbol],
+    typeUnfold: Map[Symbol, CompoundType],
+    subRel: Set[(GType, GType)]
 ) {
 
   def isSubtype(child: GType, parent: GType): Boolean = {
@@ -137,9 +137,9 @@ object GType {
 
   /** the consistent-subtyping relation */
   def checkSubtype(
-    child: GType,
-    parent: GType,
-    context: TypeContext
+      child: GType,
+      parent: GType,
+      context: TypeContext
   ): Option[TypeContext] = {
     import context._
 
@@ -290,9 +290,9 @@ object GType {
   }
 
   case class GTypeGenParams(
-    groundGen: Gen[GroundType],
-    fNameGen: Gen[Symbol],
-    tyVarGen: Gen[TyVar]
+      groundGen: Gen[GroundType],
+      fNameGen: Gen[Symbol],
+      tyVarGen: Gen[TyVar]
   )
 
   val abcSymbols = List('A, 'B, 'C)

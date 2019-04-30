@@ -338,9 +338,8 @@ class GradientMatrixTest extends TestUtils {
 
     def branch(depth: Int): CompNode = {
       if (depth == 0) {
-        if(random.nextDouble() < 0.2) x else const(ns.randn(50, 50))
-      }
-      else sigmoid(branch(depth - 1) + branch(depth - 1))
+        if (random.nextDouble() < 0.2) x else const(ns.randn(50, 50))
+      } else sigmoid(branch(depth - 1) + branch(depth - 1))
     }
 
     val z = branch(11)
@@ -353,7 +352,6 @@ class GradientMatrixTest extends TestUtils {
       Await.result(z.backpropParallel.map(_.apply(x)), 10 seconds)
     )
     println("T2 = %e".format(t2.toDouble))
-
 
     assert(relError(g1, g2) < 1e-4)
     assert(t2 < t1)

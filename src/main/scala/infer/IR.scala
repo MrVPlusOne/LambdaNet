@@ -15,11 +15,11 @@ object IR {
   type TypeName = Symbol
 
   case class IRModule(
-    path: ProjectPath,
-    imports: Vector[ImportStmt],
-    exportStmts: Vector[ExportStmt],
-    exports: ModuleExports,
-    stmts: Vector[IRStmt]
+      path: ProjectPath,
+      imports: Vector[ImportStmt],
+      exportStmts: Vector[ExportStmt],
+      exports: ModuleExports,
+      stmts: Vector[IRStmt]
   ) {
     def moduleStats: IRModuleStats = {
       var fieldsUsed, fieldsDefined: Set[Symbol] = Set()
@@ -56,8 +56,8 @@ object IR {
   }
 
   case class IRModuleStats(
-    fieldsUsed: Set[Symbol],
-    fieldsDefined: Set[Symbol]
+      fieldsUsed: Set[Symbol],
+      fieldsDefined: Set[Symbol]
   )
 
   object ExportCategory extends Enumeration {
@@ -67,9 +67,9 @@ object IR {
   type Exported = Boolean
 
   case class ModuleExports(
-    definitions: Map[(Symbol, ExportCategory.Value), (IRType, Exported)],
-    defaultVar: Option[(Var, IRType)],
-    defaultType: Option[(TypeName, IRType)]
+      definitions: Map[(Symbol, ExportCategory.Value), (IRType, Exported)],
+      defaultVar: Option[(Var, IRType)],
+      defaultType: Option[(TypeName, IRType)]
   ) {
     lazy val terms: Map[Symbol, (IRType, Exported)] = definitions.toIterator.collect {
       case ((n, ExportCategory.Term), t) => n -> t
@@ -138,10 +138,10 @@ object IR {
   }
 
   case class IRType(
-    id: Int,
-    name: Option[Symbol],
-    annotation: Option[TypeAnnotation],
-    libId: Option[Symbol]
+      id: Int,
+      name: Option[Symbol],
+      annotation: Option[TypeAnnotation],
+      libId: Option[Symbol]
   ) {
     override def toString: String = {
       val parts = name.map(n => s"{${n.name}}").toList ++ annotation
@@ -154,7 +154,7 @@ object IR {
 
     override def equals(obj: Any): Boolean = obj match {
       case t: IRType => id == t.id
-      case _ => false
+      case _         => false
     }
   }
 
@@ -208,22 +208,22 @@ object IR {
   case class BlockStmt(stmts: Vector[IRStmt]) extends IRStmt
 
   case class FuncDef(
-    name: Symbol,
-    args: List[(Var, IRType)],
-    returnType: IRType,
-    body: BlockStmt,
-    funcT: IRType,
-    exportLevel: ExportLevel.Value
+      name: Symbol,
+      args: List[(Var, IRType)],
+      returnType: IRType,
+      body: BlockStmt,
+      funcT: IRType,
+      exportLevel: ExportLevel.Value
   ) extends IRStmt
 
   case class ClassDef(
-    name: TypeName,
-    superType: Option[TypeName] = None,
-    vars: Map[TypeName, IRType],
-    funcDefs: Vector[FuncDef],
-    classT: IRType,
-    companionT: IRType,
-    exportLevel: ExportLevel.Value
+      name: TypeName,
+      superType: Option[TypeName] = None,
+      vars: Map[TypeName, IRType],
+      funcDefs: Vector[FuncDef],
+      classT: IRType,
+      companionT: IRType,
+      exportLevel: ExportLevel.Value
   ) extends IRStmt
 
   case class TypeAliasIRStmt(aliasT: IRType, level: ExportLevel.Value) extends IRStmt {

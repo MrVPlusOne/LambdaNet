@@ -9,7 +9,8 @@ object TypeAliasGraph {
 
   sealed trait TypeAliasing
 
-  case class FuncAliasing(argTypes: List[Symbol], returnType: Symbol) extends TypeAliasing {
+  case class FuncAliasing(argTypes: List[Symbol], returnType: Symbol)
+      extends TypeAliasing {
     override def toString: String = {
       argTypes.mkString("(", ",", ")") + "->" + returnType
     }
@@ -78,7 +79,9 @@ object TypeAliasGraph {
     val depthMap = mutable.Map[Symbol, Int](AnyType.id -> 0)
 
     def rec(node: Symbol): Int = {
-      depthMap.get(node).foreach{ d => return d}
+      depthMap.get(node).foreach { d =>
+        return d
+      }
       depthMap(node) = 0
       val d = graph(node) match {
         case FuncAliasing(args, ret) =>
@@ -93,16 +96,17 @@ object TypeAliasGraph {
     rec(node)
   }
 
-
   def typeAliasingsToGroundTruths(typeAliasings: Map[Symbol, TypeAliasing]) = {
     val typeContext = typeAliasingsToContext(typeAliasings)
     val types = typeContext.typeUnfold.keys.toList
     import GroundType.symbolToType
 
-    val groundTruths = for (t1 <- types; t2 <- types if t1 != t2)
-      yield {
-        (t1, t2) -> typeContext.isSubtype(symbolToType(t1), symbolToType(t2))
-      }
+    val groundTruths = for {
+      t1 <- types
+      t2 <- types if t1 != t2
+    } yield {
+      (t1, t2) -> typeContext.isSubtype(symbolToType(t1), symbolToType(t2))
+    }
 
     val reflexivity = types.map(t => (t, t))
     val posExamples = groundTruths.filter(_._2).map(_._1)
@@ -124,7 +128,7 @@ object TypeAliasGraph {
         'OP_Minus -> (List(number) -: number),
         'OP_Times -> (List(number) -: number),
         'OP_Divide -> (List(number) -: number),
-        'OP_LessThan -> (List(number) -: boolean),
+        'OP_LessThan -> (List(number) -: boolean)
       ),
       string -> obj(
         'OP_Plus -> (List(any) -: string),

@@ -27,10 +27,12 @@ trait TestUtils extends FlatSpec with Matchers with LazyLogging {
   /**
     * Evaluate a numeric gradient for a function that accepts an array and returns an array.
     */
-  def evalNumericalGradientArray(f: Tensor => Tensor,
-                                 x: Tensor,
-                                 df: Tensor,
-                                 h: Double = 1e-5): Tensor = {
+  def evalNumericalGradientArray(
+      f: Tensor => Tensor,
+      x: Tensor,
+      df: Tensor,
+      h: Double = 1e-5
+  ): Tensor = {
     val grad = ns.zeros(x.shape)
 
     val it = ns.nditer(x)
@@ -57,9 +59,11 @@ trait TestUtils extends FlatSpec with Matchers with LazyLogging {
     - f should be a function that takes a single argument
     - x is the point (array) to evaluate the gradient at
     */
-  def evalNumericalGradient(f: (Tensor) => Double,
-                            x: Tensor,
-                            h: Double = 0.00001): Tensor = {
+  def evalNumericalGradient(
+      f: (Tensor) => Double,
+      x: Tensor,
+      h: Double = 0.00001
+  ): Tensor = {
     val grad = ns.zeros(x.shape)
     val it = ns.nditer(x)
     while (it.hasNext) {
@@ -83,7 +87,11 @@ trait TestUtils extends FlatSpec with Matchers with LazyLogging {
 
   val rand = new Random()
 
-  def nOpGradientCheck(f: Seq[CompNode] => CompNode, x: IS[CompNode], name: String): Unit = {
+  def nOpGradientCheck(
+      f: Seq[CompNode] => CompNode,
+      x: IS[CompNode],
+      name: String
+  ): Unit = {
 
     val out = f(x)
     println(s"[$name]: out = $out")
@@ -91,12 +99,12 @@ trait TestUtils extends FlatSpec with Matchers with LazyLogging {
     val zeroGrad = ZeroGradient(out.shape)
     val denseGrad = DenseGradient(ns.abs(ns.randn(out.shape)))
     val inflatedGrad = {
-      val ranges = out.shape.ints.map{ size =>
+      val ranges = out.shape.ints.map { size =>
         val l = rand.nextInt(size)
         val r = rand.nextInt(size)
         NumscaRange(l, Some(math.max(r, size)))
       }
-      InflatedGradient(denseGrad.value(ranges :_*), ranges.toList, out.shape)
+      InflatedGradient(denseGrad.value(ranges: _*), ranges.toList, out.shape)
     }
 
     for (dOut <- Seq(zeroGrad, denseGrad, inflatedGrad)) {
@@ -104,41 +112,50 @@ trait TestUtils extends FlatSpec with Matchers with LazyLogging {
 
       val s = dOut.shape
       val t = ns.rand(s)
-      assert(relError((dOut * t).toTensor(), dOut.toTensor() * t) < 1e-5,
-        s"gradient $dOut failed to passed consistency test")
-
+      assert(
+        relError((dOut * t).toTensor(), dOut.toTensor() * t) < 1e-5,
+        s"gradient $dOut failed to passed consistency test"
+      )
 
       println(s"[$testName]: dOut = $dOut")
 
       val gradients = CompNode.backprop(List(out), List(dOut))
 
-      x.zipWithIndex.foreach { case (n, i) =>
+      x.zipWithIndex.foreach {
+        case (n, i) =>
+          def fi(t: Tensor): Tensor = {
+            val newArgs = x.updated(i, const(t))
+            f(newArgs).value
+          }
 
-        def fi(t: Tensor): Tensor = {
-          val newArgs = x.updated(i, const(t))
-          f(newArgs).value
-        }
+          val numerical = evalNumericalGradientArray(fi, x(i).value, dOut.toTensor())
+          println(s"[$testName]: numerical[$i] = $numerical")
 
-        val numerical = evalNumericalGradientArray(fi, x(i).value, dOut.toTensor())
-        println(s"[$testName]: numerical[$i] = $numerical")
-
-        gradients.get(n) match {
-          case Some(calculated) =>
-            val calcTensor = calculated.toTensor()
-            println(s"[$testName]: calculated[$i] = ${calculated}")
-            val diError = relError(calcTensor, numerical)
-            println(s"[$testName]: Difference: ${calcTensor - numerical}")
-            assert(diError < 1e-5, s"\n[$testName]: $out failed to pass numerical gradient check")
-          case None =>
-            assert(numerical.data.forall(x => math.abs(x) < 1e-5), s"*** $out failed to pass numerical gradient check. The gradient is expected to be zero.")
-        }
+          gradients.get(n) match {
+            case Some(calculated) =>
+              val calcTensor = calculated.toTensor()
+              println(s"[$testName]: calculated[$i] = ${calculated}")
+              val diError = relError(calcTensor, numerical)
+              println(s"[$testName]: Difference: ${calcTensor - numerical}")
+              assert(
+                diError < 1e-5,
+                s"\n[$testName]: $out failed to pass numerical gradient check"
+              )
+            case None =>
+              assert(
+                numerical.data.forall(x => math.abs(x) < 1e-5),
+                s"*** $out failed to pass numerical gradient check. The gradient is expected to be zero."
+              )
+          }
       }
     }
   }
 
-  def layerGradCheck(f: ParamCollection => CompNode,
-                     pc: ParamCollection,
-                     name: String): Unit = {
+  def layerGradCheck(
+      f: ParamCollection => CompNode,
+      pc: ParamCollection,
+      name: String
+  ): Unit = {
 
     val out = f(pc)
     println(s"Test Layer: $name")
@@ -146,7 +163,7 @@ trait TestUtils extends FlatSpec with Matchers with LazyLogging {
     val dOut = DenseGradient(ns.ones(out.shape))
     val gradients = out.backpropForParams(None)
 
-    pc.allParams.foreach{ p =>
+    pc.allParams.foreach { p =>
       def fi(t: Tensor): Tensor = {
         p.node = paramNode(t, p.path)
         f(pc).value
@@ -162,11 +179,12 @@ trait TestUtils extends FlatSpec with Matchers with LazyLogging {
           println(s"Difference: ${calcTensor - numerical}")
           assert(diError < 1e-5, s"*** $out failed to pass numerical gradient check")
         case None =>
-          assert(numerical.data.forall(x => math.abs(x) < 1e-5), s"*** $out failed to pass numerical gradient check. The gradient is expected to be zero.")
+          assert(
+            numerical.data.forall(x => math.abs(x) < 1e-5),
+            s"*** $out failed to pass numerical gradient check. The gradient is expected to be zero."
+          )
       }
     }
   }
 
-
 }
-

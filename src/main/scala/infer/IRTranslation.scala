@@ -40,10 +40,10 @@ object IRTranslation {
       * Create and register a new [[IRType]].
       */
     def newTyVar(
-      origin: Option[GTHole],
-      name: Option[Symbol],
-      freezeToType: Option[TypeAnnotation] = None,
-      libId: Option[Symbol]
+        origin: Option[GTHole],
+        name: Option[Symbol],
+        freezeToType: Option[TypeAnnotation] = None,
+        libId: Option[Symbol]
     )(implicit tyVars: Set[Symbol]): IRType = {
       assert(tyVarIdx >= 0)
       val tv =
@@ -70,7 +70,7 @@ object IRTranslation {
     }
 
     def getTyVar(gMark: gtype.GTMark, name: Option[Symbol])(
-      implicit tyVars: Set[Symbol]
+        implicit tyVars: Set[Symbol]
     ): IRType = {
       gMark match {
         case h: gtype.GTHole => newTyVar(Some(h), name, None, None)
@@ -81,7 +81,7 @@ object IRTranslation {
   }
 
   def exprAsVar(
-    expr: IRExpr
+      expr: IRExpr
   )(implicit tyVars: Set[Symbol], env: TranslationEnv): (Vector[IRStmt], Var) =
     expr match {
       case v: Var => (Vector(), v)
@@ -101,10 +101,10 @@ object IRTranslation {
     }
 
   def translateStmt(
-    stmt: gtype.GStmt
+      stmt: gtype.GStmt
   )(
-    implicit quantifiedTypes: Set[Symbol],
-    env: TranslationEnv
+      implicit quantifiedTypes: Set[Symbol],
+      env: TranslationEnv
   ): Vector[IR.IRStmt] = {
     stmt match {
       case gtype.VarDef(x, ty, init, isConst, level) =>
@@ -258,10 +258,10 @@ object IRTranslation {
   }
 
   def translateFunc(
-    func: gtype.FuncDef
+      func: gtype.FuncDef
   )(
-    quantifiedTypes: Set[Symbol],
-    env: TranslationEnv
+      quantifiedTypes: Set[Symbol],
+      env: TranslationEnv
   ): IR.FuncDef = {
     import func._
     implicit val newTyVars: Set[Symbol] = quantifiedTypes ++ tyVars
@@ -283,8 +283,8 @@ object IRTranslation {
 
   /** @see [[translateExpr]] */
   def translateExpr2(expr: gtype.GExpr)(
-    implicit tyVars: Set[Symbol],
-    env: TranslationEnv
+      implicit tyVars: Set[Symbol],
+      env: TranslationEnv
   ): (Vector[IRStmt], IRExpr) = {
     val defs = mutable.ListBuffer[IRStmt]()
     val e = translateExpr(expr)(tyVars, env, defs)
@@ -297,9 +297,9 @@ object IRTranslation {
     * into the ListBuffer argument.
     */
   def translateExpr(expr: gtype.GExpr)(
-    implicit tyVars: Set[Symbol],
-    env: TranslationEnv,
-    defs: mutable.ListBuffer[IRStmt]
+      implicit tyVars: Set[Symbol],
+      env: TranslationEnv,
+      defs: mutable.ListBuffer[IRStmt]
   ): IRExpr = {
     def asVar(expr: IRExpr): Var = {
       val (stmts, v) = exprAsVar(expr)
@@ -411,7 +411,7 @@ object IRTranslation {
   }
 
   def translateModule(module: GModule)(
-    implicit env: TranslationEnv
+      implicit env: TranslationEnv
   ): IRModule = {
     val irStmts = module.stmts.flatMap(s => translateStmt(s)(Set(), env))
 

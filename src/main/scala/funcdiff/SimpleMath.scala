@@ -1,6 +1,13 @@
 package funcdiff
 
-import java.io.{File, FileInputStream, FileOutputStream, ObjectInputStream, ObjectOutputStream, Serializable}
+import java.io.{
+  File,
+  FileInputStream,
+  FileOutputStream,
+  ObjectInputStream,
+  ObjectOutputStream,
+  Serializable
+}
 
 import scala.util.Random
 import collection.mutable
@@ -24,7 +31,7 @@ object SimpleMath {
       }
 
       def compose(that: Map[K, V])(
-        implicit subRule: SubstituteRule[K, V]
+          implicit subRule: SubstituteRule[K, V]
       ): Map[K, V] = {
         that ++ this.mapValuesNow(v => subRule.substitute(v, that))
       }
@@ -128,7 +135,7 @@ object SimpleMath {
   def safeAbs(x: Int): Int = math.max(0, if (x < 0) -x else x)
 
   def expChoppedGaussian(chopMargin: (Double, Double), base: Double, powerE: Double)(
-    random: Random
+      random: Random
   ): Double = {
     val x = random.nextGaussian()
     if (x < chopMargin._1 || x > chopMargin._2) {
@@ -158,7 +165,7 @@ object SimpleMath {
   }
 
   def aggressiveInterpolate(aggressiveness: Double, from: Double, to: Double)(
-    x: Double
+      x: Double
   ): Real = {
     linearInterpolate(from, to)(aggressiveSigmoid(aggressiveness)(x))
   }
@@ -193,12 +200,12 @@ object SimpleMath {
     }
   }
 
-  def threadSafeGetOrElseUpdate[K,V](map: mutable.Map[K,V], k: K, default: => V): V = {
+  def threadSafeGetOrElseUpdate[K, V](map: mutable.Map[K, V], k: K, default: => V): V = {
     map.get(k) match {
       case Some(v) => v
       case None =>
         val v = default
-        map.synchronized{
+        map.synchronized {
           map.getOrElseUpdate(k, v)
         }
     }
@@ -236,7 +243,7 @@ object SimpleMath {
   /**
     * Perform a map on a [[Seq]] in parallel. The order of starting each task is preserved as the [[Seq]].  */
   def parallelMapOrdered[A, B](seq: Seq[A], threadNum: Int, timeoutSec: Int = 20474834)(
-    f: A => B
+      f: A => B
   ): Seq[B] = {
     require(threadNum > 0)
 
@@ -299,7 +306,7 @@ object SimpleMath {
   }
 
   def processMap(args: Array[String], tasks: IS[Int], processNum: Int, mainClass: Object)(
-    f: Int => Unit
+      f: Int => Unit
   ): Unit = {
     if (args.isEmpty) {
       parallelMapOrdered(tasks, processNum) { i =>
@@ -351,7 +358,7 @@ object SimpleMath {
   }
 
   def parallelMapWithResource[A, B, R](
-    threadNum: Int
+      threadNum: Int
   )(xs: Seq[A], resources: IS[R])(f: (A, R) => B): IS[B] = {
     require(threadNum == resources.length)
     import collection.mutable
@@ -510,7 +517,7 @@ object SimpleMath {
   }
 
   def mapSetZipWith[K, A, B, C](ms1: Map[K, Set[A]], ms2: Map[K, Set[B]])(
-    f: (Set[A], Set[B]) => Set[C]
+      f: (Set[A], Set[B]) => Set[C]
   ): Map[K, Set[C]] = {
     val keys = ms1.keySet ++ ms2.keySet
     keys.map { k =>
@@ -584,7 +591,7 @@ object SimpleMath {
 
   /** Print the error message if there is an exception or error when executing the computation */
   def withErrorMessage[T](msg: => String, prepend: Boolean = true)(
-    computation: => T
+      computation: => T
   ): T = {
     try {
       computation
@@ -605,7 +612,7 @@ object SimpleMath {
 
   import scala.concurrent._
   def parallelReduce[T](xs: Array[T], m: Monoid[T], sequentialThreshold: Int = 2)(
-    implicit ctx: ExecutionContext
+      implicit ctx: ExecutionContext
   ): Future[T] = {
     def rec(range: Range): Future[T] = {
       val span = range.length

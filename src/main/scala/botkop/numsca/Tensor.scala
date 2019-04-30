@@ -1,6 +1,5 @@
 package botkop.numsca
 
-import funcdiff.DebugTime
 import org.nd4j.linalg.api.iter.NdIndexIterator
 import org.nd4j.linalg.api.ndarray.INDArray
 import org.nd4j.linalg.factory.{Broadcast, Nd4j}
@@ -10,8 +9,7 @@ import org.nd4j.linalg.ops.transforms.Transforms
 import scala.collection.JavaConverters._
 import scala.language.{implicitConversions, postfixOps}
 
-class Tensor(val array: INDArray, val isBoolean: Boolean = false)
-    extends Serializable {
+class Tensor(val array: INDArray, val isBoolean: Boolean = false) extends Serializable {
 
   val shape: Shape = Shape.fromArray(array.shape())
 
@@ -87,7 +85,7 @@ class Tensor(val array: INDArray, val isBoolean: Boolean = false)
     * broadcast argument tensor with shape of this tensor
     */
   private def bc(t: Tensor): INDArray = {
-    if(t.shape == this.shape) t.array
+    if (t.shape == this.shape) t.array
     else t.array.broadcast(shape.sizes: _*)
   }
 
@@ -126,7 +124,7 @@ class Tensor(val array: INDArray, val isBoolean: Boolean = false)
     newTensor(array.get(ix: _*))
   }
 
-  def apply(index: Array[Long]): Tensor = access(index:_*)
+  def apply(index: Array[Long]): Tensor = access(index: _*)
 
   private def handleNegIndex(i: Long, shapeIndex: Int): Long =
     if (i < 0) shape(shapeIndex) + i else i
@@ -144,8 +142,7 @@ class Tensor(val array: INDArray, val isBoolean: Boolean = false)
           case None =>
             NDArrayIndex.interval(handleNegIndex(nr.from, i), shape(i))
           case Some(n) =>
-            NDArrayIndex.interval(handleNegIndex(nr.from, i),
-                                  handleNegIndex(n, i))
+            NDArrayIndex.interval(handleNegIndex(nr.from, i), handleNegIndex(n, i))
         }
     }
     newTensor(array.get(indexes: _*))
@@ -157,7 +154,8 @@ class Tensor(val array: INDArray, val isBoolean: Boolean = false)
   }
 
   private def selectIndexes(
-      selection: Seq[Tensor]): (Array[Array[Long]], Option[Shape]) = {
+      selection: Seq[Tensor]
+  ): (Array[Array[Long]], Option[Shape]) = {
     if (selection.length == 1) {
       if (selection.head.isBoolean) {
         (indexByBooleanTensor(selection.head), None)
@@ -172,15 +170,19 @@ class Tensor(val array: INDArray, val isBoolean: Boolean = false)
   }
 
   private def multiIndex(selection: Seq[Tensor]): Array[Array[Long]] = {
-    require(selection.forall(s => s.shape.head == 1),
-            s"shapes must be [1, n] (was: ${selection.map(_.shape)}")
+    require(
+      selection.forall(s => s.shape.head == 1),
+      s"shapes must be [1, n] (was: ${selection.map(_.shape)}"
+    )
 
     // broadcast selection to same shape
     val ts: Seq[INDArray] = Ops.broadcastArrays(selection.map(_.array))
 
     val rank = ts.head.shape()(1)
-    require(ts.forall(s => s.shape()(1) == rank),
-            s"shapes must be of rank $rank (was ${ts.map(_.shape().toList)}")
+    require(
+      ts.forall(s => s.shape()(1) == rank),
+      s"shapes must be of rank $rank (was ${ts.map(_.shape().toList)}"
+    )
 
     (0 until rank.toInt).map { r =>
       ts.map(s => s.getInt(0, r).toLong).toArray
@@ -216,7 +218,7 @@ class Tensor(val array: INDArray, val isBoolean: Boolean = false)
   override def toString: String = array.toString
 }
 
-case class Shape(sizes: Vector[Long]){
+case class Shape(sizes: Vector[Long]) {
   def apply(i: Int): Long = sizes(i)
 
   def head: Long = sizes.head
@@ -227,12 +229,12 @@ case class Shape(sizes: Vector[Long]){
 
   def rank: Int = sizes.length
 
-  def updated(i: Int, value: Long): Shape = Shape(sizes.updated(i,value))
+  def updated(i: Int, value: Long): Shape = Shape(sizes.updated(i, value))
 
   def product: Long = sizes.product
 }
 
-object Shape{
+object Shape {
   def fromArray(a: Array[Long]) = Shape(a.toVector)
 
   def make(sizes: Long*) = Shape(sizes.toVector)
@@ -258,9 +260,7 @@ object Tensor {
 
 }
 
-case class TensorSelection(t: Tensor,
-                           indexes: Array[Array[Long]],
-                           shape: Option[Shape]) {
+case class TensorSelection(t: Tensor, indexes: Array[Array[Long]], shape: Option[Shape]) {
 
   def asTensor: Tensor = {
     val newData = indexes.map(ix => t.array.getDouble(ix: _*))

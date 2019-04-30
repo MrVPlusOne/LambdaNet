@@ -7,7 +7,7 @@ import collection.mutable
 object SymbolicDecoding {
 
   case class TypingEnv(
-    typeAssign: Map[IRType, TypeLabel]
+      typeAssign: Map[IRType, TypeLabel]
   )
 
   sealed trait TypingAssumption

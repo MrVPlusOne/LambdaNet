@@ -34,13 +34,13 @@ object ArgsEncodingMethod extends Enumeration {
 
 @SerialVersionUID(0)
 case class EncoderParams(
-  labelDim: Size,
-  typeDim: Size,
-  fieldDim: Size,
-  fieldCombineMethod: FieldCombineMethod.Value = FieldCombineMethod.Attention,
-  argsEncodingMethod: ArgsEncodingMethod.Value = ArgsEncodingMethod.Separate,
-  updateWithRNN: Boolean = false,
-  activationName: Symbol
+    labelDim: Size,
+    typeDim: Size,
+    fieldDim: Size,
+    fieldCombineMethod: FieldCombineMethod.Value = FieldCombineMethod.Attention,
+    argsEncodingMethod: ArgsEncodingMethod.Value = ArgsEncodingMethod.Separate,
+    updateWithRNN: Boolean = false,
+    activationName: Symbol
 )
 
 object EncoderParams {
@@ -92,8 +92,8 @@ object EncoderParams {
 }
 
 class TypeEncoder(
-  val encoderParams: EncoderParams,
-  val pc: ParamCollection = ParamCollection()
+    val encoderParams: EncoderParams,
+    val pc: ParamCollection = ParamCollection()
 ) {
 
   import encoderParams._
@@ -113,9 +113,9 @@ class TypeEncoder(
     *                  overfitting to any particular set of field vectors.
     */
   def encode(
-    symbolDefMap: Map[Symbol, TypeAliasing],
-    iterations: Int,
-    batchSize: Int
+      symbolDefMap: Map[Symbol, TypeAliasing],
+      iterations: Int,
+      batchSize: Int
   ): TypeEncoding = {
     import collection.mutable
     val labelMap = mutable.HashMap[Symbol, CompNode]()
@@ -227,8 +227,8 @@ class TypeEncoder(
   }
 
   def subtypePredict(
-    encoding: TypeEncoding,
-    typePairs: Seq[(Symbol, Symbol)]
+      encoding: TypeEncoding,
+      typePairs: Seq[(Symbol, Symbol)]
   ): CompNode = {
     val (t1s, t2s) = typePairs.unzip
     val t1 = concatN(t1s.map(encoding.typeMap).toVector, axis = 0)
@@ -294,10 +294,10 @@ object TypeEncoder {
     val posVec = Tensor(1, 0).reshape(1, -1)
     val negVec = Tensor(0, 1).reshape(1, -1)
     def forwardPredict(
-      symbolDefMap: Map[Symbol, TypeAliasing],
-      posExamples: Seq[(Symbol, Symbol)],
-      negExamples: Seq[(Symbol, Symbol)],
-      encodingBatch: Int
+        symbolDefMap: Map[Symbol, TypeAliasing],
+        posExamples: Seq[(Symbol, Symbol)],
+        negExamples: Seq[(Symbol, Symbol)],
+        encodingBatch: Int
     ) = {
       val target = numsca.concatenate(
         Vector.fill(posExamples.length * encodingBatch)(posVec)
@@ -314,8 +314,8 @@ object TypeEncoder {
     import TrainingTypeGeneration.augmentWithRandomTypes
 
     def generateTestData(
-      baseContext: TypeContext,
-      sampleNum: Int
+        baseContext: TypeContext,
+        sampleNum: Int
     ): (Map[Symbol, TypeAliasing], List[(Symbol, Symbol)], List[(Symbol, Symbol)]) = {
       val context = augmentWithRandomTypes(baseContext, sampleNum)
       val symbolDefMap = typeContextToAliasings(context)
@@ -388,12 +388,12 @@ object TypeEncoder {
         val testEncodingBatch = 5
 
         def evaluate(
-          dataName: String,
-          dataSet: (
-            Map[Symbol, TypeAliasing],
-            List[(Symbol, Symbol)],
-            List[(Symbol, Symbol)]
-          )
+            dataName: String,
+            dataSet: (
+                Map[Symbol, TypeAliasing],
+                List[(Symbol, Symbol)],
+                List[(Symbol, Symbol)]
+            )
         ): Unit = {
           val (symbolDefMap, posData, negData) = dataSet
           val (target, predictions) =

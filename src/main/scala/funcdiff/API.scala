@@ -28,7 +28,7 @@ object API {
 
   def sigmoid(x1: CompNode): CompNode = funcNode(Sigmoid(x1))
 
-  def tanh(x1: CompNode): CompNode =  funcNode(Tanh(x1))
+  def tanh(x1: CompNode): CompNode = funcNode(Tanh(x1))
 
   def mean(x1: CompNode): CompNode = funcNode(Mean(x1))
 
@@ -40,7 +40,8 @@ object API {
 
   def relu(x1: CompNode): CompNode = funcNode(Threshold(x1, 0))
 
-  def leakyRelu(x1: CompNode, slope: Double = 0.01): CompNode = funcNode(LeakyRelu(x1, slope))
+  def leakyRelu(x1: CompNode, slope: Double = 0.01): CompNode =
+    funcNode(LeakyRelu(x1, slope))
 
   def sum(x1: CompNode): CompNode = funcNode(Sum(x1))
 
@@ -58,20 +59,30 @@ object API {
 
   def concatN(xs: IS[CompNode], axis: Int): CompNode = funcNode(ConcatN(xs, axis))
 
-  def crossEntropy(prediction: CompNode, targets: Tensor): CompNode = -sum(log(prediction + 1e-7) * targets, axis = 1)
+  def crossEntropy(prediction: CompNode, targets: Tensor): CompNode =
+    -sum(log(prediction + 1e-7) * targets, axis = 1)
 
-  def crossEntropyOnSoftmax(logits: CompNode, targets: Tensor): CompNode = funcNode(CrossEntropyOnSoftmax(logits, targets))
+  def crossEntropyOnSoftmax(logits: CompNode, targets: Tensor): CompNode =
+    funcNode(CrossEntropyOnSoftmax(logits, targets))
 
-  def crossEntropyOnSoftmaxIneff(logits: CompNode, targets: Tensor): CompNode = -sum(log(softmax(logits) + 1e-7) * targets, axis = 1)
+  def crossEntropyOnSoftmaxIneff(logits: CompNode, targets: Tensor): CompNode =
+    -sum(log(softmax(logits) + 1e-7) * targets, axis = 1)
 
-  def correctWrongSets(probabilities: Tensor, targets: Seq[Int], predictionGroupSize: Int): (Set[Int], Set[Int]) = {
+  def correctWrongSets(
+      probabilities: Tensor,
+      targets: Seq[Int],
+      predictionGroupSize: Int
+  ): (Set[Int], Set[Int]) = {
     require(probabilities.shape(0) / predictionGroupSize == targets.length)
 
     var correct = Set[Int]()
     var wrong = Set[Int]()
 
-    for(i <- targets.indices) {
-      val groupSum = numsca.sum(probabilities(i * predictionGroupSize :> (i + 1) * predictionGroupSize, :>), axis = 0)
+    for (i <- targets.indices) {
+      val groupSum = numsca.sum(
+        probabilities(i * predictionGroupSize :> (i + 1) * predictionGroupSize, :>),
+        axis = 0
+      )
       val prediction = TensorExtension.argmax(groupSum, axis = 1).squeeze()
       if (prediction == targets(i)) {
         correct += i
@@ -83,14 +94,21 @@ object API {
     (correct, wrong)
   }
 
-  def accuracy(logits: Tensor, targets: Seq[Int], predictionGroupSize: Int = 1)
-      :(Double, (Set[Int], Set[Int])) = {
-    val effectiveTargets = targets.grouped(predictionGroupSize).map{ group =>
-      assert(group.forall(p => p == group.head))
-      group.head
-    }.toSeq
+  def accuracy(
+      logits: Tensor,
+      targets: Seq[Int],
+      predictionGroupSize: Int = 1
+  ): (Double, (Set[Int], Set[Int])) = {
+    val effectiveTargets = targets
+      .grouped(predictionGroupSize)
+      .map { group =>
+        assert(group.forall(p => p == group.head))
+        group.head
+      }
+      .toSeq
 
-    val (correct, wrong) = correctWrongSets(numsca.softmax(logits), effectiveTargets, predictionGroupSize)
+    val (correct, wrong) =
+      correctWrongSets(numsca.softmax(logits), effectiveTargets, predictionGroupSize)
     (correct.size.toDouble / (correct.size + wrong.size), (correct, wrong))
   }
 
@@ -102,38 +120,39 @@ object API {
 
   implicit def tensorToNode(tensor: Tensor): CompNode = const(tensor)
 
-  implicit class ExtendedFunctions(x1: CompNode){
+  implicit class ExtendedFunctions(x1: CompNode) {
 
     def unary_- : CompNode = funcNode(Negate(x1))
 
     def t: CompNode = funcNode(Transpose(x1))
 
-    def / (x2: CompNode): CompNode = funcNode(Divide(x1,x2))
+    def /(x2: CompNode): CompNode = funcNode(Divide(x1, x2))
 
-    def + (x2: CompNode): CompNode = funcNode(Plus(x1,x2))
+    def +(x2: CompNode): CompNode = funcNode(Plus(x1, x2))
 
-    def - (x2: CompNode): CompNode = funcNode(Minus(x1, x2))
+    def -(x2: CompNode): CompNode = funcNode(Minus(x1, x2))
 
-    def * (x2: CompNode): CompNode = funcNode(Times(x1,x2))
+    def *(x2: CompNode): CompNode = funcNode(Times(x1, x2))
 
-    def ^ (p: Double): CompNode = funcNode(PowerConst(x1, p))
+    def ^(p: Double): CompNode = funcNode(PowerConst(x1, p))
 
     def concat(x2: CompNode, axis: Int): CompNode = funcNode(Concat(x1, x2, axis))
 
     def slice(ranges: NumscaRange*): CompNode = funcNode(Slice(x1, ranges))
 
-    def dot(x2: CompNode): CompNode = funcNode(Dot(x1,x2))
+    def dot(x2: CompNode): CompNode = funcNode(Dot(x1, x2))
 
-    def ~> [B <: CompNode](f: CompNode => B): B = f(x1)
+    def ~>[B <: CompNode](f: CompNode => B): B = f(x1)
 
     def repeat(number: Int, axis: Int): CompNode = {
-      if(number == 1) x1
+      if (number == 1) x1
       else concatN(Vector.fill(number)(x1), axis)
     }
   }
 
   /** convenient import for NumscaRange */
   def :>(end: Int) = NumscaRange(0, Some(end))
+
   /** convenient import for NumscaRange */
   def :> = NumscaRange(0, None)
 
@@ -143,7 +162,7 @@ object API {
     def :> = NumscaRange(i, None)
   }
 
-  def printShape(withShape: {def shape: Shape}, name: String): Unit = {
+  def printShape(withShape: { def shape: Shape }, name: String): Unit = {
     println(s"$name shape: ${withShape.shape}")
   }
 }

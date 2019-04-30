@@ -1,7 +1,12 @@
 package gtype
 
 import funcdiff.SimpleMath
-import gtype.TypeAliasGraph.{FuncAliasing, ObjectAliasing, TypeAliasing, typeContextToAliasings}
+import gtype.TypeAliasGraph.{
+  FuncAliasing,
+  ObjectAliasing,
+  TypeAliasing,
+  typeContextToAliasings
+}
 
 import scala.util.Random
 import collection.mutable
@@ -62,8 +67,10 @@ object TrainingTypeGeneration {
 
     def subtypeRelations: Set[(Symbol, Symbol)] = {
       var r = Set[(Symbol, Symbol)]()
-      for ((c, parents) <- parentMap;
-           p <- parents.elements) {
+      for {
+        (c, parents) <- parentMap
+        p <- parents.elements
+      } {
         r += (c -> p)
       }
       r
@@ -142,7 +149,8 @@ object TrainingTypeGeneration {
           // mutate arg type
           val argId = random.nextInt(rewrite.argTypes.length)
           val (goUp, newArgT) = mutateUpOrDown(rewrite.argTypes(argId))
-          val newRewrite = rewrite.copy(argTypes = rewrite.argTypes.updated(argId, newArgT))
+          val newRewrite =
+            rewrite.copy(argTypes = rewrite.argTypes.updated(argId, newArgT))
           val newTy = newType(isObject = false)
           addTypeRewrite(newTy, newRewrite)
           if (!goUp) addSubtypeRel(baseF, newTy) //contravariant
@@ -192,8 +200,9 @@ object TrainingTypeGeneration {
     }
   }
 
-  def augmentWithRandomTypes(context: TypeContext, newTypeNum: Int)
-                            (implicit random: Random): TypeContext = {
+  def augmentWithRandomTypes(context: TypeContext, newTypeNum: Int)(
+      implicit random: Random
+  ): TypeContext = {
 
     val data = TrainingData.fromTypeContext(context)
 
@@ -225,11 +234,11 @@ object TrainingTypeGeneration {
         'rare1 -> (List('C) -: 'C),
         'rare2 -> (List('C, 'C) -: 'A),
         'rare3 -> (List('C, 'C) -: 'B),
-        'common2 -> (List() -: 'B),
+        'common2 -> (List() -: 'B)
       ),
       'D -> obj(
         'common1 -> TyVar('A),
-        'common4 -> (List() -: 'B),
+        'common4 -> (List() -: 'B)
       ),
       'E -> obj(
         'common1 -> any,
@@ -243,7 +252,7 @@ object TrainingTypeGeneration {
       'F1 -> (List(any) -: 'E),
       'F2 -> (List('A, 'B) -: 'C),
       'F3 -> (List(any, any, any) -: any),
-      'F4 -> (List(any, any, any, any) -: any),
+      'F4 -> (List(any, any, any, any) -: any)
     ),
     subRel = Set()
   )
@@ -251,7 +260,7 @@ object TrainingTypeGeneration {
   def main(args: Array[String]): Unit = {
 //    val context = augmentWithRandomTypes(JSExamples.trainingTypeContext, 1)
 
-    for(i <- 0 until 1) {
+    for (i <- 0 until 1) {
       println(s"step: $i")
 //      val context = augmentWithRandomTypes(trainingContext, 200)(new Random())
       val context = JSExamples.realWorldExamples

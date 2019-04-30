@@ -27,7 +27,6 @@ object DiffFunc {
     def backProp(grad: Gradient): IS[Gradient] = IS()
   }
 
-
   // ============== Unary Functions ===============
 
   trait UnaryFunc extends DiffFunc {
@@ -47,9 +46,8 @@ object DiffFunc {
 
     val value: Tensor = numsca.sqrt(x1.value)
 
-
     def backprop1(grad: Gradient): Gradient = {
-      grad /(value * 2)
+      grad / (value * 2)
     }
 
     def name: String = "sqrt"
@@ -75,9 +73,8 @@ object DiffFunc {
   case class Sigmoid(x1: CompNode) extends UnaryFunc {
     val value: Tensor = numsca.sigmoid(x1.value)
 
-
     def backprop1(grad: Gradient): Gradient = {
-      grad * value * (1-value)
+      grad * value * (1 - value)
     }
 
     def name: String = "sigmoid"
@@ -92,7 +89,6 @@ object DiffFunc {
 
     def name: String = "tanh"
   }
-
 
   case class Mean(x1: CompNode) extends UnaryFunc {
     require(x1.shape.product > 0)
@@ -123,7 +119,6 @@ object DiffFunc {
   case class Sum(x1: CompNode) extends UnaryFunc {
     val value = Tensor(ns.sum(x1.value))
 
-
     def backprop1(grad: Gradient): Gradient = {
       grad.broadcast(x1.shape)
     }
@@ -131,9 +126,8 @@ object DiffFunc {
     def name: String = "sum"
   }
 
-  case class SumByAxis(x1: CompNode, axis: Int) extends UnaryFunc{
+  case class SumByAxis(x1: CompNode, axis: Int) extends UnaryFunc {
     val value: Tensor = ns.sum(x1.value, axis)
-
 
     def backprop1(grad: Gradient): Gradient = {
       grad.broadcast(x1.shape)
@@ -163,10 +157,11 @@ object DiffFunc {
   }
 
   case class Slice(x1: CompNode, ranges: Seq[NumscaRange]) extends UnaryFunc {
-    require(x1.shape.sizes.zip(ranges).forall{case (s, r) => r.to.forall{_ <= s}},
-    s"slice out of range. x1 shape: ${x1.shape}, ranges: ${showRanges(ranges)}")
-    val value = x1.value.apply(ranges :_*)
-
+    require(
+      x1.shape.sizes.zip(ranges).forall { case (s, r) => r.to.forall { _ <= s } },
+      s"slice out of range. x1 shape: ${x1.shape}, ranges: ${showRanges(ranges)}"
+    )
+    val value = x1.value.apply(ranges: _*)
 
     def backprop1(grad: Gradient): Gradient = {
       grad.putInRanges(ranges, x1.shape)
@@ -216,7 +211,6 @@ object DiffFunc {
     x1.value.requirePositive()
 
     val value: Tensor = ns.log(x1.value)
-
 
     def backprop1(grad: Gradient): Gradient = {
       grad / x1.value
@@ -278,7 +272,6 @@ object DiffFunc {
     x2.value.requireNonZero()
     val value: Tensor = x1.value / x2.value
 
-
     def backProp2(grad: Gradient): (Gradient, Gradient) = {
       val dx1 = (grad / x2.value).unbroadcast(x1.shape)
       val dx2 = (-grad * x1.value / (x2.value ** 2)).unbroadcast(x2.shape)
@@ -304,7 +297,6 @@ object DiffFunc {
 
     val value: Tensor = numsca.concatenate(Seq(x1.value, x2.value), axis)
 
-
     def backProp2(grad: Gradient): (Gradient, Gradient) = {
       grad.splitAlongAxis(axis, x1.shape(axis).toInt)
     }
@@ -320,7 +312,7 @@ object DiffFunc {
     def backProp2(grad: Gradient): (Gradient, Gradient) = {
       val gradTensor = grad.toTensor()
       DenseGradient(gradTensor.dot(x2.value.T)) ->
-      DenseGradient(x1.value.T.dot(gradTensor))
+        DenseGradient(x1.value.T.dot(gradTensor))
     }
 
     def name: String = "dot"
@@ -344,7 +336,9 @@ object DiffFunc {
     def name: String = "total"
 
     def backProp(grad: Gradient): IS[Gradient] = {
-      args.map{ x => grad.unbroadcast(x.shape) }
+      args.map { x =>
+        grad.unbroadcast(x.shape)
+      }
     }
   }
 
@@ -358,24 +352,32 @@ object DiffFunc {
     def backProp(grad: Gradient): IS[Gradient] = {
       val denseGrad = grad match {
         case grad: InflatedGradient => grad.toDense
-        case _ => grad
+        case _                      => grad
       }
 
-      val ranges = value.shape.ints.map{ size => 0 until size }
+      val ranges = value.shape.ints.map { size =>
+        0 until size
+      }
       var idx = 0
-      val subRegions = args.map{ arg =>
+      val subRegions = args.map { arg =>
         val s = arg.shape(axis).toInt
         idx += s
         ranges.updated(axis, (idx - s) until idx)
       }
 
-      subRegions.map{ rgs => denseGrad.subGradient(rgs) }
+      subRegions.map { rgs =>
+        denseGrad.subGradient(rgs)
+      }
     }
   }
 
   // ================ Loss functions ======================
-  case class CrossEntropyOnSoftmax(logits: CompNode, targets: CompNode) extends UnaryFunc {
-    require(targets.shape == logits.shape, s"Targets shape (${targets.shape}) is different from logits (${logits.shape}).")
+  case class CrossEntropyOnSoftmax(logits: CompNode, targets: CompNode)
+      extends UnaryFunc {
+    require(
+      targets.shape == logits.shape,
+      s"Targets shape (${targets.shape}) is different from logits (${logits.shape})."
+    )
     require(logits.shape.rank == 2, "Logits should be of rank 2.")
 
     def x1: CompNode = logits
@@ -387,7 +389,6 @@ object DiffFunc {
       val y = ns.exp(x) / denum
       y -> ns.sum((ns.log(denum) - x) * targets.value, axis = 1)
     }
-
 
     def backprop1(grad: Gradient): Gradient = {
       grad * (y - targets.value)

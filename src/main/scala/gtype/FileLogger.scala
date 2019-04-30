@@ -10,19 +10,19 @@ class FileLogger(file: Path, printToConsole: Boolean) {
     write.append(file, s)
   }
 
-  def println(obj: Any): Unit ={
+  def println(obj: Any): Unit = {
     val s = obj.toString
     append(s)
     append("\n")
-    if(printToConsole){
+    if (printToConsole) {
       System.out.println(s)
     }
   }
 
-  def print(obj: Any): Unit ={
+  def print(obj: Any): Unit = {
     val s = obj.toString
     append(s)
-    if(printToConsole){
+    if (printToConsole) {
       System.out.print(s)
     }
   }
@@ -35,7 +35,7 @@ class FileLogger(file: Path, printToConsole: Boolean) {
   }
 }
 
-object EventLogger{
+object EventLogger {
   case class Event(name: String, iteration: Int, value: Tensor)
 
   case class PlotConfig(options: String*)
@@ -43,15 +43,25 @@ object EventLogger{
 
 import EventLogger._
 
-class EventLogger(file: Path, printToConsole: Boolean, overrideMode: Boolean, configs: Seq[(String, PlotConfig)]) {
-  if(exists(file) && overrideMode){
+class EventLogger(
+    file: Path,
+    printToConsole: Boolean,
+    overrideMode: Boolean,
+    configs: Seq[(String, PlotConfig)]
+) {
+  if (exists(file) && overrideMode) {
     rm(file)
   }
   private val fLogger = new FileLogger(file, printToConsole = false)
 
-  fLogger.println(configs.map{ case (k, v) =>
-    s""""$k"->${v.options.mkString("{",",","}")}"""
-  }.mkString("{",",","}"))
+  fLogger.println(
+    configs
+      .map {
+        case (k, v) =>
+          s""""$k"->${v.options.mkString("{", ",", "}")}"""
+      }
+      .mkString("{", ",", "}")
+  )
 
   val names: Set[String] = configs.toMap.keySet
 
@@ -59,14 +69,16 @@ class EventLogger(file: Path, printToConsole: Boolean, overrideMode: Boolean, co
     log(Event(name, iteration, value))
   }
 
-  def log(event: Event): Unit ={
+  def log(event: Event): Unit = {
     import event._
     fLogger.println(s"""{"$name", $iteration, ${TensorExtension.mamFormat(value)}}""")
-    if(printToConsole){
+    if (printToConsole) {
       println(s"[$iteration]$name: $value")
     }
-    if(!names.contains(name)){
-      System.err.println(s"Unregistered event name: $name. You should register it in EventLogger.configs.")
+    if (!names.contains(name)) {
+      System.err.println(
+        s"Unregistered event name: $name. You should register it in EventLogger.configs."
+      )
     }
   }
 }

@@ -115,14 +115,37 @@ object JSExamples {
     }
 
     //todo: properly handle these: (query compiler for type definitions)
-    Seq('String, 'Object, 'Number, 'Function, 'Array, 'Float64Array, 'Uint32Array,
-      'Error, 'RangeError, 'Window, 'HTMLElement, generator, 'Event,
-      'CSSStyleDeclaration, 'TransitionEvent,
-      'Injector, 'ReflectiveInjector, 'ReflectiveInjector_, 'Map, 'Node, 'RegExp,
-      'WeakMap, 'undefined, 'Element, 'Text, 'Comment).foreach(addType)
+    Seq(
+      'String,
+      'Object,
+      'Number,
+      'Function,
+      'Array,
+      'Float64Array,
+      'Uint32Array,
+      'Error,
+      'RangeError,
+      'Window,
+      'HTMLElement,
+      generator,
+      'Event,
+      'CSSStyleDeclaration,
+      'TransitionEvent,
+      'Injector,
+      'ReflectiveInjector,
+      'ReflectiveInjector_,
+      'Map,
+      'Node,
+      'RegExp,
+      'WeakMap,
+      'undefined,
+      'Element,
+      'Text,
+      'Comment
+    ).foreach(addType)
 
-    Seq('super, 'window, 'global, 'self, 'document, 'setTimeout, 'getComputedStyle,
-      'JSON, 'NaN, 'console)
+    Seq('super, 'window, 'global, 'self, 'document, 'setTimeout, 'getComputedStyle, 'JSON,
+      'NaN, 'console)
       .foreach(s => {
         varAssign += (s -> any)
       })
