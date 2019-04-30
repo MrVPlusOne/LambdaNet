@@ -273,7 +273,7 @@ object IRTranslation {
       name,
       args1,
       env.getTyVar(returnType, None),
-      BlockStmt(translateStmt(body)(newTyVars, env)),
+      groupInBlock(translateStmt(body)(newTyVars, env)),
       env.newTyVar(None, Some(name), None, None),
       exportLevel
     )

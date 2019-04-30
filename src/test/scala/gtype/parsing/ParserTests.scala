@@ -192,20 +192,20 @@ class ParserTests extends WordSpec with MyTest {
   "Export Import tests" in {
     val root = pwd / RelPath("data/tests/export-import")
     infer.PredicateGraphConstruction
-          .fromSourceFiles(root)
+          .fromRootDirectory(root)
       .predModules
       .foreach { m =>
-        println(m.display)
+        println(m.display())
       }
   }
 
   "LibConst parsing tests" in {
     val root = pwd / RelPath("data/tests/lib-const")
     infer.PredicateGraphConstruction
-      .fromSourceFiles(root)
+      .fromRootDirectory(root)
       .predModules
       .foreach { m =>
-        println(m.display)
+        println(m.display())
       }
   }
 

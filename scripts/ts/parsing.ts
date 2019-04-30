@@ -2,7 +2,6 @@ import * as ts from "typescript";
 import {SyntaxKind} from "typescript";
 
 
-
 export class GModule {
   constructor(public name: string, public stmts: GStmt[]) {
   }
@@ -168,7 +167,7 @@ export function parseMark(node: ts.TypeNode, checker: ts.TypeChecker): GMark {
 
 
 class NamedValue<V> {
-  constructor(public name: String, public value: V) {
+  constructor(public name: string, public value: V) {
   }
 }
 
@@ -324,6 +323,15 @@ class FuncDef implements GStmt {
     if ((name == "Constructor") && returnType && (returnType as TVar).name != 'void') {
       throw new Error("Wrong return type for constructor. Got: " + returnType)
     }
+  }
+}
+
+class Constructor extends FuncDef {
+  constructor(name: string, args: NamedValue<GMark>[], returnType: GMark,
+              body: GStmt, modifiers: string[], tyVars: string[],
+              public publicVars: string[]){
+    super(name, args, returnType, body, modifiers, tyVars);
+    mustExist(publicVars);
   }
 }
 
@@ -547,12 +555,25 @@ export class StmtParser {
       }
     }
 
+    /**
+     * returns the parsed FuncDef along with arguments that are marked
+     * with 'public' (for constructors)
+     */
     function parseFunction(name: string, n: ts.FunctionLikeDeclaration, modifiers: string[]): FuncDef {
-      let retType = (node.kind == SyntaxKind.Constructor) ? new TVar("void") :
+      const isConstructor = ts.isConstructorDeclaration(n);
+      let retType = isConstructor ? new TVar("void") :
         parseMark(n.type, checker);
+
+      let publicArgs: string[] = [];
+
       let args = n.parameters.map(p => {
-        return new NamedValue((<ts.Identifier>p.name).text, parseMark(p.type, checker))
+        let name = (<ts.Identifier>p.name).text;
+        if(parseModifiers(p.modifiers).includes("public")){
+          publicArgs.push(name);
+        }
+        return new NamedValue(name, parseMark(p.type, checker))
       });
+
 
       let body: StmtsHolder;
       if(n.body) {
@@ -574,7 +595,9 @@ export class StmtParser {
       else
         t_vars = null;
 
-      return new FuncDef(name, args, retType, flattenBlock(body.stmts), modifiers, t_vars);
+      return isConstructor ?
+        new Constructor(name, args, retType, flattenBlock(body.stmts), modifiers, t_vars, publicArgs) :
+        new FuncDef(name, args, retType, flattenBlock(body.stmts), modifiers, t_vars)
     }
 
 
@@ -605,8 +628,9 @@ export class StmtParser {
                   return parseBinding(e, access);
                 });
               case SyntaxKind.ArrayBindingPattern:{
+                let l = lhs as ts.ArrayBindingPattern;
                 let arrayAccessed = new FuncCall(SpecialVars.ArrayAccess, [initExpr]);
-                return flatMap((lhs as ts.ArrayBindingPattern).elements, (e: ts.ArrayBindingElement) => {
+                return flatMap(l.elements, (e: ts.ArrayBindingElement) => {
                   if(e.kind == SyntaxKind.OmittedExpression){
                     return [];
                   }else{
@@ -615,7 +639,7 @@ export class StmtParser {
                 });
               }
               default:
-                throw new Error("Unsupported binding pattern " + SyntaxKind[lhs.kind] + ": " + x.getText())
+                throw new Error("Unsupported binding pattern " + SyntaxKind[(lhs as any).kind] + ": " + x.getText())
             }
           }
 
@@ -730,7 +754,7 @@ export class StmtParser {
 
           let vars: [NamedValue<GMark>, boolean][] = [];
           let funcDefs: [FuncDef, boolean][] = [];
-          let constructor: FuncDef | null = null;
+          let constructor: Constructor | null = null;
 
           // let isAbstract = n.modifiers && n.modifiers.map(x => x.kind).includes(SyntaxKind.AbstractKeyword);
 
@@ -742,7 +766,10 @@ export class StmtParser {
             } else if (ts.isMethodDeclaration(v) || ts.isAccessor(v)) {
               funcDefs.push([getSingleton(rec(v).stmts) as FuncDef, staticQ])
             } else if (ts.isConstructorDeclaration(v)) {
-              constructor = getSingleton(rec(v).stmts) as FuncDef;
+              constructor = getSingleton(rec(v).stmts) as Constructor;
+              constructor.args
+                .filter(v => constructor.publicVars.includes(v.name))
+                .forEach(p => vars.push([p, false]));
             } else if (ts.isSemicolonClassElement(v)){
               // ignore
             } else {
@@ -861,6 +888,8 @@ function parseModifiers(modifiersNode: ts.ModifiersArray): string[] {
         case SyntaxKind.StaticKeyword:
           modifiers.push("static");
           break;
+        case SyntaxKind.PublicKeyword:
+          modifiers.push("public");
         default:
       }
     })

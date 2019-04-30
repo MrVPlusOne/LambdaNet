@@ -149,6 +149,13 @@ object IR {
         .toList
       s"𝒯$id${parts.mkString}"
     }
+
+    override def hashCode(): Int = id.hashCode()
+
+    override def equals(obj: Any): Boolean = obj match {
+      case t: IRType => id == t.id
+      case _ => false
+    }
   }
 
   // @formatter:off
