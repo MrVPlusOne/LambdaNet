@@ -19,7 +19,7 @@ object TrainingProjects {
   def parsedProjects: Vector[PredicateGraphConstruction.ParsedProject] = {
     projectRoots.map(r => {
       infer.PredicateGraphConstruction
-        .fromSourceFiles(
+        .fromRootDirectory(
           r,
           pathMapping = new PathMapping {
             def map(currentPath: ProjectPath, pathToResolve: ProjectPath): ProjectPath = {

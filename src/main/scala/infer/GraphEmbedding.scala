@@ -195,9 +195,6 @@ case class GraphEmbedding(
 
     /* for each kind of predicate, generate one or more messages */
     def sendPredicateMessages(predicate: TyVarPredicate): Unit = predicate match {
-      case EqualityRel(v1, v2) =>
-        messages(v1.id) += binaryMessage('SubtypeRel, nodeMap(v1.id), nodeMap(v2.id))
-        messages(v2.id) += binaryMessage('SubtypeRel, nodeMap(v2.id), nodeMap(v1.id))
       case FreezeType(v, ty) =>
         messages(v.id) += messageModel('FreezeType, encodeGType(ty))
       case IsLibraryType(v, name) =>
@@ -206,11 +203,11 @@ case class GraphEmbedding(
       case HasName(v, name) =>
 //        messages(v.id) += messageModel('HasName, labelMap(name)) //todo: properly handle name info
       case SubtypeRel(sub, sup) =>
-        messages(sub.id) += binaryMessage('SubtypeRel, nodeMap(sub.id), nodeMap(sup.id))
-        messages(sup.id) += binaryMessage('SubtypeRel, nodeMap(sup.id), nodeMap(sub.id))
+        messages(sub.id) += binaryMessage('SubtypeRel_sub, nodeMap(sub.id), nodeMap(sup.id))
+        messages(sup.id) += binaryMessage('SubtypeRel_sup, nodeMap(sub.id), nodeMap(sup.id))
       case AssignRel(lhs, rhs) =>
-        messages(lhs.id) += binaryMessage('AssignRel, nodeMap(lhs.id), nodeMap(rhs.id))
-        messages(rhs.id) += binaryMessage('AssignRel, nodeMap(rhs.id), nodeMap(lhs.id))
+        messages(lhs.id) += binaryMessage('AssignRel_lhs, nodeMap(lhs.id), nodeMap(rhs.id))
+        messages(rhs.id) += binaryMessage('AssignRel_rhs, nodeMap(lhs.id), nodeMap(rhs.id))
       case UsedAsBoolean(tyVar) =>
         messages(tyVar.id) += messageModel('UsedAsBoolean, nodeMap(tyVar.id))
       case InheritanceRel(child, parent) =>
@@ -226,18 +223,21 @@ case class GraphEmbedding(
         )
       case DefineRel(v, expr) =>
         expr match {
+          case VarTypeExpr(rhs) =>
+            messages(v.id) += binaryMessage('DefineVar_lhs, nodeMap(v.id), nodeMap(rhs.id))
+            messages(rhs.id) += binaryMessage('DefineVar_rhs, nodeMap(v.id), nodeMap(rhs.id))
           case FuncTypeExpr(argTypes, returnType) =>
             val ids = (returnType +: argTypes.toIndexedSeq).map(_.id)
             ids.zipWithIndex.foreach {
               case (tId, i) =>
                 val argId = i - 1
                 messages(v.id) += argAccessMessage(
-                  'FuncTypeExpr / 'toF,
+                  'FuncTypeExpr_toF,
                   nodeMap(tId),
                   argId
                 )
                 messages(tId) += argAccessMessage(
-                  'FuncTypeExpr / 'toArg,
+                  'FuncTypeExpr_toArg,
                   nodeMap(v.id),
                   argId
                 )

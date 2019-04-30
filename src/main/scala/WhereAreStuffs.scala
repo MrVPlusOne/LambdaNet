@@ -5,7 +5,7 @@ import infer.IR.IRModule
 // @formatter:off
 /**
   * ## Typescript to Predicate Graph
-  * [[PredicateGraphConstruction.fromSourceFiles]]: Parses the entire Typescript source files under a root directory into a set of [[infer.PredicateGraph.PredicateModule]]s.
+  * [[PredicateGraphConstruction.fromRootDirectory]]: Parses the entire Typescript source files under a root directory into a set of [[infer.PredicateGraph.PredicateModule]]s.
   *
   *   ### Typescript to Surface Language
   *   -- converts Typescript source files into [[GModule]]s.
