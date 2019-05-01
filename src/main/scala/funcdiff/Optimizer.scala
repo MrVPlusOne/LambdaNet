@@ -78,6 +78,7 @@ trait Optimizer extends Serializable {
 }
 
 object Optimizers {
+  @SerialVersionUID(0)
   case class SGD(learningRate: Double) extends Optimizer {
 
     def parameterChangeAmount(param: Param, grad: Gradient): Gradient = {

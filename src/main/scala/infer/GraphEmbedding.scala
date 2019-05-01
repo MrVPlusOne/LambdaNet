@@ -11,9 +11,6 @@ import infer.PredicateGraph._
 import scala.collection.mutable
 import scala.collection.parallel.ForkJoinTaskSupport
 import GraphEmbedding._
-import infer.TrainingCenter.Timeouts
-
-import scala.concurrent.{Await, Future}
 
 object GraphEmbedding {
 

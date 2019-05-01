@@ -79,7 +79,7 @@ object ParamCollection {
     val pc = new ParamCollection()
     pc.getVar(SymbolPath.empty / 'abc)(Tensor(1, 2, 3))
     val factory = LayerFactory(SymbolPath.empty / 'layers, pc)
-    val s = TrainingState(4, 64, factory, Adam(1e-4))
+    val s = TrainingState(4, 64, factory, Adam(1e-4), 10)
 
     val file = pwd / "testFile"
     s.saveToFile(file)

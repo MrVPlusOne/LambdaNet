@@ -28,11 +28,11 @@ object PredicateGraph {
       val srcPart = srcOpt match {
         case Some(src) =>
           assert(src.path == path)
-          s"* IR:\n${src.stmts.mkString("\n")}"
+          s"== IR:\n${src.stmts.mkString("\n")}\n"
         case None => ""
       }
       s"""=== Module: $path ===
-         |$srcPart* predicates:
+         |$srcPart== predicates:
          |${predicates.mkString("\n")}
        """.stripMargin
     }

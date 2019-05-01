@@ -40,6 +40,8 @@ import scala.util.Random
   */
 object TrainingCenter {
 
+  val iterationNum = 3
+
   val numOfThreads: Int = Runtime.getRuntime.availableProcessors()
   val forkJoinPool = new ForkJoinPool(numOfThreads)
   val taskSupport: ForkJoinTaskSupport = new ForkJoinTaskSupport(forkJoinPool)
@@ -53,26 +55,47 @@ object TrainingCenter {
       step: Int,
       dimMessage: Int,
       layerFactory: LayerFactory,
-      optimizer: Optimizer
+      optimizer: Optimizer,
+      iterationNum: Int
   ) {
     def saveToFile(file: Path): Unit = {
       val toSave =
-        (step, dimMessage, layerFactory.paramCollection.toSerializable, optimizer)
+        List[(String, Any)](
+          "step" -> step,
+          "dimMessage" -> dimMessage,
+          "pcData" -> layerFactory.paramCollection.toSerializable,
+          "optimizer" -> optimizer,
+          "iterationNum" -> iterationNum
+        )
       SimpleMath.saveObjectToFile(file.toIO)(toSave)
+    }
+
+    override def toString: String = {
+      s"""TrainingState:
+         |  step: $step
+         |  dimMessage: $dimMessage
+         |  optimizer: $optimizer,
+         |  iterationNum: $iterationNum
+       """.stripMargin
     }
   }
 
   object TrainingState {
     def fromFile(file: Path): TrainingState = {
-      val (step, dimMessage, data, optimizer) = SimpleMath
-        .readObjectFromFile[(Int, Int, ParamCollection.SerializableFormat, Optimizer)](
-          file.toIO
-        )
+      val map = SimpleMath
+        .readObjectFromFile[List[(String, Any)]](file.toIO)
+        .toMap
+      val step = map("step").asInstanceOf[Int]
+      val dimMessage = map("dimMessage").asInstanceOf[Int]
+      val optimizer = map("optimizer").asInstanceOf[Optimizer]
+      val iterationNum = map.getOrElse("iterationNum", 10).asInstanceOf[Int]
+      val pcData = map("pcData").asInstanceOf[ParamCollection.SerializableFormat]
+
       val factory = LayerFactory(
         SymbolPath.empty / 'TypingNet,
-        ParamCollection.fromSerializable(data)
+        ParamCollection.fromSerializable(pcData)
       )
-      TrainingState(step, dimMessage, factory, optimizer)
+      TrainingState(step, dimMessage, factory, optimizer, iterationNum)
     }
   }
 
@@ -106,7 +129,8 @@ object TrainingCenter {
           step = 0,
           layerFactory = LayerFactory(SymbolPath.empty / 'TypingNet, ParamCollection()),
           dimMessage = 64,
-          optimizer = Optimizers.Adam(learningRate = 4e-4)
+          optimizer = Optimizers.Adam(learningRate = 4e-4),
+          iterationNum = iterationNum
         )
       )
 
@@ -194,7 +218,7 @@ object TrainingCenter {
         Future(
           GraphEmbedding(embedCtx, factory, dimMessage, Some(taskSupport))
             .encodeAndDecode(
-              iterations = 10,
+              iterations = iterationNum,
               decodingCtx,
               typeLabels.map(_._1)
             )
@@ -213,7 +237,10 @@ object TrainingCenter {
 
     val (machineName, emailService) = ReportFinish.readEmailInfo()
 
-    val TrainingState(initStep, dimMessage, factory, optimizer) = trainingState
+    println(trainingState)
+
+    val TrainingState(initStep, dimMessage, factory, optimizer, iterationNum) =
+      trainingState
 
     /** any symbols that are not defined within the project */
     val libraryFields: Vector[Symbol] = {
@@ -457,7 +484,9 @@ object TrainingCenter {
         mkdir(saveDir)
       }
       val savePath = saveDir / "trainingState.serialized"
-      TrainingState(step, dimMessage, factory, optimizer).saveToFile(savePath)
+      TrainingState(step, dimMessage, factory, optimizer, iterationNum).saveToFile(
+        savePath
+      )
       println("Training state saved into: " + saveDir)
     }
 
