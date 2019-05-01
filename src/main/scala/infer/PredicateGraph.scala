@@ -42,8 +42,12 @@ object PredicateGraph {
     * produce, used for supervision */
   sealed trait TypeLabel
   case object OutOfScope extends TypeLabel
-  case class LibraryType(ty: GType) extends TypeLabel
-  case class ProjectType(ty: IRType) extends TypeLabel
+  case class LibraryType(ty: GType) extends TypeLabel {
+    override def toString: String = s"[L]$ty"
+  }
+  case class ProjectType(ty: IRType) extends TypeLabel {
+    override def toString: String = s"[P]$ty"
+  }
 
   sealed trait TyVarPredicate
 

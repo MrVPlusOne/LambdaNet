@@ -143,11 +143,16 @@ object IR {
       annotation: Option[TypeAnnotation],
       libId: Option[Symbol]
   ) {
-    override def toString: String = {
+    def showDetails: String = {
       val parts = name.map(n => s"{${n.name}}").toList ++ annotation
         .map(t => s"[$t]")
         .toList
       s"𝒯$id${parts.mkString}"
+    }
+
+    override def toString: String = {
+      val namePart = name.map(n => s"{${n.name}}").getOrElse("")
+      s"𝒯$id$namePart"
     }
 
     override def hashCode(): Int = id.hashCode()

@@ -440,6 +440,7 @@ object TrainingCenter {
             testLogits.value,
             testBuilder.transEnv,
             testBuilder.decodingCtx,
+            printLabelwiseAccuracy = true,
             printResults = Some(printNum)
           )
           testAcc
@@ -512,6 +513,7 @@ object TrainingCenter {
       logits: Tensor,
       transEnv: TranslationEnv,
       ctx: DecodingCtx,
+      printLabelwiseAccuracy: Boolean = false,
       printResults: Option[Int] = Some(100)
   ): AccuracyStats = {
     type Prediction = Int
@@ -522,12 +524,16 @@ object TrainingCenter {
     var libCorrect, libIncorrect = 0
     var outOfScopeCorrect, outOfScopeIncorrect = 0
 
+    val groupedCorrect = mutable.HashMap[TypeLabel, Int]()
+
     for (row <- annotatedPlaces.indices) {
       val (nodeId, t) = annotatedPlaces(row)
       val expected = ctx.indexOfType(t)
       val actual = predictions(row, 0).squeeze().toInt
       if (expected == actual) {
         correct += (nodeId -> actual)
+        if (printLabelwiseAccuracy)
+          groupedCorrect(t) = groupedCorrect.getOrElse(t, 0) + 1
         t match {
           case _: ProjectType => projCorrect += 1
           case _: LibraryType => libCorrect += 1
@@ -540,6 +546,15 @@ object TrainingCenter {
           case _: LibraryType => libIncorrect += 1
           case OutOfScope     => outOfScopeIncorrect += 1
         }
+      }
+    }
+
+    if (printLabelwiseAccuracy) {
+      val groupedPlaces = annotatedPlaces.groupBy(_._2).mapValuesNow(_.length).toSeq
+      groupedPlaces.sortBy(p => -p._2).foreach {
+        case (label, num) =>
+          val accuracy = groupedCorrect.getOrElse(label, 0).toDouble / num
+          println(s"$label($num): %.1f".format(accuracy) + "%")
       }
     }
 
