@@ -364,18 +364,20 @@ object TrainingCenter {
 
         DebugTime.logTime('loggingTime) {
           note("loggingTime")
-          val diffs = embeddings
-            .zip(embeddings.tail)
-            .par
-            .map {
-              case (e1, e0) =>
-                val diffMap = e1.nodeMap.elementwiseCombine(e0.nodeMap) { (x, y) =>
-                  math.sqrt(numsca.sum(numsca.square(x.value - y.value)))
-                }
-                SimpleMath.mean(diffMap.values.toSeq)
-            }
-            .seq
-          eventLogger.log("embedding-changes", step, Tensor(diffs: _*))
+          if (iterationNum > 1) {
+            val diffs = embeddings
+              .zip(embeddings.tail)
+              .par
+              .map {
+                case (e1, e0) =>
+                  val diffMap = e1.nodeMap.elementwiseCombine(e0.nodeMap) { (x, y) =>
+                    math.sqrt(numsca.sum(numsca.square(x.value - y.value)))
+                  }
+                  SimpleMath.mean(diffMap.values.toSeq)
+              }
+              .seq
+            eventLogger.log("embedding-changes", step, Tensor(diffs: _*))
+          }
 
 //          val maxEmbeddingLength = embeddings.map {
 //            _.stat.trueEmbeddingLengths.max
