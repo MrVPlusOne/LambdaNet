@@ -16,7 +16,7 @@ import infer.IRTranslation.TranslationEnv
 import scala.collection.mutable
 import scala.collection.parallel.ForkJoinTaskSupport
 import ammonite.ops._
-import infer.IR.{IRModule, IRType, IRTypeId}
+import infer.IR.{IRTypeId}
 import infer.PredicateGraph.{
   LibraryType,
   OutOfScope,
@@ -24,7 +24,7 @@ import infer.PredicateGraph.{
   ProjectType,
   TypeLabel
 }
-import infer.PredicateGraphConstruction.{LibraryContext, ParsedProject, PathMapping}
+import infer.PredicateGraphConstruction.{ParsedProject}
 
 import scala.concurrent.{Await, ExecutionContextExecutorService, Future}
 import scala.util.Random
@@ -40,7 +40,7 @@ import scala.util.Random
   */
 object TrainingCenter {
 
-  val iterationNum = 3
+  val iterationNum = 1
 
   val numOfThreads: Int = Runtime.getRuntime.availableProcessors()
   val forkJoinPool = new ForkJoinPool(numOfThreads)
@@ -553,8 +553,8 @@ object TrainingCenter {
       val groupedPlaces = annotatedPlaces.groupBy(_._2).mapValuesNow(_.length).toSeq
       groupedPlaces.sortBy(p => -p._2).foreach {
         case (label, num) =>
-          val accuracy = groupedCorrect.getOrElse(label, 0).toDouble / num
-          println(s"$label($num): %.1f".format(accuracy) + "%")
+          val accuracy = groupedCorrect.getOrElse(label, 0).toDouble * 100 / num
+          println(s"$label($num): %.1f%%".format(accuracy))
       }
     }
 
