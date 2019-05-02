@@ -364,7 +364,7 @@ object TrainingCenter {
 
         DebugTime.logTime('loggingTime) {
           note("loggingTime")
-          if (iterationNum > 1) {
+          if (iterationNum > 0) {
             val diffs = embeddings
               .zip(embeddings.tail)
               .par

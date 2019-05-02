@@ -90,7 +90,7 @@ case class GraphEmbedding(
     val embeddings = DebugTime.logTime('iterTime) {
       val stat = EmbeddingStat(idTypeMap.mapValuesNow(_ => 1.0).values.toVector)
       val init = Embedding(idTypeMap.mapValuesNow(_ => nodeInitVec), stat)
-      IS.iterate(init, iterations)(iterate)
+      IS.iterate(init, iterations + 1)(iterate)
     }
 
     val result = DebugTime.logTime('decodingTime) {
