@@ -4,6 +4,8 @@ import scala.language.implicitConversions
 import GType.API._
 import gtype.GExpr.GExprAPI
 import funcdiff.SimpleMath.Extensions._
+import infer.IRTranslation
+
 import collection.mutable
 
 // @formatter:off
@@ -353,8 +355,12 @@ object GStmt {
 
   object API extends GStmtAPI
 
-  def extractSignature(funcDef: FuncDef): FuncType = {
-    funcDef.args.map(_._2.asInstanceOf[GType]) -: funcDef.returnType.asInstanceOf[GType]
+  def extractSignature(funcDef: FuncDef, eliminateTVars: Boolean = true): FuncType = {
+    val fT = funcDef.args.map(_._2.asInstanceOf[GType]) -: funcDef.returnType
+      .asInstanceOf[GType]
+    if (eliminateTVars) {
+      IRTranslation.translateType(fT)(funcDef.tyVars.toSet).asInstanceOf[FuncType]
+    } else fT
   }
 
   def makeSureInBlock(stmt: GStmt): BlockStmt = {

@@ -21,20 +21,19 @@ export function mustExist<T>(v: T, msg: string = null): T {
 // ASTs
 type GMark = GType | null;
 
-interface GType {
-  category: string;
-}
 
-class TVar implements GType {
-  public category = "TVar";
+type GType = TVar | AnyType | FuncType | ObjectType
+
+class TVar {
+  public category: "TVar" = "TVar";
 
   constructor(public name: string) {
     mustExist(name)
   }
 }
 
-class AnyType implements GType {
-  public category = "AnyType";
+class AnyType {
+  public category: "AnyType" = "AnyType";
   public name: string = "any";
 
   private constructor() {
@@ -43,18 +42,18 @@ class AnyType implements GType {
   static instance = new AnyType();
 }
 
-class FuncType implements GType {
-  public category = "FuncType";
+class FuncType {
+  public category: "FuncType" = "FuncType";
 
   constructor(public fro: GType[], public to: GType) {
 
   }
 }
 
-class ObjectType implements GType {
-  public category = "ObjectType";
+class ObjectType {
+  public category: "ObjectType" = "ObjectType";;
 
-  constructor(public fields: { [k: string]: GType }) {
+  constructor(public fields: NamedValue<GType>[]) {
 
   }
 }
@@ -68,28 +67,59 @@ basicTypes.add(SyntaxKind.StringKeyword);
 basicTypes.add(SyntaxKind.SymbolKeyword);
 basicTypes.add(SyntaxKind.EnumKeyword);
 basicTypes.add(SyntaxKind.VoidKeyword);
+basicTypes.add(SyntaxKind.ObjectKeyword);
+
+let ignoredTypes = new Set<SyntaxKind>();
+ignoredTypes.add(SyntaxKind.MappedType);
+ignoredTypes.add(SyntaxKind.ConditionalType);
+ignoredTypes.add(SyntaxKind.ThisType);
+ignoredTypes.add(SyntaxKind.UnknownKeyword);
+ignoredTypes.add(SyntaxKind.IndexedAccessType);
 
 function parseTVars(n: {typeParameters? : ts.NodeArray<ts.TypeParameterDeclaration> }): string[] {
   return n.typeParameters ? n.typeParameters.map(p => p.name.text) : [];
 }
 
+function eliminateTypeVars(ty: GType, tVars: string[]): GType {
+  switch(ty.category){
+    case "TVar":
+      if(tVars.includes(ty.name))
+        return anyType;
+      else return ty;
+    case "FuncType": {
+      let newFrom = ty.fro.map(t => eliminateTypeVars(t, tVars));
+      let newTo = eliminateTypeVars(ty.to, tVars);
+      return new FuncType(newFrom, newTo);
+    }
+    case "ObjectType": {
+      let nf = ty.fields.map(nv => new NamedValue(nv.name, eliminateTypeVars(nv.value, tVars)));
+      return new ObjectType(nf);
+    }
+    case "AnyType":
+      return ty;
+    default:
+      throw new Error("Unknown category: " + JSON.stringify(ty))
+  }
+}
+
 function parseSignatureType(sig: ts.SignatureDeclarationBase){
   //todo: handle potential type parameters
-  let argTypes = sig.parameters.map(p => parseType(p.type));
+  let tVars = parseTVars(sig);
+  let argTypes = sig.parameters.map(p => eliminateTypeVars(parseType(p.type), tVars));
   let retType = sig.type ? parseType(sig.type): new TVar("void");
   return new FuncType(argTypes, retType);
 }
 
-function parseTypeMembers(members: ts.NamedDeclaration[]): { [k: string]: GType } {
-  let fields: { [k: string]: GType } = {};
+function parseTypeMembers(members: ts.NamedDeclaration[]): NamedValue<GType>[] {
+  let fields: NamedValue<GType>[] = [];
   members.forEach(
     x => {
       if (x.name != undefined){
         if(SyntaxKind.PropertyDeclaration == x.kind || SyntaxKind.PropertySignature == x.kind){
           let pT = (x as any).type;
-          fields[x.name.getText()] = pT ? parseType(pT) : anyType;
+          fields.push(new NamedValue(x.name.getText(), pT ? parseType(pT) : anyType));
         }else if(SyntaxKind.MethodSignature == x.kind || SyntaxKind.MethodDeclaration == x.kind){
-          fields[x.name.getText()] = parseSignatureType(x as ts.MethodSignature);
+          fields.push(new NamedValue(x.name.getText(), parseSignatureType(x as ts.MethodSignature)));
         }else{
           throw new Error("Unknown type member kind: " + SyntaxKind[x.kind])
         }
@@ -99,14 +129,13 @@ function parseTypeMembers(members: ts.NamedDeclaration[]): { [k: string]: GType 
         let sig = x as ts.IndexSignatureDeclaration | ts.CallSignatureDeclaration | ts.ConstructSignatureDeclaration;
         let methodName = x.kind == SyntaxKind.IndexSignature ? "access"
           : (x.kind == SyntaxKind.ConstructSignature ? "CONSTRUCTOR" : "call");
-        fields[methodName] = parseSignatureType(sig);
+        fields.push(new NamedValue(methodName, parseSignatureType(sig)));
       } else {
         console.log("Unknown type element: " + ts.SyntaxKind[x.kind])
       }
       // else throw new Error("members without a name: " + node.getText()); todo: uncomment and handle other cases
     }
   );
-
   return fields;
 }
 
@@ -153,8 +182,8 @@ function parseType(node: ts.TypeNode): GType {
     return new TVar("boolean");
   } else if (node.kind == SyntaxKind.TypeQuery) {
     return anyType // fixme: handle type query
-  } else if (node.kind == SyntaxKind.MappedType){
-    return anyType
+  } else if (ignoredTypes.has(node.kind)){
+    return anyType;
   } else {
     throw new Error("Unknown Type Kind: " + ts.SyntaxKind[node.kind]);
   }
@@ -827,7 +856,7 @@ export class StmtParser {
           let n = node as ts.InterfaceDeclaration;
           let tVars = parseTVars(n);
           let members = parseTypeMembers(n.members as any);
-          let objT = new ObjectType(members);
+          let objT = new ObjectType(members); //todo: handle inheritance
           return EP.alongWith(
             new TypeAliasStmt(n.name.text, tVars, objT, parseModifiers(n.modifiers)));
         }
@@ -847,6 +876,7 @@ export class StmtParser {
 
 
         //todo: support these
+        case SyntaxKind.ModuleDeclaration:
         case SyntaxKind.ForOfStatement:
         case SyntaxKind.ForInStatement:
 
@@ -940,6 +970,8 @@ export function parseFiles(sources: string[], libraryFiles: string[]): GModule[]
     target: ts.ScriptTarget.ES2018,
     module: ts.ModuleKind.CommonJS
   });
+  // program.getSemanticDiagnostics(null, null); //call this to store type info into nodes
+
   let checker = program.getTypeChecker();
 
   let sFiles = sources.map(file => mustExist(program.getSourceFile(file),
@@ -963,22 +995,4 @@ export function parseFiles(sources: string[], libraryFiles: string[]): GModule[]
     });
     return new GModule(sources[index], stmts);
   });
-}
-
-export function parseEnvironments(content: string){
-  let src = ts.createSourceFile("temp.ts", content,
-    ts.ScriptTarget.ES2018, true, ts.ScriptKind.TS);
-  let program = ts.createProgram([], {
-    target: ts.ScriptTarget.ES2018,
-    module: ts.ModuleKind.CommonJS
-  });
-
-
-  let checker = program.getTypeChecker();
-  let stmt = src.statements[0];
-  let values = checker.getSymbolsInScope(stmt, ts.SymbolFlags.Value);
-  console.log(values);
-  values.forEach(v => {
-
-  })
 }

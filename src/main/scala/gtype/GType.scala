@@ -83,6 +83,25 @@ case class ObjectType(fields: Map[Symbol, GType]) extends CompoundType {
   def extended(methods: (Symbol, CompoundType)*): ObjectType = {
     ObjectType(fields ++ methods.toMap)
   }
+
+  def merge(that: ObjectType, allowOverloading: Boolean = true): ObjectType = {
+    val inter = fields.keySet.intersect(that.fields.keySet)
+    if (allowOverloading) {
+      val overloads = inter.map { k =>
+        val t1 = this.fields(k).asInstanceOf[FuncType]
+        val t2 = that.fields(k).asInstanceOf[FuncType]
+        k -> Seq(t1, t2).maxBy(_.from.length)
+      }
+      ObjectType(fields ++ that.fields ++ overloads)
+    } else {
+      assert(
+        inter.isEmpty,
+        s"Trying to merge objects with common fields: $inter. object1: $this, object2: $that"
+      )
+      ObjectType(fields ++ that.fields)
+    }
+  }
+
 }
 
 /**
