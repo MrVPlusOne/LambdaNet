@@ -210,14 +210,7 @@ class ParserTests extends WordSpec with MyTest {
   }
 
   ".d.ts files parsing" in {
-    val root = pwd / RelPath("data/tests/libraries")
-    val libFile = RelPath("lib.es5.d.ts")
-    val modules =
-      new ProgramParsing().parseModulesFromFiles(Seq(libFile), Set(libFile), root)
-    modules.foreach { m =>
-      val d = ProgramParsing.extractDeclarationModule(m)
-      println(d)
-    }
+    TrainingProjects.parseStandardLibs.foreach(println)
   }
 
   "Project parsing integration test" in {

@@ -2,9 +2,21 @@ package infer
 
 import ammonite.ops.{RelPath, pwd}
 import gtype.GModule.ProjectPath
+import gtype.parsing.ProgramParsing
 import infer.PredicateGraphConstruction.PathMapping
 
 object TrainingProjects {
+
+  def parseStandardLibs: Vector[ProgramParsing.DeclarationModule] = {
+    val root = pwd / RelPath("data/libraries")
+    val libFile = RelPath("default.lib.d.ts")
+    val modules =
+      new ProgramParsing().parseModulesFromFiles(Seq(libFile), Set(libFile), root)
+    modules.toVector.map { m =>
+      ProgramParsing.extractDeclarationModule(m)
+    }
+  }
+
   val projectRoots = Vector(
     //testing
     "data/train/algorithms-test",
