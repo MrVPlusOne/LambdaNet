@@ -78,7 +78,7 @@ object ProgramParsing {
       case "TVar"    => TyVar(asSymbol(o("name")))
       case "AnyType" => AnyType
       case "FuncType" =>
-        val fr = asArray(o("fro")).map(parseType)
+        val fr = asArray(o("args")).map(parseType)
         val to = parseType(o("to"))
         FuncType(fr, to)
       case "ObjectType" =>

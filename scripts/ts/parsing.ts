@@ -8,7 +8,7 @@ export class GModule {
 }
 
 export function mustExist<T>(v?: T, msg?: string): T {
-  if (v == null) {
+  if (!v) {
     if (msg) {
       throw new Error("should not be " + v + "! Message: " + msg);
     } else {
@@ -25,7 +25,7 @@ type GMark = GType | null;
 type GType = TVar | AnyType | FuncType | ObjectType
 
 class TVar {
-  public category: "TVar" = "TVar";
+  public readonly category = "TVar";
 
   constructor(public name: string) {
     mustExist(name);
@@ -33,8 +33,8 @@ class TVar {
 }
 
 class AnyType {
-  public category: "AnyType" = "AnyType";
-  public name: string = "any";
+  public readonly category = "AnyType";
+  public readonly name = "any";
 
   private constructor() {
   }
@@ -43,18 +43,16 @@ class AnyType {
 }
 
 class FuncType {
-  public category: "FuncType" = "FuncType";
+  public readonly category = "FuncType";
 
-  constructor(public fro: GType[], public to: GType) {
-
+  constructor(public args: GType[], public to: GType) {
   }
 }
 
 class ObjectType {
-  public category: "ObjectType" = "ObjectType";
+  public readonly category = "ObjectType";
 
   constructor(public fields: NamedValue<GType>[]) {
-
   }
 }
 
@@ -82,6 +80,7 @@ function parseTVars(n: { typeParameters?: ts.NodeArray<ts.TypeParameterDeclarati
   return n.typeParameters ? n.typeParameters.map(p => p.name.text) : [];
 }
 
+/** Replace all occurrences of type variables with any  */
 function eliminateTypeVars(ty: GType, tVars: string[]): GType {
   switch (ty.category) {
     case "TVar":
@@ -91,7 +90,7 @@ function eliminateTypeVars(ty: GType, tVars: string[]): GType {
         return ty;
       }
     case "FuncType": {
-      let newFrom = ty.fro.map(t => eliminateTypeVars(t, tVars));
+      let newFrom = ty.args.map(t => eliminateTypeVars(t, tVars));
       let newTo = eliminateTypeVars(ty.to, tVars);
       return new FuncType(newFrom, newTo);
     }
@@ -107,7 +106,6 @@ function eliminateTypeVars(ty: GType, tVars: string[]): GType {
 }
 
 function parseSignatureType(sig: ts.SignatureDeclarationBase) {
-  //todo: handle potential type parameters
   let tVars = parseTVars(sig);
   let argTypes = sig.parameters.map(p =>
     eliminateTypeVars(parseType(mustExist(p.type)), tVars));
@@ -119,7 +117,7 @@ function parseTypeMembers(members: ts.NamedDeclaration[]): NamedValue<GType>[] {
   let fields: NamedValue<GType>[] = [];
   members.forEach(
     x => {
-      if (x.name != undefined) {
+      if (x.name) {
         if (SyntaxKind.PropertyDeclaration == x.kind || SyntaxKind.PropertySignature == x.kind) {
           let pT = (x as any).type;
           fields.push(new NamedValue(x.name.getText(), pT ? parseType(pT) : anyType));
@@ -135,7 +133,7 @@ function parseTypeMembers(members: ts.NamedDeclaration[]): NamedValue<GType>[] {
           : (x.kind == SyntaxKind.ConstructSignature ? "CONSTRUCTOR" : "call");
         fields.push(new NamedValue(methodName, parseSignatureType(sig)));
       } else {
-        console.log("Unknown type element: " + ts.SyntaxKind[x.kind]);
+        throw new Error("Unknown type element: " + ts.SyntaxKind[x.kind]);
       }
       // else throw new Error("members without a name: " + node.getText()); todo: uncomment and handle other cases
     }
@@ -395,16 +393,52 @@ function tryFullyQualifiedName(node: ts.Node, checker: ts.TypeChecker): string {
   return name;
 }
 
+type SupportedExpression =
+  ts.Identifier |
+  ts.ThisExpression |
+  ts.SuperExpression |
+  ts.CallExpression |
+  ts.NewExpression |
+  ts.ObjectLiteralExpression |
+  ts.PropertyAccessExpression |
+  ts.ElementAccessExpression |
+  ts.ConditionalExpression |
+  ts.ParenthesizedExpression |
+  LiteralExpression |
+  ts.BinaryExpression |
+  ts.PrefixUnaryExpression | ts.PostfixUnaryExpression |
+  ts.FunctionExpression | ts.ArrowFunction |
+  SpecialExpressions
 
-export function parseExpr(node: ts.Node, checker: ts.TypeChecker,
+
+type LiteralExpression =
+  ts.NumericLiteral |
+  ts.StringLiteral |
+  ts.RegularExpressionLiteral |
+  ts.BooleanLiteral |
+  ts.NullLiteral |
+  ts.VoidExpression |
+  ts.ArrayLiteralExpression |
+  ts.NoSubstitutionTemplateLiteral
+
+type SpecialExpressions =
+  ts.SpreadElement |
+  ts.TypeOfExpression |
+  ts.TemplateExpression |
+  ts.DeleteExpression |
+  ts.YieldExpression |
+  ts.AsExpression |
+  ts.TypeAssertion
+
+export function parseExpr(node: ts.Expression, checker: ts.TypeChecker,
                           allocateLambda: (f: ts.FunctionLikeDeclaration) => Var): GExpr {
 
-  function rec(node: ts.Node): GExpr {
-    mustExist(node);
+  function rec(node: ts.Expression): GExpr {
+    const n = node as SupportedExpression;
+    mustExist(n);
 
-    switch (node.kind) {
+    switch (n.kind) {
       case SyntaxKind.Identifier: {
-        let n = node as ts.Identifier;
         let name = n.getText();
         return new Var(name);
       }
@@ -413,20 +447,17 @@ export function parseExpr(node: ts.Node, checker: ts.TypeChecker,
       case SyntaxKind.SuperKeyword:
         return SpecialVars.SUPER;
       case SyntaxKind.CallExpression: {
-        let n = (<ts.CallExpression>node);
         let f = rec(n.expression);
         let args = n.arguments.map(rec);
         return new FuncCall(f, args);
       }
       case SyntaxKind.NewExpression: {
-        let n = (<ts.NewExpression>node);
         let args = n.arguments ? n.arguments.map(rec) : [];
         let f = new Access(rec(n.expression), "CONSTRUCTOR");
         return new FuncCall(f, args);
       }
       case SyntaxKind.ObjectLiteralExpression: {
-        let n = (<ts.ObjectLiteralExpression>node);
-        let fields = flatMap(n.properties, (p: ts.ObjectLiteralElementLike) => {
+        const fields = flatMap(n.properties, (p: ts.ObjectLiteralElementLike) => {
           if (p.kind == SyntaxKind.PropertyAssignment) {
             return [parseObjectLiteralElementLike(p)];
           } else {
@@ -436,25 +467,21 @@ export function parseExpr(node: ts.Node, checker: ts.TypeChecker,
         return new ObjLiteral(fields);
       }
       case SyntaxKind.PropertyAccessExpression: {
-        let n = node as ts.PropertyAccessExpression;
         let lhs = rec(n.expression);
         return new Access(lhs, n.name.text);
       }
       case ts.SyntaxKind.ElementAccessExpression: {
-        let n = node as ts.ElementAccessExpression;
         let thing = rec(n.expression);
         let index = rec(n.argumentExpression);
         return new FuncCall(new Access(thing, "access"), [index]);
       }
       case ts.SyntaxKind.ConditionalExpression: {
-        let n = node as ts.ConditionalExpression;
         let cond = rec(n.condition);
         let e1 = rec(n.whenTrue);
         let e2 = rec(n.whenFalse);
         return new IfExpr(cond, e1, e2);
       }
       case ts.SyntaxKind.ParenthesizedExpression: {
-        let n = node as ts.ParenthesizedExpression;
         return rec(n.expression);
       }
 
@@ -479,7 +506,6 @@ export function parseExpr(node: ts.Node, checker: ts.TypeChecker,
 
       // operators
       case ts.SyntaxKind.BinaryExpression: {
-        let n = node as ts.BinaryExpression;
         let l = rec(n.left);
         let r = rec(n.right);
         let opp = n.operatorToken.kind;
@@ -488,7 +514,6 @@ export function parseExpr(node: ts.Node, checker: ts.TypeChecker,
       }
       case SyntaxKind.PrefixUnaryExpression:
       case SyntaxKind.PostfixUnaryExpression: {
-        let n = <any>node;
         let opName = ts.SyntaxKind[n["operator"]];
         let fixity = (node.kind == SyntaxKind.PrefixUnaryExpression) ? "" : "POST_";
         let arg = rec(n["operand"]);
@@ -496,35 +521,29 @@ export function parseExpr(node: ts.Node, checker: ts.TypeChecker,
       }
       case SyntaxKind.ArrowFunction:
       case SyntaxKind.FunctionExpression: {
-        let n = node as ts.FunctionLikeDeclaration;
         return allocateLambda(n);
       }
 
       // Special treatments:
       case SyntaxKind.SpreadElement: {
-        let n = node as ts.SpreadElement;
         return new FuncCall(SpecialVars.spread, [rec(n.expression)]);
       }
       case SyntaxKind.TypeOfExpression: {
-        let n = node as ts.TypeOfExpression;
         return new FuncCall(SpecialVars.typeOf, [rec(n.expression)]);
       }
-      case SyntaxKind.FirstTemplateToken:
+      case SyntaxKind.NoSubstitutionTemplateLiteral:
       case SyntaxKind.TemplateExpression: {
         return constExpr("string");
       }
       case SyntaxKind.DeleteExpression: {
-        let n = node as ts.DeleteExpression;
         return new FuncCall(SpecialVars.DELETE, [rec(n.expression)]);
       }
       case SyntaxKind.YieldExpression: {
-        let n = node as ts.YieldExpression;
         return new FuncCall(SpecialVars.YIELD, [rec(mustExist(n.expression))]);
       }
       // type assertions are ignored
       case SyntaxKind.AsExpression:
       case SyntaxKind.TypeAssertionExpression: {
-        let n = node as ts.TypeAssertion;
         return rec(n.expression);
       }
 
@@ -534,7 +553,7 @@ export function parseExpr(node: ts.Node, checker: ts.TypeChecker,
       }
     }
 
-    function constExpr(typeName: string) {
+    function constExpr(typeName: string): Const {
       // let v = (<ts.LiteralLikeNode>node).text;
       return new Const("CONST", new TVar(typeName));
     }
@@ -551,7 +570,7 @@ export function parseExpr(node: ts.Node, checker: ts.TypeChecker,
   return rec(node);
 }
 
-export const notDefinedValue = new Const("undefined", anyType);
+export const undefinedValue = new Const("undefined", anyType);
 
 export class StmtParser {
   public nLambda: [number] = [0];
@@ -654,7 +673,7 @@ export class StmtParser {
           let isConst = (node.flags & ts.NodeFlags.Const) != 0;
 
           function parseBinding(x: ts.BindingElement | ts.VariableDeclaration, rhs?: GExpr): VarDef[] {
-            let initExpr = rhs ? rhs : (x.initializer ? EP.processExpr(x.initializer) : notDefinedValue);
+            let initExpr = rhs ? rhs : (x.initializer ? EP.processExpr(x.initializer) : undefinedValue);
             let lhs = x.name;
             switch (lhs.kind) {
               case SyntaxKind.Identifier:
@@ -1012,7 +1031,7 @@ export function parseFiles(sources: string[], libraryFiles: string[]): GModule[]
       } catch (e) {
         console.debug("Parsing failed for file: " + src.fileName);
         console.debug("Failure occurred at line: " + s.getText());
-        throw e
+        throw e;
       }
 
     });
