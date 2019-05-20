@@ -439,7 +439,7 @@ export function parseExpr(node: ts.Expression, checker: ts.TypeChecker,
 
     switch (n.kind) {
       case SyntaxKind.Identifier: {
-        let name = n.getText();
+        let name = n.text;
         return new Var(name);
       }
       case SyntaxKind.ThisKeyword:
@@ -1007,16 +1007,23 @@ export function forNode<T>(node: ts.Node, action: () => T): T {
   }
 }
 
+export function astPath(n: ts.Node): string[] {
+  const p = n.parent;
+  const path = p ? astPath(p): [];
+  path.unshift(SyntaxKind[n.kind]);
+  return path;
+}
+
 export function parseFiles(sources: string[], libraryFiles: string[]): GModule[] {
   let program = ts.createProgram(libraryFiles, {
-    target: ts.ScriptTarget.ES2018,
+    target: ts.ScriptTarget.ES2015,
     module: ts.ModuleKind.CommonJS
   });
   // program.getSemanticDiagnostics(null, null); //call this to store type info into nodes
 
   let checker = program.getTypeChecker();
 
-  let sFiles = sources.map(file => mustExist(program.getSourceFile(file),
+  let sFiles: ts.SourceFile[] = sources.map(file => mustExist(program.getSourceFile(file),
     "getSourceFile failed for: " + file));
   mustExist(sFiles);
 
@@ -1030,7 +1037,11 @@ export function parseFiles(sources: string[], libraryFiles: string[]): GModule[]
         r.forEach(s => stmts.push(s));
       } catch (e) {
         console.debug("Parsing failed for file: " + src.fileName);
-        console.debug("Failure occurred at line: " + s.getText());
+        let { line, _ } =
+          src.getLineAndCharacterOfPosition(s.getStart());
+        console.debug(`Failure occurred at line ${line+1}: ${s.getText()}`);
+        console.debug(`Parsing trace: ${astPath(s).join(" <- ")}`);
+
         throw e;
       }
 

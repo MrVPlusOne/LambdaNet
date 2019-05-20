@@ -199,16 +199,6 @@ class ParserTests extends WordSpec with MyTest {
       }
   }
 
-  "LibConst parsing tests" in {
-    val root = pwd / RelPath("data/tests/lib-const")
-    infer.PredicateGraphConstruction
-      .fromRootDirectory(root)
-      .predModules
-      .foreach { m =>
-        println(m.display())
-      }
-  }
-
   ".d.ts files parsing" in {
     TrainingProjects.parseStandardLibs.foreach(println)
   }

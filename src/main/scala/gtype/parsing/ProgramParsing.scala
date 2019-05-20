@@ -11,6 +11,40 @@ import scala.collection.mutable
 
 /** Parsing Typescript into the surface language */
 object ProgramParsing {
+  case class DeclarationModule(
+      varDefs: Map[Symbol, GType],
+      typeDefs: Map[Symbol, GType]
+  )
+
+  def extractDeclarationModule(module: GModule): DeclarationModule = {
+    val varDefs: mutable.Map[Symbol, GType] = mutable.HashMap()
+    val typeDefs: mutable.Map[Symbol, GType] = mutable.HashMap()
+
+    module.stmts.foreach {
+      case VarDef(x, t: GType, _: Const, _, ExportLevel.Private) =>
+        varDefs(x) = t
+      case f: FuncDef =>
+        varDefs(f.name) = GStmt.extractSignature(f)
+      case alias @ TypeAliasStmt(name, tyVars, ty, ExportLevel.Private) =>
+        val rhs = try {
+          IRTranslation.translateType(ty)(tyVars.toSet)
+        } catch {
+          case _: ClassCastException => throw new Error(s"Failed for $alias")
+        }
+
+        typeDefs(name) = typeDefs.get(name) match {
+          case Some(o1: ObjectType) =>
+            o1.merge(rhs.asInstanceOf[ObjectType])
+          case Some(_) => throw new Error("Contradicting type aliases")
+          case None    => rhs
+        }
+      case _: CommentStmt =>
+      case other =>
+        throw new Error(s"Illegal statement encountered in a declaration file: $other")
+    }
+
+    DeclarationModule(varDefs.toMap, typeDefs.toMap)
+  }
 
   def parseJson(text: String): Js.Val = {
     SimpleMath.withErrorMessage(s"JSON source text: $text") {
@@ -91,41 +125,6 @@ object ProgramParsing {
         ObjectType(fields)
     }
     t
-  }
-
-  case class DeclarationModule(
-      varDefs: Map[Symbol, GType],
-      typeDefs: Map[Symbol, GType]
-  )
-
-  def extractDeclarationModule(module: GModule): DeclarationModule = {
-    val varDefs: mutable.Map[Symbol, GType] = mutable.HashMap()
-    val typeDefs: mutable.Map[Symbol, GType] = mutable.HashMap()
-
-    module.stmts.foreach {
-      case VarDef(x, t: GType, _: Const, _, ExportLevel.Private) =>
-        varDefs(x) = t
-      case f: FuncDef =>
-        varDefs(f.name) = GStmt.extractSignature(f)
-      case alias @ TypeAliasStmt(name, tyVars, ty, ExportLevel.Private) =>
-        val rhs = try {
-          IRTranslation.translateType(ty)(tyVars.toSet)
-        } catch {
-          case _: ClassCastException => throw new Error(s"Failed for $alias")
-        }
-
-        typeDefs(name) = typeDefs.get(name) match {
-          case Some(o1: ObjectType) =>
-            o1.merge(rhs.asInstanceOf[ObjectType])
-          case Some(_) => throw new Error("Contradicting type aliases")
-          case None    => rhs
-        }
-      case _: CommentStmt =>
-      case other =>
-        throw new Error(s"Illegal statement encountered in a declaration file: $other")
-    }
-
-    DeclarationModule(varDefs.toMap, typeDefs.toMap)
   }
 }
 

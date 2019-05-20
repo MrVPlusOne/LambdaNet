@@ -36,6 +36,7 @@ import IR.{
 }
 import funcdiff.SimpleMath
 import gtype.ExportStmt.{ExportDefault, ExportOtherModule, ExportSingle}
+import gtype.parsing.ProgramParsing.DeclarationModule
 
 import scala.collection.mutable
 
@@ -58,6 +59,7 @@ object PredicateGraphConstruction {
     }
   }
 
+  /** Allocate IRTypes for library definitions */
   class LibraryContext(
       val transEnv: TranslationEnv,
       val libraryVars: mutable.HashMap[VarName, IRType] = mutable.HashMap(),
@@ -67,14 +69,13 @@ object PredicateGraphConstruction {
     def newLibVar(name: VarName, ty: Option[GType])(
         implicit tyVars: Set[Symbol]
     ): IRType = {
-      val n = LibraryContext.libIdForVar(name)
       val tv = transEnv.newTyVar(
         None,
         Some(name),
         ty.map(t => TypeAnnotation(t, needInfer = false)),
-        Some(n)
+        Some(name)
       )
-      libraryVars(n) = tv
+      libraryVars(name) = tv
       tv
     }
 
@@ -134,21 +135,6 @@ object PredicateGraphConstruction {
     Symbol(`package`.name + "." + name.name)
   }
 
-  object PredicateContext {
-
-    def jsCtx(libCtx: LibraryContext): PredicateContext = {
-      implicit val tyVars: Set[Symbol] = Set()
-
-      val typeMap = JSExamples.exprContext.varAssign.map {
-        case (s, t) =>
-          val irType = libCtx.newLibVar(s, Some(t))
-          namedVar(s) -> irType
-      }
-
-      PredicateContext(typeMap, Map(), Set())
-    }
-  }
-
   case class ParsedProject(
       projectName: String,
       libCtx: LibraryContext,
@@ -160,14 +146,26 @@ object PredicateGraphConstruction {
   def fromModules(
       projectName: String,
       modules: Seq[GModule],
-      libraryTypes: Set[GType],
+      libraryModules: Seq[DeclarationModule],
       pathMapping: PathMapping
   ): ParsedProject = {
     val env = new TranslationEnv()
     val libCtx = new LibraryContext(env)
     val irModules = modules.map(m => IRTranslation.translateModule(m)(env)).toVector
 
-    val ctx = PredicateContext.jsCtx(libCtx)
+    JSExamples.specialVars.foreach {
+      case (s, t) =>
+        libCtx.newLibVar(s, Some(t))(Set())
+    }
+
+    libraryModules.foreach { m =>
+      m.varDefs.foreach { case (s, t)  => libCtx.newLibVar(s, Some(t))(Set()) }
+      m.typeDefs.foreach { case (s, t) => libCtx.registerLibType(TyVar(s)) } //todo: use alias defs
+    }
+
+    val ctx = PredicateContext(libCtx.libraryVars.toMap.map {
+      case (s, t) => namedVar(s) -> t
+    }, Map(), Set())
 
     val pModules =
       new PredicateGraphConstruction(libCtx).encodeModules(irModules, ctx, pathMapping)
@@ -177,12 +175,10 @@ object PredicateGraphConstruction {
 
   def fromRootDirectory(
       root: Path,
+      libModules: Seq[DeclarationModule] = TrainingProjects.standardLibs,
       libraryFiles: Set[ProjectPath] = Set(),
-      libraryTypes: Set[GType] = JSExamples.libraryTypes.map(TyVar),
-      excludeIndexFile: Boolean = false,
       pathMapping: PathMapping = PathMapping.identity
   ): ParsedProject = {
-    val indexFileNames = Set("index.ts", "public_api.ts")
 
     val sources = ls
       .rec(root)
@@ -192,7 +188,6 @@ object PredicateGraphConstruction {
         }
         f.ext == "ts"
       }
-      .filterNot(f => excludeIndexFile && indexFileNames.contains(f.last))
       .map(_.relativeTo(root))
     val parser = new ProgramParsing()
     val modules = parser.parseModulesFromFiles(
@@ -201,7 +196,7 @@ object PredicateGraphConstruction {
       root
     )
 
-    fromModules(root.toString(), modules, libraryTypes, pathMapping)
+    fromModules(root.toString(), modules, libModules, pathMapping)
   }
 
   def resolveImports(
@@ -540,12 +535,23 @@ class PredicateGraphConstruction(val libraryContext: LibraryContext) {
             val innerCtx = collectDefinitions(block.stmts)
             //          println(s"Inner context: $innerCtx")
             block.stmts.foreach(s => encodeStmt(s)(innerCtx))
-          case FuncDef(_, args, newReturnType, body, funcT, _) =>
+          case FuncDef(name, args, newReturnType, body, funcT, _) =>
+            val isConstructor = GStmt.isConstructor(name)
             args.foreach(p => recordLabel(p._2))
-            recordLabel(newReturnType)
+            if (isConstructor)
+              recordLabel(newReturnType)
 
             val ctx1 = ctx.copy(
-              varTypeMap = (ctx.varTypeMap ++ args) + (returnVar -> newReturnType)
+              varTypeMap = {
+                val map1 = (ctx.varTypeMap ++ args) + (returnVar -> newReturnType)
+                // special rule for constructors: 'this' has its return type
+                if (isConstructor)
+                  map1 ++ Seq(
+                    ClassDef.thisVar -> newReturnType,
+                    ClassDef.superVar -> newReturnType
+                  )
+                else map1
+              }
             )
             add(DefineRel(funcT, FuncTypeExpr(args.map(_._2), newReturnType)))
             encodeStmt(body)(ctx1)

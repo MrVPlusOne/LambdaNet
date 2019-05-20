@@ -52,6 +52,30 @@ object JSExamples {
     name -> obj(Symbol(name.name + "_UNIQUE") -> name)
   }
 
+  val specialVars = Map[Symbol, GType](
+    'undefined -> any,
+    '$TypeOf -> (List(any) -: string),
+    '$Spread -> (List(anyArray) -: any),
+    '$Case -> (List(number) -: void),
+    '$Switch -> (List(number) -: void),
+    '$Delete -> (List(any) -: void),
+    '$ArrayAccess -> (List(anyArray) -: any),
+    '$Yield -> (List(any) -: generator),
+    // operators
+    'MinusToken -> (List(number) -: number),
+    'PlusToken -> (List(number) -: number),
+    'PlusPlusToken -> (List(number) -: number),
+    'MinusMinusToken -> (List(number) -: number),
+    'POST_PlusPlusToken -> (List(number) -: number),
+    'POST_MinusMinusToken -> (List(number) -: number),
+    'TildeToken -> (List(number) -: number),
+    'ExclamationToken -> (List(any) -: boolean),
+    'OP_Not -> (List(any) -: boolean),
+    'OP_And -> (List(any, any) -: boolean),
+    GStmt.thisSymbol -> any
+  )
+
+  @deprecated
   val exprContext: ExprContext = {
     var typeUnfold = Map(
       baseType(function), //fixme: not an object
@@ -78,36 +102,18 @@ object JSExamples {
     var varAssign = Map[Symbol, GType](
       THIS -> any,
       'eq -> (List(any, any) -: boolean),
-      'OP_Not -> (List(any) -: boolean),
-      'ExclamationToken -> (List(any) -: boolean),
-      'OP_And -> (List(any, any) -: boolean),
       'toBool -> (List(any) -: boolean),
       'emptyArray -> anyArray,
       'Math -> obj(
         'floor -> (List(number) -: number),
         'abs -> (List(number) -: number)
       ),
-      'MinusToken -> (List(number) -: number),
-      'PlusToken -> (List(number) -: number),
-      'PlusPlusToken -> (List(number) -: number),
-      'MinusMinusToken -> (List(number) -: number),
-      'POST_PlusPlusToken -> (List(number) -: number),
-      'POST_MinusMinusToken -> (List(number) -: number),
-      'TildeToken -> (List(number) -: number),
       'isFinite -> (List(number) -: boolean),
       'Infinity -> number,
       'parseInt -> (List(string, number) -: number),
       'isNaN -> (List(number) -: boolean),
-      'parseFloat -> (List(string) -: number),
-      // special vars
-      '$TypeOf -> (List(any) -: string),
-      '$Spread -> (List(anyArray) -: any),
-      '$Case -> (List(number) -: void),
-      '$Switch -> (List(number) -: void),
-      '$Delete -> (List(any) -: void),
-      '$ArrayAccess -> (List(anyArray) -: any),
-      '$Yield -> (List(any) -: generator)
-    )
+      'parseFloat -> (List(string) -: number)
+    ) ++ specialVars
 
     def addType(name: Symbol): Unit = {
       typeUnfold += baseType(name)
@@ -154,8 +160,10 @@ object JSExamples {
     ExprContext(varAssign, typeContext)
   }
 
+  @deprecated
   val typeContext: TypeContext = exprContext.typeContext
 
+  @deprecated
   val libraryTypes: Set[Symbol] = typeContext.typeUnfold.keySet
 
   def treatAsAny(name: String): (Symbol, AnyType.type) = {
@@ -163,6 +171,7 @@ object JSExamples {
   }
 
   // @formatter:on
+  @deprecated
   val realWorldExamples = {
     val binaryTreeNodeObj = obj(
       'leftHeight -> number,

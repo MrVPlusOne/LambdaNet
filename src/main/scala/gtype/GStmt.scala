@@ -2,6 +2,7 @@ package gtype
 
 import scala.language.implicitConversions
 import GType.API._
+import funcdiff.DebugTime
 import gtype.GExpr.GExprAPI
 import funcdiff.SimpleMath.Extensions._
 import infer.IRTranslation
@@ -372,7 +373,9 @@ object GStmt {
 
   val constructorName: Symbol = 'CONSTRUCTOR
 
-  def isConstructor(name: Symbol) = name.name.endsWith("-NEW")
+  def isConstructor(name: Symbol): Boolean = {
+    name.name.endsWith(constructorName.name)
+  }
 
   val thisSymbol = 'this
   val superSymbol = 'super
