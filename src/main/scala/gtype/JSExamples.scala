@@ -44,10 +44,6 @@ object JSExamples {
     def unary_! : GExpr = 'OP_Not.call(expr)
   }
 
-  val THIS: Symbol = GStmt.thisSymbol
-
-  val SUPER: Symbol = GStmt.superSymbol
-
   def baseType(name: Symbol): (Symbol, CompoundType) = {
     name -> obj(Symbol(name.name + "_UNIQUE") -> name)
   }
@@ -70,8 +66,6 @@ object JSExamples {
     'POST_MinusMinusToken -> (List(number) -: number),
     'TildeToken -> (List(number) -: number),
     'ExclamationToken -> (List(any) -: boolean),
-    'OP_Not -> (List(any) -: boolean),
-    'OP_And -> (List(any, any) -: boolean),
     GStmt.thisSymbol -> any
   )
 
@@ -100,7 +94,7 @@ object JSExamples {
     )
 
     var varAssign = Map[Symbol, GType](
-      THIS -> any,
+      GStmt.thisSymbol -> any,
       'eq -> (List(any, any) -: boolean),
       'toBool -> (List(any) -: boolean),
       'emptyArray -> anyArray,

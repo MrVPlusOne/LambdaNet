@@ -134,8 +134,6 @@ class ProgramParsing(
     val tHoleContext: TypeHoleContext = new TypeHoleContext()
 ) {
 
-  val marksToHoles: Boolean = false
-
   def parseContent(content: String): Vector[GStmt] = {
     SimpleMath.withErrorMessage(
       "failed when parsing content: \n" + content
@@ -148,6 +146,11 @@ class ProgramParsing(
     }
   }
 
+  /**
+    * only srcFiles get parsed into [[GModule]]s, libraryFiles are simply provided to
+    * the compiler for parsing purposes. Both kinds of paths are relative to the project
+    * root.
+    */
   def parseModulesFromFiles(
       srcFiles: Seq[RelPath],
       libraryFiles: Set[RelPath],
@@ -168,6 +171,8 @@ class ProgramParsing(
     parseModulesFromJson(parsedJson)
   }
 
+  /** Parses a sequence of [[GModule]] from Json string. These strings can be
+    * generated through [[parseModulesFromFiles]] when writeToFile is set to none-empty. */
   def parseModulesFromJson(parsedJson: String): Seq[GModule] = {
     val modules = ProgramParsing.parseJson(parsedJson).asInstanceOf[Js.Arr]
     modules.value.map(parseGModule)
@@ -187,11 +192,7 @@ class ProgramParsing(
   def parseGTMark(v: Js.Val): GTMark = {
     v match {
       case Null => tHoleContext.newTHole(None)
-      case _ =>
-        val ty = parseType(v)
-        if (marksToHoles)
-          tHoleContext.newTHole(Some(TypeAnnotation(ty, needInfer = true)))
-        else ty
+      case _    => parseType(v)
     }
   }
 

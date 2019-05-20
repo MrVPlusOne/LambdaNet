@@ -1037,7 +1037,7 @@ export function parseFiles(sources: string[], libraryFiles: string[]): GModule[]
         r.forEach(s => stmts.push(s));
       } catch (e) {
         console.debug("Parsing failed for file: " + src.fileName);
-        let { line, _ } =
+        let { line } =
           src.getLineAndCharacterOfPosition(s.getStart());
         console.debug(`Failure occurred at line ${line+1}: ${s.getText()}`);
         console.debug(`Parsing trace: ${astPath(s).join(" <- ")}`);

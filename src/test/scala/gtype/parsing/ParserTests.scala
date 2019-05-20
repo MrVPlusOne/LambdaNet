@@ -4,10 +4,8 @@ import gtype._
 import org.scalatest.WordSpec
 import ammonite.ops._
 import infer.IRTranslation.{TranslationEnv, translateStmt}
-import infer.{IRTranslation, PredicateGraphConstruction, TrainingProjects}
+import infer.{IRTranslation, TrainingProjects}
 import ImportStmt._
-import gtype.GModule.ProjectPath
-import infer.PredicateGraphConstruction.PathMapping
 
 class ParserTests extends WordSpec with MyTest {
   def testParsing(printResult: Boolean)(pairs: (String, Class[_])*): Unit = {

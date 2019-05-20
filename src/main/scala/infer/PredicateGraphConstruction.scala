@@ -5,18 +5,7 @@ import gtype.GModule.ProjectPath
 import gtype.parsing.ProgramParsing
 import gtype.GStmt.{TypeAnnotation, TypeHoleContext}
 import gtype.ImportStmt._
-import gtype.{
-  AnyType,
-  ExportStmt,
-  FuncType,
-  GModule,
-  GStmt,
-  GTHole,
-  GType,
-  JSExamples,
-  ObjectType,
-  TyVar
-}
+import gtype.{AnyType, FuncType, GModule, GStmt, GType, JSExamples, ObjectType, TyVar}
 import infer.IRTranslation.TranslationEnv
 import infer.PredicateGraph._
 import PredicateGraphConstruction._
@@ -25,9 +14,7 @@ import IR.{
   ExportCategory,
   Exported,
   IRModule,
-  IRStmt,
   IRType,
-  IRTypeId,
   ModuleExports,
   TypeName,
   Var,
@@ -59,7 +46,8 @@ object PredicateGraphConstruction {
     }
   }
 
-  /** Allocate IRTypes for library definitions */
+  /** Allocate IRTypes for library definitions, useful for generating embeddings
+    * for library definitions. */
   class LibraryContext(
       val transEnv: TranslationEnv,
       val libraryVars: mutable.HashMap[VarName, IRType] = mutable.HashMap(),
@@ -73,7 +61,7 @@ object PredicateGraphConstruction {
         None,
         Some(name),
         ty.map(t => TypeAnnotation(t, needInfer = false)),
-        Some(name)
+        Some(LibraryContext.libIdForVar(name))
       )
       libraryVars(name) = tv
       tv
@@ -158,6 +146,7 @@ object PredicateGraphConstruction {
         libCtx.newLibVar(s, Some(t))(Set())
     }
 
+    //fixme: make this on-demand
     libraryModules.foreach { m =>
       m.varDefs.foreach { case (s, t)  => libCtx.newLibVar(s, Some(t))(Set()) }
       m.typeDefs.foreach { case (s, t) => libCtx.registerLibType(TyVar(s)) } //todo: use alias defs
@@ -184,7 +173,10 @@ object PredicateGraphConstruction {
       .rec(root)
       .filter { f =>
         if (f.last.endsWith(".d.ts")) {
-          throw new Error(s".d.ts file encountered: $f")
+          throw new Error(
+            s".d.ts file encountered: $f, you are probably " +
+              s"parsing the wrong files."
+          )
         }
         f.ext == "ts"
       }
@@ -199,7 +191,7 @@ object PredicateGraphConstruction {
     fromModules(root.toString(), modules, libModules, pathMapping)
   }
 
-  def resolveImports(
+  private def resolveImports(
       module: IRModule,
       baseCtx: PredicateContext,
       allModules: Map[ProjectPath, IRModule],
@@ -285,7 +277,7 @@ object PredicateGraphConstruction {
   }
 }
 
-class PredicateGraphConstruction(val libraryContext: LibraryContext) {
+private class PredicateGraphConstruction(val libraryContext: LibraryContext) {
 
   def encodeModules(
       modules: Seq[IRModule],
@@ -505,6 +497,7 @@ class PredicateGraphConstruction(val libraryContext: LibraryContext) {
               case ObjLiteral(fields) =>
                 add(DefineRel(tv, ObjLiteralTypeExpr(fields.mapValuesNow(varTypeMap))))
               case FieldAccess(receiver, label) =>
+                //fixme: properly handle namespaces
                 if (receiver.nameOpt.exists(n => packageNames.contains(n))) {
                   add(
                     equalityRel(
