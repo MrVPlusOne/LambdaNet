@@ -11,8 +11,6 @@ import funcdiff._
 import gtype.EventLogger.PlotConfig
 import gtype._
 import infer.GraphEmbedding._
-import infer.IRTranslation.TranslationEnv
-
 import scala.collection.mutable
 import scala.collection.parallel.ForkJoinTaskSupport
 import ammonite.ops._
@@ -259,13 +257,12 @@ object TrainingCenter {
     println("libraryFields: " + libraryFields)
 
     val libraryTypes = {
-      val totalFreq = mutable.HashMap[GType, Int]()
-      trainingProjects.foreach { p =>
-        p.libCtx.libraryTypeFreq.foreach {
-          case (t, f) =>
-            totalFreq(t) = totalFreq.getOrElse(t, 0) + f
-        }
-      }
+      import cats.Monoid
+      import cats.implicits._
+
+      val totalFreq = trainingProjects
+        .map(_.libUsages.libTypeFreq)
+        .reduce(Monoid[Map[GType, Int]].combine)
       val all = totalFreq.toVector.sortBy(_._2).reverse
       println("Total number of lib types: " + all.length)
       val freqs = all.map(_._2)
@@ -280,7 +277,8 @@ object TrainingCenter {
       taken
     }
 
-    val libraryVars = trainingProjects.flatMap(p => p.libCtx.libraryVars.keySet).toVector
+    val libraryVars =
+      trainingProjects.flatMap(p => p.libUsages.libVars.keySet).toVector
 
     val trainBuilders = trainingProjects.map { p =>
       GraphNetBuilder(

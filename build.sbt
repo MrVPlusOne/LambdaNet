@@ -6,6 +6,7 @@ organization in ThisBuild := "mrvplusone.github.io"
 scalaVersion in ThisBuild := "2.12.7"
 
 scalacOptions += "-Ypartial-unification" // for using cats
+scalacOptions += "-language:higherKinds"
 
 libraryDependencies ++= Seq(
   "com.lihaoyi" %% "fastparse" % "2.0.4",

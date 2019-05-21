@@ -46,14 +46,26 @@ object PredicateGraphConstruction {
     }
   }
 
+  case class LibraryUsageStats(
+      libVars: Map[VarName, IRType],
+      libTypes: Map[GType, IRType],
+      libTypeFreq: Map[GType, Int]
+  )
+
   /** Allocate IRTypes for library definitions, useful for generating embeddings
     * for library definitions. */
-  class LibraryContext(
+  private class LibraryContext(
       val transEnv: TranslationEnv,
-      val libraryVars: mutable.HashMap[VarName, IRType] = mutable.HashMap(),
-      val libraryTypeFreq: mutable.HashMap[GType, Int] = mutable.HashMap(),
-      val libraryTypes: mutable.HashMap[GType, IRType] = mutable.HashMap()
+      libraryVars: mutable.HashMap[VarName, IRType] = mutable.HashMap(),
+      libraryTypeFreq: mutable.HashMap[GType, Int] = mutable.HashMap(),
+      libraryTypes: mutable.HashMap[GType, IRType] = mutable.HashMap()
   ) {
+    def usageStats: LibraryUsageStats = LibraryUsageStats(
+      libraryVars.toMap,
+      libraryTypes.toMap,
+      libraryTypeFreq.toMap
+    )
+
     def newLibVar(name: VarName, ty: Option[GType])(
         implicit tyVars: Set[Symbol]
     ): IRType = {
@@ -125,13 +137,12 @@ object PredicateGraphConstruction {
 
   case class ParsedProject(
       projectName: String,
-      libCtx: LibraryContext,
+      allNodes: Vector[IRType],
+      libUsages: LibraryUsageStats,
       irModules: Vector[IRModule],
       predModules: Vector[PredicateModule],
       predCtx: PredicateContext
-  ) {
-    lazy val allNodes: Vector[IRType] = libCtx.transEnv.irTypes.toVector
-  }
+  )
 
   def fromModules(
       projectName: String,
@@ -154,14 +165,23 @@ object PredicateGraphConstruction {
       m.typeDefs.foreach { case (s, t) => libCtx.registerLibType(TyVar(s)) } //todo: use alias defs
     }
 
-    val ctx = PredicateContext(libCtx.libraryVars.toMap.map {
+    val libUsages = libCtx.usageStats
+
+    val ctx = PredicateContext(libUsages.libVars.map {
       case (s, t) => namedVar(s) -> t
     }, Map(), Set())
 
     val pModules =
       new PredicateGraphConstruction(libCtx).encodeModules(irModules, ctx, pathMapping)
 
-    ParsedProject(projectName, libCtx, irModules, pModules, ctx)
+    ParsedProject(
+      projectName,
+      libCtx.transEnv.irTypes.toVector,
+      libUsages,
+      irModules,
+      pModules,
+      ctx
+    )
   }
 
   def fromRootDirectory(
@@ -279,7 +299,7 @@ object PredicateGraphConstruction {
   }
 }
 
-private class PredicateGraphConstruction(val libraryContext: LibraryContext) {
+private class PredicateGraphConstruction(libraryContext: LibraryContext) {
 
   def encodeModules(
       modules: Seq[IRModule],
