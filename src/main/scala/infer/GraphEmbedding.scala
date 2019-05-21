@@ -5,11 +5,10 @@ import botkop.numsca.Tensor
 import funcdiff._
 import funcdiff.SimpleMath.Extensions._
 import gtype.{AnyType, GType, TyVar}
-import infer.IR.{IRType, IRTypeId}
+import infer.IR.{IRType}
 import infer.PredicateGraph._
-
-import scala.collection.mutable
-import scala.collection.parallel.ForkJoinTaskSupport
+import scala.collection.{GenSeq, mutable}
+import scala.collection.parallel.{ForkJoinTaskSupport, ParSeq}
 import GraphEmbedding._
 
 object GraphEmbedding {
@@ -17,15 +16,13 @@ object GraphEmbedding {
   val unknownTypeSymbol = 'UNKNOWN
 
   case class EmbeddingCtx(
-      idTypeMap: Map[IRTypeId, IRType],
       libraryTypeMap: Symbol => CompNode,
-      predicates: Seq[TyVarPredicate],
       labelMap: Symbol => CompNode,
       fieldKnowledge: Map[Symbol, (CompNode, CompNode)],
       varKnowledge: Map[Symbol, CompNode]
   )
 
-  case class Embedding(nodeMap: Map[IR.IRTypeId, CompNode], stat: EmbeddingStat)
+  case class Embedding(nodeMap: Map[IRType, CompNode], stat: EmbeddingStat)
 
   case class EmbeddingStat(trueEmbeddingLengths: IS[Double])
 
@@ -40,14 +37,14 @@ object GraphEmbedding {
 
     private val projectTypeIndexMap = {
       val base = libraryTypeIndexMap.size
-      projectTypes.zipWithIndex.map { case (t, idx) => t.id -> (idx + base) }.toMap
+      projectTypes.zipWithIndex.map { case (t, idx) => t -> (idx + base) }.toMap
     }
     val outOfScopeIdx: Int = libraryTypeIndexMap.size + projectTypeIndexMap.size
     val maxIndex: Int = outOfScopeIdx + 1
 
     def indexOfType(t: TypeLabel): Int = t match {
       case LibraryType(ty) => libraryTypeIndexMap.getOrElse(ty, outOfScopeIdx)
-      case ProjectType(ty) => projectTypeIndexMap(ty.id)
+      case ProjectType(ty) => projectTypeIndexMap(ty)
       case OutOfScope      => outOfScopeIdx
     }
 
@@ -63,6 +60,7 @@ object GraphEmbedding {
 import API._
 
 case class GraphEmbedding(
+    graph: PredicateGraph,
     ctx: EmbeddingCtx,
     layerFactory: LayerFactory,
     dimMessage: Int,
@@ -85,11 +83,11 @@ case class GraphEmbedding(
   def encodeAndDecode(
       iterations: Int,
       decodingCtx: DecodingCtx,
-      placesToDecode: IS[IRTypeId]
+      placesToDecode: IS[IRType]
   ): (CompNode, IS[Embedding]) = {
     val embeddings = DebugTime.logTime('iterTime) {
-      val stat = EmbeddingStat(idTypeMap.mapValuesNow(_ => 1.0).values.toVector)
-      val init = Embedding(idTypeMap.mapValuesNow(_ => nodeInitVec), stat)
+      val stat = EmbeddingStat(graph.nodes.map(_ => 1.0))
+      val init = Embedding(graph.nodes.map(n => n -> nodeInitVec).toMap, stat)
       IS.iterate(init, iterations + 1)(iterate)
     }
 
@@ -164,12 +162,12 @@ case class GraphEmbedding(
     TrainingCenter.note("iterate")
 
     val _messages =
-      ctx.idTypeMap.keys
-        .map(id => id -> mutable.ListBuffer[Message]())
+      graph.nodes
+        .map(n => n -> mutable.ListBuffer[Message]())
         .toMap
 
-    def messages(id: IRTypeId): MessageChannel =
-      MessageChannel(ctx.idTypeMap(id), _messages(id))
+    def messages(node: IRType): MessageChannel =
+      MessageChannel(node, _messages(node))
 
     case class MessageChannel(node: IRType, receiver: mutable.ListBuffer[Message]) {
       def +=(msg: Message): Unit = receiver.synchronized {
@@ -180,7 +178,7 @@ case class GraphEmbedding(
     type ObjType = IRType
     val fieldDefs = mutable.HashMap[Symbol, IS[(ObjType, IRType)]]()
     val fieldUsages = mutable.HashMap[Symbol, IS[(ObjType, IRType)]]()
-    ctx.predicates.collect {
+    graph.predicates.collect {
       case DefineRel(v, ObjLiteralTypeExpr(fields)) =>
         fields.foreach {
           case (l, t) =>
@@ -193,78 +191,78 @@ case class GraphEmbedding(
     /* for each kind of predicate, generate one or more messages */
     def sendPredicateMessages(predicate: TyVarPredicate): Unit = predicate match {
       case FreezeType(v, ty) =>
-        messages(v.id) += messageModel('FreezeType, encodeGType(ty))
+        messages(v) += messageModel('FreezeType, encodeGType(ty))
       case IsLibraryType(v, name) =>
         val knowledge = varKnowledge.getOrElse(name, KnowledgeMissing)
-        messages(v.id) += messageModel('IsLibrary, knowledge)
+        messages(v) += messageModel('IsLibrary, knowledge)
       case HasName(v, name) =>
-//        messages(v.id) += messageModel('HasName, labelMap(name)) //todo: properly handle name info
+//        messages(v) += messageModel('HasName, labelMap(name)) //todo: properly handle name info
       case SubtypeRel(sub, sup) =>
-        messages(sub.id) += binaryMessage(
+        messages(sub) += binaryMessage(
           'SubtypeRel_sub,
-          nodeMap(sub.id),
-          nodeMap(sup.id)
+          nodeMap(sub),
+          nodeMap(sup)
         )
-        messages(sup.id) += binaryMessage(
+        messages(sup) += binaryMessage(
           'SubtypeRel_sup,
-          nodeMap(sub.id),
-          nodeMap(sup.id)
+          nodeMap(sub),
+          nodeMap(sup)
         )
       case AssignRel(lhs, rhs) =>
-        messages(lhs.id) += binaryMessage(
+        messages(lhs) += binaryMessage(
           'AssignRel_lhs,
-          nodeMap(lhs.id),
-          nodeMap(rhs.id)
+          nodeMap(lhs),
+          nodeMap(rhs)
         )
-        messages(rhs.id) += binaryMessage(
+        messages(rhs) += binaryMessage(
           'AssignRel_rhs,
-          nodeMap(lhs.id),
-          nodeMap(rhs.id)
+          nodeMap(lhs),
+          nodeMap(rhs)
         )
       case UsedAsBoolean(tyVar) =>
-        messages(tyVar.id) += messageModel('UsedAsBoolean, nodeMap(tyVar.id))
+        messages(tyVar) += messageModel('UsedAsBoolean, nodeMap(tyVar))
       case InheritanceRel(child, parent) =>
-        messages(child.id) += binaryMessage(
+        messages(child) += binaryMessage(
           'DeclaredAsSubtype,
-          nodeMap(child.id),
-          nodeMap(parent.id)
+          nodeMap(child),
+          nodeMap(parent)
         )
-        messages(parent.id) += binaryMessage(
+        messages(parent) += binaryMessage(
           'DeclaredAsSupertype,
-          nodeMap(child.id),
-          nodeMap(parent.id)
+          nodeMap(child),
+          nodeMap(parent)
         )
       case DefineRel(v, expr) =>
         expr match {
           case VarTypeExpr(rhs) =>
-            messages(v.id) += binaryMessage(
+            messages(v) += binaryMessage(
               'DefineVar_lhs,
-              nodeMap(v.id),
-              nodeMap(rhs.id)
+              nodeMap(v),
+              nodeMap(rhs)
             )
-            messages(rhs.id) += binaryMessage(
+            messages(rhs) += binaryMessage(
               'DefineVar_rhs,
-              nodeMap(v.id),
-              nodeMap(rhs.id)
+              nodeMap(v),
+              nodeMap(rhs)
             )
           case FuncTypeExpr(argTypes, returnType) =>
-            val ids = (returnType +: argTypes.toIndexedSeq).map(_.id)
+            val ids = returnType +: argTypes.toIndexedSeq
             ids.zipWithIndex.foreach {
               case (tId, i) =>
                 val argId = i - 1
-                messages(v.id) += argAccessMessage(
+                messages(v) += argAccessMessage(
                   'FuncTypeExpr_toF,
                   nodeMap(tId),
                   argId
                 )
                 messages(tId) += argAccessMessage(
                   'FuncTypeExpr_toArg,
-                  nodeMap(v.id),
+                  nodeMap(v),
                   argId
                 )
             }
           case CallTypeExpr(f, args) =>
-            val fVec = nodeMap(f.id)
+            val fVec = nodeMap(f)
             val fKey = singleLayer('CallTypeExpr / 'fKey, fVec)
             val fPair = messageModel('CallTypeExpr / 'fPair, fVec)
 
@@ -272,7 +270,7 @@ case class GraphEmbedding(
               case (argT, argId) =>
                 argAccessMessage(
                   'CallTypeExpr / 'embedArg,
-                  nodeMap(argT.id),
+                  nodeMap(argT),
                   argId
                 )
             }
@@ -281,10 +279,10 @@ case class GraphEmbedding(
               fKey,
               fPair +: argPairs
             )
-            messages(v.id) += messageModel('CallTypeExpr / 'toV, fEmbed)
+            messages(v) += messageModel('CallTypeExpr / 'toV, fEmbed)
             args.zipWithIndex.foreach {
               case (arg, argId) =>
-                messages(arg.id) += argAccessMessage(
+                messages(arg) += argAccessMessage(
                   'CallTypeExpr / 'toArg,
                   fEmbed,
                   argId
@@ -293,26 +291,26 @@ case class GraphEmbedding(
           case ObjLiteralTypeExpr(fields) =>
             fields.foreach {
               case (label, tv) =>
-                messages(v.id) += fieldAccessMessage(
+                messages(v) += fieldAccessMessage(
                   'ObjLiteralTypeExpr / 'toV,
-                  nodeMap(tv.id),
+                  nodeMap(tv),
                   label
                 )
-                messages(tv.id) += fieldAccessMessage(
+                messages(tv) += fieldAccessMessage(
                   'ObjLiteralTypeExpr / 'toField,
-                  nodeMap(v.id),
+                  nodeMap(v),
                   label
                 )
                 if (fieldUsages.contains(label)) {
-                  messages(tv.id) += {
+                  messages(tv) += {
                     val att =
                       attentionLayer(
                         'ObjLiteralTypeExpr / 'fieldUsage,
                         transformKey = true
                       )(
-                        nodeMap(v.id),
+                        nodeMap(v),
                         fieldUsages(label).map {
-                          case (k, n) => nodeMap(k.id) -> nodeMap(n.id)
+                          case (k, n) => nodeMap(k) -> nodeMap(n)
                         }
                       )
                     messageModel('ObjLiteralTypeExpr / 'usageMessage, att)
@@ -320,23 +318,23 @@ case class GraphEmbedding(
                 }
             }
           case FieldAccessTypeExpr(objType, label) =>
-            messages(v.id) += fieldAccessMessage(
+            messages(v) += fieldAccessMessage(
               'FieldAccess / 'toV,
-              nodeMap(objType.id),
+              nodeMap(objType),
               label
             )
-            messages(objType.id) += fieldAccessMessage(
+            messages(objType) += fieldAccessMessage(
               'FieldAccess / 'toObj,
-              nodeMap(v.id),
+              nodeMap(v),
               label
             )
             if (fieldDefs.contains(label)) {
-              messages(v.id) += {
+              messages(v) += {
                 val att =
                   attentionLayer('FieldAccess / 'defs, transformKey = true)(
-                    nodeMap(objType.id),
+                    nodeMap(objType),
                     fieldDefs(label)
-                      .map { case (k, n) => nodeMap(k.id) -> nodeMap(n.id) } ++
+                      .map { case (k, n) => nodeMap(k) -> nodeMap(n) } ++
                       fieldKnowledge.get(label).toIndexedSeq
                   )
                 messageModel('FieldAccess / 'defsMessage, att)
@@ -346,17 +344,17 @@ case class GraphEmbedding(
     }
 
     TrainingCenter.note("iterate/Before sending messages")
-    par(ctx.predicates).foreach(sendPredicateMessages)
+    par(graph.predicates).foreach(sendPredicateMessages)
     TrainingCenter.note("iterate/After sending messages")
 
     val outLengths = mutable.ListBuffer[Double]()
     val newNodeMap = par(_messages.keys.toSeq)
-      .map { id =>
-        val node = nodeMap(id)
+      .map { t =>
+        val node = nodeMap(t)
 //        val nodePair = messageModel('MessageAggregate / 'nodeMessage, nodeMap(id))
         val out = attentionLayer('MessageAggregate, transformKey = true)(
           node,
-          _messages(id).toIndexedSeq :+ (node, node)
+          _messages(t).toIndexedSeq :+ (node, node)
         )
         val outLen = sqrt(sum(square(out)))
         outLengths.synchronized {
@@ -364,7 +362,7 @@ case class GraphEmbedding(
         }
         val newEmbed = out / outLen
 //      val newEmbed = gru('MessageAggregate / 'updateGru)(nodeVec, change)
-        id -> newEmbed
+        t -> newEmbed
       }
       .seq
       .toMap
@@ -378,7 +376,7 @@ case class GraphEmbedding(
     */
   def decode(
       decodingCtx: DecodingCtx,
-      placesToDecode: IS[IRTypeId],
+      placesToDecode: IS[IRType],
       embedding: Embedding
   ): CompNode = {
     require(placesToDecode.nonEmpty)
@@ -410,7 +408,7 @@ case class GraphEmbedding(
         val c =
           mlp(concretes, "decode:concreteType", 2)
         val p =
-          mlp(decodingCtx.projectTypes.map(t => nodeMap(t.id)), "decode:projectType", 2)
+          mlp(decodingCtx.projectTypes.map(t => nodeMap(t)), "decode:projectType", 2)
         val unknownTypeVector = getVar(Symbol(s"unknownTypeVec$head")) {
           numsca.randn(1, c.shape(1)) * 0.01
         }
@@ -467,7 +465,7 @@ case class GraphEmbedding(
       }
     )
 
-  def par[T](xs: Seq[T]) = {
+  def par[T](xs: Seq[T]): GenSeq[T] = {
     taskSupport match {
       case None => xs
       case Some(ts) =>

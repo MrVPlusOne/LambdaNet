@@ -16,7 +16,7 @@ import infer.IRTranslation.TranslationEnv
 import scala.collection.mutable
 import scala.collection.parallel.ForkJoinTaskSupport
 import ammonite.ops._
-import infer.IR.{IRTypeId}
+import infer.IR.IRType
 import infer.PredicateGraph.{
   LibraryType,
   OutOfScope,
@@ -24,7 +24,7 @@ import infer.PredicateGraph.{
   ProjectType,
   TypeLabel
 }
-import infer.PredicateGraphConstruction.{ParsedProject}
+import infer.PredicateGraphConstruction.ParsedProject
 
 import scala.concurrent.{Await, ExecutionContextExecutorService, Future}
 import scala.util.Random
@@ -148,7 +148,7 @@ object TrainingCenter {
   case class GraphNetBuilder(
       graphName: String,
       predModules: IS[PredicateModule],
-      transEnv: TranslationEnv,
+      allNodes: Vector[IRType],
       libraryVars: Vector[Symbol],
       libraryFields: Vector[Symbol],
       libraryTypes: Vector[GType],
@@ -158,8 +158,8 @@ object TrainingCenter {
 
     val typeLabels = predModules.flatMap(m => m.typeLabels)
 
-    val predicates = predModules.flatMap(m => m.predicates) ++ PredicateGraphConstruction
-      .encodeUnaryPredicates(transEnv.idTypeMap.values)
+    val predicates = predModules.flatMap(m => m.predicates) ++
+      PredicateGraphConstruction.encodeUnaryPredicates(allNodes)
     val newTypes = predModules.flatMap(m => m.newTypes.keys).toSet
 
     def predicateCategoryNumbers: Map[Symbol, Int] = {
@@ -170,6 +170,8 @@ object TrainingCenter {
       Vector(TyVar(unknownTypeSymbol)) ++ libraryTypes,
       newTypes.toVector
     )
+
+    val graph = PredicateGraph(allNodes, predicates)
 
     import factory._
 
@@ -208,9 +210,7 @@ object TrainingCenter {
       }
 
       val embedCtx = EmbeddingCtx(
-        transEnv.idTypeMap.toMap,
         extendedTypeMap,
-        predicates,
         labelEncoding,
         fieldKnowledge,
         varKnowledge
@@ -218,7 +218,7 @@ object TrainingCenter {
 
       Await.result(
         Future(
-          GraphEmbedding(embedCtx, factory, dimMessage, Some(taskSupport))
+          GraphEmbedding(graph, embedCtx, factory, dimMessage, Some(taskSupport))
             .encodeAndDecode(
               iterations = iterationNum,
               decodingCtx,
@@ -286,7 +286,7 @@ object TrainingCenter {
       GraphNetBuilder(
         p.projectName,
         p.predModules,
-        p.libCtx.transEnv,
+        p.allNodes,
         libraryVars,
         libraryFields,
         libraryTypes,
@@ -299,7 +299,7 @@ object TrainingCenter {
       GraphNetBuilder(
         p.projectName,
         p.predModules,
-        p.libCtx.transEnv,
+        p.allNodes,
         libraryVars,
         libraryFields,
         libraryTypes,
@@ -318,7 +318,7 @@ object TrainingCenter {
             case (cat, n) => s"$cat -> %.1f".format(n.toDouble / total * 100) + "%"
           }
       }
-      println("# of nodes: " + builder.transEnv.idTypeMap.size)
+      println("# of nodes: " + builder.allNodes.size)
     })
 
     val eventLogger = {
@@ -395,7 +395,6 @@ object TrainingCenter {
         val accuracy = analyzeResults(
           typeLabels,
           logits.value,
-          trainBuilder.transEnv,
           decodingCtx,
           printResults = None
         )
@@ -442,7 +441,6 @@ object TrainingCenter {
           val testAcc = analyzeResults(
             testBuilder.typeLabels,
             testLogits.value,
-            testBuilder.transEnv,
             testBuilder.decodingCtx,
             printLabelwiseAccuracy = true,
             printResults = Some(printNum)
@@ -513,17 +511,16 @@ object TrainingCenter {
   )
 
   def analyzeResults(
-      annotatedPlaces: IS[(IRTypeId, TypeLabel)],
+      annotatedPlaces: IS[(IRType, TypeLabel)],
       logits: Tensor,
-      transEnv: TranslationEnv,
       ctx: DecodingCtx,
       printLabelwiseAccuracy: Boolean = false,
       printResults: Option[Int] = Some(100)
   ): AccuracyStats = {
     type Prediction = Int
     val predictions = numsca.argmax(logits, axis = 1)
-    val correct = mutable.ListBuffer[(IRTypeId, Prediction)]()
-    val incorrect = mutable.ListBuffer[(IRTypeId, Prediction)]()
+    val correct = mutable.ListBuffer[(IRType, Prediction)]()
+    val incorrect = mutable.ListBuffer[(IRType, Prediction)]()
     var projCorrect, projIncorrect = 0
     var libCorrect, libIncorrect = 0
     var outOfScopeCorrect, outOfScopeIncorrect = 0
@@ -565,17 +562,15 @@ object TrainingCenter {
     printResults.foreach { num =>
       val rand = new Random()
       rand.shuffle(correct).take(num).foreach {
-        case (id, pred) =>
+        case (tv, pred) =>
           val t = ctx.typeFromIndex(pred)
-          val tv = transEnv.idTypeMap(id)
           println(s"[correct] \t$tv: $t")
       }
       val labelMap = annotatedPlaces.toMap
       rand.shuffle(incorrect).take(num).foreach {
-        case (id, pred) =>
-          val tv = transEnv.idTypeMap(id)
+        case (tv, pred) =>
           val actualType = ctx.typeFromIndex(pred)
-          val expected = labelMap(id)
+          val expected = labelMap(tv)
           println(s"[incorrect] \t$tv: $actualType not match $expected")
       }
     }

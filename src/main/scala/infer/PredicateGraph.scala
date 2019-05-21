@@ -6,8 +6,11 @@ import funcdiff.SimpleMath.{LabeledGraph, wrapInQuotes}
 import gtype.GModule.ProjectPath
 import gtype.{GTHole, GType}
 import infer.IR._
+import infer.PredicateGraph.TyVarPredicate
 
 import collection.mutable
+
+case class PredicateGraph(nodes: Vector[IRType], predicates: Seq[TyVarPredicate])
 
 /** Encodes the relationships between different type variables */
 object PredicateGraph {
@@ -21,7 +24,7 @@ object PredicateGraph {
       path: ProjectPath,
       predicates: Vector[TyVarPredicate],
       newTypes: Map[IRType, TypeName],
-      typeLabels: Map[IRTypeId, TypeLabel]
+      typeLabels: Map[IRType, TypeLabel]
   ) {
 
     def display(srcOpt: Option[IRModule] = None): String = {
@@ -117,17 +120,17 @@ object PredicateGraph {
       correctNodes: Seq[IRType],
       wrongNodes: Seq[IRType],
       predicates: Seq[TyVarPredicate],
-      typeHoleMap: Map[IRTypeId, GTHole]
+      typeHoleMap: Map[IRType, GTHole]
   ): LabeledGraph = {
     def typeInfo(t: IR.IRType): String = {
-      val holeInfo = typeHoleMap.get(t.id).map(h => s";Hole: ${h.id}").getOrElse("")
+      val holeInfo = typeHoleMap.get(t).map(h => s";Hole: ${h}").getOrElse("")
       wrapInQuotes(t.toString.replace("\uD835\uDCAF", "") + holeInfo)
     }
 
     var nodeId = 0
-    def newNode(): Int = {
+    def newNode(): IRType = {
       nodeId -= 1
-      nodeId
+      IRType(nodeId, None, None, None)
     }
 
     val graph = new SimpleMath.LabeledGraph()
@@ -135,7 +138,7 @@ object PredicateGraph {
     def newPredicate(
         shortName: String,
         fullName: String,
-        connections: Seq[(Int, String)]
+        connections: Seq[(IRType, String)]
     ): Unit = {
       val n = newNode()
       graph.addNode(n, shortName, wrapInQuotes(fullName), "Blue")
@@ -146,48 +149,48 @@ object PredicateGraph {
     }
 
     correctNodes.foreach(n => {
-      graph.addNode(n.id, n.id.toString, typeInfo(n), "Green")
+      graph.addNode(n, n.toString, typeInfo(n), "Green")
     })
     wrongNodes.foreach(n => {
-      graph.addNode(n.id, n.id.toString, typeInfo(n), "Red")
+      graph.addNode(n, n.toString, typeInfo(n), "Red")
     })
 
     predicates.foreach {
       case FreezeType(v, ty) =>
-        newPredicate(s"=$ty", s"Freeze to $ty", Seq(v.id -> ""))
+        newPredicate(s"=$ty", s"Freeze to $ty", Seq(v -> ""))
       case IsLibraryType(v, name) =>
-        newPredicate(s"[${name.name}]", s"Is library type: $name", Seq(v.id -> ""))
+        newPredicate(s"[${name.name}]", s"Is library type: $name", Seq(v -> ""))
       case HasName(v, name) =>
-        newPredicate(s"{${name.name}}", s"Has name $name", Seq(v.id -> ""))
+        newPredicate(s"{${name.name}}", s"Has name $name", Seq(v -> ""))
       case SubtypeRel(sub, sup) =>
-        newPredicate("<:", "Subtype", Seq(sub.id -> "sub", sup.id -> "sup"))
+        newPredicate("<:", "Subtype", Seq(sub -> "sub", sup -> "sup"))
       case AssignRel(lhs, rhs) =>
-        newPredicate(":=", "Assign", Seq(lhs.id -> "lhs", rhs.id -> "rhs"))
+        newPredicate(":=", "Assign", Seq(lhs -> "lhs", rhs -> "rhs"))
       case UsedAsBoolean(tyVar) =>
-        newPredicate("~bool", "Use as bool", Seq(tyVar.id -> ""))
+        newPredicate("~bool", "Use as bool", Seq(tyVar -> ""))
       case InheritanceRel(child, parent) =>
         newPredicate(
           "extends",
           "Extends",
-          Seq(child.id -> "child", parent.id -> "parent")
+          Seq(child -> "child", parent -> "parent")
         )
       case DefineRel(v, expr) =>
         val (short, long, connections) = expr match {
           case VarTypeExpr(v1) =>
-            ("Var", "VarTypeExpr", Vector(v1.id -> "var"))
+            ("Var", "VarTypeExpr", Vector(v1 -> "var"))
           case FuncTypeExpr(argTypes, returnType) =>
-            val conn = argTypes.zipWithIndex.map { case (a, i) => a.id -> s"arg$i" } :+ (returnType.id -> "return")
+            val conn = argTypes.zipWithIndex.map { case (a, i) => a -> s"arg$i" } :+ (returnType -> "return")
             ("Func", "FuncTypeExpr", conn)
           case CallTypeExpr(f, args) =>
-            val conn = args.zipWithIndex.map { case (a, i) => a.id -> s"arg$i" } :+ (f.id -> "f")
+            val conn = args.zipWithIndex.map { case (a, i) => a -> s"arg$i" } :+ (f -> "f")
             ("Call", "CallTypeExpr", conn)
           case ObjLiteralTypeExpr(fields) =>
-            val conn = fields.toList.map { case (label, t) => t.id -> label.toString() }
+            val conn = fields.toList.map { case (label, t) => t -> label.toString() }
             ("Obj", "ObjLiteralTypeExpr", conn)
           case FieldAccessTypeExpr(objType, field) =>
-            (s"_.${field.name}", "FieldAccessTypeExpr", Seq(objType.id -> ""))
+            (s"_.${field.name}", "FieldAccessTypeExpr", Seq(objType -> ""))
         }
-        newPredicate(short, long, connections :+ (v.id -> "="))
+        newPredicate(short, long, connections :+ (v -> "="))
     }
 
     graph

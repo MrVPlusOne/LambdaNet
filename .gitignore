@@ -24,3 +24,4 @@ gen### Scala template
 *.log
 emails.txt
 running-result/
+/src/main/scala/learn_cats/

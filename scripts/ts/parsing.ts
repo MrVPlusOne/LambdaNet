@@ -873,8 +873,11 @@ export class StmtParser {
           return EP.alongWithMany([new ExprStmt(switchCall, false) as GStmt].concat(clauses));
         }
 
-        case SyntaxKind.ImportDeclaration:
+        case SyntaxKind.ImportDeclaration: {
+          let n = node as ts.ImportDeclaration;
+          n.importClause; //todo
           return EP.alongWith(new ImportStmt(node.getText()));
+        }
         case SyntaxKind.ExportAssignment:
         case SyntaxKind.ExportDeclaration:
           return EP.alongWith(new ExportStmt(node.getText()));

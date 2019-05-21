@@ -9,6 +9,8 @@ import java.io.{
   Serializable
 }
 
+import infer.IR.IRType
+
 import scala.util.Random
 import collection.mutable
 
@@ -508,24 +510,24 @@ object SimpleMath {
   }
 
   class LabeledGraph() {
-    case class Edge(from: Int, to: Int, info: String)
+    case class Edge(from: IRType, to: IRType, info: String)
     case class Node(name: String, info: String)
 
-    val nodeInfo = mutable.HashMap[Int, Node]()
+    val nodeInfo = mutable.HashMap[IRType, Node]()
     val edges = mutable.ListBuffer[Edge]()
-    val nodeStyleMap = mutable.HashMap[Int, String]()
+    val nodeStyleMap = mutable.HashMap[IRType, String]()
 
-    def setNodeStyle(id: Int, style: String): Unit = {
+    def setNodeStyle(id: IRType, style: String): Unit = {
       nodeStyleMap(id) = style
     }
 
-    def addNode(id: Int, name: String, info: String, style: String): Unit = {
+    def addNode(id: IRType, name: String, info: String, style: String): Unit = {
       nodeInfo(id) = Node(name, info)
       setNodeStyle(id, style)
     }
 
-    def addEdge(from: Int, to: Int, info: String): Unit = {
-      edges += Edge(from: Int, to: Int, info: String)
+    def addEdge(from: IRType, to: IRType, info: String): Unit = {
+      edges += Edge(from, to, info: String)
     }
 
     def toMamFormat(graphLayout: String, directed: Boolean): String = {

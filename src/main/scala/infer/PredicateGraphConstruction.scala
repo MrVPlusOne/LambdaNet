@@ -129,7 +129,9 @@ object PredicateGraphConstruction {
       irModules: Vector[IRModule],
       predModules: Vector[PredicateModule],
       predCtx: PredicateContext
-  )
+  ) {
+    lazy val allNodes: Vector[IRType] = libCtx.transEnv.irTypes.toVector
+  }
 
   def fromModules(
       projectName: String,
@@ -419,10 +421,10 @@ private class PredicateGraphConstruction(val libraryContext: LibraryContext) {
   def encodeStmts(
       stmts: Vector[IRStmt],
       ctx: PredicateContext
-  ): (Vector[TyVarPredicate], PredicateContext, Map[IRTypeId, TypeLabel]) = {
+  ): (Vector[TyVarPredicate], PredicateContext, Map[IRType, TypeLabel]) = {
     import collection.mutable
 
-    val typeLabels = mutable.HashMap[IRTypeId, TypeLabel]()
+    val typeLabels = mutable.HashMap[IRType, TypeLabel]()
     val relations = mutable.ListBuffer[TyVarPredicate]()
 
     def add(rel: TyVarPredicate): Unit = {
@@ -475,7 +477,7 @@ private class PredicateGraphConstruction(val libraryContext: LibraryContext) {
         tv.annotation.foreach(
           a =>
             if (a.needInfer) {
-              typeLabels(tv.id) = resolveLabel(a.ty)
+              typeLabels(tv) = resolveLabel(a.ty)
             }
         )
       }

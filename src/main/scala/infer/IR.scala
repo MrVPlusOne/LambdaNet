@@ -10,7 +10,6 @@ import gtype.GStmt.TypeAnnotation
   */
 object IR {
 
-  type IRTypeId = Int
   type VarName = Symbol
   type TypeName = Symbol
 
@@ -137,11 +136,11 @@ object IR {
     def prettyPrint: String = s"($cond ? $e1 : $e2)"
   }
 
-  case class IRType(
-      id: Int,
-      name: Option[Symbol],
-      annotation: Option[TypeAnnotation],
-      libId: Option[Symbol]
+  class IRType(
+      private val id: Int,
+      val name: Option[Symbol],
+      val annotation: Option[TypeAnnotation],
+      val libId: Option[Symbol]
   ) {
     def showDetails: String = {
       val parts = name.map(n => s"{${n.name}}").toList ++ annotation
@@ -161,6 +160,15 @@ object IR {
       case t: IRType => id == t.id
       case _         => false
     }
+  }
+
+  object IRType {
+    def apply(
+        id: Int,
+        name: Option[Symbol],
+        annotation: Option[TypeAnnotation],
+        libId: Option[Symbol]
+    ): IRType = new IRType(id, name, annotation, libId)
   }
 
   // @formatter:off

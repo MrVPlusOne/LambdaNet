@@ -28,13 +28,13 @@ object IRTranslation {
     import collection.mutable
 
     var varIdx: Int = 0
-    var tyVarIdx: IRTypeId = 0
+    var tyVarIdx: Int = 0
     //noinspection TypeAnnotation
-    val idTypeMap = mutable.HashMap[IRTypeId, IRType]()
+    val irTypes = mutable.Buffer[IRType]()
     //noinspection TypeAnnotation
     val holeTyVarMap = mutable.HashMap[GTHole, IRType]()
     //noinspection TypeAnnotation
-    val tyVarHoleMap = mutable.HashMap[IRTypeId, GTHole]()
+    val tyVarHoleMap = mutable.HashMap[IRType, GTHole]()
 
     /**
       * Create and register a new [[IRType]].
@@ -53,10 +53,10 @@ object IRTranslation {
           freezeToType.map(a => a.copy(ty = translateType(a.ty))),
           libId
         )
-      idTypeMap(tv.id) = tv
+      irTypes += tv
       origin.foreach { h =>
         holeTyVarMap(h) = tv
-        tyVarHoleMap(tv.id) = h
+        tyVarHoleMap(tv) = h
       }
       tyVarIdx += 1
       tv
