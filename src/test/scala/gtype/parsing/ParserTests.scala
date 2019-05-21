@@ -3,7 +3,6 @@ package gtype.parsing
 import gtype._
 import org.scalatest.WordSpec
 import ammonite.ops._
-import infer.IRTranslation.{TranslationEnv, translateStmt}
 import infer.{IRTranslation, TrainingProjects}
 import ImportStmt._
 
@@ -84,9 +83,9 @@ class ParserTests extends WordSpec with MyTest {
 
     val stmts = new ProgramParsing().parseContent(content)
     stmts.foreach(println)
-    val env = new TranslationEnv()
+    val env = new IRTranslation()
 
-    val irStmts = stmts.flatMap(s => IRTranslation.translateStmt(s)(Set(), env))
+    val irStmts = stmts.flatMap(s => env.translateStmt(s)(Set()))
     println("=== IR ===")
     irStmts.foreach(println)
   }

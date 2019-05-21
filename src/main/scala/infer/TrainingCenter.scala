@@ -260,9 +260,9 @@ object TrainingCenter {
       import cats.Monoid
       import cats.implicits._
 
-      val totalFreq = trainingProjects
-        .map(_.libUsages.libTypeFreq)
-        .reduce(Monoid[Map[GType, Int]].combine)
+      val totalFreq = Monoid[Map[GType, Int]].combineAll(
+        trainingProjects.map(_.libUsages.libTypeFreq)
+      )
       val all = totalFreq.toVector.sortBy(_._2).reverse
       println("Total number of lib types: " + all.length)
       val freqs = all.map(_._2)

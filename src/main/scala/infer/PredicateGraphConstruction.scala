@@ -3,10 +3,9 @@ package infer
 import ammonite.ops._
 import gtype.GModule.ProjectPath
 import gtype.parsing.ProgramParsing
-import gtype.GStmt.{TypeAnnotation, TypeHoleContext}
+import gtype.GStmt.{TypeAnnotation}
 import gtype.ImportStmt._
 import gtype.{AnyType, FuncType, GModule, GStmt, GType, JSExamples, ObjectType, TyVar}
-import infer.IRTranslation.TranslationEnv
 import infer.PredicateGraph._
 import PredicateGraphConstruction._
 import funcdiff.SimpleMath.Extensions._
@@ -55,7 +54,7 @@ object PredicateGraphConstruction {
   /** Allocate IRTypes for library definitions, useful for generating embeddings
     * for library definitions. */
   private class LibraryContext(
-      val transEnv: TranslationEnv,
+      val transEnv: IRTranslation,
       libraryVars: mutable.HashMap[VarName, IRType] = mutable.HashMap(),
       libraryTypeFreq: mutable.HashMap[GType, Int] = mutable.HashMap(),
       libraryTypes: mutable.HashMap[GType, IRType] = mutable.HashMap()
@@ -150,9 +149,9 @@ object PredicateGraphConstruction {
       libraryModules: Seq[DeclarationModule],
       pathMapping: PathMapping
   ): ParsedProject = {
-    val env = new TranslationEnv()
+    val env = new IRTranslation()
     val libCtx = new LibraryContext(env)
-    val irModules = modules.map(m => IRTranslation.translateModule(m)(env)).toVector
+    val irModules = modules.map(m => env.translateModule(m)).toVector
 
     JSExamples.specialVars.foreach {
       case (s, t) =>
