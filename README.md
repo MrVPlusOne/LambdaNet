@@ -26,9 +26,9 @@ See [typingNet-Formalizations.pdf](typingNet-Formalizations.pdf).
 
 
 ### Where are things
-**Surface Language**: [GStmt](src/main/scala/gtype/GStmt.scala), [GExpr]([GStmt](src/main/scala/gtype/GExpr.scala))
+**Surface Language**: [GStmt](src/main/scala/lambdanet/GStmt.scala), [GExpr]([GStmt](src/main/scala/gtype/GExpr.scala))
 
-**Typescript to DSL parser**: [ProgramParsing](src/main/scala/gtype/parsing/ProgramParsing.scala)
+**Typescript to DSL parser**: [ProgramParsing](src/main/scala/lambdanet/utils/ProgramParsing.scala)
 
 **Intermediate Language**: [IR]([GStmt](src/main/scala/infer/IR.scala)), [IRTranslation]([GStmt](src/main/scala/infer/IRTranslation.scala))
 
@@ -66,7 +66,7 @@ Done:
 
 - [X] implement an IR in single assignment form (SAF)
 
-- [X] translate programs ([GStmt](src/main/scala/gtype/GStmt.scala)) 
+- [X] translate programs ([GStmt](src/main/scala/lambdanet/GStmt.scala)) 
 into IR
 
 - [X] trace type variables back into source code

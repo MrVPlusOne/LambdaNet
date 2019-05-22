@@ -5,7 +5,7 @@ import java.util.concurrent.TimeoutException
 import botkop.numsca._
 import funcdiff.DiffFunc.ConstFunc
 import SimpleMath.Extensions._
-import infer.TrainingCenter.Timeouts
+import lambdanet.TrainingCenter.Timeouts
 
 import concurrent._
 

@@ -9,7 +9,7 @@ import java.io.{
   Serializable
 }
 
-import infer.IR.IRType
+import lambdanet.translation.IR.IRType
 
 import scala.util.Random
 import collection.mutable
