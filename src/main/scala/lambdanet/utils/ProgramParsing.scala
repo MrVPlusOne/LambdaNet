@@ -2,7 +2,8 @@ package lambdanet.utils
 
 import ammonite.ops._
 import funcdiff.SimpleMath
-import lambdanet.surface.GStmt.{TypeAnnotation, TypeHoleContext}
+import lambdanet._
+import lambdanet.surface.GStmt.TypeHoleContext
 import lambdanet.utils.Js._
 import lambdanet.surface._
 import lambdanet.types._

@@ -102,8 +102,6 @@ case class TypeAliasStmt(
 
 object GStmt {
 
-  val returnSymbol = 'return
-
   def staticName(symbol: Symbol) = Symbol(s"static ${symbol.name}")
 
   /*
@@ -230,12 +228,6 @@ object GStmt {
         if (s.vars.exists(_._2._1.isInstanceOf[GType])) fail(s)
         else s
       case other => other
-    }
-  }
-
-  case class TypeAnnotation(ty: GType, needInfer: Boolean) {
-    override def toString: String = {
-      s"$ty${if (needInfer) "*" else ""}"
     }
   }
 
@@ -373,7 +365,4 @@ object GStmt {
   def isConstructor(name: Symbol): Boolean = {
     name.name.endsWith(constructorName.name)
   }
-
-  val thisSymbol = 'this
-  val superSymbol = 'super
 }

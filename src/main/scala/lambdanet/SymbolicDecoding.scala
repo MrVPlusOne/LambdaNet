@@ -1,7 +1,7 @@
 package lambdanet
 
-import lambdanet.translation.IR
-import lambdanet.translation.IR.IRType
+import lambdanet.translation.OldIR
+import lambdanet.translation.OldIR.IRType
 import lambdanet.translation.PredicateGraph._
 
 import scala.collection.mutable
@@ -39,7 +39,7 @@ object SymbolicDecoding {
       }
     }
 
-    def cannotBeSubtype(sub: IR.IRType, sup: IR.IRType): Boolean = {
+    def cannotBeSubtype(sub: OldIR.IRType, sup: OldIR.IRType): Boolean = {
       ???
     }
   }

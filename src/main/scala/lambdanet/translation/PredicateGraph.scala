@@ -2,9 +2,9 @@ package lambdanet.translation
 
 import funcdiff.SimpleMath
 import funcdiff.SimpleMath.{LabeledGraph, wrapInQuotes}
-import lambdanet.surface.GModule.ProjectPath
+import lambdanet.ProjectPath
 import lambdanet.surface.GStmt
-import lambdanet.translation.IR._
+import lambdanet.translation.OldIR._
 import lambdanet.translation.PredicateGraph._
 import lambdanet.types.{GTHole, GType}
 
@@ -120,7 +120,7 @@ object PredicateGraph {
       predicates: Seq[TyVarPredicate],
       typeHoleMap: Map[IRType, GTHole]
   ): LabeledGraph = {
-    def typeInfo(t: IR.IRType): String = {
+    def typeInfo(t: OldIR.IRType): String = {
       val holeInfo = typeHoleMap.get(t).map(h => s";Hole: ${h}").getOrElse("")
       wrapInQuotes(t.toString.replace("\uD835\uDCAF", "") + holeInfo)
     }
@@ -194,6 +194,6 @@ object PredicateGraph {
     graph
   }
 
-  val returnVar: Var = namedVar(GStmt.returnSymbol)
+  val returnVar: Var = namedVar(lambdanet.returnSymbol)
 
 }

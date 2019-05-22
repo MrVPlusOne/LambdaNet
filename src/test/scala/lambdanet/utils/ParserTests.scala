@@ -4,7 +4,7 @@ import lambdanet._
 import org.scalatest.WordSpec
 import ammonite.ops._
 import lambdanet.surface._
-import lambdanet.surface.ImportStmt._
+import ImportStmt._
 import lambdanet.translation.{IRTranslation, PredicateGraphConstruction}
 
 class ParserTests extends WordSpec with MyTest {

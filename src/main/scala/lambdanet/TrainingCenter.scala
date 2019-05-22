@@ -10,7 +10,7 @@ import funcdiff.SimpleMath.Extensions._
 import funcdiff.API._
 import funcdiff._
 import lambdanet.GraphEmbedding.DecodingCtx
-import lambdanet.translation.IR.IRType
+import lambdanet.translation.OldIR.IRType
 import lambdanet.translation.PredicateGraph
 import lambdanet.translation.PredicateGraph._
 import lambdanet.translation.PredicateGraphConstruction._

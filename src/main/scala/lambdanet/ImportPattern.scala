@@ -1,13 +1,12 @@
-package lambdanet.utils
+package lambdanet
 
 import ammonite.ops.RelPath
-import lambdanet.surface.GModule.ProjectPath
+import fastparse.JavaWhitespace._
 import fastparse.Parsed.{Failure, Success}
-import lambdanet.utils.ProgramParsing.{asObj, asString}
 import fastparse._
-import JavaWhitespace._
-import lambdanet.surface.ImportStmt._
-import lambdanet.surface._
+import lambdanet.ImportStmt._
+import lambdanet.utils.ProgramParsing.{asObj, asString}
+import lambdanet.utils.{Js, JsonParsing}
 
 object ImportPattern {
   def unapply(v: Js.Val): Option[Vector[ImportStmt]] = {
@@ -68,7 +67,7 @@ object ImportPattern {
 }
 
 object ExportPattern {
-  import lambdanet.surface.ExportStmt._
+  import lambdanet.ExportStmt._
 
   def unapply(v: Js.Val): Option[Vector[ExportStmt]] = {
     val map = asObj(v)

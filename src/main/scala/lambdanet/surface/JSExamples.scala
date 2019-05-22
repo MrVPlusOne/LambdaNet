@@ -77,7 +77,7 @@ object JSExamples {
     'POST_MinusMinusToken -> (List(number) -: number),
     'TildeToken -> (List(number) -: number),
     'ExclamationToken -> (List(any) -: boolean),
-    GStmt.thisSymbol -> any
+    thisSymbol -> any
   )
 
   @deprecated
@@ -105,7 +105,7 @@ object JSExamples {
     )
 
     var varAssign = Map[Symbol, GType](
-      GStmt.thisSymbol -> any,
+      thisSymbol -> any,
       'eq -> (List(any, any) -: boolean),
       'toBool -> (List(any) -: boolean),
       'emptyArray -> anyArray,

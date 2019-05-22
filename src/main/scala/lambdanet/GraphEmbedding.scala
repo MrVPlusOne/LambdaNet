@@ -4,7 +4,7 @@ import botkop.numsca
 import botkop.numsca.Tensor
 import funcdiff._
 import lambdanet.GraphEmbedding._
-import lambdanet.translation.IR.IRType
+import lambdanet.translation.OldIR.IRType
 import lambdanet.translation.PredicateGraph
 import lambdanet.translation.PredicateGraph._
 import lambdanet.types._

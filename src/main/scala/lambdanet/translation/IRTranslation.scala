@@ -2,9 +2,8 @@ package lambdanet.translation
 
 import funcdiff.SimpleMath
 import funcdiff.SimpleMath.Extensions._
-import lambdanet.surface.GStmt.TypeAnnotation
-import lambdanet.surface.{ExportLevel, GModule, GStmt, GExpr}
-import lambdanet.translation.IR._
+import lambdanet.surface.{GModule, GStmt, GExpr, TypeAnnotation}
+import lambdanet.translation.OldIR._
 import lambdanet.translation.IRTranslation._
 import lambdanet._
 import lambdanet.types.{AnyType, FuncType, GTHole, GTMark, GType, ObjectType, TyVar}
@@ -13,8 +12,14 @@ import scala.collection.mutable
 
 object IRTranslation {
 
+  def groupInBlock(stmts: Vector[OldIR.IRStmt]): BlockStmt = {
+    stmts match {
+      case Vector(b: BlockStmt) => b
+      case _                    => BlockStmt(stmts)
+    }
+  }
+
   def translateType(ty: GType)(implicit tyVars: Set[Symbol]): GType = {
-    import lambdanet._
     ty match {
       case tyVar: TyVar => if (tyVars.contains(tyVar.id)) AnyType else tyVar
       case AnyType      => AnyType
@@ -107,7 +112,7 @@ object IRTranslation {
 
 }
 
-/** Used during the translation to allocate new [[IR.Var]]s, [[IR.IRType]]s, and [[GTHole]]s. */
+/** Used during the translation to allocate new [[OldIR.Var]]s, [[OldIR.IRType]]s, and [[GTHole]]s. */
 class IRTranslation() {
   import collection.mutable
 
@@ -204,11 +209,19 @@ class IRTranslation() {
     )
   }
 
+  def groupInBlock(stmts: Vector[OldIR.IRStmt]): OldIR.BlockStmt = {
+    stmts match {
+      case Vector(b: OldIR.BlockStmt) => b
+      case _                          => OldIR.BlockStmt(stmts)
+    }
+  }
+
   def translateStmt(
       stmt: GStmt
   )(
       implicit quantifiedTypes: Set[Symbol]
-  ): Vector[IR.IRStmt] = {
+  ): Vector[OldIR.IRStmt] = {
+
     stmt match {
       case surface.VarDef(x, ty, init, isConst, level) =>
         val v = namedVar(x)
@@ -364,7 +377,7 @@ class IRTranslation() {
       func: surface.FuncDef
   )(
       quantifiedTypes: Set[Symbol]
-  ): IR.FuncDef = {
+  ): OldIR.FuncDef = {
     import func._
     implicit val newTyVars: Set[Symbol] = quantifiedTypes ++ tyVars
     val args1 = args.map {
@@ -414,7 +427,7 @@ class IRTranslation() {
       case surface.FuncCall(f, args) =>
         val fVar = asVar(translateExpr(f))
         val argsVars = args.map(e => asVar(translateExpr(e)))
-        IR.FuncCall(fVar, argsVars)
+        OldIR.FuncCall(fVar, argsVars)
       case _: surface.Cast => ???
       case surface.ObjLiteral(fields) =>
         ObjLiteral(fields.mapValuesNow(e => asVar(translateExpr(e))))

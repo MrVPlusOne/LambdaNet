@@ -3,17 +3,15 @@ package lambdanet.translation
 import ammonite.ops._
 import funcdiff.SimpleMath
 import funcdiff.SimpleMath.Extensions._
-import lambdanet.surface.ExportStmt.{ExportDefault, ExportOtherModule, ExportSingle}
-import lambdanet.surface.GModule.ProjectPath
-import lambdanet.surface.GStmt.TypeAnnotation
-import lambdanet.surface.ImportStmt._
-import lambdanet.surface.{GModule, GStmt, JSExamples}
-import lambdanet.translation.IR._
+import lambdanet.ExportStmt._
+import lambdanet.ImportStmt._
+import lambdanet.surface.{GModule, GStmt, JSExamples, TypeAnnotation}
+import lambdanet.translation.OldIR._
 import lambdanet.translation.PredicateGraph._
 import lambdanet.translation.PredicateGraphConstruction._
 import lambdanet.utils.ProgramParsing
 import lambdanet.utils.ProgramParsing.DeclarationModule
-import lambdanet.TrainingProjects
+import lambdanet.{ProjectPath, TrainingProjects}
 import lambdanet.types._
 
 import scala.collection.mutable
@@ -427,7 +425,7 @@ private class PredicateGraphConstruction(libraryContext: LibraryContext) {
     }
   }
 
-  import lambdanet.translation.IR._
+  import lambdanet.translation.OldIR._
 
   def encodeStmts(
       stmts: Vector[IRStmt],

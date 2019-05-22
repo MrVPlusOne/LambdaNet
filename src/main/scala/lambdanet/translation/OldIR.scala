@@ -1,9 +1,14 @@
 package lambdanet.translation
 
 import lambdanet._
-import types._
+import lambdanet.surface._
+import lambdanet.surface.GStmt
+import lambdanet.types.GType
 
-object IR {
+/**
+  * An intermediate program representation useful for type inference
+  */
+object OldIR {
   type VarName = Symbol
   type TypeName = Symbol
 
@@ -11,6 +16,7 @@ object IR {
       path: ProjectPath,
       imports: Vector[ImportStmt],
       exportStmts: Vector[ExportStmt],
+      exports: ModuleExports,
       stmts: Vector[IRStmt]
   ) {
     def moduleStats: IRModuleStats = {
@@ -52,6 +58,33 @@ object IR {
       fieldsDefined: Set[Symbol]
   )
 
+  object ExportCategory extends Enumeration {
+    val Term, Class, TypeAlias = Value
+  }
+
+  type Exported = Boolean
+
+  case class ModuleExports(
+      definitions: Map[(Symbol, ExportCategory.Value), (IRType, Exported)],
+      defaultVar: Option[(Var, IRType)],
+      defaultType: Option[(TypeName, IRType)]
+  ) {
+    lazy val terms: Map[Symbol, (IRType, Exported)] = definitions.toIterator.collect {
+      case ((n, ExportCategory.Term), t) => n -> t
+    }.toMap
+
+    lazy val typeAliases: Map[Symbol, (IRType, Exported)] =
+      definitions.toIterator.collect {
+        case ((n, cat), t) if cat == ExportCategory.TypeAlias =>
+          n -> t
+      }.toMap
+
+    lazy val classes: Map[Symbol, (IRType, Exported)] = definitions.toIterator.collect {
+      case ((n, cat), t) if cat == ExportCategory.Class =>
+        n -> t
+    }.toMap
+  }
+
   // @formatter:off
   /** a simple expression
     *
@@ -88,7 +121,7 @@ object IR {
   case class Const(value: Any, ty: GType) extends IRExpr {
     def prettyPrint: String = s"($value: $ty)"
   }
-  case class FuncCall(f: Var, args: Vector[Var]) extends IRExpr {
+  case class FuncCall(f: Var, args: List[Var]) extends IRExpr {
     def prettyPrint: String = s"$f${args.mkString("(", ", ", ")")}"
   }
   case class ObjLiteral(fields: Map[Symbol, Var]) extends IRExpr {
@@ -102,13 +135,48 @@ object IR {
     def prettyPrint: String = s"($cond ? $e1 : $e2)"
   }
 
+  class IRType(
+      private val id: Int,
+      val name: Option[Symbol],
+      val annotation: Option[TypeAnnotation],
+      val libId: Option[Symbol]
+  ) {
+    def showDetails: String = {
+      val parts = name.map(n => s"{${n.name}}").toList ++ annotation
+        .map(t => s"[$t]")
+        .toList
+      s"𝒯$id${parts.mkString}"
+    }
+
+    override def toString: String = {
+      val namePart = name.map(n => s"{${n.name}}").getOrElse("")
+      s"𝒯$id$namePart"
+    }
+
+    override def hashCode(): Int = id.hashCode()
+
+    override def equals(obj: Any): Boolean = obj match {
+      case t: IRType => id == t.id
+      case _         => false
+    }
+  }
+
+  object IRType {
+    def apply(
+        id: Int,
+        name: Option[Symbol],
+        annotation: Option[TypeAnnotation],
+        libId: Option[Symbol]
+    ): IRType = new IRType(id, name, annotation, libId)
+  }
+
   // @formatter:off
   /**
     *
     * a statement in Single Assignment Form
     *
     * S :=                                  ([[IRStmt]])
-    *   | var x: α = e                      ([[VarDef]])
+    *   | var x: τ = e                      ([[VarDef]])
     *   | x := x                            ([[Assign]])
     *   | [return] x                        ([[ReturnStmt]])
     *   | if(x) S else S                    ([[IfStmt]])
@@ -120,7 +188,7 @@ object IR {
     *
     * where x is [[Var]]
     *       l is [[Symbol]],
-    *       α is [[GTMark]],
+    *       τ is [[IRType]],
     *       e is [[IRExpr]],
     *       f is [[FuncDef]]
     * */
@@ -138,7 +206,7 @@ object IR {
     override def toString: String = prettyPrint()
   }
 
-  case class VarDef(v: Var, mark: GTMark, rhs: IRExpr, exportLevel: ExportLevel.Value)
+  case class VarDef(v: Var, mark: IRType, rhs: IRExpr, exportLevel: ExportLevel.Value)
       extends IRStmt
 
   case class Assign(lhs: Var, rhs: Var) extends IRStmt
@@ -153,26 +221,28 @@ object IR {
 
   case class FuncDef(
       name: Symbol,
-      args: Vector[(Var, GTMark)],
-      returnType: GTMark,
+      args: List[(Var, IRType)],
+      returnType: IRType,
       body: BlockStmt,
+      funcT: IRType,
       exportLevel: ExportLevel.Value
   ) extends IRStmt
 
   case class ClassDef(
       name: TypeName,
       superType: Option[TypeName] = None,
-      vars: Map[TypeName, GTMark],
+      vars: Map[TypeName, IRType],
       funcDefs: Vector[FuncDef],
-      companion: Var,
+      classT: IRType,
+      companionT: IRType,
       exportLevel: ExportLevel.Value
   ) extends IRStmt
 
-  case class TypeAliasStmt(
-      name: Symbol,
-      ty: GType,
-      level: ExportLevel.Value
-  ) extends IRStmt
+  case class TypeAliasIRStmt(aliasT: IRType, level: ExportLevel.Value) extends IRStmt {
+    require(aliasT.annotation.nonEmpty)
+
+    val name: TypeName = aliasT.name.get
+  }
 
   object ClassDef {
     val thisVar = namedVar(thisSymbol)
@@ -198,19 +268,22 @@ object IR {
           (indent -> "{") +: stmts.flatMap(
             s => prettyPrintHelper(indent + 1, s)
           ) :+ (indent -> "}")
-        case FuncDef(funcName, args, returnType, body, level) =>
+        case FuncDef(funcName, args, returnType, body, funcT, level) =>
           val argList = args
             .map { case (v, tv) => s"$v: $tv" }
             .mkString("(", ", ", ")")
+          val returnMark =
+            if (returnType.annotation.contains(GType.voidType)) ""
+            else s": $returnType"
           Vector(
-            indent -> s"${asPrefix(level)}function ${funcName.name} $argList: $returnType"
+            indent -> s"${asPrefix(level)}function ${funcName.name}:$funcT $argList$returnMark"
           ) ++ prettyPrintHelper(indent, body)
 
-        case ClassDef(name, superType, vars, funcDefs, _, level) =>
+        case ClassDef(name, superType, vars, funcDefs, classT, _, level) =>
           val superPart = superType
             .map(t => s"extends $t")
             .getOrElse("")
-          Vector(indent -> s"${asPrefix(level)}class ${name.name} $superPart {") ++
+          Vector(indent -> s"${asPrefix(level)}class ${name.name}: $classT $superPart {") ++
             vars.toList.map {
               case (fieldName, tv) =>
                 (indent + 1, s"${fieldName.name}: $tv;")
@@ -219,10 +292,16 @@ object IR {
               fDef => prettyPrintHelper(indent + 1, fDef)
             ) ++
             Vector(indent -> "}")
-        case TypeAliasStmt(name, ty, level) =>
-          Vector(indent -> s"${asPrefix(level)} type $name = $ty;")
+        case TypeAliasIRStmt(aliasT, level) =>
+          Vector(indent -> s"${asPrefix(level)}alias: $aliasT;")
       }
     }
   }
 
+  def groupInBlock(stmts: Vector[IRStmt]): BlockStmt = {
+    stmts match {
+      case Vector(b: BlockStmt) => b
+      case _                    => BlockStmt(stmts)
+    }
+  }
 }
