@@ -41,7 +41,11 @@ sealed trait GExpr {
 
 case class Var(name: Symbol) extends GExpr
 
-case class Const(value: Any, ty: GType) extends GExpr
+case class Const(value: Any, ty: GType) extends GExpr {
+
+  /** tracks the origin line number of this const in the source code, for debugging purpose */
+  var line: Int = -1
+}
 
 case class FuncCall(f: GExpr, args: List[GExpr]) extends GExpr
 

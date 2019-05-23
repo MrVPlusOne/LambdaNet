@@ -3,11 +3,10 @@ package lambdanet.utils
 import ammonite.ops._
 import funcdiff.SimpleMath
 import lambdanet._
-import lambdanet.surface.GStmt.TypeHoleContext
 import lambdanet.utils.Js._
 import lambdanet.surface._
 import lambdanet.types._
-import lambdanet.translation.IRTranslation
+import lambdanet.translation.OldIRTranslation
 
 import scala.collection.mutable
 
@@ -29,7 +28,7 @@ object ProgramParsing {
         varDefs(f.name) = GStmt.extractSignature(f)
       case alias @ TypeAliasStmt(name, tyVars, ty, ExportLevel.Private) =>
         val rhs = try {
-          IRTranslation.translateType(ty)(tyVars.toSet)
+          OldIRTranslation.translateType(ty)(tyVars.toSet)
         } catch {
           case _: ClassCastException => throw new Error(s"Failed for $alias")
         }
@@ -133,7 +132,7 @@ object ProgramParsing {
 import lambdanet.utils.ProgramParsing._
 
 class ProgramParsing(
-    val tHoleContext: TypeHoleContext = new TypeHoleContext()
+    val tHoleContext: OldTypeHoleContext = new OldTypeHoleContext()
 ) {
 
   def parseContent(content: String): Vector[GStmt] = {
@@ -216,7 +215,9 @@ class ProgramParsing(
       case "Const" =>
         val ty = parseType(map("ty"))
         val value = asString(map("value"))
-        Const(value, ty)
+        val c = Const(value, ty)
+        c.line = asNumber(map("line")).toInt
+        c
       case "ObjLiteral" =>
         val obj = arrayToMap(map("fields"))
         val objMap = obj.map { case (x, y) => (Symbol(x), parseGExpr(y)) }
@@ -317,7 +318,7 @@ class ProgramParsing(
             val constructorValue = map("constructor")
             val f = if (constructorValue == Null) {
               // make an empty constructor
-              val tyVars = List() //fixme
+              val tyVars = List()
               FuncDef(
                 GStmt.constructorName,
                 tyVars,

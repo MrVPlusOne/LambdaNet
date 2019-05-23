@@ -1,8 +1,8 @@
 package lambdanet.surface
 
 import lambdanet.types.GType.boolType
-import lambdanet.surface.GStmt.API._
 import lambdanet.types._
+import GType.API._
 
 object SamplePrograms {
   /*

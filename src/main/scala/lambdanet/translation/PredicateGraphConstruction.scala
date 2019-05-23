@@ -44,7 +44,7 @@ object PredicateGraphConstruction {
   /** Allocate IRTypes for library definitions, useful for generating embeddings
     * for library definitions. */
   private class LibraryContext(
-      val transEnv: IRTranslation,
+      val transEnv: OldIRTranslation,
       libraryVars: mutable.HashMap[VarName, IRType] = mutable.HashMap(),
       libraryTypeFreq: mutable.HashMap[GType, Int] = mutable.HashMap(),
       libraryTypes: mutable.HashMap[GType, IRType] = mutable.HashMap()
@@ -80,7 +80,7 @@ object PredicateGraphConstruction {
     }
 
     def newLibType(ty0: GType)(implicit tyVars: Set[Symbol]): IRType = {
-      val ty = IRTranslation.translateType(ty0)
+      val ty = OldIRTranslation.translateType(ty0)
       val nameOpt = ty match {
         case TyVar(n) => Some(n)
         case _        => None
@@ -95,7 +95,7 @@ object PredicateGraphConstruction {
 
     def getLibType(ty: GType)(implicit tyVars: Set[Symbol]): IRType = {
       val t = libraryTypes.getOrElseUpdate(ty, newLibType(ty))
-      registerLibType(IRTranslation.translateType(ty))
+      registerLibType(OldIRTranslation.translateType(ty))
       t
     }
 
@@ -139,7 +139,7 @@ object PredicateGraphConstruction {
       libraryModules: Seq[DeclarationModule],
       pathMapping: PathMapping
   ): ParsedProject = {
-    val env = new IRTranslation()
+    val env = new OldIRTranslation()
     val libCtx = new LibraryContext(env)
     val irModules = modules.map(m => env.translateModule(m)).toVector
 

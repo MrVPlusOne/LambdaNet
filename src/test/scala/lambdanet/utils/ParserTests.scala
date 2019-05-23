@@ -5,7 +5,7 @@ import org.scalatest.WordSpec
 import ammonite.ops._
 import lambdanet.surface._
 import ImportStmt._
-import lambdanet.translation.{IRTranslation, PredicateGraphConstruction}
+import lambdanet.translation.{OldIRTranslation, PredicateGraphConstruction}
 
 class ParserTests extends WordSpec with MyTest {
   def testParsing(printResult: Boolean)(pairs: (String, Class[_])*): Unit = {
@@ -58,6 +58,7 @@ class ParserTests extends WordSpec with MyTest {
   "Expressions parsing test" in {
     val content =
       """type A = (_: number) => number;
+        |[a, b[c]] = something;
         |class Generics {
         |  id<T>(x: T): T {}
         |}
@@ -84,7 +85,7 @@ class ParserTests extends WordSpec with MyTest {
 
     val stmts = new ProgramParsing().parseContent(content)
     stmts.foreach(println)
-    val env = new IRTranslation()
+    val env = new OldIRTranslation()
 
     val irStmts = stmts.flatMap(s => env.translateStmt(s)(Set()))
     println("=== IR ===")

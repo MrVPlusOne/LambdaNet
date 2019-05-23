@@ -1,7 +1,6 @@
 package lambdanet
 
 import ammonite.ops.{RelPath, pwd}
-import lambdanet.surface.GModule.ProjectPath
 import lambdanet.translation.PredicateGraphConstruction._
 import lambdanet.utils.ProgramParsing
 import lambdanet.utils.ProgramParsing.DeclarationModule

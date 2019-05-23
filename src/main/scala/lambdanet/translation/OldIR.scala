@@ -2,7 +2,6 @@ package lambdanet.translation
 
 import lambdanet._
 import lambdanet.surface._
-import lambdanet.surface.GStmt
 import lambdanet.types.GType
 
 /**

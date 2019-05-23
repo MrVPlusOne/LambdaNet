@@ -10,8 +10,18 @@ import scala.language.implicitConversions
 sealed trait GTMark
 
 /** An annotation hole that needs to be inferred. */
-case class GTHole(id: Int) extends GTMark {
-  override def toString: String = s"#$id"
+class GTHole(private val id: Int, val annotation: Option[GType]) extends GTMark {
+  override def toString: String = {
+    val tPart = annotation.map(t => s"{$t}").getOrElse("")
+    s"#$id$tPart"
+  }
+
+  override def hashCode(): Int = id.##
+
+  override def equals(obj: Any): Boolean = obj match {
+    case h: GTHole => this.id == h.id
+    case _         => false
+  }
 }
 
 // @formatter:off

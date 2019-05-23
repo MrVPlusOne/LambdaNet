@@ -2,8 +2,7 @@ package lambdanet.translation
 
 import funcdiff.SimpleMath
 import funcdiff.SimpleMath.{LabeledGraph, wrapInQuotes}
-import lambdanet.ProjectPath
-import lambdanet.surface.GStmt
+import lambdanet.{ProjectPath}
 import lambdanet.translation.OldIR._
 import lambdanet.translation.PredicateGraph._
 import lambdanet.types.{GTHole, GType}

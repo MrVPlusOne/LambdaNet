@@ -1,8 +1,6 @@
 package lambdanet.surface
 
-import lambdanet.surface.GStmt.API.{any, obj}
 import lambdanet._
-import GStmt.API._
 import lambdanet.types.{
   AnyType,
   CompoundType,
@@ -12,6 +10,7 @@ import lambdanet.types.{
   TyVar,
   TypeContext
 }
+import types.GType.API._
 
 object JSExamples {
 
@@ -48,11 +47,11 @@ object JSExamples {
 
     def <(other: GExpr): GExpr = (expr m 'OP_LessThan).call(other)
 
-    def ===(other: GExpr): GExpr = 'eq.call(expr, other)
+    def ===(other: GExpr): GExpr = Var('eq).call(expr, other)
 
-    def &&(other: GExpr): GExpr = 'OP_And.call(expr, other)
+    def &&(other: GExpr): GExpr = Var('OP_And).call(expr, other)
 
-    def unary_! : GExpr = 'OP_Not.call(expr)
+    def unary_! : GExpr = Var('OP_Not).call(expr)
   }
 
   def baseType(name: Symbol): (Symbol, CompoundType) = {

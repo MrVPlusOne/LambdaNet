@@ -1,6 +1,6 @@
 package lambdanet
 
-import lambdanet.translation.IR.{BlockStmt, IRStmt}
+import lambdanet.translation.IR.{BlockStmt, IRStmt, namedVar}
 
 package object translation {
   def groupInBlock(stmts: Vector[IRStmt]): BlockStmt = {
@@ -9,4 +9,7 @@ package object translation {
       case _                    => BlockStmt(stmts)
     }
   }
+
+  val thisVar: IR.Var = namedVar(thisSymbol)
+  val superVar: IR.Var = namedVar(superSymbol)
 }

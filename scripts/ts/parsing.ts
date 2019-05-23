@@ -235,7 +235,7 @@ class Var implements GExpr {
 class Const implements GExpr {
   category: string = "Const";
 
-  constructor(public value: string, public ty: GType) {
+  constructor(public value: string, public ty: GType, public line: number) {
     mustExist(value);
   }
 }
@@ -496,9 +496,9 @@ export function parseExpr(node: ts.Expression, checker: ts.TypeChecker,
       case SyntaxKind.FalseKeyword:
         return constExpr("bool");
       case SyntaxKind.NullKeyword:
-        return new Const("null", anyType);
+        return constExpr(anyType.name, "null");
       case SyntaxKind.VoidExpression: {
-        return new Const("void", anyType);
+        return constExpr(anyType.name, "void");
       }
 
       case SyntaxKind.ArrayLiteralExpression:
@@ -553,9 +553,10 @@ export function parseExpr(node: ts.Expression, checker: ts.TypeChecker,
       }
     }
 
-    function constExpr(typeName: string): Const {
+    function constExpr(typeName: string, value?: string): Const {
       // let v = (<ts.LiteralLikeNode>node).text;
-      return new Const("CONST", new TVar(typeName));
+      const v = value ? value: "???";
+      return new Const(v, new TVar(typeName), getLineNumber(n));
     }
 
     function parseObjectLiteralElementLike(p: ts.PropertyAssignment): NamedValue<GExpr> {
@@ -570,7 +571,7 @@ export function parseExpr(node: ts.Expression, checker: ts.TypeChecker,
   return rec(node);
 }
 
-export const undefinedValue = new Const("undefined", anyType);
+export const undefinedValue = new Const("undefined", anyType, -1);
 
 export class StmtParser {
   public nLambda: [number] = [0];
@@ -674,7 +675,7 @@ export class StmtParser {
 
           function parseBinding(x: ts.BindingElement | ts.VariableDeclaration, rhs?: GExpr): VarDef[] {
             let initExpr = rhs ? rhs : (x.initializer ? EP.processExpr(x.initializer) : undefinedValue);
-            let lhs = x.name;
+            const lhs: ts.BindingName = x.name;
             switch (lhs.kind) {
               case SyntaxKind.Identifier:
                 return [new VarDef(
@@ -689,9 +690,8 @@ export class StmtParser {
                   return parseBinding(e, access);
                 });
               case SyntaxKind.ArrayBindingPattern: {
-                let l = lhs as ts.ArrayBindingPattern;
                 let arrayAccessed = new FuncCall(SpecialVars.ArrayAccess, [initExpr]);
-                return flatMap(l.elements, (e: ts.ArrayBindingElement) => {
+                return flatMap(lhs.elements, (e: ts.ArrayBindingElement) => {
                   if (e.kind == SyntaxKind.OmittedExpression) {
                     return [];
                   } else {
@@ -885,7 +885,8 @@ export class StmtParser {
           let n = node as ts.EnumDeclaration;
           let vars = n.members.map(member => {
             let vName = member.name.getText();
-            return new NamedValue(vName, new Const("ENUM", new TVar("number")));
+            return new NamedValue(vName,
+              new Const("ENUM", new TVar("number"), getLineNumber(n)));
           });
           let rhs = new ObjLiteral(vars);
 
@@ -1017,6 +1018,12 @@ export function astPath(n: ts.Node): string[] {
   return path;
 }
 
+export function getLineNumber(node: ts.Node): number {
+  const src = node.getSourceFile();
+  let {line} = src.getLineAndCharacterOfPosition(node.getStart());
+  return line + 1;
+}
+
 export function parseFiles(sources: string[], libraryFiles: string[]): GModule[] {
   let program = ts.createProgram(libraryFiles, {
     target: ts.ScriptTarget.ES2015,
@@ -1040,9 +1047,8 @@ export function parseFiles(sources: string[], libraryFiles: string[]): GModule[]
         r.forEach(s => stmts.push(s));
       } catch (e) {
         console.debug("Parsing failed for file: " + src.fileName);
-        let { line } =
-          src.getLineAndCharacterOfPosition(s.getStart());
-        console.debug(`Failure occurred at line ${line+1}: ${s.getText()}`);
+        const line = getLineNumber(s);
+        console.debug(`Failure occurred at line ${line}: ${s.getText()}`);
         console.debug(`Parsing trace: ${astPath(s).join(" <- ")}`);
 
         throw e;

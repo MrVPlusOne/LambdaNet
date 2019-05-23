@@ -2,8 +2,9 @@ package lambdanet.surface
 
 import lambdanet._
 import lambdanet.surface.GExpr.GExprAPI
+import lambdanet.surface.GStmt.IsStatic
 import lambdanet.translation.IRTranslation
-import lambdanet.types.{FuncType, GTHole, GTMark, GType}
+import lambdanet.types.{FuncType, GTHole, GTMark, GType, TypeHoleContext}
 
 import scala.collection.mutable
 import scala.language.implicitConversions
@@ -51,7 +52,13 @@ case class VarDef(
     exportLevel: ExportLevel.Value
 ) extends GStmt
 
-case class AssignStmt(lhs: GExpr, rhs: GExpr) extends GStmt
+case class AssignStmt(lhs: GExpr, rhs: GExpr) extends GStmt {
+//  assert(
+//    !lhs.isInstanceOf[Const],
+//    s"assign to a const(origin: line ${lhs.asInstanceOf[Const].line}): $lhs"
+//  )
+  // The lhs can be Const, e.g., in [a,b]=c;
+}
 
 case class ExprStmt(e: GExpr, isReturn: Boolean) extends GStmt
 
@@ -82,8 +89,8 @@ case class ClassDef(
     tyVars: List[Symbol],
     superType: Option[Symbol] = None,
     constructor: FuncDef,
-    vars: Map[Symbol, (GTMark, Boolean)],
-    funcDefs: Vector[(FuncDef, Boolean)],
+    vars: Map[Symbol, (GTMark, IsStatic)],
+    funcDefs: Vector[(FuncDef, IsStatic)],
     exportLevel: ExportLevel.Value,
     isAbstract: Boolean
 ) extends GStmt {
@@ -101,6 +108,8 @@ case class TypeAliasStmt(
 // === End of Statement definitions ====
 
 object GStmt {
+
+  type IsStatic = Boolean
 
   def staticName(symbol: Symbol) = Symbol(s"static ${symbol.name}")
 
@@ -230,120 +239,6 @@ object GStmt {
       case other => other
     }
   }
-
-  /** An context used for constructing programs written in [[GStmt]] */
-  class TypeHoleContext {
-    var typeHoleId: Int = 0
-    val holeTypeMap: mutable.HashMap[GTHole, GType] = mutable.HashMap[GTHole, GType]()
-    val userAnnotatedSet: mutable.HashSet[GTHole] = mutable.HashSet[GTHole]()
-
-    def newTHole(mark: Option[TypeAnnotation]): GTHole = {
-      val h = GTHole(typeHoleId)
-      typeHoleId += 1
-      mark.foreach { m =>
-        assert(!holeTypeMap.contains(h))
-        holeTypeMap(h) = m.ty
-        if (m.needInfer) {
-          userAnnotatedSet += h
-        }
-      }
-      h
-    }
-  }
-
-  /** Replace all the type annotations with [[GTHole]]s */
-  trait GStmtAPI extends GExprAPI {
-    var typeHoleContext: TypeHoleContext = new TypeHoleContext()
-
-    implicit def expr2Stmt(expr: GExpr): GStmt = ExprStmt(expr, isReturn = false)
-
-    def RETURN(expr: GExpr) = ExprStmt(expr, isReturn = true)
-
-    def VAR(
-        x: Symbol,
-        ty: GType,
-        isConst: Boolean = false
-    )(init: GExpr): VarDef = {
-      surface.VarDef(
-        x,
-        typeHoleContext.newTHole(Some(TypeAnnotation(ty, needInfer = true))),
-        init,
-        isConst,
-        exportLevel = ExportLevel.Public
-      )
-    }
-
-    def VAR(x: Symbol)(init: GExpr): VarDef = {
-      surface.VarDef(
-        x,
-        typeHoleContext.newTHole(None),
-        init,
-        isConst = false,
-        exportLevel = ExportLevel.Public
-      )
-    }
-
-    def BLOCK(stmts: GStmt*): BlockStmt = {
-      BlockStmt(stmts.toVector)
-    }
-
-    def WHILE(cond: GExpr)(stmts: GStmt*): WhileStmt = {
-      WhileStmt(cond, BLOCK(stmts: _*))
-    }
-
-    case class IFBuild(b: GExpr, branch1: BlockStmt, mkBranch2: BlockStmt => GStmt) {
-      def ELSE(branch2: GStmt*) = IfStmt(b, branch1, mkBranch2(BLOCK(branch2: _*)))
-
-      def NoElse: IfStmt = IfStmt(b, branch1, mkBranch2(BLOCK()))
-
-      def EIF(cond: GExpr)(body: GStmt*): IFBuild = {
-        IFBuild(b, branch1, block => {
-          IfStmt(cond, BLOCK(body: _*), mkBranch2(block))
-        })
-      }
-    }
-
-    def IF(b: GExpr)(branch1: GStmt*) = IFBuild(b, BLOCK(branch1: _*), identity)
-
-    def stripArgs(args: Seq[(Symbol, GType)]): List[(Symbol, GTHole)] = {
-      args.toList.map {
-        case (s, t) =>
-          s -> typeHoleContext.newTHole(Some(TypeAnnotation(t, needInfer = true)))
-      }
-    }
-
-    def stripType(t: GType): GTHole = {
-      typeHoleContext.newTHole(Some(TypeAnnotation(t, needInfer = true)))
-    }
-
-    def FUNC(name: Symbol, returnType: GType)(
-        args: (Symbol, GType)*
-    )(body: GStmt*): FuncDef = {
-      val a1s = stripArgs(args)
-      surface.FuncDef(
-        name,
-        List(),
-        a1s,
-        stripType(returnType),
-        BLOCK(body: _*),
-        exportLevel = ExportLevel.Public
-      )
-    }
-
-    def CONSTRUCTOR(className: Symbol, args: (Symbol, GType)*)(body: GStmt*): FuncDef = {
-      FuncDef(
-        constructorName,
-        List(),
-        stripArgs(args),
-        GType.voidType,
-        BLOCK(body: _*),
-        exportLevel = ExportLevel.Public
-      )
-    }
-
-  }
-
-  object API extends GStmtAPI
 
   def extractSignature(funcDef: FuncDef, eliminateTVars: Boolean = true): FuncType = {
     val fT = funcDef.args.map(_._2.asInstanceOf[GType]) -: funcDef.returnType
