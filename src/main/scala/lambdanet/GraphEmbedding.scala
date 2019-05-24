@@ -5,8 +5,8 @@ import botkop.numsca.Tensor
 import funcdiff._
 import lambdanet.GraphEmbedding._
 import lambdanet.translation.OldIR.IRType
-import lambdanet.translation.PredicateGraph
-import lambdanet.translation.PredicateGraph._
+import lambdanet.translation.OldPredicateGraph
+import lambdanet.translation.OldPredicateGraph._
 import lambdanet.types._
 
 import scala.collection.parallel.ForkJoinTaskSupport
@@ -61,7 +61,7 @@ object GraphEmbedding {
 import funcdiff.API._
 
 case class GraphEmbedding(
-    graph: PredicateGraph,
+    graph: OldPredicateGraph,
     ctx: EmbeddingCtx,
     layerFactory: LayerFactory,
     dimMessage: Int,

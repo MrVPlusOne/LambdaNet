@@ -3,7 +3,6 @@ package lambdanet.translation
 import lambdanet.types._
 import funcdiff.SimpleMath.Extensions._
 import IR._
-import funcdiff.SimpleMath
 import lambdanet.ExportLevel
 import lambdanet.surface
 import lambdanet.surface.{GExpr, GModule}
@@ -115,8 +114,8 @@ class IRTranslation(holeContext: TypeHoleContext) {
         val bodyStmt = groupInBlock(translateStmt(body) ++ condCompute)
         condDef ++ condDef2 :+ WhileStmt(condV, bodyStmt)
       case surface.CommentStmt(_) => Vector()
-      case surface.BlockStmt(stmts) =>
-        Vector(groupInBlock(stmts.flatMap(translateStmt)))
+      case b: surface.BlockStmt =>
+        Vector(translateBlock(b))
       case f: surface.FuncDef =>
         val newTyVars = quantifiedTypes ++ f.tyVars.toSet
         Vector(translateFunc(f, newTyVars))
@@ -161,7 +160,9 @@ class IRTranslation(holeContext: TypeHoleContext) {
           m.name -> surface.Var(renameStatic(m.name))
         }
 
-        val (defs, companionLiteral) = translateExpr2(surface.ObjLiteral(staticMembers))
+        val (defs, companionLiteral) = translateExpr2(
+          surface.ObjLiteral(staticMembers)
+        )
         val companionDef = {
           VarDef(
             Var(Right(name)),
@@ -187,7 +188,9 @@ class IRTranslation(holeContext: TypeHoleContext) {
               m.name -> m.functionType
             }).map(p => p._1 -> translateType(p._2))
           val objType = ObjectType(fields)
-          translateStmt(surface.TypeAliasStmt(name, tyVars, objType, level))(newTyVars)
+          translateStmt(surface.TypeAliasStmt(name, tyVars, objType, level))(
+            newTyVars
+          )
         } else {
           val classT = TyVar(name)
           val cons = allMethods.head.asInstanceOf[FuncDef]
@@ -206,11 +209,28 @@ class IRTranslation(holeContext: TypeHoleContext) {
 
         allMethods.drop(if (isAbstract) 0 else 1) ++ defs ++ instanceStmts :+ companionDef
       case surface.TypeAliasStmt(name, tyVars, ty, level) =>
-        Vector(TypeAliasStmt(name, translateType(ty)(quantifiedTypes ++ tyVars), level))
+        Vector(
+          TypeAliasStmt(
+            name,
+            translateType(ty)(quantifiedTypes ++ tyVars),
+            level
+          )
+        )
+      case surface.Namespace(name, block) =>
+        Vector(Namespace(name, translateBlock(block)))
     }
   }
 
-  def translateFunc(func: surface.FuncDef, quantifiedTypes: Set[VarName]): IR.FuncDef = {
+  def translateBlock(
+      b: surface.BlockStmt
+  )(implicit tyVars: Set[VarName]): IR.BlockStmt = {
+    groupInBlock(b.stmts.flatMap(translateStmt))
+  }
+
+  def translateFunc(
+      func: surface.FuncDef,
+      quantifiedTypes: Set[VarName]
+  ): IR.FuncDef = {
     import func._
     implicit val newTyVars: Set[Symbol] = quantifiedTypes ++ tyVars
     val args1 = args.map {

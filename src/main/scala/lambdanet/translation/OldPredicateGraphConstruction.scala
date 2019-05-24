@@ -7,8 +7,8 @@ import lambdanet.ExportStmt._
 import lambdanet.ImportStmt._
 import lambdanet.surface.{GModule, GStmt, JSExamples, TypeAnnotation}
 import lambdanet.translation.OldIR._
-import lambdanet.translation.PredicateGraph._
-import lambdanet.translation.PredicateGraphConstruction._
+import lambdanet.translation.OldPredicateGraph._
+import lambdanet.translation.OldPredicateGraphConstruction._
 import lambdanet.utils.ProgramParsing
 import lambdanet.utils.ProgramParsing.DeclarationModule
 import lambdanet.{ProjectPath, TrainingProjects}
@@ -16,7 +16,7 @@ import lambdanet.types._
 
 import scala.collection.mutable
 
-object PredicateGraphConstruction {
+object OldPredicateGraphConstruction {
 
   trait PathMapping {
     def map(currentPath: ProjectPath, pathToResolve: ProjectPath): ProjectPath
@@ -161,7 +161,8 @@ object PredicateGraphConstruction {
     }, Map(), Set())
 
     val pModules =
-      new PredicateGraphConstruction(libCtx).encodeModules(irModules, ctx, pathMapping)
+      new OldPredicateGraphConstruction(libCtx)
+        .encodeModules(irModules, ctx, pathMapping)
 
     ParsedProject(
       projectName,
@@ -280,7 +281,9 @@ object PredicateGraphConstruction {
     import collection.mutable
     var newPredicates = mutable.ListBuffer[TyVarPredicate]()
     vars.foreach { tv =>
-      tv.annotation.foreach(a => if (!a.needInfer) newPredicates += FreezeType(tv, a.ty))
+      tv.annotation.foreach(
+        a => if (!a.needInfer) newPredicates += FreezeType(tv, a.ty)
+      )
       tv.name.foreach(n => newPredicates += HasName(tv, n))
       tv.libId.foreach(libId => newPredicates += IsLibraryType(tv, libId))
     }
@@ -288,7 +291,7 @@ object PredicateGraphConstruction {
   }
 }
 
-private class PredicateGraphConstruction(libraryContext: LibraryContext) {
+private class OldPredicateGraphConstruction(libraryContext: LibraryContext) {
 
   def encodeModules(
       modules: Seq[IRModule],
@@ -302,7 +305,10 @@ private class PredicateGraphConstruction(libraryContext: LibraryContext) {
     def propagateExports(
         allModules: Map[ProjectPath, IRModule]
     ): Map[ProjectPath, IRModule] = {
-      def getExports(currentDir: ProjectPath, path: ProjectPath): ModuleExports = {
+      def getExports(
+          currentDir: ProjectPath,
+          path: ProjectPath
+      ): ModuleExports = {
         allModules
           .getOrElse(
             pathMapping.map(currentDir, path),
@@ -324,14 +330,20 @@ private class PredicateGraphConstruction(libraryContext: LibraryContext) {
                 val exports = getExports(modulePath / up, path)
 
                 for ((t, exported) <- exports.terms.get(oldName) if exported) {
-                  newDefs = newDefs.updated((newName, ExportCategory.Term), (t, false))
-                }
-                for ((t, exported) <- exports.typeAliases.get(oldName) if exported) {
                   newDefs =
-                    newDefs.updated((newName, ExportCategory.TypeAlias), (t, false))
+                    newDefs.updated((newName, ExportCategory.Term), (t, false))
                 }
-                for ((t, exported) <- exports.classes.get(oldName) if exported) {
-                  newDefs = newDefs.updated((newName, ExportCategory.Class), (t, false))
+                for ((t, exported) <- exports.typeAliases.get(oldName)
+                     if exported) {
+                  newDefs = newDefs.updated(
+                    (newName, ExportCategory.TypeAlias),
+                    (t, false)
+                  )
+                }
+                for ((t, exported) <- exports.classes.get(oldName)
+                     if exported) {
+                  newDefs =
+                    newDefs.updated((newName, ExportCategory.Class), (t, false))
                 }
               case _ =>
             }
@@ -351,9 +363,11 @@ private class PredicateGraphConstruction(libraryContext: LibraryContext) {
                   map.get(oldName).foreach {
                     case (tv, exported) =>
                       if (source.isEmpty) {
-                        newDefs = newDefs.updated((newName, category), (tv, true))
+                        newDefs =
+                          newDefs.updated((newName, category), (tv, true))
                       } else if (exported) {
-                        newDefs = newDefs.updated((newName, category), (tv, exported))
+                        newDefs =
+                          newDefs.updated((newName, category), (tv, exported))
                       }
                   }
                 }
@@ -374,7 +388,8 @@ private class PredicateGraphConstruction(libraryContext: LibraryContext) {
                     }
                     ex.defaultVar.foreach {
                       case (v, t) =>
-                        val newVar = newName.map(n => Var(Right(n))).getOrElse(v)
+                        val newVar =
+                          newName.map(n => Var(Right(n))).getOrElse(v)
                         newDefaultVar = Some(newVar -> t)
                     }
                   case None =>
@@ -461,7 +476,8 @@ private class PredicateGraphConstruction(libraryContext: LibraryContext) {
       )
     }
     def getTypeFromName(ctx: PredicateContext, name: TypeName): IRType = {
-      ctx.newTypeMap.getOrElse(name, libraryContext.getLibType(TyVar(name))(Set()))
+      ctx.newTypeMap
+        .getOrElse(name, libraryContext.getLibType(TyVar(name))(Set()))
     }
 
     def encodeStmt(stmt: IRStmt)(implicit ctx: PredicateContext): Unit = {
@@ -504,20 +520,37 @@ private class PredicateGraphConstruction(libraryContext: LibraryContext) {
               case Const(_, ty) =>
                 add(FreezeType(tv, ty))
               case FuncCall(f, args) =>
-                add(DefineRel(tv, CallTypeExpr(varTypeMap(f), args.map(varTypeMap))))
+                add(
+                  DefineRel(
+                    tv,
+                    CallTypeExpr(varTypeMap(f), args.map(varTypeMap))
+                  )
+                )
               case ObjLiteral(fields) =>
-                add(DefineRel(tv, ObjLiteralTypeExpr(fields.mapValuesNow(varTypeMap))))
+                add(
+                  DefineRel(
+                    tv,
+                    ObjLiteralTypeExpr(fields.mapValuesNow(varTypeMap))
+                  )
+                )
               case FieldAccess(receiver, label) =>
                 //fixme: properly handle namespaces
                 if (receiver.nameOpt.exists(n => packageNames.contains(n))) {
                   add(
                     equalityRel(
                       tv,
-                      varTypeMap(Var(Right(qualifiedName(receiver.nameOpt.get, label))))
+                      varTypeMap(
+                        Var(Right(qualifiedName(receiver.nameOpt.get, label)))
+                      )
                     )
                   )
                 } else {
-                  add(DefineRel(tv, FieldAccessTypeExpr(varTypeMap(receiver), label)))
+                  add(
+                    DefineRel(
+                      tv,
+                      FieldAccessTypeExpr(varTypeMap(receiver), label)
+                    )
+                  )
                 }
               case IfExpr(cond, e1, e2) =>
                 add(SubtypeRel(varTypeMap(e1), tv))

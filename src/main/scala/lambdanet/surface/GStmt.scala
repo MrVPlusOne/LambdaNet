@@ -23,8 +23,11 @@ import scala.language.implicitConversions
   * f in  function x (x: α, ..., x:α): α B  ([[FuncDef]])
   *       class x (l: α, ..., l:α)          ([[ClassDef]])
   *       ↳ [extends x]{ f, ..., f }
+  *       type x = t                        ([[TypeAliasStmt]])
+  *       namespace x B                     ([[Namespace]])
   *
   * where x and l are [[Symbol]],
+  *       t is [[GType]]
   *       α is [[GTMark]],
   *       e is [[GExpr]],
   * */
@@ -95,7 +98,10 @@ case class ClassDef(
     isAbstract: Boolean
 ) extends GStmt {
   require(constructor.name == GStmt.constructorName)
-  require(constructor.returnType == GType.voidType, s"but get: ${constructor.returnType}")
+  require(
+    constructor.returnType == GType.voidType,
+    s"but get: ${constructor.returnType}"
+  )
 }
 
 case class TypeAliasStmt(
@@ -104,6 +110,8 @@ case class TypeAliasStmt(
     ty: GType,
     level: ExportLevel.Value
 ) extends GStmt
+
+case class Namespace(name: Symbol, block: BlockStmt) extends GStmt
 
 // === End of Statement definitions ====
 
@@ -190,7 +198,13 @@ object GStmt {
       case TypeAliasStmt(name, tyVars, ty, level) =>
         val tyVarList =
           if (tyVars.isEmpty) "" else tyVars.map(_.name).mkString("<", ",", ">")
-        Vector(indent -> s"${asPrefix(level)}type ${name.name}$tyVarList = $ty;")
+        Vector(
+          indent -> s"${asPrefix(level)}type ${name.name}$tyVarList = $ty;"
+        )
+      case Namespace(name, block) =>
+        (indent -> s"namespace ${name.name}") +:
+          prettyPrintHelper(indent, block)
+
     }
   }
 
@@ -204,10 +218,11 @@ object GStmt {
     * */
   def modifyChildren(stmt: GStmt)(f: GStmt => GStmt): GStmt = {
     def rec(stmt: GStmt): GStmt = stmt match {
-      case IfStmt(cond, branch1, branch2) => f(IfStmt(cond, rec(branch1), rec(branch2)))
-      case WhileStmt(cond, body)          => f(WhileStmt(cond, rec(body)))
-      case BlockStmt(stmts)               => f(BlockStmt(stmts.map(rec)))
-      case fDef: FuncDef                  => f(fDef.copy(body = rec(fDef.body)))
+      case IfStmt(cond, branch1, branch2) =>
+        f(IfStmt(cond, rec(branch1), rec(branch2)))
+      case WhileStmt(cond, body) => f(WhileStmt(cond, rec(body)))
+      case BlockStmt(stmts)      => f(BlockStmt(stmts.map(rec)))
+      case fDef: FuncDef         => f(fDef.copy(body = rec(fDef.body)))
       case cDef: ClassDef =>
         val c1 = cDef.copy(
           constructor = rec(cDef.constructor).asInstanceOf[FuncDef],
@@ -231,7 +246,8 @@ object GStmt {
       case s: VarDef => if (s.ty.isInstanceOf[GType]) fail(s) else s
       case s: FuncDef =>
         if (s.args.exists(_._2.isInstanceOf[GType]) ||
-            s.returnType.isInstanceOf[GType] && s.returnType != GType.voidType) fail(s)
+            s.returnType.isInstanceOf[GType] && s.returnType != GType.voidType)
+          fail(s)
         else s
       case s: ClassDef =>
         if (s.vars.exists(_._2._1.isInstanceOf[GType])) fail(s)
@@ -240,11 +256,16 @@ object GStmt {
     }
   }
 
-  def extractSignature(funcDef: FuncDef, eliminateTVars: Boolean = true): FuncType = {
+  def extractSignature(
+      funcDef: FuncDef,
+      eliminateTVars: Boolean = true
+  ): FuncType = {
     val fT = funcDef.args.map(_._2.asInstanceOf[GType]) -: funcDef.returnType
       .asInstanceOf[GType]
     if (eliminateTVars) {
-      IRTranslation.translateType(fT)(funcDef.tyVars.toSet).asInstanceOf[FuncType]
+      IRTranslation
+        .translateType(fT)(funcDef.tyVars.toSet)
+        .asInstanceOf[FuncType]
     } else fT
   }
 

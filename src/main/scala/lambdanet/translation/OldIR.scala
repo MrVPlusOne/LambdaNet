@@ -135,11 +135,11 @@ object OldIR {
   }
 
   class IRType(
-      private val id: Int,
+      protected val id: Int,
       val name: Option[Symbol],
       val annotation: Option[TypeAnnotation],
       val libId: Option[Symbol]
-  ) {
+  ) extends IdEquality {
     def showDetails: String = {
       val parts = name.map(n => s"{${n.name}}").toList ++ annotation
         .map(t => s"[$t]")
@@ -150,13 +150,6 @@ object OldIR {
     override def toString: String = {
       val namePart = name.map(n => s"{${n.name}}").getOrElse("")
       s"𝒯$id$namePart"
-    }
-
-    override def hashCode(): Int = id.hashCode()
-
-    override def equals(obj: Any): Boolean = obj match {
-      case t: IRType => id == t.id
-      case _         => false
     }
   }
 

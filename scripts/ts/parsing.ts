@@ -353,6 +353,13 @@ class BlockStmt implements GStmt {
   }
 }
 
+class NamespaceStmt implements GStmt{
+  category: string = "NamespaceStmt";
+
+  constructor(public name: string, public block: BlockStmt){}
+}
+
+
 class FuncDef implements GStmt {
   category: string = "FuncDef";
 
@@ -915,9 +922,23 @@ export class StmtParser {
           return EP.alongWithMany(tryPart.concat(finallyPart));
         }
 
+        case SyntaxKind.ModuleDeclaration: {
+          const n = node as ts.ModuleDeclaration;
+          const name = n.name.text;
+          const body = n.body;
+          if(body) {
+            switch (body.kind) {
+              case ts.SyntaxKind.ModuleBlock:
+                const stmts = flatMap(body.statements, (x: ts.Node) => rec(x).stmts);
+                const r = new NamespaceStmt(name, new BlockStmt(stmts));
+                return EP.alongWith(r);
+              default:
+                throw new Error("Module declare body? Text: \n" + body.getText())
+            }
+          }
+        }
 
         //todo: support these
-        case SyntaxKind.ModuleDeclaration:
         case SyntaxKind.ForOfStatement:
         case SyntaxKind.ForInStatement:
 

@@ -14,14 +14,16 @@ import scala.collection.mutable
 object ProgramParsing {
   case class DeclarationModule(
       varDefs: Map[Symbol, GType],
-      typeDefs: Map[Symbol, GType]
+      typeDefs: Map[Symbol, GType],
+      namespaces: Map[Symbol, DeclarationModule]
   )
 
-  def extractDeclarationModule(module: GModule): DeclarationModule = {
+  def extractDeclarationModule(stmts: Vector[GStmt]): DeclarationModule = {
     val varDefs: mutable.Map[Symbol, GType] = mutable.HashMap()
     val typeDefs: mutable.Map[Symbol, GType] = mutable.HashMap()
+    val namespaces: mutable.Map[Symbol, DeclarationModule] = mutable.HashMap()
 
-    module.stmts.foreach {
+    stmts.foreach {
       case VarDef(x, t: GType, _: Const, _, ExportLevel.Private) =>
         varDefs(x) = t
       case f: FuncDef =>
@@ -40,11 +42,15 @@ object ProgramParsing {
           case None    => rhs
         }
       case _: CommentStmt =>
+      case Namespace(name, block) =>
+        namespaces(name) = extractDeclarationModule(block.stmts)
       case other =>
-        throw new Error(s"Illegal statement encountered in a declaration file: $other")
+        throw new Error(
+          s"Illegal statement encountered in a declaration file: $other"
+        )
     }
 
-    DeclarationModule(varDefs.toMap, typeDefs.toMap)
+    DeclarationModule(varDefs.toMap, typeDefs.toMap, namespaces.toMap)
   }
 
   def parseJson(text: String): Js.Val = {
@@ -293,6 +299,10 @@ class ProgramParsing(
         case "BlockStmt" =>
           val stmts = asVector(map("stmts")).map(parseGStmt)
           BlockStmt(stmts)
+        case "NamespaceStmt" =>
+          val name = asString(map("name"))
+          val body = parseGStmt(map("block")).asInstanceOf[BlockStmt]
+          Namespace(Symbol(name), body)
         case "FuncDef" =>
           val name = Symbol(asString(map("name")))
           val args = parseArgList(map("args"))

@@ -5,7 +5,7 @@ import org.scalatest.WordSpec
 import ammonite.ops._
 import lambdanet.surface._
 import ImportStmt._
-import lambdanet.translation.{OldIRTranslation, PredicateGraphConstruction}
+import lambdanet.translation.{OldIRTranslation, OldPredicateGraphConstruction}
 
 class ParserTests extends WordSpec with MyTest {
   def testParsing(printResult: Boolean)(pairs: (String, Class[_])*): Unit = {
@@ -24,7 +24,8 @@ class ParserTests extends WordSpec with MyTest {
       case ((r, c), i) =>
         assert(
           r.getClass == c,
-          s"Failed for: '${lines(i)}'. expect type: $c, but get value:\n${r.prettyPrint(indent = 1)}"
+          s"Failed for: '${lines(i)}'. expect type: $c, but get value:\n${r
+            .prettyPrint(indent = 1)}"
         )
         if (printResult) {
           println(s"'${lines(i)}' parsed as: \n${r.prettyPrint(indent = 1)}")
@@ -151,7 +152,10 @@ class ParserTests extends WordSpec with MyTest {
 
   "Imports parsing tests" in {
     def test(text: String, target: Vector[ImportStmt]): Unit = {
-      assert(ImportPattern.parseImports(text) === target, s"parsing failed for '$text'")
+      assert(
+        ImportPattern.parseImports(text) === target,
+        s"parsing failed for '$text'"
+      )
     }
 
     test(
@@ -190,7 +194,7 @@ class ParserTests extends WordSpec with MyTest {
 
   "Export Import tests" in {
     val root = pwd / RelPath("data/tests/export-import")
-    PredicateGraphConstruction
+    OldPredicateGraphConstruction
       .fromRootDirectory(root)
       .predModules
       .foreach { m =>

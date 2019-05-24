@@ -56,12 +56,15 @@ object IR {
   /** a simple expression
     *
     *  e :=                         ([[IRExpr]])
-    *     | x                       ([[Var]])
-    *     | c: t                    ([[Const]])
+    *     | x                       ([[Ground]])
     *     | x(x,...,x)              ([[FuncCall]])
     *     | { l: x, ..., l: x }     ([[ObjLiteral]])
     *     | e.l                     ([[FieldAccess]])
     *     | if x then x else x      ([[IfExpr]])
+    *
+    *  x :=
+    *     | v                       ([[Var]])
+    *     | c: t                    ([[Const]])
     *
     *  where l is [[Symbol]],
     *        t is [[GType]]
@@ -121,6 +124,8 @@ object IR {
     *   | function x (x: τ, ..., x:τ): τ S  ([[FuncDef]])
     *   | class x (l: α, ..., l:α)          ([[ClassDef]])
     *     ↳ [extends x]{ f, ..., f }
+    *   | type x = t                        ([[TypeAliasStmt]])
+    *   | namespace x B                     ([[Namespace]])
     *
     * where x is [[Var]]
     *       l is [[Symbol]],
@@ -142,8 +147,12 @@ object IR {
     override def toString: String = prettyPrint()
   }
 
-  case class VarDef(v: Var, mark: GTMark, rhs: IRExpr, exportLevel: ExportLevel.Value)
-      extends IRStmt
+  case class VarDef(
+      v: Var,
+      mark: GTMark,
+      rhs: IRExpr,
+      exportLevel: ExportLevel.Value
+  ) extends IRStmt
 
   case class Assign(lhs: Var, rhs: Ground) extends IRStmt
 
@@ -178,6 +187,8 @@ object IR {
       ty: GType,
       level: ExportLevel.Value
   ) extends IRStmt
+
+  case class Namespace(name: Symbol, block: BlockStmt) extends IRStmt
 
   object IRStmt {
     def prettyPrintHelper(indent: Int, stmt: IRStmt): Vector[(Int, String)] = {
@@ -221,6 +232,9 @@ object IR {
             Vector(indent -> "}")
         case TypeAliasStmt(name, ty, level) =>
           Vector(indent -> s"${asPrefix(level)} type $name = $ty;")
+        case Namespace(name, block) =>
+          (indent -> s"namespace ${name.name}") +:
+            prettyPrintHelper(indent, block)
       }
     }
   }

@@ -11,9 +11,9 @@ import funcdiff.API._
 import funcdiff._
 import lambdanet.GraphEmbedding.DecodingCtx
 import lambdanet.translation.OldIR.IRType
-import lambdanet.translation.PredicateGraph
-import lambdanet.translation.PredicateGraph._
-import lambdanet.translation.PredicateGraphConstruction._
+import lambdanet.translation.OldPredicateGraph
+import lambdanet.translation.OldPredicateGraph._
+import lambdanet.translation.OldPredicateGraphConstruction._
 import lambdanet.types.{GType, TyVar}
 import lambdanet.utils.EventLogger.PlotConfig
 import lambdanet.utils.{EventLogger, ReportFinish}
@@ -83,7 +83,8 @@ object TrainingCenter {
       val dimMessage = map("dimMessage").asInstanceOf[Int]
       val optimizer = map("optimizer").asInstanceOf[Optimizer]
       val iterationNum = map.getOrElse("iterationNum", 10).asInstanceOf[Int]
-      val pcData = map("pcData").asInstanceOf[ParamCollection.SerializableFormat]
+      val pcData = map("pcData")
+        .asInstanceOf[ParamCollection.SerializableFormat]
 
       val factory = LayerFactory(
         SymbolPath.empty / 'TypingNet,
@@ -114,7 +115,8 @@ object TrainingCenter {
 
     println(s"=== Training on ${trainParsed.map(_.projectName)} ===")
 
-    val loadFromFile: Option[Path] = TrainingControl.restoreFromFile(consumeFile = true)
+    val loadFromFile: Option[Path] =
+      TrainingControl.restoreFromFile(consumeFile = true)
     val trainingState = loadFromFile
       .map { p =>
         println("Loading training from file: " + p)
@@ -123,7 +125,8 @@ object TrainingCenter {
       .getOrElse(
         TrainingState(
           step = 0,
-          layerFactory = LayerFactory(SymbolPath.empty / 'TypingNet, ParamCollection()),
+          layerFactory =
+            LayerFactory(SymbolPath.empty / 'TypingNet, ParamCollection()),
           dimMessage = 64,
           optimizer = Optimizers.Adam(learningRate = 4e-4),
           iterationNum = iterationNum
@@ -165,7 +168,7 @@ object TrainingCenter {
       newTypes.toVector
     )
 
-    val graph = PredicateGraph(allNodes, predicates)
+    val graph = OldPredicateGraph(allNodes, predicates)
 
     import factory._
 
@@ -212,8 +215,13 @@ object TrainingCenter {
 
       Await.result(
         Future(
-          GraphEmbedding(graph, embedCtx, factory, dimMessage, Some(taskSupport))
-            .encodeAndDecode(
+          GraphEmbedding(
+            graph,
+            embedCtx,
+            factory,
+            dimMessage,
+            Some(taskSupport)
+          ).encodeAndDecode(
               iterations = iterationNum,
               decodingCtx,
               typeLabels.map(_._1)
@@ -309,7 +317,8 @@ object TrainingCenter {
         builder.predicateCategoryNumbers.toVector
           .sortBy { case (_, n) => -n }
           .map {
-            case (cat, n) => s"$cat -> %.1f".format(n.toDouble / total * 100) + "%"
+            case (cat, n) =>
+              s"$cat -> %.1f".format(n.toDouble / total * 100) + "%"
           }
       }
       println("# of nodes: " + builder.allNodes.size)
@@ -366,8 +375,9 @@ object TrainingCenter {
               .par
               .map {
                 case (e1, e0) =>
-                  val diffMap = e1.nodeMap.elementwiseCombine(e0.nodeMap) { (x, y) =>
-                    math.sqrt(numsca.sum(numsca.square(x.value - y.value)))
+                  val diffMap = e1.nodeMap.elementwiseCombine(e0.nodeMap) {
+                    (x, y) =>
+                      math.sqrt(numsca.sum(numsca.square(x.value - y.value)))
                   }
                   SimpleMath.mean(diffMap.values.toSeq)
               }
@@ -414,7 +424,8 @@ object TrainingCenter {
           optimizer.minimize(
             loss,
             trainBuilder.factory.paramCollection.allParams,
-            backPropInParallel = Some(parallelCtx -> Timeouts.optimizationTimeout)
+            backPropInParallel =
+              Some(parallelCtx -> Timeouts.optimizationTimeout)
           )
         }
 
@@ -481,9 +492,10 @@ object TrainingCenter {
         mkdir(saveDir)
       }
       val savePath = saveDir / "trainingState.serialized"
-      TrainingState(step, dimMessage, factory, optimizer, iterationNum).saveToFile(
-        savePath
-      )
+      TrainingState(step, dimMessage, factory, optimizer, iterationNum)
+        .saveToFile(
+          savePath
+        )
       println("Training state saved into: " + saveDir)
     }
 
@@ -545,7 +557,8 @@ object TrainingCenter {
     }
 
     if (printLabelwiseAccuracy) {
-      val groupedPlaces = annotatedPlaces.groupBy(_._2).mapValuesNow(_.length).toSeq
+      val groupedPlaces =
+        annotatedPlaces.groupBy(_._2).mapValuesNow(_.length).toSeq
       groupedPlaces.sortBy(p => -p._2).foreach {
         case (label, num) =>
           val accuracy = groupedCorrect.getOrElse(label, 0).toDouble * 100 / num
@@ -578,7 +591,8 @@ object TrainingCenter {
     val accuracy = correct.length.toDouble / (correct.length + incorrect.length)
     val libAccuracy = calcAccuracy(libCorrect, libIncorrect)
     val projAccuracy = calcAccuracy(projCorrect, projIncorrect)
-    val outOfScopeAccuracy = calcAccuracy(outOfScopeCorrect, outOfScopeIncorrect)
+    val outOfScopeAccuracy =
+      calcAccuracy(outOfScopeCorrect, outOfScopeIncorrect)
 
     AccuracyStats(accuracy, libAccuracy, projAccuracy, outOfScopeAccuracy)
   }

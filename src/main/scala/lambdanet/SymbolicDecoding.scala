@@ -2,7 +2,7 @@ package lambdanet
 
 import lambdanet.translation.OldIR
 import lambdanet.translation.OldIR.IRType
-import lambdanet.translation.PredicateGraph._
+import lambdanet.translation.OldPredicateGraph._
 
 import scala.collection.mutable
 
