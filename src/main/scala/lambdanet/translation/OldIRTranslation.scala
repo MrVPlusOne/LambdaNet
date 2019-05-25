@@ -6,7 +6,15 @@ import lambdanet.surface.{GExpr, GModule, GStmt, TypeAnnotation}
 import lambdanet.translation.OldIR._
 import lambdanet.translation.OldIRTranslation._
 import lambdanet._
-import lambdanet.types.{AnyType, FuncType, GTHole, GTMark, GType, ObjectType, TyVar}
+import lambdanet.types.{
+  AnyType,
+  FuncType,
+  GTHole,
+  GTMark,
+  GType,
+  ObjectType,
+  TyVar
+}
 
 import scala.collection.mutable
 
@@ -60,7 +68,7 @@ object OldIRTranslation {
               s"trying to set default to $mark, but get ${defaultVar.get}"
             )
             defaultVar = Some(v -> mark)
-          case ExportLevel.Private =>
+          case ExportLevel.Unspecified =>
         }
       case f: FuncDef =>
         terms(f.name) = (f.funcT, false)
@@ -71,7 +79,7 @@ object OldIRTranslation {
           case ExportLevel.Default =>
             require(defaultVar.isEmpty)
             defaultVar = Some(Var(Right(f.name)) -> f.funcT)
-          case ExportLevel.Private =>
+          case ExportLevel.Unspecified =>
         }
       case c: ClassDef =>
         classes(c.name) = (c.classT, false)
@@ -84,7 +92,7 @@ object OldIRTranslation {
           case ExportLevel.Default =>
             require(defaultClass.isEmpty)
             defaultClass = Some(c.name -> c.classT)
-          case ExportLevel.Private =>
+          case ExportLevel.Unspecified =>
         }
       case c: TypeAliasIRStmt =>
         c.level match {
@@ -93,7 +101,7 @@ object OldIRTranslation {
             aliases(c.name) = (c.aliasT, true)
           case ExportLevel.Default =>
             throw new Error("Type Alias default export not supported")
-          case ExportLevel.Private =>
+          case ExportLevel.Unspecified =>
             aliases(c.name) = (c.aliasT, false)
         }
       case _ =>
@@ -184,7 +192,12 @@ class OldIRTranslation() {
       case _ =>
         val v = newVar()
         Vector(
-          VarDef(v, newTyVar(None, None, None, None), expr, ExportLevel.Private)
+          VarDef(
+            v,
+            newTyVar(None, None, None, None),
+            expr,
+            ExportLevel.Unspecified
+          )
         ) -> v
     }
 
@@ -316,7 +329,8 @@ class OldIRTranslation() {
         }
 
         val defs = mutable.ListBuffer[IRStmt]()
-        val irObj = translateExpr(surface.ObjLiteral(staticMembers))(Set(), defs)
+        val irObj =
+          translateExpr(surface.ObjLiteral(staticMembers))(Set(), defs)
         val companionT = newTyVar(None, None, None, None)
         val staticObject = {
           VarDef(
@@ -340,7 +354,9 @@ class OldIRTranslation() {
               m.name -> m.functionType
             }
           val objType = ObjectType(fields)
-          translateStmt(surface.TypeAliasStmt(name, tyVars, objType, level))(newTyVars)
+          translateStmt(surface.TypeAliasStmt(name, tyVars, objType, level))(
+            newTyVars
+          )
         } else {
           val classT = newTyVar(None, Some(name), None, None)
           val cons = allMethods.head.asInstanceOf[FuncDef]

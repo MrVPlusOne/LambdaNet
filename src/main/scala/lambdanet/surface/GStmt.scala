@@ -48,7 +48,7 @@ sealed trait GStmt {
 // === Start of Statement definitions ====
 
 case class VarDef(
-    x: Symbol,
+    name: Symbol,
     ty: GTMark,
     init: GExpr,
     isConst: Boolean,
@@ -108,7 +108,7 @@ case class TypeAliasStmt(
     name: Symbol,
     tyVars: List[Symbol],
     ty: GType,
-    level: ExportLevel.Value
+    exportLevel: ExportLevel.Value
 ) extends GStmt
 
 case class Namespace(name: Symbol, block: BlockStmt) extends GStmt

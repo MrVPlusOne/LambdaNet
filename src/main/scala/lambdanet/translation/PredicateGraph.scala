@@ -1,6 +1,6 @@
 package lambdanet.translation
 
-import lambdanet.IdEquality
+import lambdanet.{IdAllocator, IdEquality}
 import lambdanet.translation.IR._
 import PredicateGraph._
 import lambdanet.types.GType
@@ -12,20 +12,25 @@ case class PredicateGraph(
 
 object PredicateGraph {
 
-  /** A PNode is either a fixed library type([[LibraryType]])
-    *  or an unknown type variable([[PVar]]) */
-  sealed trait PNode extends PExpr
+  /** A PNode is either a known constant ([[PConst]])
+    *  or an unknown variable([[PVar]]) */
+  sealed trait PNode extends PExpr {
+    def isType: Boolean
+    def isTerm: Boolean = !isType
+  }
 
-  class LibraryType(
+  class PConst private (
       protected val id: Int,
-      val name: Symbol,
+      val name: TypeName,
+      val isType: Boolean,
       val signatureOpt: Option[GType]
   ) extends PNode
       with IdEquality
 
-  class PVar(
+  class PVar private (
       protected val id: Int,
-      val nameOpt: Option[Symbol]
+      val nameOpt: Option[VarName],
+      val isType: Boolean
   ) extends PNode
       with IdEquality {
     def showDetails: String = {
@@ -39,9 +44,19 @@ object PredicateGraph {
     }
   }
 
+  object PVar {
+
+    class PVarAllocator extends IdAllocator[PVar] {
+      def newVar(nameOpt: Option[VarName], isType: Boolean): PVar = {
+        useNewId(id => new PVar(id, nameOpt, isType))
+      }
+    }
+
+  }
+
   sealed trait TyPredicate
 
-  case class HasLibType(v: PVar, ty: LibraryType) extends TyPredicate
+  case class HasLibType(v: PVar, ty: PConst) extends TyPredicate
 
   case class SubtypeRel(sub: PNode, sup: PNode) extends TyPredicate
 

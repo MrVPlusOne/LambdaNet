@@ -8,6 +8,7 @@ package object lambdanet {
   val returnSymbol = 'return
   val thisSymbol = 'this
   val superSymbol = 'super
+  val defaultSymbol = 'default
 
   trait IdEquality {
     protected def id: Int
@@ -20,8 +21,8 @@ package object lambdanet {
     }
   }
 
-  trait IdEqualityAllocator[T] {
-    protected val allocated: mutable.Buffer[T] = mutable.Buffer()
+  trait IdAllocator[T] {
+    val allocated: mutable.Buffer[T] = mutable.Buffer()
 
     private var _id = 0
 

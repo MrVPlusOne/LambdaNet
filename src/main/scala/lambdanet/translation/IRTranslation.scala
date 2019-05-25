@@ -47,7 +47,7 @@ class IRTranslation(holeContext: TypeHoleContext) {
       case _ =>
         val v = newVar()
         Vector(
-          VarDef(v, holeContext.newTHole(None), expr, ExportLevel.Private)
+          VarDef(v, holeContext.newTHole(None), expr, ExportLevel.Unspecified)
         ) -> v
     }
 

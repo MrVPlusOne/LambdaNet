@@ -24,11 +24,11 @@ object ProgramParsing {
     val namespaces: mutable.Map[Symbol, DeclarationModule] = mutable.HashMap()
 
     stmts.foreach {
-      case VarDef(x, t: GType, _: Const, _, ExportLevel.Private) =>
+      case VarDef(x, t: GType, _: Const, _, ExportLevel.Unspecified) =>
         varDefs(x) = t
       case f: FuncDef =>
         varDefs(f.name) = GStmt.extractSignature(f)
-      case alias @ TypeAliasStmt(name, tyVars, ty, ExportLevel.Private) =>
+      case alias @ TypeAliasStmt(name, tyVars, ty, ExportLevel.Unspecified) =>
         val rhs = try {
           OldIRTranslation.translateType(ty)(tyVars.toSet)
         } catch {
@@ -258,7 +258,7 @@ class ProgramParsing(
       if (modifiers.contains("export"))
         if (modifiers.contains("default")) ExportLevel.Default
         else ExportLevel.Public
-      else ExportLevel.Private
+      else ExportLevel.Unspecified
     val isGetter = modifiers.contains("get")
     val isSetter = modifiers.contains("set")
     val isAbstract = modifiers.contains("abstract")
@@ -335,7 +335,7 @@ class ProgramParsing(
                 List(),
                 GType.voidType,
                 BlockStmt(Vector()),
-                ExportLevel.Private
+                ExportLevel.Unspecified
               )
             } else {
               parseGStmt(constructorValue).asInstanceOf[FuncDef]
