@@ -353,10 +353,11 @@ class BlockStmt implements GStmt {
   }
 }
 
-class NamespaceStmt implements GStmt{
+class NamespaceStmt implements GStmt {
   category: string = "NamespaceStmt";
 
-  constructor(public name: string, public block: BlockStmt){}
+  constructor(public name: string, public block: BlockStmt) {
+  }
 }
 
 
@@ -385,7 +386,7 @@ class ClassDef implements GStmt {
   category: string = "ClassDef";
 
   constructor(public name: string, public constructor: FuncDef | null,
-              public vars: [NamedValue<GMark>, boolean][],
+              public vars: NamedValue<[GMark, GExpr, boolean]>[],
               public funcDefs: [FuncDef, boolean][],
               public superType: string | null, public modifiers: string[],
               public tyVars: string[]) {
@@ -562,7 +563,7 @@ export function parseExpr(node: ts.Expression, checker: ts.TypeChecker,
 
     function constExpr(typeName: string, value?: string): Const {
       // let v = (<ts.LiteralLikeNode>node).text;
-      const v = value ? value: "???";
+      const v = value ? value : "???";
       return new Const(v, new TVar(typeName), getLineNumber(n));
     }
 
@@ -824,7 +825,7 @@ export class StmtParser {
             }
           }
 
-          let vars: [NamedValue<GMark>, boolean][] = [];
+          let vars: NamedValue<[GMark, GExpr, boolean]>[] = [];
           let funcDefs: [FuncDef, boolean][] = [];
           let constructor: Constructor | null = null;
 
@@ -834,14 +835,20 @@ export class StmtParser {
             const staticQ = isStatic(v);
             if (ts.isPropertyDeclaration(v)) {
               let v1 = v as ts.PropertyDeclaration;
-              vars.push([new NamedValue(getPropertyName(v1.name), parseMark(v1.type)), staticQ]);
+              const init = v1.initializer ? EP.processExpr(v1.initializer) : undefinedValue;
+              vars.push(new NamedValue(
+                getPropertyName(v1.name),
+                [parseMark(v1.type), init, staticQ]
+              ));
             } else if (ts.isMethodDeclaration(v) || ts.isAccessor(v)) {
               funcDefs.push([getSingleton(rec(v).stmts) as FuncDef, staticQ]);
             } else if (ts.isConstructorDeclaration(v)) {
               const c = getSingleton(rec(v).stmts) as Constructor;
               c.args
                 .filter(v => c.publicVars.includes(v.name))
-                .forEach(p => vars.push([p, false]));
+                .forEach(p => vars.push(
+                  new NamedValue<[GMark, GExpr, boolean]>(
+                    p.name, [p.value, undefinedValue, false])));
               constructor = c;
             } else if (ts.isSemicolonClassElement(v)) {
               // ignore
@@ -926,14 +933,14 @@ export class StmtParser {
           const n = node as ts.ModuleDeclaration;
           const name = n.name.text;
           const body = n.body;
-          if(body) {
+          if (body) {
             switch (body.kind) {
               case ts.SyntaxKind.ModuleBlock:
                 const stmts = flatMap(body.statements, (x: ts.Node) => rec(x).stmts);
                 const r = new NamespaceStmt(name, new BlockStmt(stmts));
                 return EP.alongWith(r);
               default:
-                throw new Error("Module declare body? Text: \n" + body.getText())
+                throw new Error("Module declare body? Text: \n" + body.getText());
             }
           }
         }
@@ -1034,7 +1041,7 @@ export function forNode<T>(node: ts.Node, action: () => T): T {
 
 export function astPath(n: ts.Node): string[] {
   const p = n.parent;
-  const path = p ? astPath(p): [];
+  const path = p ? astPath(p) : [];
   path.unshift(SyntaxKind[n.kind]);
   return path;
 }

@@ -4,7 +4,7 @@ import lambdanet._
 import lambdanet.surface.GExpr.GExprAPI
 import lambdanet.surface.GStmt.IsStatic
 import lambdanet.translation.IRTranslation
-import lambdanet.types.{FuncType, GTHole, GTMark, GType, TypeHoleContext}
+import lambdanet.types.{FuncType, GType}
 
 import scala.collection.mutable
 import scala.language.implicitConversions
@@ -28,7 +28,7 @@ import scala.language.implicitConversions
   *
   * where x and l are [[Symbol]],
   *       t is [[GType]]
-  *       α is [[GTMark]],
+  *       α is `TypeAnnotation`,
   *       e is [[GExpr]],
   * */
 // @formatter:on
@@ -49,7 +49,7 @@ sealed trait GStmt {
 
 case class VarDef(
     name: Symbol,
-    ty: GTMark,
+    ty: TyAnnot,
     init: GExpr,
     isConst: Boolean,
     exportLevel: ExportLevel.Value
@@ -75,38 +75,31 @@ case class BlockStmt(stmts: Vector[GStmt]) extends GStmt
 
 case class FuncDef(
     name: Symbol,
-    tyVars: List[Symbol],
-    args: List[(Symbol, GTMark)],
-    returnType: GTMark,
+    tyVars: Vector[Symbol],
+    args: Vector[(Symbol, TyAnnot)],
+    returnType: TyAnnot,
     body: GStmt,
     exportLevel: ExportLevel.Value
 ) extends GStmt {
   def functionType: FuncType = {
-    FuncType(args.map(_._2.asInstanceOf[GType]), returnType.asInstanceOf[GType])
+    FuncType(args.map(_._2.get).toList, returnType.asInstanceOf[GType])
   }
 
 }
 
 case class ClassDef(
     name: Symbol,
-    tyVars: List[Symbol],
+    tyVars: Vector[Symbol],
     superType: Option[Symbol] = None,
-    constructor: FuncDef,
-    vars: Map[Symbol, (GTMark, IsStatic)],
-    funcDefs: Vector[(FuncDef, IsStatic)],
+    vars: Map[Symbol, (TyAnnot, GExpr)],
+    funcDefs: Vector[FuncDef],
     exportLevel: ExportLevel.Value,
     isAbstract: Boolean
-) extends GStmt {
-  require(constructor.name == GStmt.constructorName)
-  require(
-    constructor.returnType == GType.voidType,
-    s"but get: ${constructor.returnType}"
-  )
-}
+) extends GStmt
 
 case class TypeAliasStmt(
     name: Symbol,
-    tyVars: List[Symbol],
+    tyVars: Vector[Symbol],
     ty: GType,
     exportLevel: ExportLevel.Value
 ) extends GStmt
@@ -172,7 +165,6 @@ object GStmt {
           name,
           tyVars,
           superType,
-          constructor,
           vars,
           funcDefs,
           level,
@@ -187,12 +179,11 @@ object GStmt {
           indent -> s"${asPrefix(level)}${abstractPart}class ${name.name}$tyVarPart$superPart {"
         ) ++
           vars.toList.map {
-            case (fieldName, tv) =>
-              (indent + 1, s"${fieldName.name}: $tv;")
+            case (fieldName, (annot, init)) =>
+              (indent + 1, s"${fieldName.name}: $annot = $init;")
           } ++
-          ((constructor, false) +: funcDefs).flatMap {
-            case (fDef, isStatic) =>
-              prettyPrintHelper(indent + 1, fDef.copy(name = staticName(name)))
+          funcDefs.flatMap { fDef =>
+            prettyPrintHelper(indent + 1, fDef)
           } ++
           Vector(indent -> "}")
       case TypeAliasStmt(name, tyVars, ty, level) =>
@@ -208,7 +199,7 @@ object GStmt {
     }
   }
 
-  def tyVarClause(tyVars: List[Symbol]): String = {
+  def tyVarClause(tyVars: Vector[Symbol]): String = {
     if (tyVars.isEmpty) ""
     else tyVars.map(_.name).mkString("<", ", ", ">")
   }
@@ -225,10 +216,8 @@ object GStmt {
       case fDef: FuncDef         => f(fDef.copy(body = rec(fDef.body)))
       case cDef: ClassDef =>
         val c1 = cDef.copy(
-          constructor = rec(cDef.constructor).asInstanceOf[FuncDef],
-          funcDefs = cDef.funcDefs.map {
-            case (x, isStatic) =>
-              rec(x).asInstanceOf[FuncDef] -> isStatic
+          funcDefs = cDef.funcDefs.map { x =>
+            rec(x).asInstanceOf[FuncDef]
           }
         )
         f(c1)
@@ -237,30 +226,11 @@ object GStmt {
     rec(stmt)
   }
 
-  def assertAllTypesStripped(stmt: GStmt): Unit = {
-    def fail(s: GStmt): Nothing = {
-      throw new AssertionError(s"Type annotation appears in: $s")
-    }
-
-    modifyChildren(stmt) {
-      case s: VarDef => if (s.ty.isInstanceOf[GType]) fail(s) else s
-      case s: FuncDef =>
-        if (s.args.exists(_._2.isInstanceOf[GType]) ||
-            s.returnType.isInstanceOf[GType] && s.returnType != GType.voidType)
-          fail(s)
-        else s
-      case s: ClassDef =>
-        if (s.vars.exists(_._2._1.isInstanceOf[GType])) fail(s)
-        else s
-      case other => other
-    }
-  }
-
   def extractSignature(
       funcDef: FuncDef,
       eliminateTVars: Boolean = true
   ): FuncType = {
-    val fT = funcDef.args.map(_._2.asInstanceOf[GType]) -: funcDef.returnType
+    val fT = funcDef.args.map(_._2.get).toList -: funcDef.returnType.get
       .asInstanceOf[GType]
     if (eliminateTVars) {
       IRTranslation

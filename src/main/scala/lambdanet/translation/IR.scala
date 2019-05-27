@@ -129,7 +129,7 @@ object IR {
     *
     * where x is [[Var]]
     *       l is [[Symbol]],
-    *       α is [[GTMark]],
+    *       α is [[GTHole]],
     *       e is [[IRExpr]],
     *       f is [[FuncDef]]
     * */
@@ -149,12 +149,13 @@ object IR {
 
   case class VarDef(
       v: Var,
-      mark: GTMark,
+      mark: GTHole,
       rhs: IRExpr,
       exportLevel: ExportLevel.Value
   ) extends IRStmt
 
-  case class Assign(lhs: Var, rhs: Ground) extends IRStmt
+  // todo: check if can make lhs only a Var
+  case class Assign(lhs: Ground, rhs: Ground) extends IRStmt
 
   case class ReturnStmt(v: Ground) extends IRStmt
 
@@ -166,8 +167,8 @@ object IR {
 
   case class FuncDef(
       name: Symbol,
-      args: Vector[(Var, GTMark)],
-      returnType: GTMark,
+      args: Vector[(Var, GTHole)],
+      returnType: GTHole,
       body: BlockStmt,
       exportLevel: ExportLevel.Value
   ) extends IRStmt
@@ -175,7 +176,7 @@ object IR {
   case class ClassDef(
       name: TypeName,
       superType: Option[TypeName] = None,
-      vars: Map[TypeName, GTMark],
+      vars: Map[TypeName, GTHole],
       funcDefs: Vector[FuncDef],
       exportLevel: ExportLevel.Value
   ) extends IRStmt {

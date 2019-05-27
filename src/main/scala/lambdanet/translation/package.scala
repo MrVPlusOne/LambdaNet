@@ -1,5 +1,6 @@
 package lambdanet
 
+import lambdanet.surface.GStmt
 import lambdanet.translation.IR.{BlockStmt, IRStmt, namedVar}
 
 package object translation {
@@ -7,6 +8,13 @@ package object translation {
     stmts match {
       case Vector(b: BlockStmt) => b
       case _                    => BlockStmt(stmts)
+    }
+  }
+
+  def groupInBlockSurface(stmts: Vector[GStmt]): surface.BlockStmt = {
+    stmts match {
+      case Vector(b: surface.BlockStmt) => b
+      case _                            => surface.BlockStmt(stmts)
     }
   }
 

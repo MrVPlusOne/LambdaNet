@@ -5,7 +5,11 @@ import org.scalatest.WordSpec
 import ammonite.ops._
 import lambdanet.surface._
 import ImportStmt._
-import lambdanet.translation.{OldIRTranslation, OldPredicateGraphConstruction}
+import lambdanet.translation.{
+  IRTranslation,
+  OldIRTranslation,
+  OldPredicateGraphConstruction
+}
 
 class ParserTests extends WordSpec with MyTest {
   def testParsing(printResult: Boolean)(pairs: (String, Class[_])*): Unit = {
@@ -40,7 +44,7 @@ class ParserTests extends WordSpec with MyTest {
       .filter(_.ext == "ts")
       .map(_.relativeTo(projectRoot))
 
-    val modules = new ProgramParsing().parseModulesFromFiles(
+    val modules = new ProgramParsing().parseGModulesFromFiles(
       files,
       Set(),
       projectRoot,
@@ -52,7 +56,7 @@ class ParserTests extends WordSpec with MyTest {
     }
 
     val modules2 = new ProgramParsing()
-      .parseModulesFromJson(read(projectRoot / "parsed.json"))
+      .parseGModulesFromJson(read(projectRoot / "parsed.json"))
     assert(modules == modules2, "Two parses do not match.")
   }
 
@@ -61,7 +65,9 @@ class ParserTests extends WordSpec with MyTest {
       """type A = (_: number) => number;
         |[a, b[c]] = something;
         |class Generics {
+        |  u: number;
         |  id<T>(x: T): T {}
+        |  f(y: number): string {}
         |}
         |export interface ClassType<T> extends Function {
         |  new (...args: Array<any>): T;
@@ -86,7 +92,7 @@ class ParserTests extends WordSpec with MyTest {
 
     val stmts = new ProgramParsing().parseContent(content)
     stmts.foreach(println)
-    val env = new OldIRTranslation()
+    val env = new IRTranslation()
 
     val irStmts = stmts.flatMap(s => env.translateStmt(s)(Set()))
     println("=== IR ===")

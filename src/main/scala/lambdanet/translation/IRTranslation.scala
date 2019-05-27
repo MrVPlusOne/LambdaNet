@@ -3,8 +3,7 @@ package lambdanet.translation
 import lambdanet.types._
 import funcdiff.SimpleMath.Extensions._
 import IR._
-import lambdanet.ExportLevel
-import lambdanet.surface
+import lambdanet.{ExportLevel, TyAnnot, surface}
 import lambdanet.surface.{GExpr, GModule}
 import IRTranslation._
 
@@ -19,16 +18,12 @@ object IRTranslation {
     }
   }
 
-  def translateMark(mark: GTMark)(implicit tyVars: Set[Symbol]): GTMark = {
-    mark match {
-      case t: GType => translateType(t)
-      case _        => mark
-    }
-  }
 }
 
 /** Used during the translation to allocate new [[IR.Var]]s and [[GTHole]]s. */
-class IRTranslation(holeContext: TypeHoleContext) {
+class IRTranslation {
+
+  val holeContext = new TypeHoleContext
 
   var varIdx: Int = 0
 
@@ -39,6 +34,12 @@ class IRTranslation(holeContext: TypeHoleContext) {
     v
   }
 
+  private def translateMark(
+      mark: TyAnnot
+  )(implicit tyVars: Set[Symbol]): GTHole = {
+    holeContext.newTHole(mark.map(translateType))
+  }
+
   private def exprAsGround(
       expr: IRExpr
   ): (Vector[IRStmt], Ground) =
@@ -47,7 +48,12 @@ class IRTranslation(holeContext: TypeHoleContext) {
       case _ =>
         val v = newVar()
         Vector(
-          VarDef(v, holeContext.newTHole(None), expr, ExportLevel.Unspecified)
+          VarDef(
+            v,
+            holeContext.newTHole(TyAnnot.Missing),
+            expr,
+            ExportLevel.Unspecified
+          )
         ) -> v
     }
 
@@ -92,7 +98,7 @@ class IRTranslation(holeContext: TypeHoleContext) {
         val (rDefs, rE) = translateExpr2(rhs)
         val (defs3, lV) = exprAsGround(lE)
         val (defs4, rV) = exprAsGround(rE)
-        (lDefs ++ rDefs ++ defs3 ++ defs4) :+ Assign(lV.asInstanceOf[Var], rV)
+        (lDefs ++ rDefs ++ defs3 ++ defs4) :+ Assign(lV, rV)
       case surface.ExprStmt(expr, isReturn) =>
         val (defs, e) = translateExpr2(expr)
         val (defs2, r) = exprAsGround(e)
@@ -123,67 +129,18 @@ class IRTranslation(holeContext: TypeHoleContext) {
           name,
           tyVars,
           superType,
-          constructor,
           vars,
           funcDefs,
           level,
           isAbstract
           ) =>
-        val (instanceVars, staticVars) = {
-          val v1 = vars.groupBy(_._2._2)
-          (
-            v1.getOrElse(false, Map()).mapValuesNow(_._1),
-            v1.getOrElse(true, Map()).mapValuesNow(_._1)
-          )
-        }
-        val (instanceMethods, staticMethods0) = {
-          val v1 = funcDefs.groupBy(_._2)
-          (
-            v1.getOrElse(false, Vector()).map(_._1),
-            v1.getOrElse(true, Vector()).map(_._1)
-          )
-        }
-
-        val staticMethods =
-          if (isAbstract) staticMethods0 else constructor +: staticMethods0
-
-        def renameStatic(methodName: Symbol): Symbol = {
-          Symbol(name.name + "." + methodName.name)
-        }
-
-        val staticMembers = staticVars.mapValuesNow {
-          case t: GType  => surface.Const("unparsed", t)
-          case _: GTHole =>
-            //fixme: properly handle this using initialization experssion
-            surface.Const("unhandled", AnyType)
-        } ++ staticMethods.map { m =>
-          m.name -> surface.Var(renameStatic(m.name))
-        }
-
-        val (defs, companionLiteral) = translateExpr2(
-          surface.ObjLiteral(staticMembers)
-        )
-        val companionDef = {
-          VarDef(
-            Var(Right(name)),
-            // companion object's type is fully determined by the object literal
-            holeContext.newTHole(None),
-            companionLiteral,
-            level
-          )
-        }
-
         val newTyVars = quantifiedTypes ++ tyVars.toSet
 
-        val allMethods = staticMethods
-          .map(m => m.copy(name = renameStatic(m.name)))
-          .flatMap(m => translateStmt(m)(newTyVars))
-
-        val instanceStmts = if (isAbstract) {
-          val fields = (instanceVars.map {
+        if (isAbstract) {
+          val fields = (vars.map {
             case (n, m) =>
-              n -> m.asInstanceOf[GType]
-          } ++ instanceMethods
+              n -> m._1.get
+          } ++ funcDefs
             .map { m =>
               m.name -> m.functionType
             }).map(p => p._1 -> translateType(p._2))
@@ -192,22 +149,17 @@ class IRTranslation(holeContext: TypeHoleContext) {
             newTyVars
           )
         } else {
-          val classT = TyVar(name)
-          val cons = allMethods.head.asInstanceOf[FuncDef]
           Vector(
-            // need to modify the return type of constructor
-            cons.copy(returnType = classT),
             ClassDef(
               name,
               superType,
-              instanceVars,
-              instanceMethods.map(f => translateFunc(f, newTyVars)),
+              vars.mapValuesNow(p => translateMark(p._1)(newTyVars)),
+              funcDefs.map(f => translateFunc(f, newTyVars)),
               level
             )
           )
         }
 
-        allMethods.drop(if (isAbstract) 0 else 1) ++ defs ++ instanceStmts :+ companionDef
       case surface.TypeAliasStmt(name, tyVars, ty, level) =>
         Vector(
           TypeAliasStmt(
@@ -236,7 +188,7 @@ class IRTranslation(holeContext: TypeHoleContext) {
     val args1 = args.map {
       case (argName, mark) =>
         namedVar(argName) -> translateMark(mark)
-    }.toVector
+    }
 
     FuncDef(
       name,
@@ -288,7 +240,7 @@ class IRTranslation(holeContext: TypeHoleContext) {
       case surface.Access(receiver, field) =>
         val v = asGround(translateExpr(receiver))
         FieldAccess(v, field)
-      case surface.IfExpr(cond, e1, e2, _) =>
+      case surface.IfExpr(cond, e1, e2) =>
         val condV = asGround(translateExpr(cond))
         val e1V = asGround(translateExpr(e1))
         val e2V = asGround(translateExpr(e2))

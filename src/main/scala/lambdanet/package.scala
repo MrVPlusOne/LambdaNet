@@ -1,3 +1,5 @@
+import lambdanet.types.GType
+
 import scala.collection.mutable
 
 package object lambdanet {
@@ -32,5 +34,40 @@ package object lambdanet {
       allocated += r
       r
     }
+  }
+
+  sealed trait TyAnnot {
+    def map(f: GType => GType): TyAnnot = this match {
+      case TyAnnot.User(ty)  => TyAnnot.User(f(ty))
+      case TyAnnot.Fixed(ty) => TyAnnot.Fixed(f(ty))
+      case TyAnnot.Missing   => TyAnnot.Missing
+    }
+
+    override def toString: String = this match {
+      case TyAnnot.User(ty)  => s"$ty"
+      case TyAnnot.Fixed(ty) => s"$ty!"
+      case TyAnnot.Missing   => "?"
+    }
+
+    def get: GType = this match {
+      case TyAnnot.User(ty)  => ty
+      case TyAnnot.Fixed(ty) => ty
+      case TyAnnot.Missing   => throw new Error("Type annotation missing.")
+    }
+  }
+
+  object TyAnnot {
+    sealed trait WithType extends TyAnnot {
+      def ty: GType
+    }
+
+    object WithType {
+      def unapply(arg: WithType): Option[GType] = Some(arg.ty)
+    }
+    case class User(ty: GType) extends WithType
+
+    case class Fixed(ty: GType) extends WithType
+
+    case object Missing extends TyAnnot
   }
 }

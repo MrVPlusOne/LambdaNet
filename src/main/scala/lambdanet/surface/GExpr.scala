@@ -55,14 +55,17 @@ case class ObjLiteral(fields: Map[Symbol, GExpr]) extends GExpr
 
 case class Access(expr: GExpr, field: Symbol) extends GExpr
 
-case class IfExpr(cond: GExpr, e1: GExpr, e2: GExpr, resultType: GTMark) extends GExpr
+case class IfExpr(cond: GExpr, e1: GExpr, e2: GExpr) extends GExpr
 
 // === End of Expression definitions ===
 
 /**
   * A context used for type checking expressions
   */
-case class ExprContext(varAssign: Map[Symbol, GType], typeContext: TypeContext) {
+case class ExprContext(
+    varAssign: Map[Symbol, GType],
+    typeContext: TypeContext
+) {
   def newTypeVar(name: Symbol, objectType: ObjectType): ExprContext = {
     copy(typeContext = typeContext.newTypeVar(name, objectType))
   }
@@ -102,7 +105,7 @@ object GExpr {
         fields.map { case (f, v) => s"$f: $v" }.mkString("{", ", ", "}")
       case Access(receiver, label) =>
         s"$receiver.${label.name}"
-      case IfExpr(cond, e1, e2, _) =>
+      case IfExpr(cond, e1, e2) =>
         s"($cond ? $e1 : $e2)"
     }
   }
@@ -134,7 +137,10 @@ object GExpr {
     *
     * @return a type and a set of [[lambdanet.types.GType.TypeCheckError]].
     */
-  def typeCheckInfer(expr: GExpr, context: ExprContext): (GType, Set[TypeCheckError]) = {
+  def typeCheckInfer(
+      expr: GExpr,
+      context: ExprContext
+  ): (GType, Set[TypeCheckError]) = {
     import context._
 
     expr match {
@@ -187,16 +193,19 @@ object GExpr {
           case _ =>
             AnyType -> (errors + AccessError(e, field, et))
         }
-      case IfExpr(cond, e1, e2, resultType: GType) =>
+      case IfExpr(cond, e1, e2) =>
         val (condT, errs0) = typeCheckInfer(cond, context)
         val (e1T, errs1) = typeCheckInfer(e1, context)
         val (e2T, errs2) = typeCheckInfer(e2, context)
-        val allErrors = errs0 ++ errs1 ++ errs2 ++
-          typeContext.mkSubtypeError(condT, GType.boolType) ++
-          typeContext.mkSubtypeError(e1T, resultType) ++
-          typeContext.mkSubtypeError(e2T, resultType)
-        resultType -> allErrors
-      case _ => throw new NotImplementedError("Expressions with GTHoles not supported.")
+//        val allErrors = errs0 ++ errs1 ++ errs2 ++
+//          typeContext.mkSubtypeError(condT, GType.boolType) ++
+//          typeContext.mkSubtypeError(e1T, resultType) ++
+//          typeContext.mkSubtypeError(e2T, resultType)
+//        resultType -> allErrors
+        // fixme
+        ???
+      case _ =>
+        throw new NotImplementedError("Expressions with GTHoles not supported.")
     }
   }
 }

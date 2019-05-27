@@ -2,7 +2,7 @@ package lambdanet.translation
 
 import funcdiff.SimpleMath
 import funcdiff.SimpleMath.Extensions._
-import lambdanet.surface.{GExpr, GModule, GStmt, TypeAnnotation}
+import lambdanet.surface.{GExpr, GModule, GStmt}
 import lambdanet.translation.OldIR._
 import lambdanet.translation.OldIRTranslation._
 import lambdanet._
@@ -139,26 +139,9 @@ class OldIRTranslation() {
   def newTyVar(
       origin: Option[GTHole],
       name: Option[Symbol],
-      freezeToType: Option[TypeAnnotation] = None,
+      freezeToType: Option[TyAnnot] = None,
       libId: Option[Symbol]
-  )(implicit tyVars: Set[Symbol]): IRType = {
-    assert(tyVarIdx >= 0)
-    val tv =
-      IRType(
-        tyVarIdx,
-        name,
-        freezeToType.map(a => a.copy(ty = translateType(a.ty))),
-        libId
-      )
-    irTypes += tv
-    origin.foreach { h =>
-      holeTyVarMap(h) = tv
-      tyVarHoleMap(tv) = h
-    }
-    tyVarIdx += 1
-    tv
-  }
-
+  )(implicit tyVars: Set[Symbol]): IRType = ???
   def newVar(): Var = {
     assert(varIdx >= 0)
     val v = Var(Left(varIdx))
@@ -168,13 +151,7 @@ class OldIRTranslation() {
 
   def getTyVar(gMark: GTMark, name: Option[Symbol])(
       implicit tyVars: Set[Symbol]
-  ): IRType = {
-    gMark match {
-      case h: GTHole => newTyVar(Some(h), name, None, None)
-      case ty: GType =>
-        newTyVar(None, name, Some(TypeAnnotation(ty, needInfer = true)), None)
-    }
-  }
+  ): IRType = ???
 
   private def exprAsVar(
       expr: IRExpr
@@ -233,183 +210,13 @@ class OldIRTranslation() {
       stmt: GStmt
   )(
       implicit quantifiedTypes: Set[Symbol]
-  ): Vector[OldIR.IRStmt] = {
-
-    stmt match {
-      case surface.VarDef(x, ty, init, isConst, level) =>
-        val v = namedVar(x)
-        val (defs, initE) = translateExpr2(init)
-        if (isConst) {
-          defs ++ Vector(VarDef(v, getTyVar(ty, v.nameOpt), initE, level))
-        } else {
-          val (defs2, initV) = exprAsVar(initE)
-          defs ++ defs2 ++ Vector(
-            VarDef(
-              v,
-              getTyVar(ty, v.nameOpt),
-              Const("undefined", AnyType),
-              level
-            ),
-            Assign(v, initV)
-          )
-        }
-      case surface.AssignStmt(lhs, rhs) =>
-        val (lDefs, lE) = translateExpr2(lhs)
-        val (rDefs, rE) = translateExpr2(rhs)
-        val (defs3, lV) = exprAsVar(lE)
-        val (defs4, rV) = exprAsVar(rE)
-        (lDefs ++ rDefs ++ defs3 ++ defs4) :+ Assign(lV, rV)
-      case surface.ExprStmt(expr, isReturn) =>
-        val (defs, e) = translateExpr2(expr)
-        val (defs2, r) = exprAsVar(e)
-        if (isReturn) defs ++ defs2 :+ ReturnStmt(r)
-        else defs ++ defs2
-      case surface.IfStmt(cond, branch1, branch2) =>
-        val (condDef, condE) = translateExpr2(cond)
-        val (condDef2, condV) = exprAsVar(condE)
-        val branch1Stmt = groupInBlock(translateStmt(branch1))
-        val branch2Stmt = groupInBlock(translateStmt(branch2))
-        val ifStmt = IfStmt(condV, branch1Stmt, branch2Stmt)
-        condDef ++ condDef2 :+ ifStmt
-      case surface.WhileStmt(cond, body) =>
-        val (condDef, condE) = translateExpr2(cond)
-        val (condDef2, condV) = exprAsVar(condE)
-        // recompute the conditional expression value at the end of the loop
-        val condCompute =
-          (condDef ++ condDef2).filterNot(_.isInstanceOf[VarDef])
-        val bodyStmt = groupInBlock(translateStmt(body) ++ condCompute)
-        condDef ++ condDef2 :+ WhileStmt(condV, bodyStmt)
-      case surface.CommentStmt(_) => Vector()
-      case surface.BlockStmt(stmts) =>
-        Vector(groupInBlock(stmts.flatMap(translateStmt)))
-      case f: surface.FuncDef =>
-        val newTyVars = quantifiedTypes ++ f.tyVars.toSet
-        Vector(translateFunc(f)(newTyVars))
-      case surface.ClassDef(
-          name,
-          tyVars,
-          superType,
-          constructor,
-          vars,
-          funcDefs,
-          level,
-          isAbstract
-          ) =>
-        val (instanceVars, staticVars) = {
-          val v1 = vars.groupBy(_._2._2)
-          v1.getOrElse(false, Map()).mapValuesNow(_._1) -> v1
-            .getOrElse(true, Map())
-            .mapValuesNow(_._1)
-        }
-        val (instanceMethods, staticMethods0) = {
-          val v1 = funcDefs.groupBy(_._2)
-          (
-            v1.getOrElse(false, Vector()).map(_._1),
-            v1.getOrElse(true, Vector()).map(_._1)
-          )
-        }
-
-        val staticMethods =
-          if (isAbstract) staticMethods0 else constructor +: staticMethods0
-
-        def renameStatic(methodName: Symbol): Symbol = {
-          Symbol(name.name + "." + methodName.name)
-        }
-
-        val staticMembers = staticVars.mapValuesNow {
-          case t: GType => surface.Const("unparsed", t)
-          case _: GTHole =>
-            surface.Const("unhandled", AnyType) //fixme: properly handle this
-        } ++ staticMethods.map { m =>
-          m.name -> surface.Var(renameStatic(m.name))
-        }
-
-        val renamed = staticMethods.map { m =>
-          m.copy(name = renameStatic(m.name))
-        }
-
-        val defs = mutable.ListBuffer[IRStmt]()
-        val irObj =
-          translateExpr(surface.ObjLiteral(staticMembers))(Set(), defs)
-        val companionT = newTyVar(None, None, None, None)
-        val staticObject = {
-          VarDef(
-            Var(Right(name)),
-            companionT,
-            irObj,
-            level
-          )
-        }
-
-        val newTyVars = quantifiedTypes ++ tyVars.toSet
-
-        val allMethods = renamed.flatMap(m => translateStmt(m)(newTyVars))
-
-        val instanceStmts = if (isAbstract) {
-          val fields = instanceVars.map {
-            case (n, m) =>
-              n -> m.asInstanceOf[GType]
-          } ++ instanceMethods
-            .map { m =>
-              m.name -> m.functionType
-            }
-          val objType = ObjectType(fields)
-          translateStmt(surface.TypeAliasStmt(name, tyVars, objType, level))(
-            newTyVars
-          )
-        } else {
-          val classT = newTyVar(None, Some(name), None, None)
-          val cons = allMethods.head.asInstanceOf[FuncDef]
-          Vector(
-            cons
-              .copy(returnType = classT), // need to modify the return type of constructor
-            ClassDef(
-              name,
-              superType,
-              instanceVars.map {
-                case (v, mark) => v -> getTyVar(mark, Some(v))(newTyVars)
-              },
-              instanceMethods.map(f => translateFunc(f)(newTyVars)),
-              classT,
-              companionT,
-              level
-            )
-          )
-        }
-
-        allMethods.drop(if (isAbstract) 0 else 1) ++ defs ++ instanceStmts :+ staticObject
-      case surface.TypeAliasStmt(name, tyVars, ty, level) =>
-        val aliasT = newTyVar(
-          None,
-          Some(name),
-          freezeToType = Some(TypeAnnotation(ty, needInfer = false)),
-          None
-        )(quantifiedTypes ++ tyVars.toSet)
-        Vector(TypeAliasIRStmt(aliasT, level))
-    }
-  }
+  ): Vector[OldIR.IRStmt] = ???
 
   def translateFunc(
       func: surface.FuncDef
   )(
       quantifiedTypes: Set[Symbol]
-  ): OldIR.FuncDef = {
-    import func._
-    implicit val newTyVars: Set[Symbol] = quantifiedTypes ++ tyVars
-    val args1 = args.map {
-      case (argName, mark) =>
-        namedVar(argName) -> getTyVar(mark, Some(argName))
-    }
-    FuncDef(
-      name,
-      args1,
-      getTyVar(returnType, None),
-      groupInBlock(translateStmt(body)(newTyVars)),
-      newTyVar(None, Some(name), None, None),
-      exportLevel
-    )
-  }
-
+  ): OldIR.FuncDef = ???
   import collection.mutable
 
   /** @see [[translateExpr]] */
@@ -429,32 +236,5 @@ class OldIRTranslation() {
   def translateExpr(expr: GExpr)(
       implicit tyVars: Set[Symbol],
       defs: mutable.ListBuffer[IRStmt]
-  ): IRExpr = {
-    def asVar(expr: IRExpr): Var = {
-      val (stmts, v) = exprAsVar(expr)
-      defs.appendAll(stmts)
-      v
-    }
-
-    expr match {
-      case surface.Var(name) => namedVar(name)
-      case surface.Const(value, ty) =>
-        Const(value, ty)
-      case surface.FuncCall(f, args) =>
-        val fVar = asVar(translateExpr(f))
-        val argsVars = args.map(e => asVar(translateExpr(e)))
-        OldIR.FuncCall(fVar, argsVars)
-      case _: surface.Cast => ???
-      case surface.ObjLiteral(fields) =>
-        ObjLiteral(fields.mapValuesNow(e => asVar(translateExpr(e))))
-      case surface.Access(receiver, field) =>
-        val v = asVar(translateExpr(receiver))
-        FieldAccess(v, field)
-      case surface.IfExpr(cond, e1, e2, _) =>
-        val condV = asVar(translateExpr(cond))
-        val e1V = asVar(translateExpr(e1))
-        val e2V = asVar(translateExpr(e2))
-        IfExpr(condV, e1V, e2V)
-    }
-  }
+  ): IRExpr = ???
 }

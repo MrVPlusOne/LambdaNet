@@ -1,5 +1,6 @@
 package lambdanet.types
 
+import lambdanet.{IdEquality, TyAnnot}
 import lambdanet.surface.GExpr
 import lambdanet.types.GType._
 import org.scalacheck.Gen
@@ -7,20 +8,15 @@ import org.scalacheck.Gen
 import scala.language.implicitConversions
 
 /** A gradual type annotation, either a [[GType]] or a [[GTHole]] */
+@deprecated
 sealed trait GTMark
 
 /** An annotation hole that needs to be inferred. */
-class GTHole(private val id: Int, val annotation: Option[GType]) extends GTMark {
+class GTHole(protected val id: Int, val annotation: TyAnnot)
+    extends GTMark
+    with IdEquality {
   override def toString: String = {
-    val tPart = annotation.map(t => s"{$t}").getOrElse("")
-    s"#$id$tPart"
-  }
-
-  override def hashCode(): Int = id.##
-
-  override def equals(obj: Any): Boolean = obj match {
-    case h: GTHole => this.id == h.id
-    case _         => false
+    s"#$id{$annotation}"
   }
 }
 
@@ -49,7 +45,9 @@ sealed trait GType extends GTMark {
       case AnyType       => "any"
       case TyVar(symbol) => symbol.name
       case FuncType(from, to) =>
-        wrap(0)(from.map(_.pPrint(1)).mkString("(", ",", ")") + "->" + to.pPrint(0))
+        wrap(0)(
+          from.map(_.pPrint(1)).mkString("(", ",", ")") + "->" + to.pPrint(0)
+        )
       case ObjectType(fields) =>
         fields
           .map {
@@ -65,7 +63,8 @@ sealed trait GType extends GTMark {
     case ObjectType(fields) => fields.map(_._2.astSize).sum + 1
   }
 
-  def -:[T](from: List[T])(implicit conv: T => GType) = FuncType(from.map(conv), this)
+  def -:[T](from: List[T])(implicit conv: T => GType) =
+    FuncType(from.map(conv), this)
 }
 
 /** A [[TyVar]] or [[AnyType]] */
@@ -184,7 +183,9 @@ object GType {
   ): Option[TypeContext] = {
     import context._
 
-    if (child == AnyType || parent == AnyType || subRel.contains(child -> parent))
+    if (child == AnyType || parent == AnyType || subRel.contains(
+          child -> parent
+        ))
       return Some(context)
 
     val baseTypes = context.baseTypes
@@ -338,7 +339,10 @@ object GType {
 
   val abcSymbols = List('A, 'B, 'C)
 
-  def contextGen(tyVarNum: Int, objectGen: Gen[ObjectType]): Gen[TypeContext] = {
+  def contextGen(
+      tyVarNum: Int,
+      objectGen: Gen[ObjectType]
+  ): Gen[TypeContext] = {
     for (tys <- Gen.listOfN(tyVarNum, objectGen);
          map = abcSymbols.zip(tys).toMap)
       yield TypeContext(simpleBaseTypes.toSet, subRel = Set(), typeUnfold = map)

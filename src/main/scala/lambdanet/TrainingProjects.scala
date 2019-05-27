@@ -14,8 +14,7 @@ object TrainingProjects {
     val libFile = RelPath("default.lib.d.ts")
     val modules = {
       val parser = new ProgramParsing()
-      val r = parser.parseModulesFromFiles(Seq(libFile), Set(libFile), root)
-      assert(parser.tHoleContext.holeTypeMap.isEmpty)
+      val r = parser.parseGModulesFromFiles(Seq(libFile), Set(libFile), root)
       r
     }
     modules.toVector.map { m =>

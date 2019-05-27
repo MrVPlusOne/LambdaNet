@@ -68,9 +68,10 @@ object OldIR {
       defaultVar: Option[(Var, IRType)],
       defaultType: Option[(TypeName, IRType)]
   ) {
-    lazy val terms: Map[Symbol, (IRType, Exported)] = definitions.toIterator.collect {
-      case ((n, ExportCategory.Term), t) => n -> t
-    }.toMap
+    lazy val terms: Map[Symbol, (IRType, Exported)] =
+      definitions.toIterator.collect {
+        case ((n, ExportCategory.Term), t) => n -> t
+      }.toMap
 
     lazy val typeAliases: Map[Symbol, (IRType, Exported)] =
       definitions.toIterator.collect {
@@ -78,10 +79,11 @@ object OldIR {
           n -> t
       }.toMap
 
-    lazy val classes: Map[Symbol, (IRType, Exported)] = definitions.toIterator.collect {
-      case ((n, cat), t) if cat == ExportCategory.Class =>
-        n -> t
-    }.toMap
+    lazy val classes: Map[Symbol, (IRType, Exported)] =
+      definitions.toIterator.collect {
+        case ((n, cat), t) if cat == ExportCategory.Class =>
+          n -> t
+      }.toMap
   }
 
   // @formatter:off
@@ -137,7 +139,7 @@ object OldIR {
   class IRType(
       protected val id: Int,
       val name: Option[Symbol],
-      val annotation: Option[TypeAnnotation],
+      val annotation: Option[TyAnnot],
       val libId: Option[Symbol]
   ) extends IdEquality {
     def showDetails: String = {
@@ -157,7 +159,7 @@ object OldIR {
     def apply(
         id: Int,
         name: Option[Symbol],
-        annotation: Option[TypeAnnotation],
+        annotation: Option[TyAnnot],
         libId: Option[Symbol]
     ): IRType = new IRType(id, name, annotation, libId)
   }
@@ -198,8 +200,12 @@ object OldIR {
     override def toString: String = prettyPrint()
   }
 
-  case class VarDef(v: Var, mark: IRType, rhs: IRExpr, exportLevel: ExportLevel.Value)
-      extends IRStmt
+  case class VarDef(
+      v: Var,
+      mark: IRType,
+      rhs: IRExpr,
+      exportLevel: ExportLevel.Value
+  ) extends IRStmt
 
   case class Assign(lhs: Var, rhs: Var) extends IRStmt
 
@@ -230,7 +236,8 @@ object OldIR {
       exportLevel: ExportLevel.Value
   ) extends IRStmt
 
-  case class TypeAliasIRStmt(aliasT: IRType, level: ExportLevel.Value) extends IRStmt {
+  case class TypeAliasIRStmt(aliasT: IRType, level: ExportLevel.Value)
+      extends IRStmt {
     require(aliasT.annotation.nonEmpty)
 
     val name: TypeName = aliasT.name.get
@@ -275,7 +282,9 @@ object OldIR {
           val superPart = superType
             .map(t => s"extends $t")
             .getOrElse("")
-          Vector(indent -> s"${asPrefix(level)}class ${name.name}: $classT $superPart {") ++
+          Vector(
+            indent -> s"${asPrefix(level)}class ${name.name}: $classT $superPart {"
+          ) ++
             vars.toList.map {
               case (fieldName, tv) =>
                 (indent + 1, s"${fieldName.name}: $tv;")

@@ -5,7 +5,7 @@ import funcdiff.SimpleMath
 import funcdiff.SimpleMath.Extensions._
 import lambdanet.ExportStmt._
 import lambdanet.ImportStmt._
-import lambdanet.surface.{GModule, GStmt, JSExamples, TypeAnnotation}
+import lambdanet.surface.{GModule, GStmt, JSExamples}
 import lambdanet.translation.OldIR._
 import lambdanet.translation.OldPredicateGraph._
 import lambdanet.translation.OldPredicateGraphConstruction._
@@ -61,7 +61,7 @@ object OldPredicateGraphConstruction {
       val tv = transEnv.newTyVar(
         None,
         Some(name),
-        ty.map(t => TypeAnnotation(t, needInfer = false)),
+        ???, //ty.map(t => TyAnnot(t, needInfer = false)),
         Some(LibraryContext.libIdForVar(name))
       )
       libraryVars(name) = tv
@@ -194,7 +194,7 @@ object OldPredicateGraphConstruction {
       }
       .map(_.relativeTo(root))
     val parser = new ProgramParsing()
-    val modules = parser.parseModulesFromFiles(
+    val modules = parser.parseGModulesFromFiles(
       sources,
       libraryFiles,
       root
@@ -282,7 +282,7 @@ object OldPredicateGraphConstruction {
     var newPredicates = mutable.ListBuffer[TyVarPredicate]()
     vars.foreach { tv =>
       tv.annotation.foreach(
-        a => if (!a.needInfer) newPredicates += FreezeType(tv, a.ty)
+        a => ??? // if (!a.needInfer) newPredicates += FreezeType(tv, a.ty)
       )
       tv.name.foreach(n => newPredicates += HasName(tv, n))
       tv.libId.foreach(libId => newPredicates += IsLibraryType(tv, libId))
@@ -499,12 +499,13 @@ private class OldPredicateGraphConstruction(libraryContext: LibraryContext) {
       }
 
       def recordLabel(tv: IRType): Unit = {
-        tv.annotation.foreach(
-          a =>
-            if (a.needInfer) {
-              typeLabels(tv) = resolveLabel(a.ty)
-            }
-        )
+//        tv.annotation.foreach(
+//          a =>
+//            if (a.needInfer) {
+//              typeLabels(tv) = resolveLabel(a.ty)
+//            }
+//        )
+        ???
       }
 
       SimpleMath.withErrorMessage(s"--->\n${stmt.prettyPrint()}") {
