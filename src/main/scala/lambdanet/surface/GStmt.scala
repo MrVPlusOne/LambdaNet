@@ -4,8 +4,8 @@ import lambdanet._
 import lambdanet.surface.GExpr.GExprAPI
 import lambdanet.surface.GStmt.IsStatic
 import lambdanet.translation.IRTranslation
-import lambdanet.types.{FuncType, GType}
-
+import lambdanet.types.{FuncType, GType, ObjectType}
+import funcdiff.SimpleMath.Extensions._
 import scala.collection.mutable
 import scala.language.implicitConversions
 
@@ -49,7 +49,7 @@ sealed trait GStmt {
 
 case class VarDef(
     name: Symbol,
-    ty: TyAnnot,
+    annot: TyAnnot,
     init: GExpr,
     isConst: Boolean,
     exportLevel: ExportLevel.Value
@@ -95,7 +95,15 @@ case class ClassDef(
     funcDefs: Vector[FuncDef],
     exportLevel: ExportLevel.Value,
     isAbstract: Boolean
-) extends GStmt
+) extends GStmt {
+  def objectType: GType = {
+    ObjectType(
+      vars.mapValuesNow(_._1.get) ++
+        funcDefs.map(fd => fd.name -> fd.functionType)
+    )
+  }
+
+}
 
 case class TypeAliasStmt(
     name: Symbol,

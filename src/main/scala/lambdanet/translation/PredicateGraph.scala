@@ -27,6 +27,18 @@ object PredicateGraph {
   ) extends PNode
       with IdEquality
 
+  object PConst {
+    class PConstAllocator extends IdAllocator[PConst] {
+      def newVar(
+          name: VarName,
+          isType: Boolean,
+          signatureOpt: Option[GType]
+      ): PConst = {
+        useNewId(id => new PConst(id, name, isType, signatureOpt))
+      }
+    }
+  }
+
   class PVar private (
       protected val id: Int,
       val nameOpt: Option[VarName],

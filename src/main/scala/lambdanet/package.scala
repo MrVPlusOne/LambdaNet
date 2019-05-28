@@ -49,11 +49,14 @@ package object lambdanet {
       case TyAnnot.Missing   => "?"
     }
 
-    def get: GType = this match {
-      case TyAnnot.User(ty)  => ty
-      case TyAnnot.Fixed(ty) => ty
-      case TyAnnot.Missing   => throw new Error("Type annotation missing.")
+    def typeOpt: Option[GType] = this match {
+      case TyAnnot.User(ty)  => Some(ty)
+      case TyAnnot.Fixed(ty) => Some(ty)
+      case TyAnnot.Missing   => None
     }
+
+    def get: GType =
+      typeOpt.getOrElse(throw new Error("Type annotation missing."))
   }
 
   object TyAnnot {

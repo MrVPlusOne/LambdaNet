@@ -233,8 +233,8 @@ class IRTranslation {
         val fVar = asGround(translateExpr(f))
         val argsVars = args.map(e => asGround(translateExpr(e))).toVector
         IR.FuncCall(fVar, argsVars)
-      case surface.Cast(expr, ty) =>
-        Cast(asGround(translateExpr(expr)), translateType(ty))
+      case surface.Cast(e, ty) =>
+        Cast(asGround(translateExpr(e)), translateType(ty))
       case surface.ObjLiteral(fields) =>
         ObjLiteral(fields.mapValuesNow(e => asGround(translateExpr(e))))
       case surface.Access(receiver, field) =>

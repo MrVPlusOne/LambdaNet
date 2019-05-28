@@ -312,7 +312,7 @@ class ProgramParsing() {
           Vector(BlockStmt(stmts))
         case "NamespaceStmt" =>
           val name = asString(map("name"))
-          val body = parseGStmt(map("block")).asInstanceOf[BlockStmt]
+          val body = groupInBlockSurface(parseGStmt(map("block")))
           Vector(Namespace(Symbol(name), body))
         case "FuncDef" =>
           val name = Symbol(asString(map("name")))
@@ -349,7 +349,7 @@ class ProgramParsing() {
                 ExportLevel.Unspecified
               )
             } else {
-              parseGStmt(constructorValue).asInstanceOf[FuncDef]
+              parseGStmt(constructorValue).asInstanceOf[Vector[FuncDef]].head
             }
             f.copy(
               name = GStmt.constructorName,
