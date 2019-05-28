@@ -41,7 +41,7 @@ sealed trait GExpr {
 
 case class Var(name: Symbol) extends GExpr
 
-case class Const(value: Any, ty: GType) extends GExpr {
+case class Const(value: Any, ty: GroundType) extends GExpr {
 
   /** tracks the origin line number of this const in the source code, for debugging purpose */
   var line: Int = -1
@@ -115,15 +115,13 @@ object GExpr {
 
     def mkObj(fields: (Symbol, GExpr)*) = ObjLiteral(fields.toMap)
 
-    def C(v: Any, ty: GType) = Const(v, ty)
+    def C(v: Any, ty: Symbol) = Const(v, ty)
 
     def I(i: Int) = Const(i, 'int)
 
     def B(b: Boolean) = Const(b, 'bool)
 
     def N(n: Double) = Const(n, 'number)
-
-    val undefined = Const("undefined", any)
 
     def NEW(name: Symbol)(args: GExpr*): GExpr =
       FuncCall(GStmt.constructorName, args.toList)

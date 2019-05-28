@@ -21,7 +21,7 @@ object PredicateGraph {
 
   class PConst private (
       protected val id: Int,
-      val name: TypeName,
+      val name: Symbol,
       val isType: Boolean,
       val signatureOpt: Option[GType]
   ) extends PNode
@@ -30,7 +30,7 @@ object PredicateGraph {
   object PConst {
     class PConstAllocator extends IdAllocator[PConst] {
       def newVar(
-          name: VarName,
+          name: Symbol,
           isType: Boolean,
           signatureOpt: Option[GType]
       ): PConst = {

@@ -228,7 +228,7 @@ class IRTranslation {
     expr match {
       case surface.Var(name) => namedVar(name)
       case surface.Const(value, ty) =>
-        Const(value, translateType(ty))
+        Const(value, ty)
       case surface.FuncCall(f, args) =>
         val fVar = asGround(translateExpr(f))
         val argsVars = args.map(e => asGround(translateExpr(e))).toVector

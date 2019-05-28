@@ -224,7 +224,7 @@ class ProgramParsing() {
         val name = asSymbol(map("name"))
         Var(name)
       case "Const" =>
-        val ty = parseType(map("ty"))
+        val ty = parseType(map("ty")).asInstanceOf[GroundType]
         val value = asString(map("value"))
         val c = Const(value, ty)
         c.line = asNumber(map("line")).toInt

@@ -56,15 +56,11 @@ object IR {
   /** a simple expression
     *
     *  e :=                         ([[IRExpr]])
-    *     | x                       ([[Ground]])
+    *     | x                       ([[Var]])
     *     | x(x,...,x)              ([[FuncCall]])
     *     | { l: x, ..., l: x }     ([[ObjLiteral]])
     *     | e.l                     ([[FieldAccess]])
     *     | if x then x else x      ([[IfExpr]])
-    *
-    *  x :=
-    *     | v                       ([[Var]])
-    *     | c: t                    ([[Const]])
     *
     *  where l is [[Symbol]],
     *        t is [[GType]]

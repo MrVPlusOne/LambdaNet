@@ -57,6 +57,11 @@ package object lambdanet {
 
     def get: GType =
       typeOpt.getOrElse(throw new Error("Type annotation missing."))
+
+    def forFixed(f: GType => Unit): Unit = this match {
+      case TyAnnot.Fixed(ty) => f(ty)
+      case _                 =>
+    }
   }
 
   object TyAnnot {
@@ -72,5 +77,12 @@ package object lambdanet {
     case class Fixed(ty: GType) extends WithType
 
     case object Missing extends TyAnnot
+  }
+
+  implicit class AssertionSyntax[T](x: T) {
+    def which(p: T => Boolean): T = {
+      assert(p(x))
+      x
+    }
   }
 }
