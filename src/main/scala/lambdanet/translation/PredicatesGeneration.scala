@@ -9,6 +9,8 @@ import lambdanet.surface.GModule
 import lambdanet.translation.ImportsResolution.ModuleExports
 import lambdanet.translation.PredicateGraph.PVar.PVarAllocator
 import lambdanet.types.{GType, GroundType}
+import SimpleMath.Extensions._
+import lambdanet.translation.OldPredicateGraph.ObjLiteralTypeExpr
 
 import scala.collection.mutable
 
@@ -22,25 +24,19 @@ object PredicatesGeneration {
     def termVar(v: Var): PVar = terms(v).asInstanceOf[PVar]
   }
 
-  class LibUsageCounter {
+  class UsageCounter {
     import cats.implicits._
 
-    var usages: Map[PConst, Int] = Map()
+    var usages: Map[PNode, Int] = Map()
 
     def useContType(ty: GroundType)(implicit ctx: PContext): PConst = {
       ctx.types(ty.id).asInstanceOf[PConst]
     }
 
-    def useType(ty: GType)(implicit ctx: PContext): Unit = ty match {
-      case ground: GroundType =>
-//        val t = ctx.types(ground.id).which(_.isType)
-//        usages |+|= Map(t -> 1)
-      case _ => ???
-    }
-
-    def useTerm(term: PConst): Unit = {
-      assert(term.isTerm)
-      usages |+|= Map(term -> 1)
+    def useTerm(term: Var)(implicit ctx: PContext): PNode = {
+      val t = ctx.terms(term)
+      usages |+|= Map(t -> 1)
+      t
     }
   }
 }
@@ -61,8 +57,8 @@ class PredicatesGeneration {
         pathMapping
       )
 
-    val libCounter = new LibUsageCounter()
-    import libCounter.useContType
+    val libCounter = new UsageCounter()
+    import libCounter._
 
     def encodeStmts(stmts: Vector[IRStmt], ctx: PContext) = {
       val predicates = mutable.Set[TyPredicate]()
@@ -79,18 +75,17 @@ class PredicatesGeneration {
 
       def encodeStmt(stmt: IRStmt)(implicit ctx: PContext): Unit =
         SimpleMath.withErrorMessage(s"--->\n${stmt.prettyPrint()}") {
-          import ctx._
 
           stmt match {
             case d: VarDef =>
-              val leftNode = termVar(d.v)
+              val leftNode = useTerm(d.v)
               val rightNode = d.rhs match {
-                case v1: Var =>
-                  terms(v1)
-                case Const(_, ty) =>
-                  useContType(ty)
+                case v1: Var => useTerm(v1)
                 case FuncCall(f, args) =>
-                  PCall(terms(f), args.map(terms.apply))
+                  PCall(useTerm(f), args.map(useTerm))
+                case ObjLiteral(fields) =>
+                  PObject(fields.mapValuesNow(useTerm))
+                case FieldAccess(receiver, label) =>
               }
           }
 

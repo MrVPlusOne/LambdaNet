@@ -6,6 +6,7 @@ import IR._
 import lambdanet.{ExportLevel, TyAnnot, surface}
 import lambdanet.surface.{GExpr, GModule}
 import IRTranslation._
+import lambdanet.translation.ImportsResolution.ModuleExports
 
 object IRTranslation {
   def translateType(ty: GType)(implicit tyVars: Set[Symbol]): GType = {
@@ -18,6 +19,14 @@ object IRTranslation {
     }
   }
 
+  val undefinedVar = Var(Right('undefined))
+
+  def constToVar(c: surface.Const): Var = {
+    c.ty match {
+      case AnyType   => undefinedVar
+      case TyVar(id) => Var(Right(id))
+    }
+  }
 }
 
 /** Used during the translation to allocate new [[IR.Var]]s and [[GTHole]]s. */
@@ -40,11 +49,11 @@ class IRTranslation {
     holeContext.newTHole(mark.map(translateType))
   }
 
-  private def exprAsGround(
+  private def exprAsVar(
       expr: IRExpr
-  ): (Vector[IRStmt], Ground) =
+  ): (Vector[IRStmt], Var) =
     expr match {
-      case v: Ground => (Vector(), v)
+      case v: Var => (Vector(), v)
       case _ =>
         val v = newVar()
         Vector(
@@ -57,7 +66,10 @@ class IRTranslation {
         ) -> v
     }
 
-  def translateModule(module: GModule): IRModule = {
+  def translateModule(
+      module: GModule,
+      moduleExports: ModuleExports
+  ): IRModule = {
     val irStmts = module.stmts.flatMap(s => translateStmt(s)(Set()))
 
     IRModule(
@@ -82,12 +94,12 @@ class IRTranslation {
         if (isConst) {
           defs ++ Vector(VarDef(v, t1, initE, level))
         } else {
-          val (defs2, initV) = exprAsGround(initE)
+          val (defs2, initV) = exprAsVar(initE)
           defs ++ defs2 ++ Vector(
             VarDef(
               v,
               t1,
-              Const("undefined", AnyType),
+              undefinedVar,
               level
             ),
             Assign(v, initV)
@@ -96,24 +108,24 @@ class IRTranslation {
       case surface.AssignStmt(lhs, rhs) =>
         val (lDefs, lE) = translateExpr2(lhs)
         val (rDefs, rE) = translateExpr2(rhs)
-        val (defs3, lV) = exprAsGround(lE)
-        val (defs4, rV) = exprAsGround(rE)
+        val (defs3, lV) = exprAsVar(lE)
+        val (defs4, rV) = exprAsVar(rE)
         (lDefs ++ rDefs ++ defs3 ++ defs4) :+ Assign(lV, rV)
       case surface.ExprStmt(expr, isReturn) =>
         val (defs, e) = translateExpr2(expr)
-        val (defs2, r) = exprAsGround(e)
+        val (defs2, r) = exprAsVar(e)
         if (isReturn) defs ++ defs2 :+ ReturnStmt(r)
         else defs ++ defs2
       case surface.IfStmt(cond, branch1, branch2) =>
         val (condDef, condE) = translateExpr2(cond)
-        val (condDef2, condV) = exprAsGround(condE)
+        val (condDef2, condV) = exprAsVar(condE)
         val branch1Stmt = groupInBlock(translateStmt(branch1))
         val branch2Stmt = groupInBlock(translateStmt(branch2))
         val ifStmt = IfStmt(condV, branch1Stmt, branch2Stmt)
         condDef ++ condDef2 :+ ifStmt
       case surface.WhileStmt(cond, body) =>
         val (condDef, condE) = translateExpr2(cond)
-        val (condDef2, condV) = exprAsGround(condE)
+        val (condDef2, condV) = exprAsVar(condE)
         // recompute the conditional expression value at the end of the loop
         val condCompute =
           (condDef ++ condDef2).filterNot(_.isInstanceOf[VarDef])
@@ -219,31 +231,30 @@ class IRTranslation {
       implicit tyVars: Set[Symbol],
       defs: mutable.ListBuffer[IRStmt]
   ): IRExpr = {
-    def asGround(expr: IRExpr): Ground = {
-      val (stmts, v) = exprAsGround(expr)
+    def asVar(expr: IRExpr): Var = {
+      val (stmts, v) = exprAsVar(expr)
       defs.appendAll(stmts)
       v
     }
 
     expr match {
       case surface.Var(name) => namedVar(name)
-      case surface.Const(value, ty) =>
-        Const(value, ty)
+      case c: surface.Const  => constToVar(c)
       case surface.FuncCall(f, args) =>
-        val fVar = asGround(translateExpr(f))
-        val argsVars = args.map(e => asGround(translateExpr(e))).toVector
+        val fVar = asVar(translateExpr(f))
+        val argsVars = args.map(e => asVar(translateExpr(e))).toVector
         IR.FuncCall(fVar, argsVars)
       case surface.Cast(e, ty) =>
-        Cast(asGround(translateExpr(e)), translateType(ty))
+        Cast(asVar(translateExpr(e)), translateType(ty))
       case surface.ObjLiteral(fields) =>
-        ObjLiteral(fields.mapValuesNow(e => asGround(translateExpr(e))))
+        ObjLiteral(fields.mapValuesNow(e => asVar(translateExpr(e))))
       case surface.Access(receiver, field) =>
-        val v = asGround(translateExpr(receiver))
+        val v = asVar(translateExpr(receiver))
         FieldAccess(v, field)
       case surface.IfExpr(cond, e1, e2) =>
-        val condV = asGround(translateExpr(cond))
-        val e1V = asGround(translateExpr(e1))
-        val e2V = asGround(translateExpr(e2))
+        val condV = asVar(translateExpr(cond))
+        val e1V = asVar(translateExpr(e1))
+        val e2V = asVar(translateExpr(e2))
         IfExpr(condV, e1V, e2V)
     }
   }

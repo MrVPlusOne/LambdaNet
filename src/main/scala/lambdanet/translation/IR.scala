@@ -73,9 +73,7 @@ object IR {
     override def toString: String = prettyPrint
   }
 
-  sealed trait Ground extends IRExpr
-
-  case class Var(content: Either[Int, Symbol]) extends Ground {
+  case class Var(content: Either[Int, Symbol]) extends IRExpr {
     val nameOpt: Option[Symbol] = content.right.toOption
 
     def prettyPrint: String = content match {
@@ -86,23 +84,20 @@ object IR {
 
   def namedVar(name: Symbol) = Var(Right(name))
 
-  case class Const(value: Any, ty: GType) extends Ground {
-    def prettyPrint: String = s"($value: $ty)"
-  }
-  case class FuncCall(f: Ground, args: Vector[Ground]) extends IRExpr {
+  case class FuncCall(f: Var, args: Vector[Var]) extends IRExpr {
     def prettyPrint: String = s"$f${args.mkString("(", ", ", ")")}"
   }
-  case class ObjLiteral(fields: Map[Symbol, Ground]) extends IRExpr {
+  case class ObjLiteral(fields: Map[Symbol, Var]) extends IRExpr {
     def prettyPrint: String =
       fields.map { case (f, v) => s"$f: $v" }.mkString("{", ", ", "}")
   }
-  case class FieldAccess(receiver: Ground, label: Symbol) extends IRExpr {
+  case class FieldAccess(receiver: Var, label: Symbol) extends IRExpr {
     def prettyPrint: String = s"$receiver.${label.name}"
   }
-  case class IfExpr(cond: Ground, e1: Ground, e2: Ground) extends IRExpr {
+  case class IfExpr(cond: Var, e1: Var, e2: Var) extends IRExpr {
     def prettyPrint: String = s"($cond ? $e1 : $e2)"
   }
-  case class Cast(expr: Ground, ty: GType) extends IRExpr {
+  case class Cast(expr: Var, ty: GType) extends IRExpr {
     def prettyPrint: String = s"(${expr.prettyPrint} as $ty)"
   }
   // @formatter:off
@@ -151,13 +146,13 @@ object IR {
   ) extends IRStmt
 
   // todo: check if can make lhs only a Var
-  case class Assign(lhs: Ground, rhs: Ground) extends IRStmt
+  case class Assign(lhs: Var, rhs: Var) extends IRStmt
 
-  case class ReturnStmt(v: Ground) extends IRStmt
+  case class ReturnStmt(v: Var) extends IRStmt
 
-  case class IfStmt(cond: Ground, e1: BlockStmt, e2: BlockStmt) extends IRStmt
+  case class IfStmt(cond: Var, e1: BlockStmt, e2: BlockStmt) extends IRStmt
 
-  case class WhileStmt(cond: Ground, body: BlockStmt) extends IRStmt
+  case class WhileStmt(cond: Var, body: BlockStmt) extends IRStmt
 
   case class BlockStmt(stmts: Vector[IRStmt]) extends IRStmt
 

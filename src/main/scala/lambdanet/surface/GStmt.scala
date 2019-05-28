@@ -120,8 +120,6 @@ object GStmt {
 
   type IsStatic = Boolean
 
-  def staticName(symbol: Symbol) = Symbol(s"static ${symbol.name}")
-
   /*
    * S :=                                    ([[GStmt]])
    *       var x: α = e                      ([[VarDef]])
