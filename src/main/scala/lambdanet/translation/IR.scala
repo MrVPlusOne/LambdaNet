@@ -145,7 +145,6 @@ object IR {
       exportLevel: ExportLevel.Value
   ) extends IRStmt
 
-  // todo: check if can make lhs only a Var
   case class Assign(lhs: Var, rhs: Var) extends IRStmt
 
   case class ReturnStmt(v: Var) extends IRStmt

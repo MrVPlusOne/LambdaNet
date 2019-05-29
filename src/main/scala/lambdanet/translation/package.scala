@@ -20,4 +20,6 @@ package object translation {
 
   val thisVar: IR.Var = namedVar(thisSymbol)
   val superVar: IR.Var = namedVar(superSymbol)
+  val returnVar: IR.Var = namedVar(lambdanet.returnSymbol)
+
 }

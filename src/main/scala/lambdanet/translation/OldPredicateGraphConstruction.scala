@@ -581,7 +581,7 @@ private class OldPredicateGraphConstruction(libraryContext: LibraryContext) {
 
             val ctx1 = ctx.copy(
               varTypeMap = {
-                val map1 = (ctx.varTypeMap ++ args) + (returnVar -> newReturnType)
+                val map1 = (ctx.varTypeMap ++ args) + (OldPredicateGraph.returnVar -> newReturnType)
                 // special rule for constructors: 'this' has its return type
                 if (isConstructor)
                   map1 ++ Seq(

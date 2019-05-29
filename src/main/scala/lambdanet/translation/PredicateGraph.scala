@@ -3,7 +3,7 @@ package lambdanet.translation
 import lambdanet.{IdAllocator, IdEquality}
 import lambdanet.translation.IR._
 import PredicateGraph._
-import lambdanet.types.GType
+import lambdanet.types.{GTHole, GType}
 
 case class PredicateGraph(
     nodes: Vector[PVar],
@@ -42,6 +42,7 @@ object PredicateGraph {
   class PVar private (
       protected val id: Int,
       val nameOpt: Option[VarName],
+      val holeOpt: Option[GTHole],
       val isType: Boolean
   ) extends PNode
       with IdEquality {
@@ -59,8 +60,12 @@ object PredicateGraph {
   object PVar {
 
     class PVarAllocator extends IdAllocator[PVar] {
-      def newVar(nameOpt: Option[VarName], isType: Boolean): PVar = {
-        useNewId(id => new PVar(id, nameOpt, isType))
+      def newVar(
+          nameOpt: Option[VarName],
+          holeOpt: Option[GTHole],
+          isType: Boolean
+      ): PVar = {
+        useNewId(id => new PVar(id, nameOpt, holeOpt, isType))
       }
     }
 
