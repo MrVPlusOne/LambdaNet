@@ -6,15 +6,6 @@ import lambdanet.surface.{GExpr, GModule, GStmt}
 import lambdanet.translation.OldIR._
 import lambdanet.translation.OldIRTranslation._
 import lambdanet._
-import lambdanet.types.{
-  AnyType,
-  FuncType,
-  GTHole,
-  GTMark,
-  GType,
-  ObjectType,
-  TyVar
-}
 
 import scala.collection.mutable
 

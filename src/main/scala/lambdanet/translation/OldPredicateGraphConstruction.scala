@@ -11,7 +11,15 @@ import lambdanet.translation.OldPredicateGraph._
 import lambdanet.translation.OldPredicateGraphConstruction._
 import lambdanet.utils.ProgramParsing
 import lambdanet.utils.ProgramParsing.DeclarationModule
-import lambdanet.{ProjectPath, TrainingProjects}
+import lambdanet.{
+  AnyType,
+  FuncType,
+  GType,
+  ObjectType,
+  ProjectPath,
+  TrainingProjects,
+  TyVar
+}
 import lambdanet.types._
 
 import scala.collection.mutable
@@ -177,7 +185,6 @@ object OldPredicateGraphConstruction {
   def fromRootDirectory(
       root: Path,
       libModules: Seq[DeclarationModule] = TrainingProjects.standardLibs,
-      libraryFiles: Set[ProjectPath] = Set(),
       pathMapping: PathMapping = PathMapping.identity
   ): ParsedProject = {
 
@@ -196,7 +203,6 @@ object OldPredicateGraphConstruction {
     val parser = new ProgramParsing()
     val modules = parser.parseGModulesFromFiles(
       sources,
-      libraryFiles,
       root
     )
 
@@ -561,7 +567,12 @@ private class OldPredicateGraphConstruction(libraryContext: LibraryContext) {
           case Assign(lhs, rhs) =>
             add(AssignRel(varTypeMap(lhs), varTypeMap(rhs)))
           case ReturnStmt(v) =>
-            add(SubtypeRel(varTypeMap(v), ctx.varTypeMap(returnVar)))
+            add(
+              SubtypeRel(
+                varTypeMap(v),
+                ctx.varTypeMap(OldPredicateGraph.returnVar)
+              )
+            )
           case IfStmt(cond, e1, e2) =>
             add(UsedAsBoolean(varTypeMap(cond)))
             encodeStmt(e1)

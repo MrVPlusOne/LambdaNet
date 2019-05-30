@@ -2,10 +2,9 @@ package lambdanet.translation
 
 import funcdiff.SimpleMath
 import funcdiff.SimpleMath.{LabeledGraph, wrapInQuotes}
-import lambdanet.{ProjectPath}
+import lambdanet.{GTHole, GType, ProjectPath}
 import lambdanet.translation.OldIR._
 import lambdanet.translation.OldPredicateGraph._
-import lambdanet.types.{GTHole, GType}
 
 case class OldPredicateGraph(
     nodes: Vector[IRType],

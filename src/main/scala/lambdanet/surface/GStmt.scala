@@ -1,12 +1,9 @@
 package lambdanet.surface
 
 import lambdanet._
-import lambdanet.surface.GExpr.GExprAPI
-import lambdanet.surface.GStmt.IsStatic
-import lambdanet.translation.IRTranslation
-import lambdanet.types.{FuncType, GType, ObjectType}
+import lambdanet.translation.{IRTranslation, PLangTranslation}
 import funcdiff.SimpleMath.Extensions._
-import scala.collection.mutable
+
 import scala.language.implicitConversions
 
 // @formatter:off
@@ -28,7 +25,7 @@ import scala.language.implicitConversions
   *
   * where x and l are [[Symbol]],
   *       t is [[GType]]
-  *       α is `TypeAnnotation`,
+  *       α is `TypeTyAnnotation`,
   *       e is [[GExpr]],
   * */
 // @formatter:on
@@ -239,8 +236,8 @@ object GStmt {
     val fT = funcDef.args.map(_._2.get).toList -: funcDef.returnType.get
       .asInstanceOf[GType]
     if (eliminateTVars) {
-      IRTranslation
-        .translateType(fT)(funcDef.tyVars.toSet)
+      PLangTranslation
+        .monotype(fT)(funcDef.tyVars.toSet)
         .asInstanceOf[FuncType]
     } else fT
   }

@@ -1,7 +1,6 @@
 package lambdanet.types
 
-import lambdanet.IdAllocator
-import lambdanet.TyAnnot
+import lambdanet.{Annot, GTHole, GType, IdAllocator, TyAnnot}
 
 import scala.collection.mutable
 

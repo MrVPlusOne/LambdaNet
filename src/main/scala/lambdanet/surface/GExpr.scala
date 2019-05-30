@@ -1,7 +1,7 @@
 package lambdanet.surface
 
-import lambdanet.types._
-import lambdanet.types.GType._
+import lambdanet.GType.{AccessError, ApplyError, GTypeAPI, TypeCheckError}
+import lambdanet._
 
 import scala.language.implicitConversions
 
@@ -133,7 +133,7 @@ object GExpr {
     * Check whether an expression is well-typed and infer a most precise type. Assumes the expression
     * contains no [[GTHole]]s.
     *
-    * @return a type and a set of [[lambdanet.types.GType.TypeCheckError]].
+    * @return a type and a set of [[GType.TypeCheckError]].
     */
   def typeCheckInfer(
       expr: GExpr,

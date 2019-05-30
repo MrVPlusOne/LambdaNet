@@ -1,9 +1,9 @@
 package lambdanet.translation
 
-import lambdanet.{IdAllocator, IdEquality}
+import lambdanet.{Annot, IdAllocator, IdEquality}
 import lambdanet.translation.IR._
 import PredicateGraph._
-import lambdanet.types.{GTHole, GType}
+import lambdanet.surface.JSExamples
 
 case class PredicateGraph(
     nodes: Vector[PVar],
@@ -17,32 +17,33 @@ object PredicateGraph {
   sealed trait PNode extends PExpr {
     def isType: Boolean
     def isTerm: Boolean = !isType
+
+    def nameOpt: Option[Symbol]
   }
 
   class PConst private (
       protected val id: Int,
       val name: Symbol,
-      val isType: Boolean,
-      val signatureOpt: Option[GType]
+      val isType: Boolean
   ) extends PNode
-      with IdEquality
+      with IdEquality {
+    def nameOpt: Some[Symbol] = Some(name)
+  }
 
   object PConst {
     class PConstAllocator extends IdAllocator[PConst] {
       def newVar(
           name: Symbol,
-          isType: Boolean,
-          signatureOpt: Option[GType]
+          isType: Boolean
       ): PConst = {
-        useNewId(id => new PConst(id, name, isType, signatureOpt))
+        useNewId(id => new PConst(id, name, isType))
       }
     }
   }
 
   class PVar private (
       protected val id: Int,
-      val nameOpt: Option[VarName],
-      val holeOpt: Option[GTHole],
+      val nameOpt: Option[Symbol],
       val isType: Boolean
   ) extends PNode
       with IdEquality {
@@ -62,10 +63,9 @@ object PredicateGraph {
     class PVarAllocator extends IdAllocator[PVar] {
       def newVar(
           nameOpt: Option[VarName],
-          holeOpt: Option[GTHole],
           isType: Boolean
       ): PVar = {
-        useNewId(id => new PVar(id, nameOpt, holeOpt, isType))
+        useNewId(id => new PVar(id, nameOpt, isType))
       }
     }
 

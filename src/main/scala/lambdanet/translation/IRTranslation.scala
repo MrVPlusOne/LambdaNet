@@ -3,21 +3,22 @@ package lambdanet.translation
 import lambdanet.types._
 import funcdiff.SimpleMath.Extensions._
 import IR._
-import lambdanet.{ExportLevel, TyAnnot, surface}
+import lambdanet.{
+  Annot,
+  AnyType,
+  ExportLevel,
+  GTHole,
+  ObjectType,
+  TyAnnot,
+  TyVar,
+  surface
+}
 import lambdanet.surface.{GExpr, GModule}
 import IRTranslation._
 import lambdanet.translation.ImportsResolution.ModuleExports
+import lambdanet.translation.PLangTranslation.monotype
 
 object IRTranslation {
-  def translateType(ty: GType)(implicit tyVars: Set[Symbol]): GType = {
-    ty match {
-      case tyVar: TyVar => if (tyVars.contains(tyVar.id)) AnyType else tyVar
-      case AnyType      => AnyType
-      case f: FuncType  => f.from.map(translateType) -: translateType(f.to)
-      case o: ObjectType =>
-        ObjectType(o.fields.mapValuesNow(translateType))
-    }
-  }
 
   val undefinedVar = Var(Right('undefined))
 
@@ -46,7 +47,7 @@ class IRTranslation {
   private def translateMark(
       mark: TyAnnot
   )(implicit tyVars: Set[Symbol]): GTHole = {
-    holeContext.newTHole(mark.map(translateType))
+    holeContext.newTHole(mark.map(monotype))
   }
 
   private def exprAsVar(
@@ -59,7 +60,7 @@ class IRTranslation {
         Vector(
           VarDef(
             v,
-            holeContext.newTHole(TyAnnot.Missing),
+            holeContext.newTHole(Annot.Missing),
             expr,
             ExportLevel.Unspecified
           )
@@ -155,7 +156,7 @@ class IRTranslation {
           } ++ funcDefs
             .map { m =>
               m.name -> m.functionType
-            }).map(p => p._1 -> translateType(p._2))
+            }).map(p => p._1 -> monotype(p._2))
           val objType = ObjectType(fields)
           translateStmt(surface.TypeAliasStmt(name, tyVars, objType, level))(
             newTyVars
@@ -176,7 +177,7 @@ class IRTranslation {
         Vector(
           TypeAliasStmt(
             name,
-            translateType(ty)(quantifiedTypes ++ tyVars),
+            monotype(ty)(quantifiedTypes ++ tyVars),
             level
           )
         )
@@ -245,7 +246,7 @@ class IRTranslation {
         val argsVars = args.map(e => asVar(translateExpr(e))).toVector
         IR.FuncCall(fVar, argsVars)
       case surface.Cast(e, ty) =>
-        Cast(asVar(translateExpr(e)), translateType(ty))
+        Cast(asVar(translateExpr(e)), monotype(ty))
       case surface.ObjLiteral(fields) =>
         ObjLiteral(fields.mapValuesNow(e => asVar(translateExpr(e))))
       case surface.Access(receiver, field) =>

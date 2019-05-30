@@ -2,13 +2,13 @@ package lambdanet.translation
 
 import ammonite.ops
 import lambdanet.{ExportLevel, ProjectPath}
-import lambdanet.surface._
+import lambdanet.translation.PLang._
 import lambdanet.translation.PredicateGraph.{PConst, PNode, PVar}
 import funcdiff.SimpleMath.Extensions._
-import lambdanet.ExportStmt.{ExportDefault, ExportOtherModule, ExportSingle}
+import lambdanet.ExportStmt._
 import lambdanet.ImportStmt._
+import lambdanet.surface.{GModule, JSExamples}
 import lambdanet.translation.PredicatesGeneration.PContext
-import lambdanet.types.GType
 
 import scala.collection.mutable
 
@@ -50,12 +50,15 @@ object ImportsResolution {
       }
     }
 
-    implicit val NameDefMonoid = new Monoid[NameDef] {
+    implicit val NameDefMonoid: Monoid[NameDef] = new Monoid[NameDef] {
       def empty: NameDef = NameDef.empty
 
       def combine(x: NameDef, y: NameDef): NameDef =
         NameDef(combineOption(x.term, y.term), combineOption(x.ty, y.ty))
     }
+
+    def termDef(n: PNode) = NameDef(Some(n), None)
+    def typeDef(n: PNode) = NameDef(None, Some(n))
   }
 
   case class ModuleExports(
@@ -64,6 +67,26 @@ object ImportsResolution {
       internalSymbols: Map[Symbol, NameDef],
       nameSpaces: Map[Symbol, ModuleExports]
   )
+
+  object ModuleExports {
+    import cats.Monoid
+    import cats.implicits._
+
+    implicit val ModuleExportsMonoid: Monoid[ModuleExports] =
+      new Monoid[ModuleExports] {
+        def empty: ModuleExports =
+          ModuleExports(NameDef.empty, Map(), Map(), Map())
+
+        def combine(x: ModuleExports, y: ModuleExports): ModuleExports = {
+          ModuleExports(
+            x.defaultDefs |+| y.defaultDefs,
+            x.publicSymbols |+| y.publicSymbols,
+            x.internalSymbols |+| y.internalSymbols,
+            x.nameSpaces |+| y.nameSpaces
+          )
+        }
+      }
+  }
 
   def moduleExportsToPContext(exports: ModuleExports): PContext = {
     val namespaces = exports.nameSpaces.mapValuesNow(moduleExportsToPContext)
@@ -77,33 +100,44 @@ object ImportsResolution {
     PContext(terms, types, namespaces)
   }
 
-  private def findExports(
-      exports: Map[ProjectPath, ModuleExports],
-      pathMapping: PathMapping,
-      resolvedModules: Map[ProjectPath, ModuleExports]
-  )(currentPath: ProjectPath, pathToResolve: ProjectPath): ModuleExports = {
-    val path = pathMapping.map(currentPath / ops.up, pathToResolve)
-    resolvedModules.getOrElse(
-      path,
-      exports.getOrElse(
-        path,
-        throw new Error(
-          s"Cannot find source file: '${currentPath / ops.up / pathToResolve}'."
-        )
-      )
+  def resolveLibraries(
+      libModules: Vector[GModule],
+      pathMapping: PathMapping = PathMapping.identity,
+      maxIterations: Int = 10
+  )
+      : (
+          ModuleExports,
+          Map[ProjectPath, PModule],
+          Map[ProjectPath, ModuleExports]
+      ) = {
+    val pConstAllocator = new PConst.PConstAllocator()
+
+    val specialInternals = JSExamples.specialVars.map {
+      case (s, _) =>
+        val pConst = pConstAllocator.newVar(s, isType = false)
+        s -> NameDef.termDef(pConst)
+    }
+    val defaultCtx =
+      ModuleExports(NameDef.empty, Map(), specialInternals, Map())
+
+    val libModules1 = libModules.map(
+      m => PLangTranslation.fromGModule(m, Right(pConstAllocator))
     )
+    val libToResolve = libModules1.map(m => m.path -> m).toMap
+    val libExports =
+      ImportsResolution.resolveExports(libToResolve, Map(), pathMapping)
+    (defaultCtx, libToResolve, libExports)
   }
 
   def resolveExports(
-      allocator: Either[PVar.PVarAllocator, PConst.PConstAllocator],
-      modulesToResolve: Map[ProjectPath, GModule],
+      modulesToResolve: Map[ProjectPath, PModule],
       resolvedModules: Map[ProjectPath, ModuleExports],
       pathMapping: PathMapping,
       maxIterations: Int = 10
   ): Map[ProjectPath, ModuleExports] = {
 
     def collectTopLevelDefs(
-        stmts: Vector[GStmt]
+        stmts: Vector[PStmt]
     ): ModuleExports = {
       var defaults = NameDef.empty
       val publics = mutable.Map[Symbol, NameDef]()
@@ -111,36 +145,29 @@ object ImportsResolution {
       val nameSpaces = mutable.HashMap[Symbol, ModuleExports]()
 
       def record(
-          name: Symbol,
-          level: ExportLevel.Value,
-          isTerm: Boolean,
-          signatureOpt: Option[GType]
+          node: PNode,
+          level: ExportLevel.Value
       ): Unit = {
-        val v = allocator match {
-          case Left(pVarAllocator) =>
-            pVarAllocator.newVar(Some(name), !isTerm)
-          case Right(pConstAllocator) =>
-            pConstAllocator.newVar(name, !isTerm, signatureOpt)
-        }
+        val name = node.nameOpt.get
         level match {
           case ExportLevel.Unspecified =>
-            privates(name) = privates.getOrElse(name, NameDef.empty) + v
+            privates(name) = privates.getOrElse(name, NameDef.empty) + node
           case ExportLevel.Public =>
-            privates(name) = publics.getOrElse(name, NameDef.empty) + v
+            privates(name) = publics.getOrElse(name, NameDef.empty) + node
           case ExportLevel.Default =>
-            defaults += v
+            defaults += node
         }
       }
 
       stmts.foreach {
         case vd: VarDef =>
-          record(vd.name, vd.exportLevel, isTerm = true, vd.annot.typeOpt)
+          record(vd.node, vd.exportLevel)
         case fd: FuncDef =>
-          record(fd.name, fd.exportLevel, isTerm = true, Some(fd.functionType))
+          record(fd.funcNode, fd.exportLevel)
         case cd: ClassDef =>
-          record(cd.name, cd.exportLevel, isTerm = false, Some(cd.objectType))
+          record(cd.classNode, cd.exportLevel)
         case ts: TypeAliasStmt =>
-          record(ts.name, ts.exportLevel, isTerm = false, Some(ts.ty))
+          record(ts.node, ts.exportLevel)
         case Namespace(name, block) =>
           nameSpaces(name) = collectTopLevelDefs(block.stmts)
         case _ =>
@@ -231,15 +258,31 @@ object ImportsResolution {
       .next()
   }
 
+  private def findExports(
+      exports: Map[ProjectPath, ModuleExports],
+      pathMapping: PathMapping,
+      resolvedModules: Map[ProjectPath, ModuleExports]
+  )(currentPath: ProjectPath, pathToResolve: ProjectPath): ModuleExports = {
+    val path = pathMapping.map(currentPath / ops.up, pathToResolve)
+    resolvedModules.getOrElse(
+      path,
+      exports.getOrElse(
+        path,
+        throw new Error(
+          s"Cannot find source file: '${currentPath / ops.up / pathToResolve}'."
+        )
+      )
+    )
+  }
+
   def resolveImports(
       allocator: Either[PVar.PVarAllocator, PConst.PConstAllocator],
-      modulesToResolve: Map[ProjectPath, GModule],
+      modulesToResolve: Map[ProjectPath, PModule],
       resolvedModules: Map[ProjectPath, ModuleExports],
       pathMapping: PathMapping,
       maxIterations: Int = 10
   ) = {
     val exports = resolveExports(
-      allocator,
       modulesToResolve,
       resolvedModules,
       pathMapping,

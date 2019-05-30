@@ -1,8 +1,7 @@
-package lambdanet.types
+package lambdanet
 
-import lambdanet.{IdEquality, TyAnnot}
+import lambdanet.GType._
 import lambdanet.surface.GExpr
-import lambdanet.types.GType._
 import org.scalacheck.Gen
 
 import scala.language.implicitConversions

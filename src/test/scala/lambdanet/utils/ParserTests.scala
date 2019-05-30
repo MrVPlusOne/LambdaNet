@@ -39,7 +39,6 @@ class ParserTests extends WordSpec with MyTest {
 
     val modules = new ProgramParsing().parseGModulesFromFiles(
       files,
-      Set(),
       projectRoot,
       Some(projectRoot / "parsed.json")
     )
@@ -53,7 +52,7 @@ class ParserTests extends WordSpec with MyTest {
     assert(modules == modules2, "Two parses do not match.")
   }
 
-  "Expressions parsing test" in {
+  "Simple cases parsing test" in {
     val content =
       """namespace foo {
         |   namespace bar {
@@ -89,72 +88,51 @@ class ParserTests extends WordSpec with MyTest {
         |[1,2,3];
         |f(a);
         |new A(1,2);
-      """.stripMargin
+      """.stripMargin ++ Seq(
+        """let [a,b,c] = array;""",
+        """let {x,y} = {x: 10, y: 5};""",
+        """let {x,y} = o1""",
+        """let x: number = 4;""",
+        """const y = "yyy";""",
+        """let x = {a: 1, b: {c: "x"}};""",
+        """let one = {a: 1}.a;""",
+        """let a = array[1];""",
+        """a + b;""",
+        """a = b + 1;""",
+        """x = (y = 3);""",
+        """!(a==b);""",
+        """v++;""",
+        """(1+1==2)? good: bad;""",
+        """if(true) yes else no; """,
+        """while(1+2==2) { "no escape"} """,
+        """{i++; let v = 2;}""",
+        """{++i; i++}""",
+        """for(let x = 0; x < 5; x ++) { print(x) }""",
+        """break;""",
+        """function foo(bar: number, z): boolean {
+          |  return z;
+          |}""".stripMargin,
+        """class Bare {
+          | x: number;
+          | y(z: number): number{
+          |   return z;
+          | }
+        """.stripMargin,
+        "let inc = (x: number) => {return x + 1;};",
+        "let inc = x => x+1;",
+        "let f = (x) => (y) => x + y;",
+        """"switch(i){
+          |  case 1:
+          |    print(i); break;
+          |  case a: a + 1;
+          |  default:
+          |    print("do nothing");
+          |}
+        """"
+      ).mkString("\n")
 
     val stmts = new ProgramParsing().parseContent(content)
     stmts.foreach(println)
-    val env = new IRTranslation()
-
-    val irStmts = stmts.flatMap(s => env.translateStmt(s)(Set()))
-    println("=== IR ===")
-    irStmts.foreach(println)
-  }
-
-  "Statements parsing test" in {
-    testParsing(printResult = true)(
-      "let [a,b,c] = array;" -> classOf[BlockStmt],
-      "let {x,y} = {x: 10, y: 5};" -> classOf[BlockStmt],
-      "let {x,y} = o1" -> classOf[BlockStmt],
-      """let x: number = 4;""" -> classOf[VarDef],
-      """const y = "yyy";""" -> classOf[VarDef],
-      """let x = {a: 1, b: {c: "x"}};""" -> classOf[VarDef],
-      """let one = {a: 1}.a;""" -> classOf[VarDef],
-      """let a = array[1];""" -> classOf[VarDef],
-      """a + b;""" -> classOf[ExprStmt],
-      """a = b + 1;""" -> classOf[AssignStmt],
-      """x = (y = 3);""" -> classOf[AssignStmt],
-      """!(a==b);""" -> classOf[ExprStmt],
-      """v++;""" -> classOf[ExprStmt],
-      """(1+1==2)? good: bad;""" -> classOf[ExprStmt],
-      """if(true) yes else no; """ -> classOf[IfStmt],
-      """while(1+2==2) { "no escape"} """ -> classOf[WhileStmt],
-      """{i++; let v = 2;}""" -> classOf[BlockStmt],
-      """{++i; i++}""" -> classOf[BlockStmt],
-      """for(let x = 0; x < 5; x ++) { print(x) }""" -> classOf[BlockStmt],
-      """break;""" -> classOf[CommentStmt],
-      """function foo(bar: number, z): boolean {
-        |  return z;
-        |}
-      """.stripMargin -> classOf[FuncDef],
-      """class Test1 {
-        |  x;
-        |  constructor(y: number){
-        |    this.x = y;
-        |  }
-        |
-        |  m1(x: boolean){
-        |    this.x = x;
-        |  }
-        |}
-      """.stripMargin -> classOf[ClassDef],
-      """class Bare {
-        | x: number;
-        | y(z: number): number{
-        |   return z;
-        | }
-      """.stripMargin -> classOf[ClassDef],
-      "let inc = (x: number) => {return x + 1;};" -> classOf[BlockStmt],
-      "let inc = x => x+1;" -> classOf[BlockStmt],
-      "let f = (x) => (y) => x + y;" -> classOf[BlockStmt],
-      """switch(i){
-        |  case 1:
-        |    print(i); break;
-        |  case a: a + 1;
-        |  default:
-        |    print("do nothing");
-        |}
-      """.stripMargin -> classOf[BlockStmt]
-    )
   }
 
   "Imports parsing tests" in {
@@ -201,13 +179,21 @@ class ParserTests extends WordSpec with MyTest {
 
   "Export Import tests" in {
     val root = pwd / RelPath("data/tests/export-import")
-//    ImportsResolution.resolveImports()
-    OldPredicateGraphConstruction
-      .fromRootDirectory(root)
-      .predModules
-      .foreach { m =>
-        println(m.display())
+
+    val sources = ls
+      .rec(root)
+      .filter { f =>
+        f.ext == "ts"
       }
+      .map(_.relativeTo(root))
+    val parser = new ProgramParsing()
+    val modules = parser.parseGModulesFromFiles(
+      sources,
+      root
+    )
+
+    ImportsResolution.resolveLibraries(modules)
+
   }
 
   ".d.ts files parsing" in {

@@ -1,4 +1,4 @@
-import lambdanet.types.GType
+import lambdanet.GType
 
 import scala.collection.mutable
 
@@ -36,47 +36,47 @@ package object lambdanet {
     }
   }
 
-  sealed trait TyAnnot {
-    def map(f: GType => GType): TyAnnot = this match {
-      case TyAnnot.User(ty)  => TyAnnot.User(f(ty))
-      case TyAnnot.Fixed(ty) => TyAnnot.Fixed(f(ty))
-      case TyAnnot.Missing   => TyAnnot.Missing
+  sealed trait Annot[+T] {
+    def map[B](f: T => B): Annot[B] = this match {
+      case Annot.User(ty)  => Annot.User(f(ty))
+      case Annot.Fixed(ty) => Annot.Fixed(f(ty))
+      case Annot.Missing   => Annot.Missing
     }
 
     override def toString: String = this match {
-      case TyAnnot.User(ty)  => s"$ty"
-      case TyAnnot.Fixed(ty) => s"$ty!"
-      case TyAnnot.Missing   => "?"
+      case Annot.User(ty)  => s"$ty"
+      case Annot.Fixed(ty) => s"$ty!"
+      case Annot.Missing   => "?"
     }
 
-    def typeOpt: Option[GType] = this match {
-      case TyAnnot.User(ty)  => Some(ty)
-      case TyAnnot.Fixed(ty) => Some(ty)
-      case TyAnnot.Missing   => None
+    def typeOpt: Option[T] = this match {
+      case Annot.User(ty)  => Some(ty)
+      case Annot.Fixed(ty) => Some(ty)
+      case Annot.Missing   => None
     }
 
-    def get: GType =
+    def get: T =
       typeOpt.getOrElse(throw new Error("Type annotation missing."))
 
-    def forFixed(f: GType => Unit): Unit = this match {
-      case TyAnnot.Fixed(ty) => f(ty)
-      case _                 =>
+    def forFixed(f: T => Unit): Unit = this match {
+      case Annot.Fixed(ty) => f(ty)
+      case _               =>
     }
   }
 
-  object TyAnnot {
-    sealed trait WithType extends TyAnnot {
-      def ty: GType
+  object Annot {
+    sealed trait WithContent[T] extends Annot[T] {
+      def ty: T
     }
 
-    object WithType {
-      def unapply(arg: WithType): Option[GType] = Some(arg.ty)
+    object WithContent {
+      def unapply[T](arg: WithContent[T]): Option[T] = Some(arg.ty)
     }
-    case class User(ty: GType) extends WithType
+    case class User[T](ty: T) extends WithContent[T]
 
-    case class Fixed(ty: GType) extends WithType
+    case class Fixed[T](ty: T) extends WithContent[T]
 
-    case object Missing extends TyAnnot
+    case object Missing extends Annot[Nothing]
   }
 
   implicit class AssertionSyntax[T](x: T) {
@@ -85,4 +85,6 @@ package object lambdanet {
       x
     }
   }
+
+  type TyAnnot = Annot[GType]
 }

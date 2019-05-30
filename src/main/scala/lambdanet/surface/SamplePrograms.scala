@@ -1,8 +1,8 @@
 package lambdanet.surface
 
-import lambdanet.types.GType.boolType
-import lambdanet.types._
-import GType.API._
+import lambdanet.{GTHole, GType, TypeContext}
+import lambdanet.GType.boolType
+import lambdanet.GType.API._
 
 object SamplePrograms {
   /*

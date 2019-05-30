@@ -31,7 +31,7 @@ object ProgramParsing {
     stmts.foreach {
       case VarDef(
           x,
-          TyAnnot.WithType(t),
+          Annot.WithContent(t),
           _: Const,
           _,
           ExportLevel.Unspecified
@@ -169,18 +169,16 @@ class ProgramParsing() {
     */
   def parseGModulesFromFiles(
       srcFiles: Seq[RelPath],
-      libraryFiles: Set[RelPath],
       projectRoot: Path,
       writeToFile: Option[Path] = None
-  ): Seq[GModule] = {
-    val totalLibraries = libraryFiles ++ srcFiles
+  ): Vector[GModule] = {
     val r = %%(
       'node,
       pwd / RelPath("scripts/ts/parsingFromFile.js"),
       "--src",
       srcFiles.map(_.toString()),
       "--lib",
-      totalLibraries.toList.map(_.toString())
+      srcFiles.toList.map(_.toString())
     )(projectRoot)
     val parsedJson = r.out.string
     writeToFile.foreach(p => write.over(p, parsedJson))
@@ -189,9 +187,9 @@ class ProgramParsing() {
 
   /** Parses a sequence of [[GModule]] from Json string. These strings can be
     * generated through [[parseGModulesFromFiles]] when writeToFile is set to none-empty. */
-  def parseGModulesFromJson(parsedJson: String): Seq[GModule] = {
+  def parseGModulesFromJson(parsedJson: String): Vector[GModule] = {
     val modules = ProgramParsing.parseJson(parsedJson).asInstanceOf[Js.Arr]
-    modules.value.map(parseGModule)
+    modules.value.map(parseGModule).toVector
   }
 
   def parseArgPair(value: Js.Val): (Symbol, GTMark) = {
@@ -207,8 +205,8 @@ class ProgramParsing() {
 
   def parseGTMark(v: Js.Val): GTMark = {
     v match {
-      case Null => TyAnnot.Missing
-      case _    => TyAnnot.User(parseType(v))
+      case Null => Annot.Missing
+      case _    => Annot.User(parseType(v))
     }
   }
 
@@ -318,7 +316,7 @@ class ProgramParsing() {
           val name = Symbol(asString(map("name")))
           val args = parseArgList(map("args"))
           val returnType =
-            if (name == 'Constructor) TyAnnot.Missing
+            if (name == 'Constructor) Annot.Missing
             else parseGTMark(map("returnType"))
           val body = groupInBlockSurface(parseGStmt(map("body")))
 
@@ -344,7 +342,7 @@ class ProgramParsing() {
                 GStmt.constructorName,
                 tyVars,
                 Vector(),
-                TyAnnot.Missing,
+                Annot.Missing,
                 BlockStmt(Vector()),
                 ExportLevel.Unspecified
               )
@@ -353,7 +351,7 @@ class ProgramParsing() {
             }
             f.copy(
               name = GStmt.constructorName,
-              returnType = TyAnnot.Fixed(TyVar(name))
+              returnType = Annot.Fixed(TyVar(name))
             )
           }
           val vars = asVector(map("vars")).map { v1 =>

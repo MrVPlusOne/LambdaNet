@@ -14,7 +14,6 @@ import lambdanet.translation.OldIR.IRType
 import lambdanet.translation.OldPredicateGraph
 import lambdanet.translation.OldPredicateGraph._
 import lambdanet.translation.OldPredicateGraphConstruction._
-import lambdanet.types.{GType, TyVar}
 import lambdanet.utils.EventLogger.PlotConfig
 import lambdanet.utils.{EventLogger, ReportFinish}
 
@@ -222,10 +221,10 @@ object TrainingCenter {
             dimMessage,
             Some(taskSupport)
           ).encodeAndDecode(
-              iterations = iterationNum,
-              decodingCtx,
-              typeLabels.map(_._1)
-            )
+            iterations = iterationNum,
+            decodingCtx,
+            typeLabels.map(_._1)
+          )
         )(parallelCtx),
         Timeouts.encodeDecodeTimeout
       )

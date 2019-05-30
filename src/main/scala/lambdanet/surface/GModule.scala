@@ -10,5 +10,5 @@ case class GModule(
     exportStmts: Vector[ExportStmt],
     stmts: Vector[GStmt]
 ) {
-  val moduleName: String = path.segments.last
+  val moduleName: String = path.toString()
 }

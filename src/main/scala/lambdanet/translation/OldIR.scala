@@ -1,8 +1,7 @@
 package lambdanet.translation
 
-import lambdanet._
+import lambdanet.{GType, _}
 import lambdanet.surface._
-import lambdanet.types.GType
 
 /**
   * An intermediate program representation useful for type inference

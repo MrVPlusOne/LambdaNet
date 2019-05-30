@@ -1,10 +1,9 @@
 package lambdanet
 
-import lambdanet.types.GType
 import org.scalatest.{Matchers, WordSpec}
-import lambdanet.types.GType.API._
 import org.scalacheck.Prop.{BooleanOperators, forAll}
-import lambdanet.types.GType._
+import lambdanet.GType.API._
+import lambdanet.GType._
 
 class GTypeTest extends WordSpec with MyTest {
   "GType pretty print test cases" in {

@@ -1,16 +1,7 @@
 package lambdanet.surface
 
 import lambdanet._
-import lambdanet.types.{
-  AnyType,
-  CompoundType,
-  GType,
-  GroundType,
-  ObjectType,
-  TyVar,
-  TypeContext
-}
-import types.GType.API._
+import GType.API._
 
 object JSExamples {
 
@@ -23,7 +14,8 @@ object JSExamples {
   val generator = 'Generator
 
   def mkArrayType(baseType: GroundType): (Symbol, ObjectType) = {
-    val arrayType = if (baseType == any) 'Array else Symbol(s"${baseType.id.name}Array")
+    val arrayType =
+      if (baseType == any) 'Array else Symbol(s"${baseType.id.name}Array")
     arrayType -> obj(
       'length -> number,
       'pop -> (List() -: baseType),
@@ -154,8 +146,8 @@ object JSExamples {
       'Comment
     ).foreach(addType)
 
-    Seq('super, 'window, 'global, 'self, 'document, 'setTimeout, 'getComputedStyle, 'JSON,
-      'NaN, 'console)
+    Seq('super, 'window, 'global, 'self, 'document, 'setTimeout,
+      'getComputedStyle, 'JSON, 'NaN, 'console)
       .foreach(s => {
         varAssign += (s -> any)
       })
