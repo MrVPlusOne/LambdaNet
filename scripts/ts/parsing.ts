@@ -113,7 +113,7 @@ function parseSignatureType(sig: ts.SignatureDeclarationBase) {
   return new FuncType(argTypes, retType);
 }
 
-function parseTypeMembers(members: ts.NamedDeclaration[]): NamedValue<GType>[] {
+function parseTypeMembers(members: ts.NamedDeclaration[], tyVars: string[]): NamedValue<GType>[] {
   let fields: NamedValue<GType>[] = [];
   members.forEach(
     x => {
@@ -910,7 +910,7 @@ export class StmtParser {
         case SyntaxKind.InterfaceDeclaration: {
           let n = node as ts.InterfaceDeclaration;
           let tVars = parseTVars(n);
-          let members = parseTypeMembers(n.members as any);
+          let members = parseTypeMembers(n.members as any, tVars);
           let objT = new ObjectType(members); //todo: handle inheritance
           return EP.alongWith(
             new TypeAliasStmt(n.name.text, tVars, objT, parseModifiers(n.modifiers)));

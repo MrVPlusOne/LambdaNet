@@ -51,7 +51,7 @@ object JSExamples {
   }
 
   val specialVars = Map[Symbol, GType](
-    'undefined -> any,
+    undefinedSymbol -> any,
     '$TypeOf -> (List(any) -: string),
     '$Spread -> (List(anyArray) -: any),
     '$Case -> (List(number) -: void),

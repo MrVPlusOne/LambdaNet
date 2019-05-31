@@ -144,11 +144,11 @@ class IRTranslation {
           superType,
           vars,
           funcDefs,
-          level,
-          isAbstract
+          level
           ) =>
         val newTyVars = quantifiedTypes ++ tyVars.toSet
 
+        val isAbstract = ???
         if (isAbstract) {
           val fields = (vars.map {
             case (n, m) =>

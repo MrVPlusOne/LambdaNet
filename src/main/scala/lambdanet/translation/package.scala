@@ -3,10 +3,10 @@ package lambdanet
 import lambdanet.surface.GStmt
 import lambdanet.translation.IR.{BlockStmt, IRStmt, namedVar}
 import lambdanet.translation.PLang.PStmt
-import lambdanet.translation.PredicateGraph.PNode
+import lambdanet.translation.PredicateGraph.{PNode, PType}
 
 package object translation {
-  type PAnnot = Annot[PNode]
+  type PAnnot = Annot[PType]
 
   def groupInBlock(stmts: Vector[IRStmt]): BlockStmt = {
     stmts match {

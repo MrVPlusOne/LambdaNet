@@ -144,11 +144,6 @@ object ProgramParsing {
     }
     t
   }
-}
-
-import lambdanet.utils.ProgramParsing._
-
-class ProgramParsing() {
 
   def parseContent(content: String): Vector[GStmt] = {
     SimpleMath.withErrorMessage(
@@ -403,8 +398,7 @@ class ProgramParsing() {
               superType,
               instanceVars.toMap,
               instanceMethods,
-              ms.exportLevel,
-              isAbstract
+              ms.exportLevel
             )
           )
 

@@ -15,23 +15,26 @@ object SymbolicDecoding {
   ) {
     @throws[TypeAssignInvalidException]
     def varChanged(dv: DecisionVar): InferEnv = {
-      var currentEnv = this
-      constraints(dv).foreach {
-        case SubtypeRel(sub, sup) =>
-          if (currentEnv.cannotBeSubtype(sub, sup))
-            throw TypeAssignInvalidException(s"$sub should be a subtype of $sup")
-        case DefineRel(v, rhs) =>
-          rhs match {
-            case VarTypeExpr(v1) =>
-          }
-
-      }
+//      var currentEnv = this
+//      constraints(dv).foreach {
+//        case SubtypeRel(sub, sup) =>
+//          if (currentEnv.cannotBeSubtype(sub, sup))
+//            throw TypeAssignInvalidException(s"$sub should be a subtype of $sup")
+//        case DefineRel(v, rhs) =>
+//          rhs match {
+//            case VarTypeExpr(v1) =>
+//          }
+//
+//      }
       ???
     }
 
     @throws[TypeAssignInvalidException]
     def assignDecisionVar(dv: DecisionVar, label: TypeLabel): InferEnv = {
-      require(!dependentVars.contains(dv), s"$dv shouldn't be a dependent variable.")
+      require(
+        !dependentVars.contains(dv),
+        s"$dv shouldn't be a dependent variable."
+      )
       val newEnv = copy(typeAssign = typeAssign.updated(dv, label))
       label match {
         case OutOfScope => newEnv
@@ -45,7 +48,8 @@ object SymbolicDecoding {
   }
 
   sealed trait TypingAssumption
-  case class SubtypeAssumption(sub: IRType, sup: IRType) extends TypingAssumption
+  case class SubtypeAssumption(sub: IRType, sup: IRType)
+      extends TypingAssumption
 
   def initEnv(predicates: Vector[TyVarPredicate]): InferEnv = {
     val initAssign = mutable.HashMap[IRType, TypeLabel]()

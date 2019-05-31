@@ -7,7 +7,6 @@ import PredicatesGeneration._
 import funcdiff.SimpleMath
 import lambdanet.surface.GModule
 import lambdanet.translation.ImportsResolution.ModuleExports
-import lambdanet.translation.PredicateGraph.PVar.PVarAllocator
 import SimpleMath.Extensions._
 
 import scala.collection.mutable
@@ -19,7 +18,7 @@ object PredicatesGeneration {
       types: Map[TypeName, PNode],
       nameSpaces: Map[Symbol, PContext]
   ) {
-    def termVar(v: Var): PVar = terms(v).asInstanceOf[PVar]
+    def termVar(v: Var): PNode = terms(v).asInstanceOf[PNode]
   }
 
   class UsageCounter {
@@ -27,8 +26,8 @@ object PredicatesGeneration {
 
     var usages: Map[PNode, Int] = Map()
 
-    def useContType(ty: GroundType)(implicit ctx: PContext): PConst = {
-      ctx.types(ty.id).asInstanceOf[PConst]
+    def useContType(ty: GroundType)(implicit ctx: PContext): PNode = {
+      ctx.types(ty.id).asInstanceOf[PNode]
     }
 
     def useTerm(term: Var)(implicit ctx: PContext): PNode = {
@@ -51,7 +50,7 @@ class PredicatesGeneration {
 //      libraryModules: Map[ProjectPath, ModuleExports],
 //      pathMapping: ImportsResolution.PathMapping
 //  ): PredicateGraph = {
-//    val pVarAllocator = new PVarAllocator()
+//    val pVarAllocator = new PNodeAllocator()
 //
 //    PLangTranslation.fromGModule
 //
@@ -75,7 +74,7 @@ class PredicatesGeneration {
 //
 //      def useCond(cond: Var)(implicit ctx: PContext): Unit = {
 //        useTerm(cond) match {
-//          case pv: PVar => add(UsedAsBool(pv))
+//          case pv: PNode => add(UsedAsBool(pv))
 //          case _        =>
 //        }
 //      }
@@ -93,7 +92,7 @@ class PredicatesGeneration {
 //        SimpleMath.withErrorMessage(s"--->\n${stmt.prettyPrint()}") {
 //          stmt match {
 //            case d: VarDef =>
-//              val leftNode = useTerm(d.v).asInstanceOf[PVar]
+//              val leftNode = useTerm(d.v).asInstanceOf[PNode]
 //
 //              def define(rhs: PExpr): Unit = {
 //                add(DefineRel(leftNode, rhs))
@@ -158,7 +157,7 @@ class PredicatesGeneration {
 //                  else map1
 //                }
 //              )
-//              val fNode = useTerm(namedVar(name)).asInstanceOf[PVar]
+//              val fNode = useTerm(namedVar(name)).asInstanceOf[PNode]
 //              add(DefineRel(fNode, PFunc(args.map(_._2), newReturnType)))
 //              encodeStmt(body)(ctx1)
 //            case ClassDef(_, superType, vars, funcDefs, classT, _, _) =>

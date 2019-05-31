@@ -13,11 +13,11 @@ object TrainingProjects {
     val root = pwd / RelPath("data/libraries")
     val libFile = RelPath("default.lib.d.ts")
     val modules = {
-      val parser = new ProgramParsing()
+      val parser = ProgramParsing
       val r = parser.parseGModulesFromFiles(Seq(libFile), root)
       r
     }
-    modules.toVector.map { m =>
+    modules.map { m =>
       ProgramParsing.extractDeclarationModule(m.stmts)
     }
   }

@@ -200,7 +200,7 @@ object OldPredicateGraphConstruction {
         f.ext == "ts"
       }
       .map(_.relativeTo(root))
-    val parser = new ProgramParsing()
+    val parser = ProgramParsing
     val modules = parser.parseGModulesFromFiles(
       sources,
       root

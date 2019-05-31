@@ -3,12 +3,14 @@ package lambdanet.translation
 import ammonite.ops
 import lambdanet.{ExportLevel, ProjectPath}
 import lambdanet.translation.PLang._
-import lambdanet.translation.PredicateGraph.{PConst, PNode, PVar}
+import lambdanet.translation.PredicateGraph.{PNode, PNodeAllocator}
 import funcdiff.SimpleMath.Extensions._
 import lambdanet.ExportStmt._
 import lambdanet.ImportStmt._
-import lambdanet.surface.{GModule, JSExamples}
+import lambdanet.surface.{GModule, GStmt, JSExamples}
 import lambdanet.translation.PredicatesGeneration.PContext
+import lambdanet.utils.ProgramParsing
+import lambdanet.utils.ProgramParsing.DeclarationModule
 
 import scala.collection.mutable
 
@@ -72,10 +74,11 @@ object ImportsResolution {
     import cats.Monoid
     import cats.implicits._
 
+    val empty = ModuleExports(NameDef.empty, Map(), Map(), Map())
+
     implicit val ModuleExportsMonoid: Monoid[ModuleExports] =
       new Monoid[ModuleExports] {
-        def empty: ModuleExports =
-          ModuleExports(NameDef.empty, Map(), Map(), Map())
+        val empty: ModuleExports = ModuleExports.empty
 
         def combine(x: ModuleExports, y: ModuleExports): ModuleExports = {
           ModuleExports(
@@ -86,6 +89,7 @@ object ImportsResolution {
           )
         }
       }
+
   }
 
   def moduleExportsToPContext(exports: ModuleExports): PContext = {
@@ -100,33 +104,35 @@ object ImportsResolution {
     PContext(terms, types, namespaces)
   }
 
-  def resolveLibraries(
+  def resolveLibrariesOld(
       libModules: Vector[GModule],
       pathMapping: PathMapping = PathMapping.identity,
       maxIterations: Int = 10
-  )
-      : (
-          ModuleExports,
-          Map[ProjectPath, PModule],
-          Map[ProjectPath, ModuleExports]
-      ) = {
-    val pConstAllocator = new PConst.PConstAllocator()
-
-    val specialInternals = JSExamples.specialVars.map {
-      case (s, _) =>
-        val pConst = pConstAllocator.newVar(s, isType = false)
-        s -> NameDef.termDef(pConst)
-    }
-    val defaultCtx =
-      ModuleExports(NameDef.empty, Map(), specialInternals, Map())
-
-    val libModules1 = libModules.map(
-      m => PLangTranslation.fromGModule(m, Right(pConstAllocator))
-    )
-    val libToResolve = libModules1.map(m => m.path -> m).toMap
-    val libExports =
-      ImportsResolution.resolveExports(libToResolve, Map(), pathMapping)
-    (defaultCtx, libToResolve, libExports)
+  ): (
+      ModuleExports,
+      Map[ProjectPath, PModule],
+      Map[ProjectPath, ModuleExports]
+  ) = {
+//    val pConstAllocator = new PConst.PConstAllocator()
+//
+//    val specialInternals = JSExamples.specialVars.map {
+//      case (s, _) =>
+//        val pConst = pConstAllocator.newVar(s, isType = false)
+//        s -> NameDef.termDef(pConst)
+//    }
+//    val defaultCtx =
+//      ModuleExports(NameDef.empty, Map(), specialInternals, Map())
+//
+//    val libModules1 = libModules.map { m =>
+//      val decl = ProgramParsing.extractDeclarationModule(m.stmts)
+//
+//      PLangTranslation.fromGModule(m, Right(pConstAllocator))
+//    }
+//    val libToResolve = libModules1.map(m => m.path -> m).toMap
+//    val libExports =
+//      ImportsResolution.resolveExports(libToResolve, Map(), pathMapping)
+//    (defaultCtx, libToResolve, libExports)
+    ???
   }
 
   def resolveExports(
@@ -276,7 +282,7 @@ object ImportsResolution {
   }
 
   def resolveImports(
-      allocator: Either[PVar.PVarAllocator, PConst.PConstAllocator],
+      allocator: PNodeAllocator,
       modulesToResolve: Map[ProjectPath, PModule],
       resolvedModules: Map[ProjectPath, ModuleExports],
       pathMapping: PathMapping,

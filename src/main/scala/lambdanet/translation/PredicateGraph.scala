@@ -1,52 +1,23 @@
 package lambdanet.translation
 
 import lambdanet.{Annot, IdAllocator, IdEquality}
-import lambdanet.translation.IR._
 import PredicateGraph._
-import lambdanet.surface.JSExamples
 
 case class PredicateGraph(
-    nodes: Vector[PVar],
+    nodes: Vector[PNode],
     predicates: Vector[TyPredicate]
 )
 
 object PredicateGraph {
 
-  /** A PNode is either a known constant ([[PConst]])
-    *  or an unknown variable([[PVar]]) */
-  sealed trait PNode extends PExpr {
-    def isType: Boolean
-    def isTerm: Boolean = !isType
-
-    def nameOpt: Option[Symbol]
-  }
-
-  class PConst private (
-      protected val id: Int,
-      val name: Symbol,
-      val isType: Boolean
-  ) extends PNode
-      with IdEquality {
-    def nameOpt: Some[Symbol] = Some(name)
-  }
-
-  object PConst {
-    class PConstAllocator extends IdAllocator[PConst] {
-      def newVar(
-          name: Symbol,
-          isType: Boolean
-      ): PConst = {
-        useNewId(id => new PConst(id, name, isType))
-      }
-    }
-  }
-
-  class PVar private (
+  class PNode(
       protected val id: Int,
       val nameOpt: Option[Symbol],
-      val isType: Boolean
-  ) extends PNode
-      with IdEquality {
+      val isType: Boolean,
+      val fromLib: Boolean
+  ) extends PExpr {
+    def isTerm: Boolean = !isType
+
     def showDetails: String = {
       val parts = nameOpt.map(n => s"{${n.name}}").toList
       s"𝒯$id${parts.mkString}"
@@ -56,34 +27,52 @@ object PredicateGraph {
       val namePart = nameOpt.map(n => s"{${n.name}}").getOrElse("")
       s"𝒯$id$namePart"
     }
-  }
 
-  object PVar {
-
-    class PVarAllocator extends IdAllocator[PVar] {
-      def newVar(
-          nameOpt: Option[VarName],
-          isType: Boolean
-      ): PVar = {
-        useNewId(id => new PVar(id, nameOpt, isType))
-      }
+    override def equals(obj: Any): Boolean = obj match {
+      case p: PNode =>
+        (id, isType) == (p.id, p.isType)
+      case _ => false
     }
 
+    override def hashCode(): Int = {
+      (id, isType).hashCode()
+    }
   }
+
+  class PNodeAllocator(val fromLib: Boolean) extends IdAllocator[PNode] {
+    def newNode(
+        nameOpt: Option[Symbol],
+        isType: Boolean
+    ): PNode = {
+      useNewId(id => new PNode(id, nameOpt, isType, fromLib))
+    }
+  }
+
+  sealed trait PType
+
+  case object PAny extends PType
+
+  case class PTyVar(node: PNode) extends PType {
+    assert(node.isType)
+  }
+
+  case class PFuncType(args: Vector[PType], to: PType) extends PType
+
+  case class PObjectType(fields: Map[Symbol, PType]) extends PType
 
   sealed trait TyPredicate
 
-  case class HasLibType(v: PVar, ty: PConst) extends TyPredicate
+  case class HasLibType(v: PNode, ty: PNode) extends TyPredicate
 
   case class SubtypeRel(sub: PNode, sup: PNode) extends TyPredicate
 
   case class AssignRel(lhs: PNode, rhs: PNode) extends TyPredicate
 
-  case class UsedAsBool(n: PVar) extends TyPredicate
+  case class UsedAsBool(n: PNode) extends TyPredicate
 
-  case class InheritanceRel(child: PVar, parent: PNode) extends TyPredicate
+  case class InheritanceRel(child: PNode, parent: PNode) extends TyPredicate
 
-  case class DefineRel(v: PVar, expr: PExpr) extends TyPredicate
+  case class DefineRel(v: PNode, expr: PExpr) extends TyPredicate
 
   // @formatter:off
   /**

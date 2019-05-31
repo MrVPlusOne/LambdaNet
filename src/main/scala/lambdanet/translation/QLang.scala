@@ -1,17 +1,17 @@
 package lambdanet.translation
 
-import lambdanet.{
-  AnyType,
-  ExportLevel,
-  GType,
-  ProjectPath,
-  TyVar,
-  returnSymbol,
-  surface,
-  thisSymbol
+import lambdanet._
+import lambdanet.translation.PredicateGraph.{
+  PAny,
+  PFuncType,
+  PNode,
+  PNodeAllocator,
+  PObjectType,
+  PTyVar,
+  PType
 }
-import lambdanet.translation.PredicateGraph.{PConst, PNode, PVar}
 import QLang._
+import funcdiff.SimpleMath
 import lambdanet.translation.ImportsResolution.{
   ModuleExports,
   NameDef,
@@ -55,7 +55,7 @@ object QLang {
 
   case class ClassDef(
       classNode: PNode,
-      superType: Option[PNode],
+      superType: Option[PType],
       vars: Map[Symbol, (PNode, QExpr)],
       funcDefs: Vector[FuncDef]
   ) extends QStmt
@@ -71,7 +71,7 @@ object QLang {
 
   case class FuncCall(f: QExpr, args: Vector[QExpr]) extends QExpr
 
-  case class Cast(expr: QExpr, ty: PNode) extends QExpr
+  case class Cast(expr: QExpr, ty: PType) extends QExpr
 
   case class ObjLiteral(fields: Map[Symbol, QExpr]) extends QExpr
 
@@ -161,75 +161,76 @@ object QLangTranslation {
 
     def translateStmt(
         stmt: PLang.PStmt
-    )(implicit ctx: ModuleExports): Vector[QStmt] = {
+    )(implicit ctx: ModuleExports): Vector[QStmt] =
+      SimpleMath.withErrorMessage(s"failed to translate stmt: $stmt") {
 
-      stmt match {
-        case PLang.VarDef(_, node, init, isConst, _) =>
-          mapNode(node)
-          Vector(VarDef(node, translateExpr(init), isConst))
-        case PLang.AssignStmt(lhs, rhs) =>
-          Vector(AssignStmt(translateExpr(lhs), translateExpr(rhs)))
-        case PLang.ExprStmt(e, isReturn) =>
-          Vector(ExprStmt(translateExpr(e), isReturn))
-        case PLang.IfStmt(cond, branch1, branch2) =>
-          Vector(
-            IfStmt(
-              translateExpr(cond),
-              groupInBlock(translateStmt(branch1)),
-              groupInBlock(translateStmt(branch2))
+        stmt match {
+          case PLang.VarDef(_, node, init, isConst, _) =>
+            mapNode(node)
+            Vector(VarDef(node, translateExpr(init), isConst))
+          case PLang.AssignStmt(lhs, rhs) =>
+            Vector(AssignStmt(translateExpr(lhs), translateExpr(rhs)))
+          case PLang.ExprStmt(e, isReturn) =>
+            Vector(ExprStmt(translateExpr(e), isReturn))
+          case PLang.IfStmt(cond, branch1, branch2) =>
+            Vector(
+              IfStmt(
+                translateExpr(cond),
+                groupInBlock(translateStmt(branch1)),
+                groupInBlock(translateStmt(branch2))
+              )
             )
-          )
-        case PLang.WhileStmt(cond, body) =>
-          Vector(
-            WhileStmt(translateExpr(cond), groupInBlock(translateStmt(body)))
-          )
-        case _: PLang.CommentStmt => Vector()
-        case PLang.BlockStmt(stmts) =>
-          val newCtx = collectDefs(stmts)
-          Vector(BlockStmt(stmts.flatMap(s => translateStmt(s)(newCtx))))
-        case PLang.FuncDef(_, funcNode, args, returnType, body, _) =>
-          (Seq(funcNode, returnType) ++ args.map(_._2)).foreach(mapNode)
+          case PLang.WhileStmt(cond, body) =>
+            Vector(
+              WhileStmt(translateExpr(cond), groupInBlock(translateStmt(body)))
+            )
+          case _: PLang.CommentStmt => Vector()
+          case PLang.BlockStmt(stmts) =>
+            val newCtx = collectDefs(stmts)
+            Vector(BlockStmt(stmts.flatMap(s => translateStmt(s)(newCtx))))
+          case PLang.FuncDef(_, funcNode, args, returnType, body, _) =>
+            (Seq(funcNode, returnType) ++ args.map(_._2)).foreach(mapNode)
 
-          val internals1 = ctx.internalSymbols |+| args.map {
-            case (s, n) => s -> NameDef.termDef(n)
-          }.toMap |+| Map(returnSymbol -> NameDef.termDef(returnType))
-          val ctx1 = ctx.copy(internalSymbols = internals1)
-          Vector(
-            FuncDef(
-              funcNode,
-              args,
-              returnType,
-              groupInBlock(translateStmt(body)(ctx1))
+            val internals1 = ctx.internalSymbols |+| args.map {
+              case (s, n) => s -> NameDef.termDef(n)
+            }.toMap |+| Map(returnSymbol -> NameDef.termDef(returnType))
+            val ctx1 = ctx.copy(internalSymbols = internals1)
+            Vector(
+              FuncDef(
+                funcNode,
+                args,
+                returnType,
+                groupInBlock(translateStmt(body)(ctx1))
+              )
             )
-          )
-        case PLang.ClassDef(_, classNode, superType, vars, funcDefs, _) =>
-          mapNode(classNode)
-          vars.values.map(_._1).foreach(mapNode)
+          case PLang.ClassDef(_, classNode, superType, vars, funcDefs, _) =>
+            mapNode(classNode)
+            vars.values.map(_._1).foreach(mapNode)
 
-          val internals1 = ctx.internalSymbols |+|
-            Map(thisSymbol -> NameDef.termDef(classNode))
-          val ctx1 = ctx.copy(internalSymbols = internals1)
-          val vars1 = vars.mapValuesNow {
-            case (t, init) => t -> translateExpr(init)(ctx1)
-          }
-          val funcDefs1 =
-            funcDefs.map(f => translateStmt(f)(ctx1).asInstanceOf[FuncDef])
-          Vector(
-            ClassDef(
-              classNode,
-              superType.map(t => resolveType(TyVar(t))),
-              vars1,
-              funcDefs1
+            val internals1 = ctx.internalSymbols |+|
+              Map(thisSymbol -> NameDef.termDef(classNode))
+            val ctx1 = ctx.copy(internalSymbols = internals1)
+            val vars1 = vars.mapValuesNow {
+              case (t, init) => t -> translateExpr(init)(ctx1)
+            }
+            val funcDefs1 =
+              funcDefs.map(f => translateStmt(f)(ctx1).asInstanceOf[FuncDef])
+            Vector(
+              ClassDef(
+                classNode,
+                superType.map(t => resolveType(TyVar(t))),
+                vars1,
+                funcDefs1
+              )
             )
-          )
-        case a: PLang.TypeAliasStmt =>
-          mapNode(a.node)
-          Vector()
-        case PLang.Namespace(name, block) =>
-          val ctx1 = ctx.combine(ctx.nameSpaces(name))
-          block.stmts.flatMap(s => translateStmt(s)(ctx1))
+          case a: PLang.TypeAliasStmt =>
+            mapNode(a.node)
+            Vector()
+          case PLang.Namespace(name, block) =>
+            val ctx1 = ctx.combine(ctx.nameSpaces(name))
+            block.stmts.flatMap(s => translateStmt(s)(ctx1))
+        }
       }
-    }
 
     val ctx1 = collectDefs(module.stmts)(ctx)
     val stmts1 = module.stmts.flatMap(s => translateStmt(s)(ctx1))
@@ -238,40 +239,77 @@ object QLangTranslation {
 
   def fromProject(
       projectModules: Vector[GModule],
+      defaultModule: GModule,
       libModules: Vector[GModule],
       pathMapping: PathMapping
-  ): Vector[QModule] = {
-    val (baseCtx, _, libExports) =
-      ImportsResolution.resolveLibraries(libModules, pathMapping)
+  ): (Map[ProjectPath, ModuleExports], Map[ProjectPath, QModule]) = {
+    def pass(
+        modules: Vector[GModule],
+        baseCtx: ModuleExports,
+        resolved: Map[ProjectPath, ModuleExports],
+        allocator: PNodeAllocator
+    ): (Map[ProjectPath, ModuleExports], Map[ProjectPath, QModule]) = {
+      val modules1 = modules.map { m =>
+        m.path ->
+          PLangTranslation.fromGModule(m, allocator)
+      }.toMap
 
-    val pVarAllocator = new PVar.PVarAllocator()
-    val projectModules1 = projectModules.map(
-      m => PLangTranslation.fromGModule(m, Left(pVarAllocator))
-    )
-    val projectToResolve = projectModules1.map(m => m.path -> m).toMap
-    val projectExports =
-      ImportsResolution.resolveExports(
-        projectToResolve,
-        libExports,
+      val exports = ImportsResolution.resolveExports(
+        modules1,
+        resolved,
         pathMapping
       )
-    projectModules1.map { m =>
-      fromPModule(m, baseCtx |+| projectExports(m.path))
+
+      exports -> modules1.mapValuesNow { m =>
+        fromPModule(m, baseCtx |+| exports(m.path))
+      }
     }
+
+    val libAllocator = new PNodeAllocator(fromLib = true)
+
+    val (baseCtx, baseQModule) = {
+      val (baseExports, baseModules) =
+        pass(Vector(defaultModule), ModuleExports.empty, Map(), libAllocator)
+      baseExports.values.head -> baseModules.values.head
+    }
+
+    val (libExports, libQModules) =
+      pass(libModules, baseCtx, Map(), libAllocator)
+
+    val projectAllocator = new PNodeAllocator(fromLib = false)
+    val (projExports, projQModules) =
+      pass(projectModules, baseCtx, libExports, projectAllocator)
+
+    import cats.implicits._
+
+    (libExports |+| projExports) -> (libQModules ++ projQModules)
   }
 
   private def constToVar(c: surface.Const, ctx: ModuleExports): Var = {
     Var(c.ty match {
-      case AnyType   => ctx.internalSymbols('undefined).term.get
+      case AnyType   => ctx.internalSymbols(undefinedSymbol).term.get
       case TyVar(id) => ctx.internalSymbols(id).term.get
     })
   }
 
-  private def resolveType(ty: GType)(implicit ctx: ModuleExports) = {
+  private def resolveType(ty: GType)(implicit ctx: ModuleExports): PType = {
+    def renameBasicType(symbol: Symbol): Symbol = symbol match {
+      case 'number  => 'Number
+      case 'string  => 'String
+      case 'boolean => 'Boolean
+      case 'symbol  => 'Symbol
+      case 'void    => 'Void
+      case _        => symbol
+    }
+
     // todo: parsing qualified types, handle cases like 'pv => pv'
     ty match {
-      case TyVar(n) => ctx.internalSymbols(n).ty.get
-      case _        => ???
+      case AnyType  => PAny
+      case TyVar(n) => PTyVar(ctx.internalSymbols(renameBasicType(n)).ty.get)
+      case FuncType(from, to) =>
+        PFuncType(from.map(resolveType).toVector, resolveType(to))
+      case ObjectType(fields) =>
+        PObjectType(fields.mapValuesNow(resolveType))
     }
   }
 }

@@ -5,18 +5,19 @@ import org.scalatest.WordSpec
 import ammonite.ops._
 import lambdanet.surface._
 import ImportStmt._
+import lambdanet.translation.ImportsResolution.PathMapping
 import lambdanet.translation.{
   IRTranslation,
   ImportsResolution,
-  OldPredicateGraphConstruction
+  OldPredicateGraphConstruction,
+  QLangTranslation
 }
 
 class ParserTests extends WordSpec with MyTest {
   def testParsing(printResult: Boolean)(pairs: (String, Class[_])*): Unit = {
     val (lines0, cls) = pairs.unzip
     val lines = lines0.toArray
-    val parsed =
-      new ProgramParsing().parseContent(lines.mkString("\n"))
+    val parsed = ProgramParsing.parseContent(lines.mkString("\n"))
     parsed.zip(cls).zipWithIndex.foreach {
       case ((r, c), i) =>
 //        assert(
@@ -37,7 +38,7 @@ class ParserTests extends WordSpec with MyTest {
       .filter(_.ext == "ts")
       .map(_.relativeTo(projectRoot))
 
-    val modules = new ProgramParsing().parseGModulesFromFiles(
+    val modules = ProgramParsing.parseGModulesFromFiles(
       files,
       projectRoot,
       Some(projectRoot / "parsed.json")
@@ -47,7 +48,7 @@ class ParserTests extends WordSpec with MyTest {
       module.stmts.foreach(println)
     }
 
-    val modules2 = new ProgramParsing()
+    val modules2 = ProgramParsing
       .parseGModulesFromJson(read(projectRoot / "parsed.json"))
     assert(modules == modules2, "Two parses do not match.")
   }
@@ -131,7 +132,7 @@ class ParserTests extends WordSpec with MyTest {
         """"
       ).mkString("\n")
 
-    val stmts = new ProgramParsing().parseContent(content)
+    val stmts = ProgramParsing.parseContent(content)
     stmts.foreach(println)
   }
 
@@ -177,6 +178,31 @@ class ParserTests extends WordSpec with MyTest {
 
   }
 
+  "Standard lib parsing" in {
+    val root = pwd / RelPath("data/libraries")
+    val file = "default.lib.d.ts"
+    val Vector(m) =
+      ProgramParsing.parseGModulesFromFiles(Seq(file), root)
+    val additionalDefs = JSExamples.specialVars.map {
+      case (v, t) =>
+        surface.VarDef(
+          v,
+          Annot.User(t),
+          Var(undefinedSymbol),
+          isConst = true,
+          ExportLevel.Public
+        )
+    }
+    val defaultModule = m.copy(stmts = m.stmts ++ additionalDefs)
+
+    QLangTranslation.fromProject(
+      Vector(),
+      defaultModule,
+      Vector(),
+      PathMapping.identity
+    )
+  }
+
   "Export Import tests" in {
     val root = pwd / RelPath("data/tests/export-import")
 
@@ -186,14 +212,13 @@ class ParserTests extends WordSpec with MyTest {
         f.ext == "ts"
       }
       .map(_.relativeTo(root))
-    val parser = new ProgramParsing()
+    val parser = ProgramParsing
     val modules = parser.parseGModulesFromFiles(
       sources,
       root
     )
 
-    ImportsResolution.resolveLibraries(modules)
-
+//    QLangTranslation.fromProject(modules, )
   }
 
   ".d.ts files parsing" in {

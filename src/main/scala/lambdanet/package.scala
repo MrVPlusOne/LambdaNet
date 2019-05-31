@@ -11,6 +11,7 @@ package object lambdanet {
   val thisSymbol = 'this
   val superSymbol = 'super
   val defaultSymbol = 'default
+  val undefinedSymbol = 'undefined
 
   trait IdEquality {
     protected def id: Int

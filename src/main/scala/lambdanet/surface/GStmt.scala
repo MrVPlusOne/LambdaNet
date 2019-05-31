@@ -90,8 +90,7 @@ case class ClassDef(
     superType: Option[Symbol] = None,
     vars: Map[Symbol, (TyAnnot, GExpr)],
     funcDefs: Vector[FuncDef],
-    exportLevel: ExportLevel.Value,
-    isAbstract: Boolean
+    exportLevel: ExportLevel.Value
 ) extends GStmt {
   def objectType: GType = {
     ObjectType(
@@ -170,16 +169,14 @@ object GStmt {
           superType,
           vars,
           funcDefs,
-          level,
-          isAbstract
+          level
           ) =>
         val superPart = superType
           .map(t => s" extends $t")
           .getOrElse("")
         val tyVarPart = tyVarClause(tyVars)
-        val abstractPart = if (isAbstract) "abstract " else ""
         Vector(
-          indent -> s"${asPrefix(level)}${abstractPart}class ${name.name}$tyVarPart$superPart {"
+          indent -> s"${asPrefix(level)}class ${name.name}$tyVarPart$superPart {"
         ) ++
           vars.toList.map {
             case (fieldName, (annot, init)) =>

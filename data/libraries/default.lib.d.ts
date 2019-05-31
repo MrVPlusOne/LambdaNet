@@ -25,6 +25,9 @@ and limitations under the License.
 declare var NaN: number;
 declare var Infinity: number;
 
+/** Fake */
+interface Void{}
+
 /**
  * Evaluates JavaScript code and executes it.
  * @param x A String value that contains valid JavaScript code.
@@ -32,6 +35,8 @@ declare var Infinity: number;
 declare function eval(x: string): any;
 
 interface Test{
+  g<T>(x:T): T
+
   fight(locales?: string | string[]): number
 }
 
