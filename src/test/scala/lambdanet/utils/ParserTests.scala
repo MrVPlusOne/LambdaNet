@@ -55,7 +55,17 @@ class ParserTests extends WordSpec with MyTest {
 
   "Simple cases parsing test" in {
     val content =
-      """namespace foo {
+      """declare type ClassDecorator = <TFunction extends Function>(target: TFunction) => TFunction | void;
+        |interface Test{
+        |  g<T>(x:T): T
+        |
+        |  fight(locales?: string | string[]): number
+        |}
+        |
+        |interface Test{
+        |  again(): string
+        |}
+        |namespace foo {
         |   namespace bar {
         |       let z = 5;
         |   }
@@ -121,15 +131,16 @@ class ParserTests extends WordSpec with MyTest {
         """.stripMargin,
         "let inc = (x: number) => {return x + 1;};",
         "let inc = x => x+1;",
-        "let f = (x) => (y) => x + y;",
-        """"switch(i){
-          |  case 1:
-          |    print(i); break;
-          |  case a: a + 1;
-          |  default:
-          |    print("do nothing");
-          |}
-        """"
+        "let f = (x) => (y) => x + y;"
+//        """"switch(i){
+//          |  case 1:
+//          |    print(i); break;
+//          |  case a:
+//          |    a + 1;
+//          |  default:
+//          |    print("do nothing");
+//          |}
+//        """".stripMargin
       ).mkString("\n")
 
     val stmts = ProgramParsing.parseContent(content)
@@ -179,28 +190,10 @@ class ParserTests extends WordSpec with MyTest {
   }
 
   "Standard lib parsing" in {
-    val root = pwd / RelPath("data/libraries")
-    val file = "default.lib.d.ts"
-    val Vector(m) =
-      ProgramParsing.parseGModulesFromFiles(Seq(file), root)
-    val additionalDefs = JSExamples.specialVars.map {
-      case (v, t) =>
-        surface.VarDef(
-          v,
-          Annot.User(t),
-          Var(undefinedSymbol),
-          isConst = true,
-          ExportLevel.Public
-        )
-    }
-    val defaultModule = m.copy(stmts = m.stmts ++ additionalDefs)
-
-    QLangTranslation.fromProject(
-      Vector(),
-      defaultModule,
-      Vector(),
-      PathMapping.identity
-    )
+    val (exports, mapping) = QLangTranslation.parseStandardLib()
+    println("exports: " + exports)
+    println("standard lib mapping: ")
+    mapping.foreach(println)
   }
 
   "Export Import tests" in {

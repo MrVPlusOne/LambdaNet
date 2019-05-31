@@ -11,7 +11,7 @@ object JSExamples {
   val void: Symbol = GType.voidType.id
   val anyArray = 'Array
   val function = 'Function //fixme: this should not be treated as object type
-  val generator = 'Generator
+  val generator = 'Array
 
   def mkArrayType(baseType: GroundType): (Symbol, ObjectType) = {
     val arrayType =

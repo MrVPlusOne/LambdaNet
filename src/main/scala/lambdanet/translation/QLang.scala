@@ -19,7 +19,8 @@ import lambdanet.translation.ImportsResolution.{
 }
 import lambdanet.translation.PLang.PModule
 import funcdiff.SimpleMath.Extensions._
-import lambdanet.surface.GModule
+import lambdanet.surface.{GModule, JSExamples}
+import lambdanet.utils.ProgramParsing
 
 import scala.collection.mutable
 
@@ -84,6 +85,36 @@ object QLang {
 object QLangTranslation {
   import cats.instances.map._
   import cats.syntax.monoid._
+
+  def parseStandardLib()
+      : (Map[ProjectPath, ModuleExports], Map[PNode, PAnnot]) = {
+    import ammonite.ops._
+
+    val root = pwd / RelPath("data/libraries")
+    val file = "default.lib.d.ts"
+    val Vector(m) =
+      ProgramParsing.parseGModulesFromFiles(Seq(file), root)
+    val additionalDefs = JSExamples.specialVars.map {
+      case (v, t) =>
+        surface.VarDef(
+          v,
+          Annot.User(t),
+          surface.Var(undefinedSymbol),
+          isConst = true,
+          ExportLevel.Public
+        )
+    }
+    val defaultModule = m.copy(stmts = m.stmts ++ additionalDefs)
+
+    val (exports, modules) = QLangTranslation.fromProject(
+      Vector(defaultModule),
+      None,
+      Vector(),
+      PathMapping.identity
+    )
+    val mapping = modules.values.foldLeft(Map[PNode, PAnnot]())(_ ++ _.mapping)
+    exports -> mapping
+  }
 
   def fromPModule(module: PModule, ctx: ModuleExports): QModule = {
 
@@ -239,7 +270,7 @@ object QLangTranslation {
 
   def fromProject(
       projectModules: Vector[GModule],
-      defaultModule: GModule,
+      defaultModule: Option[GModule],
       libModules: Vector[GModule],
       pathMapping: PathMapping
   ): (Map[ProjectPath, ModuleExports], Map[ProjectPath, QModule]) = {
@@ -267,10 +298,13 @@ object QLangTranslation {
 
     val libAllocator = new PNodeAllocator(fromLib = true)
 
-    val (baseCtx, baseQModule) = {
-      val (baseExports, baseModules) =
-        pass(Vector(defaultModule), ModuleExports.empty, Map(), libAllocator)
-      baseExports.values.head -> baseModules.values.head
+    val baseCtx = defaultModule match {
+      case Some(dm) =>
+        val (baseExports, baseModules) =
+          pass(Vector(dm), ModuleExports.empty, Map(), libAllocator)
+        baseExports.values.head
+      case None =>
+        ModuleExports.empty
     }
 
     val (libExports, libQModules) =
@@ -292,24 +326,36 @@ object QLangTranslation {
     })
   }
 
-  private def resolveType(ty: GType)(implicit ctx: ModuleExports): PType = {
-    def renameBasicType(symbol: Symbol): Symbol = symbol match {
-      case 'number  => 'Number
-      case 'string  => 'String
-      case 'boolean => 'Boolean
-      case 'symbol  => 'Symbol
-      case 'void    => 'Void
-      case _        => symbol
-    }
+  private val basicTypeRenaming = Map(
+    'number -> 'Number,
+    'string -> 'String,
+    'boolean -> 'Boolean,
+    'symbol -> 'Symbol,
+    'void -> 'Void,
+    'object -> 'Object
+  )
 
-    // todo: parsing qualified types, handle cases like 'pv => pv'
-    ty match {
-      case AnyType  => PAny
-      case TyVar(n) => PTyVar(ctx.internalSymbols(renameBasicType(n)).ty.get)
-      case FuncType(from, to) =>
-        PFuncType(from.map(resolveType).toVector, resolveType(to))
-      case ObjectType(fields) =>
-        PObjectType(fields.mapValuesNow(resolveType))
+  private def resolveType(ty: GType)(implicit ctx: ModuleExports): PType =
+    SimpleMath.withErrorMessage(s"Failed to resolve type: $ty") {
+      // todo: parsing qualified types, handle cases like 'pv => pv'
+      ty match {
+        case AnyType => PAny
+        case TyVar(n) =>
+          val nameSegs = n.name.split("\\.").map(Symbol.apply).toVector
+          if (nameSegs.length == 1) {
+            val renamed = basicTypeRenaming.getOrElse(n, n)
+            PTyVar(ctx.internalSymbols(renamed).ty.get)
+          } else {
+            assert(nameSegs.length > 1, s"empty name segs?: $nameSegs")
+            val newCtx = nameSegs.init.foldLeft(ctx) {
+              case (c, seg) => c.nameSpaces(seg)
+            }
+            PTyVar(newCtx.internalSymbols(nameSegs.last).ty.get)
+          }
+        case FuncType(from, to) =>
+          PFuncType(from.map(resolveType).toVector, resolveType(to))
+        case ObjectType(fields) =>
+          PObjectType(fields.mapValuesNow(resolveType))
+      }
     }
-  }
 }

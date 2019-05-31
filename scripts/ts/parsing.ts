@@ -109,36 +109,34 @@ function parseSignatureType(sig: ts.SignatureDeclarationBase) {
   let tVars = parseTVars(sig);
   let argTypes = sig.parameters.map(p =>
     eliminateTypeVars(parseType(mustExist(p.type)), tVars));
-  let retType = sig.type ? parseType(sig.type) : new TVar("void");
+  let retType = sig.type ? eliminateTypeVars(parseType(sig.type), tVars) : new TVar("void");
   return new FuncType(argTypes, retType);
 }
 
-function parseTypeMembers(members: ts.NamedDeclaration[], tyVars: string[]): NamedValue<GType>[] {
-  let fields: NamedValue<GType>[] = [];
-  members.forEach(
-    x => {
-      if (x.name) {
-        if (SyntaxKind.PropertyDeclaration == x.kind || SyntaxKind.PropertySignature == x.kind) {
-          let pT = (x as any).type;
-          fields.push(new NamedValue(x.name.getText(), pT ? parseType(pT) : anyType));
-        } else if (SyntaxKind.MethodSignature == x.kind || SyntaxKind.MethodDeclaration == x.kind) {
-          fields.push(new NamedValue(x.name.getText(), parseSignatureType(x as ts.MethodSignature)));
-        } else {
-          throw new Error("Unknown type member kind: " + SyntaxKind[x.kind]);
-        }
-      } else if ([SyntaxKind.IndexSignature, SyntaxKind.CallSignature,
-        SyntaxKind.ConstructSignature].includes(x.kind)) {
-        let sig = x as ts.IndexSignatureDeclaration | ts.CallSignatureDeclaration | ts.ConstructSignatureDeclaration;
-        let methodName = x.kind == SyntaxKind.IndexSignature ? "access"
-          : (x.kind == SyntaxKind.ConstructSignature ? "CONSTRUCTOR" : "call");
-        fields.push(new NamedValue(methodName, parseSignatureType(sig)));
-      } else {
-        throw new Error("Unknown type element: " + ts.SyntaxKind[x.kind]);
-      }
-      // else throw new Error("members without a name: " + node.getText()); todo: uncomment and handle other cases
+function parseTypeMember(member: ts.NamedDeclaration): NamedValue<GType> {
+  if (member.name) {
+    if (SyntaxKind.PropertyDeclaration == member.kind || SyntaxKind.PropertySignature == member.kind) {
+      const x = (member as ts.PropertyDeclaration | ts.PropertySignature);
+
+      return (new NamedValue(x.name.getText(), x.type ? parseType(x.type) : anyType));
+    } else if (SyntaxKind.MethodSignature == member.kind || SyntaxKind.MethodDeclaration == member.kind) {
+      const x = (member as ts.MethodSignature | ts.MethodDeclaration);
+      return (new NamedValue(
+        x.name.getText(),
+        parseSignatureType(x as ts.MethodSignature)));
+    } else {
+      throw new Error("Unknown type member kind: " + SyntaxKind[member.kind]);
     }
-  );
-  return fields;
+  } else if ([SyntaxKind.IndexSignature, SyntaxKind.CallSignature,
+    SyntaxKind.ConstructSignature].includes(member.kind)) {
+    let sig = member as ts.IndexSignatureDeclaration | ts.CallSignatureDeclaration | ts.ConstructSignatureDeclaration;
+    let methodName = sig.kind == SyntaxKind.IndexSignature ? "access"
+      : (sig.kind == SyntaxKind.ConstructSignature ? "CONSTRUCTOR" : "call");
+    return (new NamedValue(methodName,
+      parseSignatureType(sig)));
+  } else {
+    throw new Error("Unknown type element: " + ts.SyntaxKind[member.kind]);
+  }
 }
 
 function parseType(node: ts.TypeNode): GType {
@@ -153,16 +151,15 @@ function parseType(node: ts.TypeNode): GType {
     return new TVar("Array");
   } else if (node.kind == SyntaxKind.FunctionType || node.kind == SyntaxKind.ConstructorType) {
     let n = node as ts.FunctionOrConstructorTypeNode;
-
     let ret: GType = parseType(n.type);
     let args: GType[] = n.parameters.map(p => {
       return parseType(mustExist(p.type));
     });
 
-    return new FuncType(args, ret);
+    return eliminateTypeVars(new FuncType(args, ret), parseTVars(n));
   } else if (node.kind == SyntaxKind.TypeLiteral) {
     let n = node as ts.TypeLiteralNode;
-    let members = parseTypeMembers(n.members as any);
+    let members = n.members.map(parseTypeMember);
     return new ObjectType(members);
   } else if (node.kind == SyntaxKind.UnionType) {
     let n = node as ts.UnionTypeNode;
@@ -910,7 +907,7 @@ export class StmtParser {
         case SyntaxKind.InterfaceDeclaration: {
           let n = node as ts.InterfaceDeclaration;
           let tVars = parseTVars(n);
-          let members = parseTypeMembers(n.members as any, tVars);
+          let members = n.members.map(parseTypeMember);
           let objT = new ObjectType(members); //todo: handle inheritance
           return EP.alongWith(
             new TypeAliasStmt(n.name.text, tVars, objT, parseModifiers(n.modifiers)));
@@ -919,7 +916,11 @@ export class StmtParser {
           let n = node as ts.TypeAliasDeclaration;
           let tVars = parseTVars(n);
           return EP.alongWith(
-            new TypeAliasStmt(n.name.text, tVars, parseType(n.type), parseModifiers(n.modifiers)));
+            new TypeAliasStmt(
+              n.name.text,
+              tVars,
+              parseType(n.type),
+              parseModifiers(n.modifiers)));
         }
         case SyntaxKind.TryStatement: {
           let n = node as ts.TryStatement;

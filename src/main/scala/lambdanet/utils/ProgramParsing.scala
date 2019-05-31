@@ -413,6 +413,8 @@ object ProgramParsing {
     var exports = Vector[ExportStmt]()
     var stmts = Vector[GStmt]()
 
+    val aliases = mutable.HashMap[Symbol, TypeAliasStmt]()
+
     SimpleMath.withErrorMessage(s"Error when parsing module: $name") {
       asVector(obj("stmts")).foreach { s =>
         SimpleMath.withErrorMessage(s"when parsing $s") {
@@ -421,15 +423,24 @@ object ProgramParsing {
               imports ++= ss
             case ExportPattern(ss) =>
               exports ++= ss
+            case a: TypeAliasStmt if !aliases.contains(a.name) =>
+              aliases(a.name) = a
+            case a: TypeAliasStmt =>
+              // merge interfaces
+              val o1 = aliases(a.name).ty.asInstanceOf[ObjectType]
+              val o2 = a.ty.asInstanceOf[ObjectType]
+              aliases(a.name) =
+                TypeAliasStmt(a.name, a.tyVars, o1.merge(o2), a.exportLevel)
             case other =>
               stmts ++= parseGStmt(other)
           }
         }
       }
     }
+    val stmts1 = aliases.values.toVector ++ stmts
 
     val modulePath = RelPath(name.replace("." + RelPath(name).ext, ""))
-    GModule(modulePath, imports, exports, stmts)
+    GModule(modulePath, imports, exports, stmts1)
   }
 
   def main(args: Array[String]): Unit = {
