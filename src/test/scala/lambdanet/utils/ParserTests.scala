@@ -5,13 +5,16 @@ import org.scalatest.WordSpec
 import ammonite.ops._
 import lambdanet.surface._
 import ImportStmt._
+import funcdiff.SimpleMath
 import lambdanet.translation.ImportsResolution.PathMapping
+import lambdanet.translation.PredicateGraph.PNodeAllocator
 import lambdanet.translation.{
   IRTranslation,
   ImportsResolution,
   OldPredicateGraphConstruction,
   QLangTranslation
 }
+import lambdanet.utils.ProgramParsing.ImportPattern
 
 class ParserTests extends WordSpec with MyTest {
   def testParsing(printResult: Boolean)(pairs: (String, Class[_])*): Unit = {
@@ -190,8 +193,7 @@ class ParserTests extends WordSpec with MyTest {
   }
 
   "Standard lib parsing" in {
-    val (exports, mapping) = QLangTranslation.parseStandardLib()
-    println("exports: " + exports)
+    val (_, _, mapping) = QLangTranslation.parseDefaultModule()
     println("standard lib mapping: ")
     mapping.foreach(println)
   }
@@ -219,9 +221,29 @@ class ParserTests extends WordSpec with MyTest {
   }
 
   "Project parsing integration test" in {
-    TrainingProjects.parsedProjects.foreach { p =>
-      val size = p.predModules.map(_.predicates.length).sum
-      println(p.projectName + ": size=" + size)
+    val (baseCtx, libAllocator, _) = QLangTranslation.parseDefaultModule()
+
+    TrainingProjects.allProjects.foreach { p =>
+      SimpleMath.withErrorMessage(s"In project ${p.root}") {
+        val allocator = new PNodeAllocator(forLib = false)
+        QLangTranslation.fromProject(
+          p.modules,
+          baseCtx,
+          Map(),
+          allocator,
+          p.pathMapping
+        )
+      }
     }
+  }
+
+  "playground" in {
+    val root = pwd / RelPath("data/train/algorithms-test")
+    ProgramParsing
+      .parseGModulesFromFiles(
+        Seq(RelPath("data-structures/stack.ts")),
+        root
+      )
+      .foreach(println)
   }
 }

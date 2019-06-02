@@ -83,7 +83,9 @@ case object AnyType extends GroundType {
   def id: Symbol = 'any
 }
 
-case class TyVar(id: Symbol) extends GroundType
+case class TyVar(id: Symbol) extends GroundType {
+  require(id != AnyType.id)
+}
 
 /** A [[FuncType]] or [[ObjectType]] */
 sealed trait CompoundType extends GType

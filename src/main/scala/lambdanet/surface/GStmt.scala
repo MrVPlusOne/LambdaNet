@@ -108,7 +108,11 @@ case class TypeAliasStmt(
     exportLevel: ExportLevel.Value
 ) extends GStmt
 
-case class Namespace(name: Symbol, block: BlockStmt) extends GStmt
+case class Namespace(
+    name: Symbol,
+    block: BlockStmt,
+    exportLevel: ExportLevel.Value
+) extends GStmt
 
 // === End of Statement definitions ====
 
@@ -192,8 +196,8 @@ object GStmt {
         Vector(
           indent -> s"${asPrefix(level)}type ${name.name}$tyVarList = $ty;"
         )
-      case Namespace(name, block) =>
-        (indent -> s"namespace ${name.name}") +:
+      case Namespace(name, block, level) =>
+        (indent -> s"${asPrefix(level)}namespace ${name.name}") +:
           prettyPrintHelper(indent, block)
 
     }

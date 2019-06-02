@@ -353,7 +353,7 @@ class BlockStmt implements GStmt {
 class NamespaceStmt implements GStmt {
   category: string = "NamespaceStmt";
 
-  constructor(public name: string, public block: BlockStmt) {
+  constructor(public name: string, public block: BlockStmt, public modifiers: string[]) {
   }
 }
 
@@ -496,14 +496,14 @@ export function parseExpr(node: ts.Expression, checker: ts.TypeChecker,
       case SyntaxKind.StringLiteral:
         return constExpr("string");
       case SyntaxKind.RegularExpressionLiteral:
-        return constExpr("RegExpr");
+        return constExpr("RegExp");
       case SyntaxKind.TrueKeyword:
       case SyntaxKind.FalseKeyword:
-        return constExpr("bool");
+        return constExpr("boolean");
       case SyntaxKind.NullKeyword:
         return constExpr(anyType.name, "null");
       case SyntaxKind.VoidExpression: {
-        return constExpr(anyType.name, "void");
+        return constExpr("void", "void");
       }
 
       case SyntaxKind.ArrayLiteralExpression:
@@ -797,7 +797,7 @@ export class StmtParser {
           let name = (node.kind == SyntaxKind.Constructor) ? "Constructor" :
             tryFullyQualifiedName((node as any).name, checker);
           let n = <ts.FunctionLikeDeclaration>node;
-          let modifiers = parseModifiers(n.modifiers);
+          const modifiers = parseModifiers(n.modifiers);
           if (node.kind == SyntaxKind.SetAccessor) {
             modifiers.push("set");
           } else if (node.kind == SyntaxKind.GetAccessor) {
@@ -938,7 +938,8 @@ export class StmtParser {
             switch (body.kind) {
               case ts.SyntaxKind.ModuleBlock:
                 const stmts = flatMap(body.statements, (x: ts.Node) => rec(x).stmts);
-                const r = new NamespaceStmt(name, new BlockStmt(stmts));
+                const modifiers = parseModifiers(n.modifiers);
+                const r = new NamespaceStmt(name, new BlockStmt(stmts), modifiers);
                 return EP.alongWith(r);
               default:
                 throw new Error("Module declare body? Text: \n" + body.getText());

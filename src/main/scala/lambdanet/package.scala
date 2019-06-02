@@ -85,6 +85,7 @@ package object lambdanet {
       assert(p(x))
       x
     }
+
   }
 
   type TyAnnot = Annot[GType]

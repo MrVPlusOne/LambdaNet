@@ -53,8 +53,8 @@ object ProgramParsing {
           case None    => rhs
         }
       case _: CommentStmt =>
-      case Namespace(name, block) =>
-        namespaces(name) = extractDeclarationModule(block.stmts)
+      case ns: Namespace =>
+        namespaces(ns.name) = extractDeclarationModule(ns.block.stmts)
       case other =>
         throw new Error(
           s"Illegal statement encountered in a declaration file: $other"
@@ -64,85 +64,24 @@ object ProgramParsing {
     DeclarationModule(varDefs.toMap, typeDefs.toMap, namespaces.toMap)
   }
 
-  def parseJson(text: String): Js.Val = {
-    SimpleMath.withErrorMessage(s"JSON source text: $text") {
-      fastparse.parse(text, JsonParsing.jsonExpr(_)).get.value
-    }
-  }
-
-  def parseJsonFromFile(jsonFile: Path): Js.Val = {
-    val text = read(jsonFile)
-    fastparse.parse(text, JsonParsing.jsonExpr(_)).get.value
-  }
-
-  def asString(v: Js.Val): String = v.asInstanceOf[Str].value
-
-  def asArray(v: Js.Val): List[Val] = v match {
-    case Js.Null => List[Val]()
-    case _       => v.asInstanceOf[Arr].value.toList
-  }
-
-  def asVector(v: Js.Val): Vector[Val] = v match {
-    case Js.Null => Vector[Val]()
-    case _       => v.asInstanceOf[Arr].value.toVector
-  }
-
-  def asNumber(v: Js.Val): Double = v.asInstanceOf[Num].value
-
-  def asSymbol(v: Js.Val): Symbol = Symbol(asString(v))
-
-  def asOptionSymbol(v: Js.Val): Option[Symbol] = v match {
-    case Null => None
-    case _    => Some(asSymbol(v))
-  }
-
-  def asObj(v: Val): Map[String, Val] = v.asInstanceOf[Obj].value
-
-  def parseNamedValue(v: Js.Val): (String, Val) = {
-    val p = asObj(v)
-    asString(p("name")) -> p("value")
-  }
-
-  def arrayToMap(value: Js.Val): Map[String, Val] = {
-    value
-      .asInstanceOf[Arr]
-      .value
-      .map {
-        parseNamedValue
+  def parseGModulesFromRoot(root: Path) = {
+    val sources = ls
+      .rec(root)
+      .filter { f =>
+        if (f.last.endsWith(".d.ts")) {
+          throw new Error(
+            s".d.ts file encountered: $f, you are probably " +
+              s"parsing the wrong files."
+          )
+        }
+        f.ext == "ts"
       }
-      .toMap
-  }
-
-  def asBoolean(v: Js.Val): Boolean = {
-    (v: @unchecked) match {
-      case False => false
-      case True  => true
-    }
-  }
-
-  def parseType(v: Js.Val): GType = {
-    assert(
-      v != Null,
-      "Use parseGTMark instead if you are parsing an optional user type annotation."
+      .map(_.relativeTo(root))
+    val parser = ProgramParsing
+    parser.parseGModulesFromFiles(
+      sources,
+      root
     )
-    val o = asObj(v)
-    val t = asString(o("category")) match {
-      case "TVar"    => TyVar(asSymbol(o("name")))
-      case "AnyType" => AnyType
-      case "FuncType" =>
-        val fr = asArray(o("args")).map(parseType)
-        val to = parseType(o("to"))
-        FuncType(fr, to)
-      case "ObjectType" =>
-        val fields = asArray(o("fields"))
-          .map(pair => {
-            val (k, v) = parseNamedValue(pair)
-            (Symbol(k), parseType(v))
-          })
-          .toMap
-        ObjectType(fields)
-    }
-    t
   }
 
   def parseContent(content: String): Vector[GStmt] = {
@@ -155,6 +94,17 @@ object ProgramParsing {
         parseGStmt
       }
     }
+  }
+
+  def parseJson(text: String): Js.Val = {
+    SimpleMath.withErrorMessage(s"JSON source text: $text") {
+      fastparse.parse(text, JsonParsing.jsonExpr(_)).get.value
+    }
+  }
+
+  def parseJsonFromFile(jsonFile: Path): Js.Val = {
+    val text = read(jsonFile)
+    fastparse.parse(text, JsonParsing.jsonExpr(_)).get.value
   }
 
   /**
@@ -187,25 +137,97 @@ object ProgramParsing {
     modules.value.map(parseGModule).toVector
   }
 
-  def parseArgPair(value: Js.Val): (Symbol, GTMark) = {
+  private def asString(v: Js.Val): String = v.asInstanceOf[Str].value
+
+  private def asArray(v: Js.Val): List[Val] = v match {
+    case Js.Null => List[Val]()
+    case _       => v.asInstanceOf[Arr].value.toList
+  }
+
+  private def asVector(v: Js.Val): Vector[Val] = v match {
+    case Js.Null => Vector[Val]()
+    case _       => v.asInstanceOf[Arr].value.toVector
+  }
+
+  private def asNumber(v: Js.Val): Double = v.asInstanceOf[Num].value
+
+  private def asSymbol(v: Js.Val): Symbol = Symbol(asString(v))
+
+  private def asOptionSymbol(v: Js.Val): Option[Symbol] = v match {
+    case Null => None
+    case _    => Some(asSymbol(v))
+  }
+
+  private def asObj(v: Val): Map[String, Val] = v.asInstanceOf[Obj].value
+
+  private def parseNamedValue(v: Js.Val): (String, Val) = {
+    val p = asObj(v)
+    asString(p("name")) -> p("value")
+  }
+
+  private def arrayToMap(value: Js.Val): Map[String, Val] = {
+    value
+      .asInstanceOf[Arr]
+      .value
+      .map {
+        parseNamedValue
+      }
+      .toMap
+  }
+
+  private def asBoolean(v: Js.Val): Boolean = {
+    (v: @unchecked) match {
+      case False => false
+      case True  => true
+    }
+  }
+
+  private def parseType(v: Js.Val): GType = {
+    assert(
+      v != Null,
+      "Use parseGTMark instead if you are parsing an optional user type annotation."
+    )
+    val o = asObj(v)
+    val t = asString(o("category")) match {
+      case "TVar" =>
+        val n = asSymbol(o("name"))
+        if (n == AnyType.id) AnyType else TyVar(n)
+      case "AnyType" => AnyType
+      case "FuncType" =>
+        val fr = asArray(o("args")).map(parseType)
+        val to = parseType(o("to"))
+        FuncType(fr, to)
+      case "ObjectType" =>
+        val fields = asArray(o("fields"))
+          .map(pair => {
+            val (k, v) = parseNamedValue(pair)
+            (Symbol(k), parseType(v))
+          })
+          .toMap
+        ObjectType(fields)
+    }
+    t
+  }
+
+  private def parseArgPair(value: Js.Val): (Symbol, GTMark) = {
     val (name, v) = parseNamedValue(value)
     val ty = parseGTMark(v)
     (Symbol(name), ty)
   }
 
-  def parseArgList(value: Js.Val): Vector[(Symbol, GTMark)] = {
+  private def parseArgList(value: Js.Val): Vector[(Symbol, GTMark)] = {
     val list = asVector(value)
     list.map(parseArgPair)
   }
 
-  def parseGTMark(v: Js.Val): GTMark = {
+  private def parseGTMark(v: Js.Val): GTMark = {
     v match {
       case Null => Annot.Missing
       case _    => Annot.User(parseType(v))
     }
   }
 
-  def parseGExpr(v: Js.Val): GExpr = {
+  private def parseGExpr(v: Js.Val): GExpr = {
     val map = asObj(v)
     asString(map("category")) match {
       case "FuncCall" =>
@@ -241,7 +263,7 @@ object ProgramParsing {
     }
   }
 
-  case class DefModifiers(
+  private case class DefModifiers(
       isConst: Boolean,
       exportLevel: ExportLevel.Value,
       isGetter: Boolean,
@@ -249,7 +271,7 @@ object ProgramParsing {
       isAbstract: Boolean
   )
 
-  def parseModifiers(v: Js.Val): DefModifiers = {
+  private def parseModifiers(v: Js.Val): DefModifiers = {
     val modifiers = asArray(v).map(asString).toSet
     val isConst = modifiers.contains("const")
     val exportLevel =
@@ -263,7 +285,7 @@ object ProgramParsing {
     DefModifiers(isConst, exportLevel, isGetter, isSetter, isAbstract)
   }
 
-  def parseGStmt(v: Js.Val): Vector[GStmt] =
+  private def parseGStmt(v: Js.Val): Vector[GStmt] =
     SimpleMath.withErrorMessage(s"Error when parsing $v") {
       val map = asObj(v)
       asString(map("category")) match {
@@ -306,7 +328,8 @@ object ProgramParsing {
         case "NamespaceStmt" =>
           val name = asString(map("name"))
           val body = groupInBlockSurface(parseGStmt(map("block")))
-          Vector(Namespace(Symbol(name), body))
+          val ms = parseModifiers(map("modifiers"))
+          Vector(Namespace(Symbol(name), body, ms.exportLevel))
         case "FuncDef" =>
           val name = Symbol(asString(map("name")))
           val args = parseArgList(map("args"))
@@ -328,6 +351,7 @@ object ProgramParsing {
           val name = asSymbol(map("name"))
           val superType = asOptionSymbol(map("superType"))
           val ms = parseModifiers(map("modifiers"))
+          val tyVars = asVector(map("tyVars")).map(asSymbol)
           val constructor = {
             val constructorValue = map("constructor")
             val f = if (constructorValue == Null) {
@@ -346,7 +370,8 @@ object ProgramParsing {
             }
             f.copy(
               name = GStmt.constructorName,
-              returnType = Annot.Fixed(TyVar(name))
+              returnType = Annot.Fixed(TyVar(name)),
+              tyVars = tyVars // constructor has the same tyVars as the class
             )
           }
           val vars = asVector(map("vars")).map { v1 =>
@@ -362,7 +387,6 @@ object ProgramParsing {
               val List(s, b) = asArray(v)
               parseGStmt(s).asInstanceOf[Vector[FuncDef]].head -> asBoolean(b)
             }
-          val tyVars = asVector(map("tyVars")).map(asSymbol)
 
           val (instanceVars, staticVars) = {
             val v1 = vars.groupBy(_._2._3)
@@ -391,7 +415,7 @@ object ProgramParsing {
 
           Vector(
             // Wrap all static methods into a namespace
-            Namespace(name, BlockStmt(staticMembers)),
+            Namespace(name, BlockStmt(staticMembers), ms.exportLevel),
             ClassDef(
               name,
               tyVars,
@@ -406,7 +430,7 @@ object ProgramParsing {
       }
     }
 
-  def parseGModule(v: Js.Val): GModule = {
+  private def parseGModule(v: Js.Val): GModule = {
     val obj = asObj(v)
     val name = asString(obj("name"))
     var imports = Vector[ImportStmt]()
@@ -441,6 +465,148 @@ object ProgramParsing {
 
     val modulePath = RelPath(name.replace("." + RelPath(name).ext, ""))
     GModule(modulePath, imports, exports, stmts1)
+  }
+
+  import fastparse.JavaWhitespace._
+  import fastparse.Parsed.{Failure, Success}
+  import fastparse._
+  import lambdanet.ImportStmt._
+
+  object ImportPattern {
+    def unapply(v: Js.Val): Option[Vector[ImportStmt]] = {
+      val map = asObj(v)
+      asString(map("category")) match {
+        case "ImportStmt" =>
+          val importString = StringContext.treatEscapes(asString(map("text")))
+          Some(parseImports(importString))
+        case _ => None
+      }
+    }
+
+    //  def spaceSep[_: P]: P[Unit] = P(CharsWhileIn(" \r\n", 1))
+
+    def identifier[_: P]: P[String] = CharsWhileIn("a-zA-Z0-9$_").!
+
+    def path[_: P]: P[ProjectPath] =
+      P(JsonParsing.string | JsonParsing.singleQuoteString)
+        .map(s => RelPath(s.value))
+
+    def parseImports(importText: String): Vector[ImportStmt] = {
+      def importDefault[_: P] = P(identifier ~/ "from" ~ path).map {
+        case (name, p) =>
+          Vector(ImportDefault(p, Symbol(name)))
+      }
+
+      def importModule[_: P] =
+        P("*" ~/ "as" ~ identifier ~/ "from" ~ path).map {
+          case (name, p) =>
+            Vector(ImportModule(p, Symbol(name)))
+        }
+
+      def clause[_: P]: P[(String, Option[String])] =
+        P(identifier ~ ("as" ~/ identifier).?)
+
+      def importSingles[_: P]: P[Vector[ImportSingle]] =
+        P("{" ~/ clause.rep(min = 1, sep = ",") ~ ",".? ~ "}" ~/ "from" ~ path)
+          .map {
+            case (clauses, path) =>
+              clauses.map {
+                case (oldName, newNameOpt) =>
+                  val newName = Symbol(newNameOpt.getOrElse(oldName))
+                  ImportSingle(Symbol(oldName), path, newName)
+              }.toVector
+          }
+
+      def importForEffects[_: P] = P(path).map(_ => Vector[ImportStmt]())
+
+      def stmt[_: P]: P[Vector[ImportStmt]] =
+        P(
+          "import" ~/ (importSingles | importModule | importDefault | importForEffects) ~ (";" | End)
+        )
+
+      parse(importText, stmt(_)) match {
+        case Success(value, _) => value
+        case f: Failure =>
+          throw new Error(
+            s"Failed to parse import statement: '$importText', errors: ${f.trace().longMsg}"
+          )
+      }
+    }
+  }
+
+  object ExportPattern {
+    import lambdanet.ExportStmt._
+
+    def unapply(v: Js.Val): Option[Vector[ExportStmt]] = {
+      val map = asObj(v)
+      asString(map("category")) match {
+        case "ExportStmt" =>
+          val str = StringContext.treatEscapes(asString(map("text")))
+          Some(parseExports(str))
+        //      case "TypeAliasStmt" =>
+        //        val name = Symbol(asString(map("name")))
+        //        val tVars = asVector(map("tyVars")).map(asSymbol)
+        //        val `type` = ProgramParsing.parseType(map("type"))
+        //        Some(Vector(ExportTypeAlias(name, tVars, `type`)))
+        case _ => None
+      }
+    }
+
+    def parseExports(str: String): Vector[ExportStmt] = {
+      import ImportPattern.{identifier, path}
+
+      type Creator = Option[ProjectPath] => Vector[ExportStmt]
+
+      def exportDefault[_: P]: P[Creator] =
+        P("{" ~ "default" ~/ ("as" ~/ identifier).? ~ "}").map {
+          newNameOpt => p =>
+            Vector(ExportDefault(newNameOpt.map(Symbol.apply), p))
+        }
+
+      def exportDefault2[_: P]: P[Creator] =
+        P("default" ~ identifier)
+          .map(n => p => Vector(ExportDefault(Some(Symbol(n)), p)))
+
+      def exportSingles[_: P]: P[Creator] =
+        P(
+          "{" ~ (identifier ~/ ("as" ~/ identifier).?)
+            .rep(min = 1, sep = ",") ~ ",".? ~ "}"
+        ).map { clauses => p =>
+          clauses.toVector.map {
+            case (oldName, newNameOpt) =>
+              ExportSingle(
+                Symbol(oldName),
+                Symbol(newNameOpt.getOrElse(oldName)),
+                p
+              )
+          }
+        }
+
+      def exportFromOther[_: P]: P[Creator] = {
+        P("*").map(
+          _ =>
+            p => {
+              Vector(ExportOtherModule(p.get))
+            }
+        )
+      }
+
+      def stmt[_: P] =
+        P(
+          "export" ~/ (exportFromOther | exportDefault | exportDefault2 | exportSingles)
+            ~ ("from" ~/ path).? ~ ";".?
+        ).map {
+          case (creator, p) => creator(p)
+        }
+
+      parse(str, stmt(_)) match {
+        case Success(value, _) => value
+        case f: Failure =>
+          throw new Error(
+            s"Failed to parse export statement: '$str', errors: ${f.trace().longMsg}"
+          )
+      }
+    }
   }
 
   def main(args: Array[String]): Unit = {

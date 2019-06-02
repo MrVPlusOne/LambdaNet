@@ -39,12 +39,12 @@ object PredicateGraph {
     }
   }
 
-  class PNodeAllocator(val fromLib: Boolean) extends IdAllocator[PNode] {
+  class PNodeAllocator(val forLib: Boolean) extends IdAllocator[PNode] {
     def newNode(
         nameOpt: Option[Symbol],
         isType: Boolean
     ): PNode = {
-      useNewId(id => new PNode(id, nameOpt, isType, fromLib))
+      useNewId(id => new PNode(id, nameOpt, isType, forLib))
     }
   }
 

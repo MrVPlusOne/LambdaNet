@@ -27,6 +27,7 @@ declare var Infinity: number;
 
 /** Fake */
 interface Void{}
+declare var Void: Void;
 
 /**
  * Evaluates JavaScript code and executes it.

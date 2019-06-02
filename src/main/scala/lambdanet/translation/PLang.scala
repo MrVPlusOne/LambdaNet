@@ -77,6 +77,7 @@ object PLang {
   case class ClassDef(
       name: Symbol,
       classNode: PNode,
+      thisNode: PNode,
       superType: Option[Symbol] = None,
       vars: Map[Symbol, (PNode, GExpr)],
       funcDefs: Vector[FuncDef],
@@ -98,7 +99,8 @@ object PLang {
       exportLevel: ExportLevel.Value
   ) extends PStmt
 
-  case class Namespace(name: Symbol, block: BlockStmt) extends PStmt
+  case class Namespace(name: Symbol, block: BlockStmt, level: ExportLevel.Value)
+      extends PStmt
 
 }
 
@@ -165,6 +167,11 @@ object PLangTranslation {
               ) =>
             val newTyVars: Set[Symbol] = outerTyVars ++ tyVars
             val classNode = allocate(Some(name), Annot.Missing, isTerm = false)
+            val thisNode = allocate(
+              Some(lambdanet.thisSymbol),
+              Annot.Fixed(TyVar(name)),
+              isTerm = true
+            )
             val varNodes = vars.map {
               case (s, (annot, expr)) =>
                 (s, (allocate(Some(s), annot, isTerm = true)(newTyVars), expr))
@@ -173,6 +180,7 @@ object PLangTranslation {
             ClassDef(
               name,
               classNode,
+              thisNode,
               superType,
               varNodes,
               funcDefs.map(
@@ -194,8 +202,8 @@ object PLangTranslation {
             CommentStmt(text)
           case surface.BlockStmt(stmts) =>
             BlockStmt(stmts.map(translateStmt))
-          case surface.Namespace(name, block) =>
-            Namespace(name, translateStmt(block).asInstanceOf[BlockStmt])
+          case surface.Namespace(name, block, level) =>
+            Namespace(name, translateStmt(block).asInstanceOf[BlockStmt], level)
           case surface.AssignStmt(lhs, rhs) =>
             AssignStmt(lhs, rhs)
           case surface.ExprStmt(e, isReturn) =>

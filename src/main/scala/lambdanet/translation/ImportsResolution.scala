@@ -1,6 +1,7 @@
 package lambdanet.translation
 
 import ammonite.ops
+import funcdiff.SimpleMath
 import lambdanet.{ExportLevel, ProjectPath}
 import lambdanet.translation.PLang._
 import lambdanet.translation.PredicateGraph.{PNode, PNodeAllocator}
@@ -28,12 +29,15 @@ object ImportsResolution {
   }
 
   /** Type and term definitions that are associated with a symbol */
-  case class NameDef(term: Option[PNode], ty: Option[PNode]) {
+  case class NameDef(
+      term: Option[PNode],
+      ty: Option[PNode],
+      namespace: Option[ModuleExports]
+  ) {
     term.foreach(t => assert(t.isTerm))
     ty.foreach(t => assert(t.isType))
 
-    def nonEmpty: Boolean = term.nonEmpty || ty.nonEmpty
-
+    def nonEmpty: Boolean = term.nonEmpty || ty.nonEmpty || namespace.nonEmpty
     def +(p: PNode): NameDef = {
       if (p.isType) copy(ty = Some(p))
       else copy(term = Some(p))
@@ -43,7 +47,27 @@ object ImportsResolution {
   object NameDef {
     import cats.Monoid
 
-    val empty: NameDef = NameDef(None, None)
+    val empty: NameDef = NameDef(None, None, None)
+
+    def fromPNode(n: PNode): NameDef = {
+      if (n.isType) typeDef(n) else termDef(n)
+    }
+
+    def termDef(n: PNode) = NameDef(Some(n), None, None)
+    def typeDef(n: PNode) = NameDef(None, Some(n), None)
+    def namespaceDef(namespace: ModuleExports) =
+      NameDef(None, None, Some(namespace))
+
+    implicit val NameDefMonoid: Monoid[NameDef] = new Monoid[NameDef] {
+      def empty: NameDef = NameDef.empty
+
+      def combine(x: NameDef, y: NameDef): NameDef =
+        NameDef(
+          combineOption(x.term, y.term),
+          combineOption(x.ty, y.ty),
+          combineOption(x.namespace, y.namespace)
+        )
+    }
 
     private def combineOption[T](x: Option[T], y: Option[T]) = {
       y match {
@@ -51,30 +75,19 @@ object ImportsResolution {
         case None    => x
       }
     }
-
-    implicit val NameDefMonoid: Monoid[NameDef] = new Monoid[NameDef] {
-      def empty: NameDef = NameDef.empty
-
-      def combine(x: NameDef, y: NameDef): NameDef =
-        NameDef(combineOption(x.term, y.term), combineOption(x.ty, y.ty))
-    }
-
-    def termDef(n: PNode) = NameDef(Some(n), None)
-    def typeDef(n: PNode) = NameDef(None, Some(n))
   }
 
   case class ModuleExports(
       defaultDefs: NameDef,
       publicSymbols: Map[Symbol, NameDef],
-      internalSymbols: Map[Symbol, NameDef],
-      nameSpaces: Map[Symbol, ModuleExports]
+      internalSymbols: Map[Symbol, NameDef]
   )
 
   object ModuleExports {
     import cats.Monoid
     import cats.implicits._
 
-    val empty = ModuleExports(NameDef.empty, Map(), Map(), Map())
+    val empty = ModuleExports(NameDef.empty, Map(), Map())
 
     implicit val ModuleExportsMonoid: Monoid[ModuleExports] =
       new Monoid[ModuleExports] {
@@ -84,24 +97,11 @@ object ImportsResolution {
           ModuleExports(
             x.defaultDefs |+| y.defaultDefs,
             x.publicSymbols |+| y.publicSymbols,
-            x.internalSymbols |+| y.internalSymbols,
-            x.nameSpaces |+| y.nameSpaces
+            x.internalSymbols |+| y.internalSymbols
           )
         }
       }
 
-  }
-
-  def moduleExportsToPContext(exports: ModuleExports): PContext = {
-    val namespaces = exports.nameSpaces.mapValuesNow(moduleExportsToPContext)
-    val types = exports.publicSymbols.collect {
-      case (v, d) if d.ty.nonEmpty => v -> d.ty.get
-    }
-    val terms = exports.publicSymbols.collect {
-      case (v, d) if d.term.nonEmpty => IR.Var(Right(v)) -> d.term.get
-    }
-
-    PContext(terms, types, namespaces)
   }
 
   def resolveLibrariesOld(
@@ -145,21 +145,22 @@ object ImportsResolution {
     def collectTopLevelDefs(
         stmts: Vector[PStmt]
     ): ModuleExports = {
+      import cats.implicits._
+
       var defaults = NameDef.empty
-      val publics = mutable.Map[Symbol, NameDef]()
-      val privates = mutable.Map[Symbol, NameDef]()
-      val nameSpaces = mutable.HashMap[Symbol, ModuleExports]()
+      var publics = Map[Symbol, NameDef]()
+      var all = Map[Symbol, NameDef]()
 
       def record(
           node: PNode,
           level: ExportLevel.Value
       ): Unit = {
         val name = node.nameOpt.get
+        all |+|= Map(name -> NameDef.fromPNode(node))
         level match {
           case ExportLevel.Unspecified =>
-            privates(name) = privates.getOrElse(name, NameDef.empty) + node
           case ExportLevel.Public =>
-            privates(name) = publics.getOrElse(name, NameDef.empty) + node
+            publics |+|= Map(name -> NameDef.fromPNode(node))
           case ExportLevel.Default =>
             defaults += node
         }
@@ -174,24 +175,30 @@ object ImportsResolution {
           record(cd.classNode, cd.exportLevel)
         case ts: TypeAliasStmt =>
           record(ts.node, ts.exportLevel)
-        case Namespace(name, block) =>
-          nameSpaces(name) = collectTopLevelDefs(block.stmts)
+        case Namespace(name, block, level) =>
+          val nd = NameDef.namespaceDef(collectTopLevelDefs(block.stmts))
+          val rhs =
+            Map(name -> nd)
+          all |+|= rhs
+          level match {
+            case ExportLevel.Unspecified =>
+            case ExportLevel.Public =>
+              publics |+|= rhs
+            case ExportLevel.Default =>
+              defaults |+|= nd
+          }
         case _ =>
       }
 
-      ModuleExports(
-        defaults,
-        publics.toMap,
-        (publics ++ privates).toMap,
-        nameSpaces.toMap
-      )
+      ModuleExports(defaults, publics, all)
     }
 
     def propagateExports(
         exports: Map[ProjectPath, ModuleExports]
-    ): Map[ProjectPath, ModuleExports] = {
+    ): (Map[ProjectPath, ModuleExports], Set[Symbol]) = {
       import cats.implicits._
 
+      var unresolved = Set[Symbol]()
       exports.map {
         case (thisPath, thisExports) =>
           def resolvePath(relPath: ProjectPath): ModuleExports = {
@@ -204,64 +211,76 @@ object ImportsResolution {
           var newDefaults = thisExports.defaultDefs
           var newPublics = thisExports.publicSymbols
           var newInternals = thisExports.internalSymbols
-          val module = modulesToResolve(thisPath)
-          module.imports.foreach {
-            case ImportSingle(oldName, relPath, newName) =>
-              val exports = resolvePath(relPath)
-              exports.publicSymbols
-                .get(oldName)
-                .foreach(defs => {
-                  newInternals = newInternals |+| Map(newName -> defs)
-                })
-            case _ =>
-          }
 
-          module.exportStmts.foreach {
-            case ExportSingle(oldName, newName, from) =>
-              from match {
-                case Some(s) =>
-                  resolvePath(s).publicSymbols
-                    .get(oldName)
-                    .foreach(defs => {
-                      newPublics = newPublics |+| Map(newName -> defs)
-                    })
-                case None =>
-                  val defs = thisExports.internalSymbols(oldName)
-                  newPublics = newPublics |+| Map(newName -> defs)
-              }
-            case ExportOtherModule(from) =>
-              val toExport = resolvePath(from).publicSymbols
-              newPublics = newPublics |+| toExport
-            case ExportDefault(newName, Some(s)) =>
-              val defs = resolvePath(s).defaultDefs
-              newName match {
-                case Some(n) =>
-                  newPublics = newPublics |+| Map(n -> defs)
-                case None =>
-                  newDefaults = newDefaults |+| defs
-              }
-            case ExportDefault(newName, None) =>
-              val name = newName.get
-              newDefaults = thisExports.internalSymbols(name)
+          val module = modulesToResolve(thisPath)
+          SimpleMath.withErrorMessage(s"In module '${module.path}'") {
+            module.imports.foreach {
+              case ImportSingle(oldName, relPath, newName) =>
+                val exports = resolvePath(relPath)
+                exports.publicSymbols
+                  .get(oldName) match {
+                  case Some(defs) =>
+                    newInternals = newInternals |+| Map(newName -> defs)
+                  case None => unresolved += oldName
+                }
+              case ImportModule(path, newName) =>
+                val exports = resolvePath(path)
+                newInternals |+|= Map(newName -> NameDef.namespaceDef(exports))
+              case ImportDefault(path, newName) =>
+                val exports = resolvePath(path)
+                newInternals |+|= Map(newName -> exports.defaultDefs)
+            }
+
+            module.exportStmts.foreach {
+              case ExportSingle(oldName, newName, from) =>
+                from match {
+                  case Some(s) =>
+                    resolvePath(s).publicSymbols
+                      .get(oldName)
+                      .foreach(defs => {
+                        newPublics = newPublics |+| Map(newName -> defs)
+                      })
+                  case None =>
+                    thisExports.internalSymbols
+                      .get(oldName)
+                      .foreach(defs => newPublics |+|= Map(newName -> defs))
+                }
+              case ExportOtherModule(from) =>
+                val toExport = resolvePath(from).publicSymbols
+                newPublics = newPublics |+| toExport
+              case ExportDefault(newName, Some(s)) =>
+                val defs = resolvePath(s).defaultDefs
+                newName match {
+                  case Some(n) =>
+                    newPublics |+|= Map(n -> defs)
+                  case None =>
+                    newDefaults |+|= defs
+                }
+              case ExportDefault(newName, None) =>
+                val name = newName.get
+                newDefaults = thisExports.internalSymbols(name)
+            }
+            thisPath -> ModuleExports(newDefaults, newPublics, newInternals)
           }
-          thisPath -> ModuleExports(
-            newDefaults,
-            newPublics,
-            newInternals,
-            thisExports.nameSpaces
-          )
-      }
+      } -> unresolved
     }
 
-    Iterator
+    var lastUnresolved = Set[Symbol]()
+    val r = Iterator
       .iterate(
         modulesToResolve.map {
           case (p, m) =>
             p -> collectTopLevelDefs(m.stmts)
         }
-      )(propagateExports)
+      ) { ex =>
+        val (ex1, unresolved) = propagateExports(ex)
+        lastUnresolved = unresolved
+        ex1
+      }
       .drop(maxIterations)
       .next()
+    assert(lastUnresolved.isEmpty, s"Unresolved symbols: $lastUnresolved")
+    r
   }
 
   private def findExports(
@@ -281,55 +300,55 @@ object ImportsResolution {
     )
   }
 
-  def resolveImports(
-      allocator: PNodeAllocator,
-      modulesToResolve: Map[ProjectPath, PModule],
-      resolvedModules: Map[ProjectPath, ModuleExports],
-      pathMapping: PathMapping,
-      maxIterations: Int = 10
-  ) = {
-    val exports = resolveExports(
-      modulesToResolve,
-      resolvedModules,
-      pathMapping,
-      maxIterations
-    )
-
-    modulesToResolve.values.map { m =>
-      def resolvePath(relPath: ProjectPath): ModuleExports = {
-        findExports(exports, pathMapping, resolvedModules)(m.path, relPath)
-      }
-
-      val terms = mutable.HashMap[IR.Var, PNode]()
-      val types = mutable.HashMap[Symbol, PNode]()
-      val namespaces = mutable.HashMap[Symbol, PContext]()
-
-      def addDefs(name: Symbol, defs: NameDef): Unit = {
-        assert(defs.nonEmpty)
-        defs.term.foreach { node =>
-          val v = IR.Var(Right(name))
-          terms(v) = node
-        }
-        defs.ty.foreach(t => types(name) = t)
-      }
-
-      m.imports.foreach {
-        case ImportDefault(path, newName) =>
-          addDefs(newName, resolvePath(path).defaultDefs)
-        case ImportSingle(oldName, relPath, newName) =>
-          val ex = resolvePath(relPath)
-          ex.publicSymbols.get(oldName) match {
-            case Some(defs) => addDefs(newName, defs)
-            case None =>
-              namespaces(newName) =
-                moduleExportsToPContext(ex.nameSpaces(oldName))
-          }
-        case ImportModule(path, newName) =>
-          namespaces(newName) = moduleExportsToPContext(resolvePath(path))
-      }
-
-      m.path -> PContext(terms.toMap, types.toMap, namespaces.toMap)
-    }
-  }
+//  def resolveImports(
+//      allocator: PNodeAllocator,
+//      modulesToResolve: Map[ProjectPath, PModule],
+//      resolvedModules: Map[ProjectPath, ModuleExports],
+//      pathMapping: PathMapping,
+//      maxIterations: Int = 10
+//  ) = {
+//    val exports = resolveExports(
+//      modulesToResolve,
+//      resolvedModules,
+//      pathMapping,
+//      maxIterations
+//    )
+//
+//    modulesToResolve.values.map { m =>
+//      def resolvePath(relPath: ProjectPath): ModuleExports = {
+//        findExports(exports, pathMapping, resolvedModules)(m.path, relPath)
+//      }
+//
+//      val terms = mutable.HashMap[IR.Var, PNode]()
+//      val types = mutable.HashMap[Symbol, PNode]()
+//      val namespaces = mutable.HashMap[Symbol, PContext]()
+//
+//      def addDefs(name: Symbol, defs: NameDef): Unit = {
+//        assert(defs.nonEmpty)
+//        defs.term.foreach { node =>
+//          val v = IR.Var(Right(name))
+//          terms(v) = node
+//        }
+//        defs.ty.foreach(t => types(name) = t)
+//      }
+//
+//      m.imports.foreach {
+//        case ImportDefault(path, newName) =>
+//          addDefs(newName, resolvePath(path).defaultDefs)
+//        case ImportSingle(oldName, relPath, newName) =>
+//          val ex = resolvePath(relPath)
+//          ex.publicSymbols.get(oldName) match {
+//            case Some(defs) => addDefs(newName, defs)
+//            case None =>
+//              namespaces(newName) =
+//                moduleExportsToPContext(ex.nameSpaces(oldName))
+//          }
+//        case ImportModule(path, newName) =>
+//          namespaces(newName) = moduleExportsToPContext(resolvePath(path))
+//      }
+//
+//      m.path -> PContext(terms.toMap, types.toMap, namespaces.toMap)
+//    }
+//  }
 
 }
