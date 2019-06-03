@@ -895,16 +895,20 @@ export class StmtParser {
         case SyntaxKind.ExportDeclaration:
           return EP.alongWith(new ExportStmt(node.getText()));
         case SyntaxKind.EnumDeclaration: {
-          let n = node as ts.EnumDeclaration;
-          let vars = n.members.map(member => {
+          const enumEquiv = new TVar("number");
+          const n = node as ts.EnumDeclaration;
+          const vars = n.members.map(member => {
             let vName = member.name.getText();
             return new NamedValue(vName,
-              new Const("ENUM", new TVar("number"), getLineNumber(n)));
+              new Const("ENUM", enumEquiv, getLineNumber(n)));
           });
-          let rhs = new ObjLiteral(vars);
-
-          return EP.alongWith(new VarDef(n.name.text, null, rhs,
-            true, parseModifiers(n.modifiers)));
+          const rhs = new ObjLiteral(vars);
+          const mds = parseModifiers(n.modifiers);
+          return EP.alongWithMany([
+            new VarDef(n.name.text, null, rhs,
+            true, mds),
+            new TypeAliasStmt(n.name.text, [], enumEquiv, mds)
+          ]);
         }
         case SyntaxKind.InterfaceDeclaration: {
           let n = node as ts.InterfaceDeclaration;

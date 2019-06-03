@@ -351,8 +351,9 @@ object QLangTranslation {
               mapNode(thisNode)
               vars.values.foreach(mapNode)
 
+              val thisDef = NameDef.termDef(thisNode)
               val internals1 = ctx.internalSymbols |+|
-                Map(thisSymbol -> NameDef.termDef(thisNode))
+                Map(thisSymbol -> thisDef, superSymbol -> thisDef)
               val ctx1 = ctx.copy(internalSymbols = internals1)
               val funcDefs1 =
                 funcDefs.map(

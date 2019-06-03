@@ -411,6 +411,17 @@ object ProgramParsing {
           }
           //put instance var instantiation into the constructor
           val constructor = {
+            val thisDef = VarDef(
+              thisSymbol,
+              Annot.Fixed(TyVar(name)),
+              Var(undefinedSymbol),
+              isConst = true,
+              ExportLevel.Unspecified
+            )
+            val thisSuperVars = Vector(
+              thisDef,
+              thisDef.copy(name = superSymbol)
+            )
             val lambdas = asVector(map("initLambdas"))
               .flatMap(parseGStmt)
               .asInstanceOf[Vector[FuncDef]]
@@ -420,7 +431,8 @@ object ProgramParsing {
                 AssignStmt(Access(Var(thisSymbol), s), expr)
             }
             constructor0.copy(
-              body = groupInBlockSurface(lambdas ++ inits ++ stmts)
+              body =
+                groupInBlockSurface(thisSuperVars ++ lambdas ++ inits ++ stmts)
             )
           }
 
