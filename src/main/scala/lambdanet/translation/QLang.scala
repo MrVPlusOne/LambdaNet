@@ -39,7 +39,9 @@ object QLang {
 
   case class AssignStmt(lhs: QExpr, rhs: QExpr) extends QStmt
 
-  case class ExprStmt(e: QExpr, isReturn: Boolean) extends QStmt
+  case class ExprStmt(e: QExpr) extends QStmt
+
+  case class ReturnStmt(e: QExpr, ret: PNode) extends QStmt
 
   case class IfStmt(cond: QExpr, branch1: QStmt, branch2: QStmt) extends QStmt
 
@@ -56,9 +58,9 @@ object QLang {
 
   case class ClassDef(
       classNode: PNode,
-      superType: Option[PType],
-      vars: Set[PNode],
-      funcDefs: Vector[FuncDef]
+      superType: Option[PTyVar],
+      vars: Map[Symbol, PNode],
+      funcDefs: Map[Symbol, FuncDef]
   ) extends QStmt
 
   sealed trait QExpr
@@ -247,7 +249,12 @@ object QLangTranslation {
             case PLang.AssignStmt(lhs, rhs) =>
               Vector(AssignStmt(translateExpr(lhs), translateExpr(rhs)))
             case PLang.ExprStmt(e, isReturn) =>
-              Vector(ExprStmt(translateExpr(e), isReturn))
+              val e1 = translateExpr(e)
+              val s =
+                if (isReturn)
+                  ReturnStmt(e1, ctx.internalSymbols(returnSymbol).term.get)
+                else ExprStmt(e1)
+              Vector(s)
             case PLang.IfStmt(cond, branch1, branch2) =>
               Vector(
                 IfStmt(
@@ -301,14 +308,20 @@ object QLangTranslation {
                 Map(thisSymbol -> thisDef, superSymbol -> thisDef)
               val ctx1 = ctx.copy(internalSymbols = internals1)
               val funcDefs1 =
-                funcDefs.map(
-                  f => translateStmt(f)(ctx1).head.asInstanceOf[FuncDef]
-                )
+                funcDefs
+                  .map(
+                    f =>
+                      f.name -> translateStmt(f)(ctx1).head
+                        .asInstanceOf[FuncDef]
+                  )
+                  .toMap
               Vector(
                 ClassDef(
                   classNode,
-                  superType.map(t => resolveType(TyVar(t))),
-                  vars.values.toSet,
+                  superType.map(
+                    t => resolveType(TyVar(t)).asInstanceOf[PTyVar]
+                  ),
+                  vars,
                   funcDefs1
                 )
               )

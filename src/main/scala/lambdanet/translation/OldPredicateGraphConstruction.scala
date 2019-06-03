@@ -21,7 +21,6 @@ import lambdanet.{
   TrainingProjects,
   TyVar
 }
-import lambdanet.types._
 
 import scala.collection.mutable
 

@@ -1,8 +1,14 @@
 package lambdanet.translation
 
 import lambdanet._
-import lambdanet.translation.PredicateGraph.{PNode, PNodeAllocator, PType}
-import types._
+import lambdanet.translation.PredicateGraph.{
+  PFunc,
+  PNode,
+  PNodeAllocator,
+  PObject,
+  PTyVar,
+  PType
+}
 import IR._
 import lambdanet.translation.QLang.{QExpr, QModule, QStmt}
 import funcdiff.SimpleMath.Extensions._
@@ -98,7 +104,7 @@ object IR {
   case class IfExpr(cond: PNode, e1: PNode, e2: PNode) extends IRExpr {
     def prettyPrint: String = s"($cond ? $e1 : $e2)"
   }
-  case class Cast(expr: PNode, ty: PType) extends IRExpr {
+  case class Cast(expr: PNode, ty: PNode) extends IRExpr {
     def prettyPrint: String = s"($expr as $ty)"
   }
   // @formatter:off
@@ -145,7 +151,7 @@ object IR {
 
   case class AssignStmt(lhs: PNode, rhs: PNode) extends IRStmt
 
-  case class ReturnStmt(v: PNode) extends IRStmt
+  case class ReturnStmt(v: PNode, returnType: PNode) extends IRStmt
 
   case class IfStmt(cond: PNode, e1: BlockStmt, e2: BlockStmt) extends IRStmt
 
@@ -158,18 +164,24 @@ object IR {
       args: Vector[PNode],
       returnType: PNode,
       body: BlockStmt
-  ) extends IRStmt
+  ) extends IRStmt {
+    def pType: PFunc = PFunc(args, returnType)
+  }
 
   case class ClassDef(
       classNode: PNode,
-      superType: Option[PType],
-      vars: Set[PNode],
-      funcDefs: Vector[FuncDef]
-  ) extends IRStmt
+      superType: Option[PTyVar],
+      vars: Map[Symbol, PNode],
+      funcDefs: Map[Symbol, FuncDef]
+  ) extends IRStmt {
+    def pType: PObject = PObject(vars ++ funcDefs.mapValuesNow(_.funcNode))
+  }
 
 }
 
 class IRTranslation(allocator: PNodeAllocator) {
+  val mapping: mutable.HashMap[PNode, PAnnot] = mutable.HashMap()
+
   def fromQModule(module: QModule): IRModule = {
     val stmts1 = module.stmts.flatMap(translateStmt)
     IRModule(module.path, stmts1, module.mapping)
@@ -191,11 +203,14 @@ class IRTranslation(allocator: PNodeAllocator) {
         val (defs3, lV) = exprAsPNode(lE)
         val (defs4, rV) = exprAsPNode(rE)
         (lDefs ++ rDefs ++ defs3 ++ defs4) :+ AssignStmt(lV, rV)
-      case QLang.ExprStmt(expr, isReturn) =>
+      case QLang.ReturnStmt(expr, ret) =>
         val (defs, e) = translateExpr2(expr)
         val (defs2, r) = exprAsPNode(e)
-        if (isReturn) defs ++ defs2 :+ ReturnStmt(r)
-        else defs ++ defs2
+        defs ++ defs2 :+ ReturnStmt(r, ret)
+      case QLang.ExprStmt(expr) =>
+        val (defs, e) = translateExpr2(expr)
+        val (defs2, _) = exprAsPNode(e)
+        defs ++ defs2
       case QLang.IfStmt(cond, branch1, branch2) =>
         val (condDef, condE) = translateExpr2(cond)
         val (condDef2, condV) = exprAsPNode(condE)
@@ -221,7 +236,7 @@ class IRTranslation(allocator: PNodeAllocator) {
             classNode,
             superType,
             vars,
-            funcDefs.map(translateFunc)
+            funcDefs.mapValuesNow(translateFunc)
           )
         )
     }
@@ -248,7 +263,9 @@ class IRTranslation(allocator: PNodeAllocator) {
           val argsVars = args.map(e => asVar(rec(e)))
           IR.FuncCall(fVar, argsVars)
         case QLang.Cast(e, ty) =>
-          Cast(asVar(rec(e)), ty)
+          val node = allocator.newNode(None, isType = false)
+          mapping(node) = Annot.Fixed(ty)
+          Cast(asVar(rec(e)), node)
         case QLang.ObjLiteral(fields) =>
           ObjLiteral(fields.mapValuesNow(e => asVar(rec(e))))
         case QLang.Access(receiver, field) =>
@@ -264,8 +281,7 @@ class IRTranslation(allocator: PNodeAllocator) {
     }
 
     val defs = mutable.ListBuffer[IRStmt]()
-    val e1 = rec(expr)(defs)
-    (defs.toVector, e1)
+    (defs.toVector, rec(expr)(defs))
   }
 
   private def exprAsPNode(expr: IRExpr): (Vector[IRStmt], PNode) =

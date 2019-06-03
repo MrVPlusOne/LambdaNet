@@ -12,6 +12,7 @@ import lambdanet.translation.{
   IRTranslation,
   ImportsResolution,
   OldPredicateGraphConstruction,
+  PredicateGraphTranslation,
   QLangTranslation
 }
 import lambdanet.utils.ProgramParsing.ImportPattern
@@ -227,7 +228,7 @@ class ParserTests extends WordSpec with MyTest {
       SimpleMath.withErrorMessage(s"In project ${p.root}") {
         val allocator = new PNodeAllocator(forLib = false)
         val irTranslator = new IRTranslation(allocator)
-        QLangTranslation
+        val irModules = QLangTranslation
           .fromProject(
             p.modules,
             baseCtx,
@@ -237,6 +238,8 @@ class ParserTests extends WordSpec with MyTest {
           )
           .values
           .map(irTranslator.fromQModule)
+          .toVector
+        val graph = PredicateGraphTranslation.fromIRModules(irModules)
       }
     }
   }

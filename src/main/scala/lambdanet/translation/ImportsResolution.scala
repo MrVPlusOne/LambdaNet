@@ -4,16 +4,10 @@ import ammonite.ops
 import funcdiff.SimpleMath
 import lambdanet.{ExportLevel, ProjectPath}
 import lambdanet.translation.PLang._
-import lambdanet.translation.PredicateGraph.{PNode, PNodeAllocator}
+import lambdanet.translation.PredicateGraph.{PNode}
 import funcdiff.SimpleMath.Extensions._
 import lambdanet.ExportStmt._
 import lambdanet.ImportStmt._
-import lambdanet.surface.{GModule, GStmt, JSExamples}
-import lambdanet.translation.PredicatesGeneration.PContext
-import lambdanet.utils.ProgramParsing
-import lambdanet.utils.ProgramParsing.DeclarationModule
-
-import scala.collection.mutable
 
 object ImportsResolution {
 

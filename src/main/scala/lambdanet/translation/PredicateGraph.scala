@@ -1,11 +1,14 @@
 package lambdanet.translation
 
-import lambdanet.{Annot, IdAllocator, IdEquality}
+import lambdanet.IdAllocator
 import PredicateGraph._
+import funcdiff.SimpleMath
+
+import scala.collection.mutable
 
 case class PredicateGraph(
-    nodes: Vector[PNode],
-    predicates: Vector[TyPredicate]
+    nodes: Set[PNode],
+    predicates: Set[TyPredicate]
 )
 
 object PredicateGraph {
@@ -93,4 +96,89 @@ object PredicateGraph {
   case class PObject(fields: Map[Symbol, PNode]) extends PExpr
 
   case class PAccess(obj: PNode, label: Symbol) extends PExpr
+}
+
+object PredicateGraphTranslation {
+  import IR._
+
+  class UsageCounter {
+    import cats.implicits._
+
+    var usages: Map[PNode, Int] = Map()
+
+    def use(node: PNode): Unit = {
+      usages |+|= Map(node -> 1)
+    }
+  }
+
+  def fromIRModules(
+      modules: Vector[IRModule]
+  ): PredicateGraph = {
+    val predicates = mutable.Set[TyPredicate]()
+
+    def add(pred: TyPredicate): Unit = {
+      predicates += pred
+    }
+
+    def useCond(cond: PNode): Unit = {
+      add(UsedAsBool(cond))
+    }
+
+    def encodeStmt(stmt: IRStmt): Unit =
+      SimpleMath.withErrorMessage(s"Error in IRStmt: $stmt") {
+        stmt match {
+          case d: VarDef =>
+            val lhs = d.node
+
+            def define(rhs: PExpr): Unit = {
+              add(DefineRel(lhs, rhs))
+            }
+
+            d.rhs match {
+              case v1: Var =>
+                define(v1.node)
+              case FuncCall(f, args) =>
+                define(PCall(f, args))
+              case ObjLiteral(fields) =>
+                define(PObject(fields))
+              case IfExpr(cond, e1, e2) =>
+                add(SubtypeRel(e1, lhs))
+                add(SubtypeRel(e2, lhs))
+                useCond(cond)
+              case FieldAccess(receiver, label) =>
+                define(PAccess(receiver, label))
+              case Cast(expr, node) =>
+                add(SubtypeRel(node, expr))
+                define(node)
+            }
+          case AssignStmt(lhs, rhs) =>
+            add(AssignRel(lhs, rhs))
+          case ReturnStmt(v, ret) =>
+            add(SubtypeRel(v, ret))
+          case IfStmt(cond, e1, e2) =>
+            useCond(cond)
+            encodeStmt(e1)
+            encodeStmt(e2)
+          case WhileStmt(cond, body) =>
+            useCond(cond)
+            encodeStmt(body)
+          case block: BlockStmt =>
+            block.stmts.foreach(encodeStmt)
+          case f: FuncDef =>
+            add(DefineRel(f.funcNode, f.pType))
+            encodeStmt(f.body)
+          case c: ClassDef =>
+            c.superType.foreach(
+              tv => add(InheritanceRel(c.classNode, tv.node))
+            )
+            add(DefineRel(c.classNode, c.pType))
+            c.funcDefs.values.foreach(encodeStmt)
+        }
+      }
+
+    val nodes = modules.flatMap(m => m.mapping.keySet).toSet
+    modules.foreach(_.stmts.foreach(encodeStmt))
+    PredicateGraph(nodes, predicates.toSet)
+  }
+
 }
