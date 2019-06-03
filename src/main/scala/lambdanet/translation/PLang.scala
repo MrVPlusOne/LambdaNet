@@ -79,14 +79,14 @@ object PLang {
       classNode: PNode,
       thisNode: PNode,
       superType: Option[Symbol] = None,
-      vars: Map[Symbol, (PNode, GExpr)],
+      vars: Map[Symbol, PNode],
       funcDefs: Vector[FuncDef],
       exportLevel: ExportLevel.Value
   ) extends PStmt {
     @throws[NoSuchElementException]
     def objectType(implicit mapping: NodeMapping): ObjectType = {
       ObjectType(
-        vars.mapValuesNow(x => mapping(x._1).get) ++
+        vars.mapValuesNow(x => mapping(x).get) ++
           funcDefs.map(fd => fd.name -> fd.functionType)
       )
     }
@@ -173,8 +173,8 @@ object PLangTranslation {
               isTerm = true
             )
             val varNodes = vars.map {
-              case (s, (annot, expr)) =>
-                (s, (allocate(Some(s), annot, isTerm = true)(newTyVars), expr))
+              case (s, annot) =>
+                (s, allocate(Some(s), annot, isTerm = true)(newTyVars))
             }
 
             ClassDef(

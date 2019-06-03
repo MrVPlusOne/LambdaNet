@@ -383,6 +383,7 @@ class ClassDef implements GStmt {
   category: string = "ClassDef";
 
   constructor(public name: string, public constructor: FuncDef | null,
+              public initLambdas: FuncDef[],
               public vars: NamedValue<[GMark, GExpr, boolean]>[],
               public funcDefs: [FuncDef, boolean][],
               public superType: string | null, public modifiers: string[],
@@ -827,12 +828,13 @@ export class StmtParser {
           let constructor: Constructor | null = null;
 
           // let isAbstract = n.modifiers && n.modifiers.map(x => x.kind).includes(SyntaxKind.AbstractKeyword);
+          const innerEp = new ExprProcessor();
 
           for (const v of n.members) {
             const staticQ = isStatic(v);
             if (ts.isPropertyDeclaration(v)) {
               let v1 = v as ts.PropertyDeclaration;
-              const init = v1.initializer ? EP.processExpr(v1.initializer) : undefinedValue;
+              const init = v1.initializer ? innerEp.processExpr(v1.initializer) : undefinedValue;
               vars.push(new NamedValue(
                 getPropertyName(v1.name),
                 [parseMark(v1.type), init, staticQ]
@@ -858,7 +860,7 @@ export class StmtParser {
 
           let tVars = parseTVars(n);
 
-          let classStmt = new ClassDef(name, constructor, vars, funcDefs,
+          let classStmt = new ClassDef(name, constructor, innerEp.lambdaDefs, vars, funcDefs,
             superType, classModifiers, tVars);
 
           return EP.alongWith(classStmt);

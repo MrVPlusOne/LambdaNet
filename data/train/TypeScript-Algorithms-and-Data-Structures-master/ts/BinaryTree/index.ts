@@ -8,5 +8,5 @@ const BinaryTree = {
     BinaryTreeNode,
     RedBlackTree,
     RedBlackTreeNode
-}
+};
 export default BinaryTree; 

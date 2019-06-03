@@ -352,7 +352,42 @@ object ProgramParsing {
           val superType = asOptionSymbol(map("superType"))
           val ms = parseModifiers(map("modifiers"))
           val tyVars = asVector(map("tyVars")).map(asSymbol)
-          val constructor = {
+          val vars = asVector(map("vars")).map { v1 =>
+            val (name, v2) = parseNamedValue(v1)
+            val List(tyV, initV, isStaticV) = asArray(v2)
+            val ty = parseGTMark(tyV)
+            val init = parseGExpr(initV)
+            val isStatic = asBoolean(isStaticV)
+            (Symbol(name), (ty, init, isStatic))
+          }
+          val funcDefs =
+            asVector(map("funcDefs")).map { v =>
+              val List(s, b) = asArray(v)
+              parseGStmt(s).asInstanceOf[Vector[FuncDef]].head -> asBoolean(b)
+            }
+
+          val instanceInits = mutable.HashMap[Symbol, GExpr]()
+
+          val (instanceVars, staticVars) = {
+            val v1 = vars.groupBy(_._2._3)
+            (
+              v1.getOrElse(false, Map()).map {
+                case (s, (mark, expr, _)) =>
+                  instanceInits(s) = expr
+                  s -> mark
+              },
+              v1.getOrElse(true, Map()).map(p => p._1 -> (p._2._1, p._2._2))
+            )
+          }
+          val (instanceMethods, staticMethods0) = {
+            val v1 = funcDefs.groupBy(_._2)
+            (
+              v1.getOrElse(false, Vector()).map(_._1),
+              v1.getOrElse(true, Vector()).map(_._1)
+            )
+          }
+
+          val constructor0 = {
             val constructorValue = map("constructor")
             val f = if (constructorValue == Null) {
               // make an empty constructor
@@ -374,32 +409,18 @@ object ProgramParsing {
               tyVars = tyVars // constructor has the same tyVars as the class
             )
           }
-          val vars = asVector(map("vars")).map { v1 =>
-            val (name, v2) = parseNamedValue(v1)
-            val List(tyV, initV, isStaticV) = asArray(v2)
-            val ty = parseGTMark(tyV)
-            val init = parseGExpr(initV)
-            val isStatic = asBoolean(isStaticV)
-            (Symbol(name), (ty, init, isStatic))
-          }
-          val funcDefs =
-            asVector(map("funcDefs")).map { v =>
-              val List(s, b) = asArray(v)
-              parseGStmt(s).asInstanceOf[Vector[FuncDef]].head -> asBoolean(b)
+          //put instance var instantiation into the constructor
+          val constructor = {
+            val lambdas = asVector(map("initLambdas"))
+              .flatMap(parseGStmt)
+              .asInstanceOf[Vector[FuncDef]]
+            val stmts = groupInBlockSurface(Vector(constructor0.body)).stmts
+            val inits = instanceInits.toVector.map {
+              case (s, expr) =>
+                AssignStmt(Access(Var(thisSymbol), s), expr)
             }
-
-          val (instanceVars, staticVars) = {
-            val v1 = vars.groupBy(_._2._3)
-            (
-              v1.getOrElse(false, Map()).map(p => p._1 -> (p._2._1, p._2._2)),
-              v1.getOrElse(true, Map()).map(p => p._1 -> (p._2._1, p._2._2))
-            )
-          }
-          val (instanceMethods, staticMethods0) = {
-            val v1 = funcDefs.groupBy(_._2)
-            (
-              v1.getOrElse(false, Vector()).map(_._1),
-              v1.getOrElse(true, Vector()).map(_._1)
+            constructor0.copy(
+              body = groupInBlockSurface(lambdas ++ inits ++ stmts)
             )
           }
 
@@ -414,7 +435,7 @@ object ProgramParsing {
           }.toVector ++ staticMethods
 
           Vector(
-            // Wrap all static methods into a namespace
+            // Wrap all static methods into a namespace,
             Namespace(name, BlockStmt(staticMembers), ms.exportLevel),
             ClassDef(
               name,

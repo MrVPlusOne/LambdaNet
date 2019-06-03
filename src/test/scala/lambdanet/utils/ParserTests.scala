@@ -238,10 +238,12 @@ class ParserTests extends WordSpec with MyTest {
   }
 
   "playground" in {
-    val root = pwd / RelPath("data/train/algorithms-test")
+    val root = pwd / RelPath(
+      "data/train/TypeScript-Algorithms-and-Data-Structures-master/ts"
+    )
     ProgramParsing
       .parseGModulesFromFiles(
-        Seq(RelPath("data-structures/stack.ts")),
+        Seq(RelPath("Graph/DirectedAdjacencyMatrixGraph.ts")),
         root
       )
       .foreach(println)

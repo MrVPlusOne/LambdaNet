@@ -57,7 +57,7 @@ object QLang {
   case class ClassDef(
       classNode: PNode,
       superType: Option[PType],
-      vars: Map[Symbol, (PNode, QExpr)],
+      vars: Map[Symbol, PNode],
       funcDefs: Vector[FuncDef]
   ) extends QStmt
 
@@ -207,6 +207,13 @@ object QLangTranslation {
           expr: surface.GExpr
       )(implicit ctx: ModuleExports): QExpr = {
 
+        def asTerm(value: Either[ModuleExports, QExpr]): QExpr = value match {
+          case Left(_) =>
+            // todo: check if there is a better way to handle namespace expressions
+            Var(ctx.internalSymbols(undefinedSymbol).term.get)
+          case Right(e) => e
+        }
+
         def rec(expr: surface.GExpr): Either[ModuleExports, QExpr] =
           SimpleMath.withErrorMessage(s"In expr: $expr") {
             expr match {
@@ -232,26 +239,26 @@ object QLangTranslation {
               case surface.FuncCall(f, args) =>
                 Right(
                   FuncCall(
-                    rec(f).right.get,
-                    args.map(a => rec(a).right.get).toVector
+                    asTerm(rec(f)),
+                    args.map(a => asTerm(rec(a))).toVector
                   )
                 )
               case surface.Cast(e, ty) =>
-                Right(Cast(rec(e).right.get, resolveType(ty)))
+                Right(Cast(asTerm(rec(e)), resolveType(ty)))
               case surface.ObjLiteral(fields) =>
-                Right(ObjLiteral(fields.mapValuesNow(p => rec(p).right.get)))
+                Right(ObjLiteral(fields.mapValuesNow(p => asTerm(rec(p)))))
               case surface.IfExpr(cond, e1, e2) =>
                 Right(
                   IfExpr(
-                    rec(cond).right.get,
-                    rec(e1).right.get,
-                    rec(e2).right.get
+                    asTerm(rec(cond)),
+                    asTerm(rec(e1)),
+                    asTerm(rec(e2))
                   )
                 )
             }
           }
 
-        rec(expr).right.get
+        asTerm(rec(expr))
       }
 
       def collectDefs(
@@ -342,14 +349,11 @@ object QLangTranslation {
                 ) =>
               mapNode(classNode)
               mapNode(thisNode)
-              vars.values.map(_._1).foreach(mapNode)
+              vars.values.foreach(mapNode)
 
               val internals1 = ctx.internalSymbols |+|
                 Map(thisSymbol -> NameDef.termDef(thisNode))
               val ctx1 = ctx.copy(internalSymbols = internals1)
-              val vars1 = vars.mapValuesNow {
-                case (t, init) => t -> translateExpr(init)(ctx1)
-              }
               val funcDefs1 =
                 funcDefs.map(
                   f => translateStmt(f)(ctx1).head.asInstanceOf[FuncDef]
@@ -358,7 +362,7 @@ object QLangTranslation {
                 ClassDef(
                   classNode,
                   superType.map(t => resolveType(TyVar(t))),
-                  vars1,
+                  vars,
                   funcDefs1
                 )
               )

@@ -152,7 +152,7 @@ class IRTranslation {
         if (isAbstract) {
           val fields = (vars.map {
             case (n, m) =>
-              n -> m._1.get
+              n -> m.get
           } ++ funcDefs
             .map { m =>
               m.name -> m.functionType
@@ -166,7 +166,7 @@ class IRTranslation {
             ClassDef(
               name,
               superType,
-              vars.mapValuesNow(p => translateMark(p._1)(newTyVars)),
+              vars.mapValuesNow(p => translateMark(p)(newTyVars)),
               funcDefs.map(f => translateFunc(f, newTyVars)),
               level
             )
@@ -181,7 +181,7 @@ class IRTranslation {
             level
           )
         )
-      case surface.Namespace(name, block) =>
+      case surface.Namespace(name, block, _) =>
         Vector(Namespace(name, translateBlock(block)))
     }
   }

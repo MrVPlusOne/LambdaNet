@@ -368,7 +368,7 @@ export class ReflectiveInjector_ implements ReflectiveInjector {
   private _instantiate(
     provider: ResolvedReflectiveProvider,
     ResolvedReflectiveFactory: ResolvedReflectiveFactory): any {
-    const factory = ResolvedReflectiveFactory.factory;
+    const factory: any = ResolvedReflectiveFactory.factory;
 
     let deps: any[];
     try {

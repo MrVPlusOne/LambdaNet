@@ -88,13 +88,13 @@ case class ClassDef(
     name: Symbol,
     tyVars: Vector[Symbol],
     superType: Option[Symbol] = None,
-    vars: Map[Symbol, (TyAnnot, GExpr)],
+    vars: Map[Symbol, TyAnnot],
     funcDefs: Vector[FuncDef],
     exportLevel: ExportLevel.Value
 ) extends GStmt {
   def objectType: GType = {
     ObjectType(
-      vars.mapValuesNow(_._1.get) ++
+      vars.mapValuesNow(_.get) ++
         funcDefs.map(fd => fd.name -> fd.functionType)
     )
   }
@@ -183,8 +183,8 @@ object GStmt {
           indent -> s"${asPrefix(level)}class ${name.name}$tyVarPart$superPart {"
         ) ++
           vars.toList.map {
-            case (fieldName, (annot, init)) =>
-              (indent + 1, s"${fieldName.name}: $annot = $init;")
+            case (fieldName, annot) =>
+              (indent + 1, s"${fieldName.name}: $annot;")
           } ++
           funcDefs.flatMap { fDef =>
             prettyPrintHelper(indent + 1, fDef)
