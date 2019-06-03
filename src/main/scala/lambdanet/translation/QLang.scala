@@ -49,7 +49,7 @@ object QLang {
 
   case class FuncDef(
       funcNode: PNode,
-      args: Vector[(Symbol, PNode)],
+      args: Vector[PNode],
       returnType: PNode,
       body: QStmt
   ) extends QStmt
@@ -57,13 +57,8 @@ object QLang {
   case class ClassDef(
       classNode: PNode,
       superType: Option[PType],
-      vars: Map[Symbol, PNode],
+      vars: Set[PNode],
       funcDefs: Vector[FuncDef]
-  ) extends QStmt
-
-  case class TypeAliasStmt(
-      node: PNode,
-      exportLevel: ExportLevel.Value
   ) extends QStmt
 
   sealed trait QExpr
@@ -132,7 +127,7 @@ object QLangTranslation {
       resolved: Map[ProjectPath, ModuleExports],
       allocator: PNodeAllocator,
       pathMapping: PathMapping
-  ): (Map[ProjectPath, ModuleExports], Map[ProjectPath, QModule]) = {
+  ): Map[ProjectPath, QModule] = {
     val modules1 = modules.map { m =>
       m.path ->
         PLangTranslation.fromGModule(m, allocator)
@@ -144,61 +139,10 @@ object QLangTranslation {
       pathMapping
     )
 
-    exports -> modules1.mapValuesNow { m =>
+    modules1.mapValuesNow { m =>
       fromPModule(m, baseCtx |+| exports(m.path))
     }
   }
-
-//  def fromProject(
-//      projectModules: Vector[GModule],
-//      defaultModule: Option[GModule],
-//      libModules: Vector[GModule],
-//      pathMapping: PathMapping
-//  ): (Map[ProjectPath, ModuleExports], Map[ProjectPath, QModule]) = {
-//    def pass(
-//        modules: Vector[GModule],
-//        baseCtx: ModuleExports,
-//        resolved: Map[ProjectPath, ModuleExports],
-//        allocator: PNodeAllocator
-//    ): (Map[ProjectPath, ModuleExports], Map[ProjectPath, QModule]) = {
-//      val modules1 = modules.map { m =>
-//        m.path ->
-//          PLangTranslation.fromGModule(m, allocator)
-//      }.toMap
-//
-//      val exports = ImportsResolution.resolveExports(
-//        modules1,
-//        resolved,
-//        pathMapping
-//      )
-//
-//      exports -> modules1.mapValuesNow { m =>
-//        fromPModule(m, baseCtx |+| exports(m.path))
-//      }
-//    }
-//
-//    val libAllocator = new PNodeAllocator(fromLib = true)
-//
-//    val baseCtx = defaultModule match {
-//      case Some(dm) =>
-//        val (baseExports, baseModules) =
-//          pass(Vector(dm), ModuleExports.empty, Map(), libAllocator)
-//        baseExports.values.head
-//      case None =>
-//        ModuleExports.empty
-//    }
-//
-//    val (libExports, libQModules) =
-//      pass(libModules, baseCtx, Map(), libAllocator)
-//
-//    val projectAllocator = new PNodeAllocator(fromLib = false)
-//    val (projExports, projQModules) =
-//      pass(projectModules, baseCtx, libExports, projectAllocator)
-//
-//    import cats.implicits._
-//
-//    (libExports |+| projExports) -> (libQModules ++ projQModules)
-//  }
 
   def fromPModule(module: PModule, ctx: ModuleExports): QModule =
     SimpleMath.withErrorMessage(s"In PModule ${module.path}") {
@@ -324,7 +268,8 @@ object QLangTranslation {
               val newCtx = collectDefs(stmts)
               Vector(BlockStmt(stmts.flatMap(s => translateStmt(s)(newCtx))))
             case PLang.FuncDef(_, funcNode, args, returnType, body, _) =>
-              (Seq(funcNode, returnType) ++ args.map(_._2)).foreach(mapNode)
+              val args1 = args.map(_._2)
+              (Seq(funcNode, returnType) ++ args1).foreach(mapNode)
 
               val internals1 = ctx.internalSymbols |+| args.map {
                 case (s, n) => s -> NameDef.termDef(n)
@@ -333,7 +278,7 @@ object QLangTranslation {
               Vector(
                 FuncDef(
                   funcNode,
-                  args,
+                  args1,
                   returnType,
                   groupInBlock(translateStmt(body)(ctx1))
                 )
@@ -363,7 +308,7 @@ object QLangTranslation {
                 ClassDef(
                   classNode,
                   superType.map(t => resolveType(TyVar(t))),
-                  vars,
+                  vars.values.toSet,
                   funcDefs1
                 )
               )

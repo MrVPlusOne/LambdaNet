@@ -373,7 +373,8 @@ object ProgramParsing {
             (
               v1.getOrElse(false, Map()).map {
                 case (s, (mark, expr, _)) =>
-                  instanceInits(s) = expr
+                  if (expr != Var(undefinedSymbol))
+                    instanceInits(s) = expr
                   s -> mark
               },
               v1.getOrElse(true, Map()).map(p => p._1 -> (p._2._1, p._2._2))

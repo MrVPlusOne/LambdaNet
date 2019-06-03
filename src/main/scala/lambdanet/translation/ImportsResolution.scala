@@ -104,37 +104,6 @@ object ImportsResolution {
 
   }
 
-  def resolveLibrariesOld(
-      libModules: Vector[GModule],
-      pathMapping: PathMapping = PathMapping.identity,
-      maxIterations: Int = 10
-  ): (
-      ModuleExports,
-      Map[ProjectPath, PModule],
-      Map[ProjectPath, ModuleExports]
-  ) = {
-//    val pConstAllocator = new PConst.PConstAllocator()
-//
-//    val specialInternals = JSExamples.specialVars.map {
-//      case (s, _) =>
-//        val pConst = pConstAllocator.newVar(s, isType = false)
-//        s -> NameDef.termDef(pConst)
-//    }
-//    val defaultCtx =
-//      ModuleExports(NameDef.empty, Map(), specialInternals, Map())
-//
-//    val libModules1 = libModules.map { m =>
-//      val decl = ProgramParsing.extractDeclarationModule(m.stmts)
-//
-//      PLangTranslation.fromGModule(m, Right(pConstAllocator))
-//    }
-//    val libToResolve = libModules1.map(m => m.path -> m).toMap
-//    val libExports =
-//      ImportsResolution.resolveExports(libToResolve, Map(), pathMapping)
-//    (defaultCtx, libToResolve, libExports)
-    ???
-  }
-
   def resolveExports(
       modulesToResolve: Map[ProjectPath, PModule],
       resolvedModules: Map[ProjectPath, ModuleExports],
@@ -299,56 +268,5 @@ object ImportsResolution {
       )
     )
   }
-
-//  def resolveImports(
-//      allocator: PNodeAllocator,
-//      modulesToResolve: Map[ProjectPath, PModule],
-//      resolvedModules: Map[ProjectPath, ModuleExports],
-//      pathMapping: PathMapping,
-//      maxIterations: Int = 10
-//  ) = {
-//    val exports = resolveExports(
-//      modulesToResolve,
-//      resolvedModules,
-//      pathMapping,
-//      maxIterations
-//    )
-//
-//    modulesToResolve.values.map { m =>
-//      def resolvePath(relPath: ProjectPath): ModuleExports = {
-//        findExports(exports, pathMapping, resolvedModules)(m.path, relPath)
-//      }
-//
-//      val terms = mutable.HashMap[IR.Var, PNode]()
-//      val types = mutable.HashMap[Symbol, PNode]()
-//      val namespaces = mutable.HashMap[Symbol, PContext]()
-//
-//      def addDefs(name: Symbol, defs: NameDef): Unit = {
-//        assert(defs.nonEmpty)
-//        defs.term.foreach { node =>
-//          val v = IR.Var(Right(name))
-//          terms(v) = node
-//        }
-//        defs.ty.foreach(t => types(name) = t)
-//      }
-//
-//      m.imports.foreach {
-//        case ImportDefault(path, newName) =>
-//          addDefs(newName, resolvePath(path).defaultDefs)
-//        case ImportSingle(oldName, relPath, newName) =>
-//          val ex = resolvePath(relPath)
-//          ex.publicSymbols.get(oldName) match {
-//            case Some(defs) => addDefs(newName, defs)
-//            case None =>
-//              namespaces(newName) =
-//                moduleExportsToPContext(ex.nameSpaces(oldName))
-//          }
-//        case ImportModule(path, newName) =>
-//          namespaces(newName) = moduleExportsToPContext(resolvePath(path))
-//      }
-//
-//      m.path -> PContext(terms.toMap, types.toMap, namespaces.toMap)
-//    }
-//  }
 
 }

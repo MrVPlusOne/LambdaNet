@@ -391,7 +391,7 @@ class ClassDef implements GStmt {
   }
 }
 
-function tryFullyQualifiedName(node: ts.Node, checker: ts.TypeChecker): string {
+function tryFullyQualifiedName(node: ts.Node): string {
   // let symbol = checker.getSymbolAtLocation(node);
   // let name: string = symbol ? checker.getFullyQualifiedName(symbol) : (<any>node)["text"]; fixme: not working
   let name = (<any>node).text;
@@ -436,7 +436,7 @@ type SpecialExpressions =
   ts.AsExpression |
   ts.TypeAssertion
 
-export function parseExpr(node: ts.Expression, checker: ts.TypeChecker,
+export function parseExpr(node: ts.Expression,
                           allocateLambda: (f: ts.FunctionLikeDeclaration) => Var): GExpr {
 
   function rec(node: ts.Expression): GExpr {
@@ -582,7 +582,7 @@ export const undefinedValue = new Const("undefined", anyType, -1);
 export class StmtParser {
   public nLambda: [number] = [0];
 
-  parseStmt(node: ts.Node, checker: ts.TypeChecker): GStmt[] {
+  parseStmt(node: ts.Node): GStmt[] {
     let getNLambda = this.nLambda;
 
     class StmtsHolder {
@@ -610,7 +610,7 @@ export class StmtParser {
           return new Var(name);
         }
 
-        return parseExpr(e, checker, allocateLambda);
+        return parseExpr(e, allocateLambda);
       }
 
       alongWith(...stmts: GStmt[]): StmtsHolder {
@@ -796,7 +796,7 @@ export class StmtParser {
         case SyntaxKind.SetAccessor:
         case SyntaxKind.Constructor: {
           let name = (node.kind == SyntaxKind.Constructor) ? "Constructor" :
-            tryFullyQualifiedName((node as any).name, checker);
+            tryFullyQualifiedName((node as any).name);
           let n = <ts.FunctionLikeDeclaration>node;
           const modifiers = parseModifiers(n.modifiers);
           if (node.kind == SyntaxKind.SetAccessor) {
@@ -810,7 +810,7 @@ export class StmtParser {
         case SyntaxKind.ClassDeclaration: {
           let n = node as ts.ClassDeclaration;
 
-          let name = tryFullyQualifiedName(mustExist(n.name), checker);
+          let name = tryFullyQualifiedName(mustExist(n.name));
 
           let superType: string | null = null;
           if (n.heritageClauses != undefined) {
@@ -1067,7 +1067,7 @@ export function parseFiles(sources: string[], libraryFiles: string[]): GModule[]
   });
   // program.getSemanticDiagnostics(null, null); //call this to store type info into nodes
 
-  let checker = program.getTypeChecker();
+  program.getTypeChecker(); // must call this to link source files to nodes todo: try something faster
 
   let sFiles: ts.SourceFile[] = sources.map(file => mustExist(program.getSourceFile(file),
     "getSourceFile failed for: " + file));
@@ -1079,7 +1079,7 @@ export function parseFiles(sources: string[], libraryFiles: string[]): GModule[]
     let stmts: GStmt[] = [];
     src.statements.forEach(s => {
       try {
-        let r = parser.parseStmt(s, checker);
+        let r = parser.parseStmt(s);
         r.forEach(s => stmts.push(s));
       } catch (e) {
         console.debug("Parsing failed for file: " + src.fileName);

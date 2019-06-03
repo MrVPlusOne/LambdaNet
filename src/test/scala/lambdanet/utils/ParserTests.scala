@@ -226,13 +226,17 @@ class ParserTests extends WordSpec with MyTest {
     TrainingProjects.allProjects.foreach { p =>
       SimpleMath.withErrorMessage(s"In project ${p.root}") {
         val allocator = new PNodeAllocator(forLib = false)
-        QLangTranslation.fromProject(
-          p.modules,
-          baseCtx,
-          Map(),
-          allocator,
-          p.pathMapping
-        )
+        val irTranslator = new IRTranslation(allocator)
+        QLangTranslation
+          .fromProject(
+            p.modules,
+            baseCtx,
+            Map(),
+            allocator,
+            p.pathMapping
+          )
+          .values
+          .map(irTranslator.fromQModule)
       }
     }
   }
