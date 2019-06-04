@@ -5,7 +5,6 @@ import funcdiff.SimpleMath
 import lambdanet._
 import lambdanet.utils.Js._
 import lambdanet.surface._
-import lambdanet.types._
 import lambdanet.translation.OldIRTranslation
 import ProgramParsing.GTMark
 import SimpleMath.Extensions._

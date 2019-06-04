@@ -49,24 +49,36 @@ object TensorExtension {
   }
 
   /** calculates which axes are broadcasted when these two shapes are broadcasted to make equal */
-  def broadcastAxesWhenMerge(shape1: Shape, shape2: Shape): (Seq[Int], Seq[Int]) = {
+  def broadcastAxesWhenMerge(
+      shape1: Shape,
+      shape2: Shape
+  ): (Seq[Int], Seq[Int]) = {
     require(shape1.rank == shape2.rank)
     var axes1, axes2 = List[Int]()
     for (i <- 0 until shape1.rank;
          l1 = shape1(i);
          l2 = shape2(i)) yield {
       if (l1 < l2) {
-        assert(l1 == 1, s"shapes along axis $i are not compatible! l1 = $l1, l2 = $l2")
+        assert(
+          l1 == 1,
+          s"shapes along axis $i are not compatible! l1 = $l1, l2 = $l2"
+        )
         axes1 = i :: axes1
       } else if (l1 > l2) {
-        assert(l2 == 1, s"shapes along axis $i are not compatible! l1 = $l1, l2 = $l2")
+        assert(
+          l2 == 1,
+          s"shapes along axis $i are not compatible! l1 = $l1, l2 = $l2"
+        )
         axes2 = i :: axes2
       }
     }
     (axes1, axes2)
   }
 
-  def shapeConsistentWithRanges(shape: Shape, ranges: Seq[NumscaRange]): Boolean = {
+  def shapeConsistentWithRanges(
+      shape: Shape,
+      ranges: Seq[NumscaRange]
+  ): Boolean = {
     shape.ints.zip(ranges).forall {
       case (s, range) =>
         range.to match {
@@ -129,7 +141,10 @@ object TensorExtension {
       }
     }
 
-    def requirePositive(info: String = "", tolerance: Double = zeroTolerance): Unit = {
+    def requirePositive(
+        info: String = "",
+        tolerance: Double = zeroTolerance
+    ): Unit = {
       if (checkNaN) {
         require(
           ns.sum(data > tolerance) == data.shape.sizes.product,
@@ -197,7 +212,7 @@ object TensorExtension {
       c <- 0 until rw
       region = x(r :> r + kh, c :> c + kw)
     } {
-      data(r * rw + c) = sum(region * kernel)
+      data(r * rw + c) = numsca.sum(region * kernel)
     }
     new Tensor(Nd4j.create(data, Array(rh, rw), 'c'))
   }

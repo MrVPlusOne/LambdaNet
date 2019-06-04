@@ -5,6 +5,7 @@ import botkop.{numsca => ns}
 import org.nd4j.linalg.api.buffer.DataBuffer
 import org.nd4j.linalg.factory.Nd4j
 import org.scalactic.{Equality, TolerantNumerics}
+import ns._
 
 import scala.language.postfixOps
 import scala.util.Random

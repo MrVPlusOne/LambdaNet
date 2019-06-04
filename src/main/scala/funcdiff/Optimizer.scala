@@ -2,7 +2,6 @@ package funcdiff
 
 import botkop.numsca.Tensor
 import botkop.{numsca => ns}
-import API._
 import funcdiff.Optimizers.Adam.Momentum
 import funcdiff.ParameterAttribute.NeedRegularization
 import collection.mutable
@@ -73,7 +72,13 @@ trait Optimizer extends Serializable {
       gradientTransform: Gradient => Gradient = identity,
       backPropInParallel: Option[(ExecutionContext, Duration)] = None
   ): Unit = {
-    maximize(-objective, params, weightDecay, gradientTransform, backPropInParallel)
+    maximize(
+      -objective,
+      params,
+      weightDecay,
+      gradientTransform,
+      backPropInParallel
+    )
   }
 }
 
@@ -103,7 +108,10 @@ object Optimizers {
 
     def parameterChangeAmount(p: Param, g: Gradient): Gradient = {
       val mem @ Momentum(m, v, _) =
-        momenta.getOrElse(p.path, Momentum(ns.zeros(g.shape), ns.zeros(g.shape)))
+        momenta.getOrElse(
+          p.path,
+          Momentum(ns.zeros(g.shape), ns.zeros(g.shape))
+        )
       momenta(p.path) = mem
       mem.t += 1
       m *= beta1

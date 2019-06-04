@@ -160,17 +160,17 @@ trait APITrait {
     }
   }
 
-  /** convenient import for NumscaRange */
-  def :>(end: Int) = NumscaRange(0, Some(end))
-
-  /** convenient import for NumscaRange */
-  def :> = NumscaRange(0, None)
-
-  /** convenient import for NumscaRange */
-  implicit class NumscaInt(i: Long) {
-    def :>(end: Long) = NumscaRange(i, Some(end))
-    def :> = NumscaRange(i, None)
-  }
+//  /** convenient import for NumscaRange */
+//  def :>(end: Int) = NumscaRange(0, Some(end))
+//
+//  /** convenient import for NumscaRange */
+//  def :> = NumscaRange(0, None)
+//
+//  /** convenient import for NumscaRange */
+//  implicit class NumscaInt(i: Long) {
+//    def :>(end: Long) = NumscaRange(i, Some(end))
+//    def :> = NumscaRange(i, None)
+//  }
 
   def printShape(withShape: { def shape: Shape }, name: String): Unit = {
     println(s"$name shape: ${withShape.shape}")

@@ -2,9 +2,8 @@ package funcdiff
 
 import botkop.numsca.Tensor
 import botkop.{numsca => ns}
-import API._
 import botkop.numsca.Tensor.{Size}
-import ns.Shape
+import ns._
 import funcdiff.LayerFactory.WeightsInitializer
 import funcdiff.ParameterAttribute.NeedRegularization
 
@@ -17,7 +16,10 @@ object LayerFactory {
 }
 
 @SerialVersionUID(0)
-case class LayerFactory(nameSpace: SymbolPath, paramCollection: ParamCollection) {
+case class LayerFactory(
+    nameSpace: SymbolPath,
+    paramCollection: ParamCollection
+) {
 
   def getVar(
       relativePath: SymbolPath,
@@ -51,7 +53,9 @@ case class LayerFactory(nameSpace: SymbolPath, paramCollection: ParamCollection)
     }
   }
 
-  def dropout(keepProb: Double, inTraining: Boolean)(input: CompNode): CompNode = {
+  def dropout(keepProb: Double, inTraining: Boolean)(
+      input: CompNode
+  ): CompNode = {
     if (keepProb == 1 || !inTraining) input
     else {
       require(keepProb > 0 && keepProb < 1)
@@ -70,7 +74,9 @@ case class LayerFactory(nameSpace: SymbolPath, paramCollection: ParamCollection)
     val inputVariance = mean(square(input - inputMean), axis = 0)
 
     val runningMean = getConst(prefix / 'runningMean) { inputMean.value }
-    val runningVariance = getConst(prefix / 'runningVariance) { inputVariance.value }
+    val runningVariance = getConst(prefix / 'runningVariance) {
+      inputVariance.value
+    }
 
     val beta = getVar(prefix / 'beta) { ns.zeros(1, input.shape(1)) }
     val gamma = getVar(prefix / 'gamma) { ns.ones(1, input.shape(1)) }
@@ -96,12 +102,14 @@ case class LayerFactory(nameSpace: SymbolPath, paramCollection: ParamCollection)
     val inputSize = input.shape(1)
     val stateSize = state.shape(1)
 
-    val Wg = paramCollection.getVar(prefix / 'Wg, attributes = Set(NeedRegularization)) {
-      initializer(inputSize, 2 * stateSize)
-    }
-    val Ug = paramCollection.getVar(prefix / 'Ug, attributes = Set(NeedRegularization)) {
-      initializer(stateSize, 2 * stateSize)
-    }
+    val Wg = paramCollection
+      .getVar(prefix / 'Wg, attributes = Set(NeedRegularization)) {
+        initializer(inputSize, 2 * stateSize)
+      }
+    val Ug = paramCollection
+      .getVar(prefix / 'Ug, attributes = Set(NeedRegularization)) {
+        initializer(stateSize, 2 * stateSize)
+      }
     val bg = paramCollection.getVar(prefix / 'bg) {
       ns.zeros(1, 2 * stateSize)
     }
@@ -110,12 +118,14 @@ case class LayerFactory(nameSpace: SymbolPath, paramCollection: ParamCollection)
     val updateGate = gates.slice(:>, 0 :> stateSize)
     val restGate = gates.slice(:>, stateSize :>)
 
-    val Wh = paramCollection.getVar(prefix / 'Wh, attributes = Set(NeedRegularization)) {
-      initializer(inputSize, stateSize)
-    }
-    val Uh = paramCollection.getVar(prefix / 'Uh, attributes = Set(NeedRegularization)) {
-      initializer(stateSize, stateSize)
-    }
+    val Wh = paramCollection
+      .getVar(prefix / 'Wh, attributes = Set(NeedRegularization)) {
+        initializer(inputSize, stateSize)
+      }
+    val Uh = paramCollection
+      .getVar(prefix / 'Uh, attributes = Set(NeedRegularization)) {
+        initializer(stateSize, stateSize)
+      }
     val bh = paramCollection.getVar(prefix / 'bh) {
       ns.zeros(1, stateSize)
     }
@@ -127,7 +137,10 @@ case class LayerFactory(nameSpace: SymbolPath, paramCollection: ParamCollection)
   /**
     * Long short-term memory unit: [https://en.wikipedia.org/wiki/Long_short-term_memory]
     */
-  def lstm(name: SymbolPath, initializer: WeightsInitializer = LayerFactory.xavier)(
+  def lstm(
+      name: SymbolPath,
+      initializer: WeightsInitializer = LayerFactory.xavier
+  )(
       hAndC: (CompNode, CompNode),
       input: CompNode
   ): (CompNode, CompNode) = withPrefix(name) { prefix =>
@@ -137,12 +150,14 @@ case class LayerFactory(nameSpace: SymbolPath, paramCollection: ParamCollection)
     val stateSize = h.shape(1)
     require(c.shape(1) == stateSize)
 
-    val Wg = paramCollection.getVar(prefix / 'Wg, attributes = Set(NeedRegularization)) {
-      initializer(inputSize, 3 * stateSize)
-    }
-    val Ug = paramCollection.getVar(prefix / 'Ug, attributes = Set(NeedRegularization)) {
-      initializer(stateSize, 3 * stateSize)
-    }
+    val Wg = paramCollection
+      .getVar(prefix / 'Wg, attributes = Set(NeedRegularization)) {
+        initializer(inputSize, 3 * stateSize)
+      }
+    val Ug = paramCollection
+      .getVar(prefix / 'Ug, attributes = Set(NeedRegularization)) {
+        initializer(stateSize, 3 * stateSize)
+      }
     val bg = paramCollection.getVar(prefix / 'bg) {
       ns.zeros(1, 3 * stateSize)
     }
@@ -152,12 +167,14 @@ case class LayerFactory(nameSpace: SymbolPath, paramCollection: ParamCollection)
     val inputGate = gates.slice(:>, stateSize :> 2 * stateSize)
     val outputGate = gates.slice(:>, 2 * stateSize :>)
 
-    val Wc = paramCollection.getVar(prefix / 'Wc, attributes = Set(NeedRegularization)) {
-      initializer(inputSize, stateSize)
-    }
-    val Uc = paramCollection.getVar(prefix / 'Uc, attributes = Set(NeedRegularization)) {
-      initializer(stateSize, stateSize)
-    }
+    val Wc = paramCollection
+      .getVar(prefix / 'Wc, attributes = Set(NeedRegularization)) {
+        initializer(inputSize, stateSize)
+      }
+    val Uc = paramCollection
+      .getVar(prefix / 'Uc, attributes = Set(NeedRegularization)) {
+        initializer(stateSize, stateSize)
+      }
     val bc = paramCollection.getVar(prefix / 'bc) {
       ns.zeros(1, stateSize)
     }
@@ -188,7 +205,8 @@ case class LayerFactory(nameSpace: SymbolPath, paramCollection: ParamCollection)
     val rightInit: CompNode = getVar(prefix / 'rightInit) {
       ns.randn(stateShape)
     }
-    val states2 = inputs.reverse.scanLeft(rightInit)(gru(name / 'rightRNN)).reverse
+    val states2 =
+      inputs.reverse.scanLeft(rightInit)(gru(name / 'rightRNN)).reverse
     states1.zip(states2).map {
       case (l, r) => combiner(l, r)
     }
@@ -218,7 +236,8 @@ case class LayerFactory(nameSpace: SymbolPath, paramCollection: ParamCollection)
       assert(aWeights.shape.head == 1)
       val yOrigin = concatN(ys.map(_._2), axis = 0)
       val yMat =
-        if (transformValue) relu(linear(name / 'valueTransform, valueDim)(yOrigin))
+        if (transformValue)
+          relu(linear(name / 'valueTransform, valueDim)(yOrigin))
         else yOrigin
       aWeights.dot(yMat)
     }
