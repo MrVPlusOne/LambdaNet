@@ -57,7 +57,7 @@ object GraphEmbedding {
   }
 }
 
-import funcdiff.API._
+import funcdiff._
 
 case class GraphEmbedding(
     graph: OldPredicateGraph,
@@ -163,8 +163,7 @@ case class GraphEmbedding(
       embedding: Embedding
   ): Embedding = {
     import embedding._
-    import funcdiff.API._
-
+    collection.concurrent.TrieMap(1 -> 2)
     TrainingCenter.note("iterate")
 
     val _messages =
@@ -441,7 +440,6 @@ case class GraphEmbedding(
   def encodeGType(t: GType): CompNode =
     gTypeEmbeddingMap.getOrElseUpdate(
       t, {
-        import API._
 
         val funcInitKey = getVar('funcType / 'initKey)(randomVec())
         val funcInitValue = getVar('funcType / 'initValue)(randomVec())

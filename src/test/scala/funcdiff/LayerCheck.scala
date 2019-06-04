@@ -1,7 +1,6 @@
 package funcdiff
 
 import botkop.numsca
-import API._
 import botkop.numsca.Shape
 
 class LayerCheck extends TestUtils {

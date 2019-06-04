@@ -51,21 +51,34 @@ object PredicateGraph {
     }
   }
 
-  sealed trait PType
+  sealed trait PType {
+    val madeFromLibTypes: Boolean
+  }
 
-  case object PAny extends PType
+  case object PAny extends PType {
+    val madeFromLibTypes = true
+  }
 
   case class PTyVar(node: PNode) extends PType {
     assert(node.isType)
+
+    val madeFromLibTypes: Boolean = node.fromLib
   }
 
-  case class PFuncType(args: Vector[PType], to: PType) extends PType
+  case class PFuncType(args: Vector[PType], to: PType) extends PType {
+    val madeFromLibTypes
+        : Boolean = args.forall(_.madeFromLibTypes) && to.madeFromLibTypes
+  }
 
-  case class PObjectType(fields: Map[Symbol, PType]) extends PType
+  case class PObjectType(fields: Map[Symbol, PType]) extends PType {
+    val madeFromLibTypes: Boolean = fields.forall(_._2.madeFromLibTypes)
+  }
 
   sealed trait TyPredicate
 
-  case class HasLibType(v: PNode, ty: PNode) extends TyPredicate
+  case class HasLibType(v: PNode, ty: PType) extends TyPredicate {
+    assert(ty.madeFromLibTypes)
+  }
 
   case class SubtypeRel(sub: PNode, sup: PNode) extends TyPredicate
 

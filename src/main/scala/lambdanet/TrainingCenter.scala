@@ -7,7 +7,6 @@ import botkop.numsca
 import botkop.numsca.Tensor
 import funcdiff.SimpleMath.BufferedTotalMap
 import funcdiff.SimpleMath.Extensions._
-import funcdiff.API._
 import funcdiff._
 import lambdanet.GraphEmbedding.DecodingCtx
 import lambdanet.translation.OldIR.IRType
