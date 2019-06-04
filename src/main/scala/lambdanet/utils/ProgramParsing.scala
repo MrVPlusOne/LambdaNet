@@ -506,6 +506,11 @@ object ProgramParsing {
   import lambdanet.ImportStmt._
 
   object ImportPattern {
+    sealed trait ImportClause
+    case class Default(s: Symbol) extends ImportClause
+    case class Singles(symbols: Vector[(Symbol, Symbol)]) extends ImportClause
+    case class Module(newName: Symbol) extends ImportClause
+
     def unapply(v: Js.Val): Option[Vector[ImportStmt]] = {
       val map = asObj(v)
       asString(map("category")) match {
@@ -525,37 +530,48 @@ object ProgramParsing {
         .map(s => RelPath(s.value))
 
     def parseImports(importText: String): Vector[ImportStmt] = {
-      def importDefault[_: P] = P(identifier ~/ "from" ~ path).map {
-        case (name, p) =>
-          Vector(ImportDefault(p, Symbol(name)))
+
+      def importDefault[_: P]: P[Default] = P(identifier).map { name =>
+        Default(Symbol(name))
       }
 
-      def importModule[_: P] =
-        P("*" ~/ "as" ~ identifier ~/ "from" ~ path).map {
-          case (name, p) =>
-            Vector(ImportModule(p, Symbol(name)))
+      def importModule[_: P]: P[Module] =
+        P("*" ~/ "as" ~ identifier).map { name =>
+          Module(Symbol(name))
         }
 
       def clause[_: P]: P[(String, Option[String])] =
         P(identifier ~ ("as" ~/ identifier).?)
 
-      def importSingles[_: P]: P[Vector[ImportSingle]] =
-        P("{" ~/ clause.rep(min = 1, sep = ",") ~ ",".? ~ "}" ~/ "from" ~ path)
-          .map {
-            case (clauses, path) =>
-              clauses.map {
-                case (oldName, newNameOpt) =>
-                  val newName = Symbol(newNameOpt.getOrElse(oldName))
-                  ImportSingle(Symbol(oldName), path, newName)
-              }.toVector
+      def importSingles[_: P]: P[Singles] =
+        P("{" ~/ clause.rep(min = 1, sep = ",") ~ ",".? ~ "}")
+          .map { clauses =>
+            Singles(clauses.map {
+              case (oldName, newNameOpt) =>
+                val newName = Symbol(newNameOpt.getOrElse(oldName))
+                (Symbol(oldName), newName)
+            }.toVector)
           }
 
-      def importForEffects[_: P] = P(path).map(_ => Vector[ImportStmt]())
+      def parseImportClause[_: P]: P[ImportClause] = {
+        importSingles | importModule | importDefault
+      }
 
       def stmt[_: P]: P[Vector[ImportStmt]] =
         P(
-          "import" ~/ (importSingles | importModule | importDefault | importForEffects) ~ (";" | End)
-        )
+          "import" ~ parseImportClause
+            .rep(min = 1, sep = ",") ~/ "from" ~ path ~ (";" | End)
+        ).map {
+          case (clauses, p) =>
+            clauses.toVector.flatMap {
+              case Default(s) => Vector(ImportDefault(p, s))
+              case Singles(pairs) =>
+                pairs.map {
+                  case (oldName, newName) => ImportSingle(oldName, p, newName)
+                }
+              case Module(n) => Vector(ImportModule(p, n))
+            }
+        } | P("import" ~ path ~ (";" | End)).map(_ => Vector())
 
       parse(importText, stmt(_)) match {
         case Success(value, _) => value
