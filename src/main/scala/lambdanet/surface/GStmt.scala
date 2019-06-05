@@ -22,6 +22,8 @@ import scala.language.implicitConversions
   *       ↳ [extends x]{ f, ..., f }
   *       type x = t                        ([[TypeAliasStmt]])
   *       namespace x B                     ([[Namespace]])
+  *       import ...                        ([[GImport]])
+  *       export ...                        ([[GExport]])
   *
   * where x and l are [[Symbol]],
   *       t is [[GType]]
@@ -114,6 +116,8 @@ case class Namespace(
     exportLevel: ExportLevel.Value
 ) extends GStmt
 
+case class GImport(content: ImportStmt) extends GStmt
+case class GExport(content: ExportStmt) extends GStmt
 // === End of Statement definitions ====
 
 object GStmt {
@@ -199,7 +203,10 @@ object GStmt {
       case Namespace(name, block, level) =>
         (indent -> s"${asPrefix(level)}namespace ${name.name}") +:
           prettyPrintHelper(indent, block)
-
+      case GImport(content) =>
+        Vector(indent -> content.toString)
+      case GExport(content) =>
+        Vector(indent -> content.toString)
     }
   }
 

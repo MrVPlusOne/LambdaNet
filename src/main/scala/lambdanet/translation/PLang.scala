@@ -29,8 +29,6 @@ object PLang {
 
   case class PModule(
       path: ProjectPath,
-      imports: Vector[ImportStmt],
-      exportStmts: Vector[ExportStmt],
       stmts: Vector[PStmt],
       mapping: Map[PNode, TyAnnot]
   ) {
@@ -102,6 +100,8 @@ object PLang {
   case class Namespace(name: Symbol, block: BlockStmt, level: ExportLevel.Value)
       extends PStmt
 
+  case class PImport(content: ImportStmt) extends PStmt
+  case class PExport(content: ExportStmt) extends PStmt
 }
 
 /**
@@ -208,12 +208,16 @@ object PLangTranslation {
             AssignStmt(lhs, rhs)
           case surface.ExprStmt(e, isReturn) =>
             ExprStmt(e, isReturn)
+          case surface.GImport(content) =>
+            PImport(content)
+          case surface.GExport(content) =>
+            PExport(content)
         }
       }
 
     val pStmts = module.stmts.map(s => translateStmt(s)(Set()))
     import module._
-    PModule(path, imports, exportStmts, pStmts, mapping.toMap)
+    PModule(path, pStmts, mapping.toMap)
   }
 
   /** project generic types into non-generic types */

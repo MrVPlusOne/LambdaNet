@@ -228,7 +228,8 @@ class ParserTests extends WordSpec with MyTest {
   }
 
   ".d.ts files parsing" in {
-    TrainingProjects.parseStandardLibs().foreach(println)
+    val (baseCtx, libAllocator, _) = QLangTranslation.parseDefaultModule()
+    baseCtx.publicSymbols.foreach(println)
   }
 
   "Project parsing integration test" in {

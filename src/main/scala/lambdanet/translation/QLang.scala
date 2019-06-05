@@ -103,7 +103,7 @@ object QLangTranslation {
           Annot.User(t),
           surface.Var(undefinedSymbol),
           isConst = true,
-          ExportLevel.Public
+          ExportLevel.Unspecified
         )
     }
     val defaultModule = m.copy(stmts = m.stmts ++ additionalDefs)
@@ -331,6 +331,8 @@ object QLangTranslation {
             case PLang.Namespace(name, block, _) =>
               val ctx1 = ctx |+| ctx.internalSymbols(name).namespace.get
               block.stmts.flatMap(s => translateStmt(s)(ctx1))
+            case _: PLang.PImport => Vector()
+            case _: PLang.PExport => Vector()
           }
         }
 

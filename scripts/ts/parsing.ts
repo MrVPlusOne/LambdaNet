@@ -914,8 +914,12 @@ export class StmtParser {
           case SyntaxKind.ExportAssignment: {
             const n = node as ts.ExportAssignment;
             const e = EP.processExpr(n.expression);
-            return EP.alongWith(new VarDef("defaultVar", null, e, true,
-              ["export", "default"]));
+            if(e.category == "Var"){
+              return EP.alongWith(new ExportStmt(node.getText()));
+            }else {
+              return EP.alongWith(new VarDef("defaultVar", null, e, true,
+                ["export", "default"]));
+            }
           }
           case SyntaxKind.NamespaceExportDeclaration:
           case SyntaxKind.ExportDeclaration:

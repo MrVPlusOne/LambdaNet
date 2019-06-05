@@ -4,7 +4,7 @@ object ImportStmt {
 
   case class ImportSingle(
       oldName: Symbol,
-      relPath: ProjectPath,
+      path: ProjectPath,
       newName: Symbol
   ) extends ImportStmt
 
@@ -15,7 +15,9 @@ object ImportStmt {
 
 }
 
-sealed trait ImportStmt
+sealed trait ImportStmt {
+  val path: ProjectPath
+}
 
 object ExportStmt {
 

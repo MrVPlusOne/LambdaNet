@@ -183,8 +183,8 @@ class OldIRTranslation() {
 
     IRModule(
       module.path,
-      module.imports,
-      module.exportStmts,
+      ???,
+      ???,
       moduleExports,
       irStmts
     )
