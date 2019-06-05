@@ -257,7 +257,7 @@ object ImportsResolution {
       exports.getOrElse(
         path,
         throw new Error(
-          s"Cannot find source file: '${currentPath / ops.up / pathToResolve}'."
+          s"Cannot find source file: mapped to '$path'.\nExports: ${exports.keys}"
         )
       )
     )

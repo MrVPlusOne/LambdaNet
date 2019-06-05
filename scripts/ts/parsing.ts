@@ -75,6 +75,7 @@ ignoredTypes.add(SyntaxKind.UnknownKeyword);
 ignoredTypes.add(SyntaxKind.IndexedAccessType);
 ignoredTypes.add(SyntaxKind.UndefinedKeyword);
 ignoredTypes.add(SyntaxKind.NeverKeyword);
+ignoredTypes.add(SyntaxKind.TypeOperator);
 
 function parseTVars(n: { typeParameters?: ts.NodeArray<ts.TypeParameterDeclaration> }): string[] {
   return n.typeParameters ? n.typeParameters.map(p => p.name.text) : [];
@@ -634,7 +635,7 @@ export class StmtParser {
      * returns the parsed FuncDef along with arguments that are marked
      * with 'public' (for constructors)
      */
-    function parseFunction(name: string, n: ts.FunctionLikeDeclaration, modifiers: string[]): FuncDef {
+    function parseFunction(name: string, n: ts.FunctionLikeDeclaration | ts.IndexSignatureDeclaration, modifiers: string[]): FuncDef {
       const isConstructor = ts.isConstructorDeclaration(n);
       let retType = isConstructor ? new TVar("void") :
         parseMark(n.type);
@@ -657,9 +658,8 @@ export class StmtParser {
         return new NamedValue(name, parseMark(p.type));
       });
 
-
       let body: StmtsHolder;
-      if (n.body && !bindingInArgs) {
+      if (n.kind != SyntaxKind.IndexSignature && n.body && !bindingInArgs) {
         if (n.body.kind == SyntaxKind.Block) {
           body = rec(n.body as ts.Statement);
         } else {
@@ -686,309 +686,321 @@ export class StmtParser {
 
 
     function rec(node: ts.Node): StmtsHolder {
-      mustExist(node);
+      return handleError(node, () => {
+        mustExist(node);
 
-      let EP = new ExprProcessor();
+        let EP = new ExprProcessor();
 
-      function parseVarDecList(node: ts.VariableDeclarationList, modifiers: string[]): VarDef[] {
+        function parseVarDecList(node: ts.VariableDeclarationList, modifiers: string[]): VarDef[] {
 
-        return forNode(node, () => {
-          let isConst = (node.flags & ts.NodeFlags.Const) != 0;
+          return forNode(node, () => {
+            let isConst = (node.flags & ts.NodeFlags.Const) != 0;
 
-          function parseBinding(x: ts.BindingElement | ts.VariableDeclaration, rhs?: GExpr): VarDef[] {
-            let initExpr = rhs ? rhs : (x.initializer ? EP.processExpr(x.initializer) : undefinedValue);
-            const lhs: ts.BindingName = x.name;
-            switch (lhs.kind) {
-              case SyntaxKind.Identifier:
-                return [new VarDef(
-                  (<ts.Identifier>lhs).text,
-                  parseMark((<any>x).type),
-                  initExpr,
-                  isConst,
-                  modifiers)];
-              case SyntaxKind.ObjectBindingPattern:
-                return flatMap((lhs as ts.ObjectBindingPattern).elements, (e: ts.BindingElement) => {
-                  let access = new Access(initExpr, (e.name as ts.Identifier).text);
-                  return parseBinding(e, access);
-                });
-              case SyntaxKind.ArrayBindingPattern: {
-                let arrayAccessed = new FuncCall(SpecialVars.ArrayAccess, [initExpr]);
-                return flatMap(lhs.elements, (e: ts.ArrayBindingElement) => {
-                  if (e.kind == SyntaxKind.OmittedExpression) {
-                    return [];
-                  } else {
-                    return parseBinding(e as ts.BindingElement, arrayAccessed);
-                  }
-                });
-              }
-              default:
-                throw new Error("Unsupported binding pattern " + SyntaxKind[(lhs as any).kind] + ": " + x.getText());
-            }
-          }
-
-          let dec = node.declarations;
-          return flatMap(dec, (x: ts.VariableDeclaration) => parseBinding(x, undefined));
-        });
-      }
-
-      function isStatic(n: ts.ClassElement): boolean {
-        return parseModifiers(n.modifiers).includes("static");
-      }
-
-      switch (node.kind) {
-        case SyntaxKind.ThrowStatement:
-        case SyntaxKind.ExpressionStatement: {
-          let n = <ts.ExpressionStatement>node;
-          if (n.expression.kind == SyntaxKind.BinaryExpression) {
-            let e = n.expression as ts.BinaryExpression;
-            if (e.operatorToken.kind == ts.SyntaxKind.FirstAssignment) {
-              let l = EP.processExpr(e.left);
-              let r = EP.processExpr(e.right);
-              return EP.alongWith(new AssignStmt(l, r));
-            }
-          }
-          let shouldReturn = n.expression.kind == SyntaxKind.YieldExpression;
-          return EP.alongWith(new ExprStmt(EP.processExpr(n.expression), shouldReturn));
-        }
-        case SyntaxKind.ReturnStatement: {
-          let n = <ts.ReturnStatement>node;
-          return n.expression ?
-            EP.alongWith(new ExprStmt(EP.processExpr(n.expression), true))
-            : EP.alongWith(new CommentStmt("return;"));
-        }
-        case SyntaxKind.VariableStatement: {
-          let n = node as ts.VariableStatement;
-          let ms = parseModifiers(n.modifiers);
-          let list = n.declarationList;
-          return EP.alongWithMany(parseVarDecList(list, ms));
-        }
-        case SyntaxKind.IfStatement: {
-          let n = node as ts.IfStatement;
-          let cond = EP.processExpr(n.expression);
-          let then = flattenBlock(rec(n.thenStatement).stmts);
-          let otherwise: GStmt[];
-          if (n.elseStatement == undefined) {
-            otherwise = [new BlockStmt([])];
-          } else {
-            otherwise = rec(n.elseStatement).stmts;
-          }
-          return EP.alongWith(new IfStmt(cond, then, flattenBlock(otherwise)));
-        }
-        case SyntaxKind.WhileStatement: {
-          let n = node as ts.WhileStatement;
-          let cond = EP.processExpr(n.expression);
-          let body = flattenBlock(rec(n.statement).stmts);
-          return EP.alongWith(new WhileStmt(cond, body));
-        }
-        case SyntaxKind.Block: {
-          let n = node as ts.Block;
-          let stmts = flatMap(n.statements, (x: ts.Node) => rec(x).stmts);
-          return EP.alongWith(new BlockStmt(stmts));
-        }
-        case ts.SyntaxKind.ForStatement: {
-          let n = node as ts.ForStatement;
-          let cond = mustExist(n.condition);
-          let init = n.initializer;
-          let outerBlock = new BlockStmt([]);
-
-          if (init && ts.isVariableDeclarationList(init)) {
-            outerBlock.stmts = parseVarDecList(init, []);
-          } else if (init) {
-            outerBlock.stmts.push(new ExprStmt(EP.processExpr(init as ts.Expression), false));
-          }
-
-          let incr = n.incrementor ? [new ExprStmt(EP.processExpr(n.incrementor), false)] : [];
-          let bodyStmts: GStmt[] = rec(n.statement).stmts.concat(incr);
-
-          outerBlock.stmts.push(new WhileStmt(
-            EP.processExpr(cond),
-            flattenBlock(bodyStmts)
-          ));
-          return EP.alongWith(outerBlock);
-        }
-        case SyntaxKind.FunctionDeclaration:
-        case SyntaxKind.MethodDeclaration:
-        case SyntaxKind.GetAccessor:
-        case SyntaxKind.SetAccessor:
-        case SyntaxKind.Constructor: {
-          let name = (node.kind == SyntaxKind.Constructor) ? "Constructor" :
-            tryFullyQualifiedName((node as any).name);
-          let n = <ts.FunctionLikeDeclaration>node;
-          const modifiers = parseModifiers(n.modifiers);
-          if (node.kind == SyntaxKind.SetAccessor) {
-            modifiers.push("set");
-          } else if (node.kind == SyntaxKind.GetAccessor) {
-            modifiers.push("get");
-          }
-          return EP.alongWith(parseFunction(name, n, modifiers));
-        }
-
-        case SyntaxKind.ClassDeclaration: {
-          let n = node as ts.ClassDeclaration;
-
-          let name = tryFullyQualifiedName(mustExist(n.name));
-
-          let superType: string | null = null;
-          if (n.heritageClauses != undefined) {
-            let clauses = n.heritageClauses;
-            for (const c of clauses) {
-              if (c.token == ts.SyntaxKind.ExtendsKeyword) {
-                superType = c.types[0].expression.getText(); //todo: handle more cases
-                // superType = mustExist((c.types[0].expression as any)["name"]) as string;
+            function parseBinding(x: ts.BindingElement | ts.VariableDeclaration, rhs?: GExpr): VarDef[] {
+              let initExpr = rhs ? rhs : (x.initializer ? EP.processExpr(x.initializer) : undefinedValue);
+              const lhs: ts.BindingName = x.name;
+              switch (lhs.kind) {
+                case SyntaxKind.Identifier:
+                  return [new VarDef(
+                    (<ts.Identifier>lhs).text,
+                    parseMark((<any>x).type),
+                    initExpr,
+                    isConst,
+                    modifiers)];
+                case SyntaxKind.ObjectBindingPattern:
+                  return flatMap((lhs as ts.ObjectBindingPattern).elements, (e: ts.BindingElement) => {
+                    let access = new Access(initExpr, (e.name as ts.Identifier).text);
+                    return parseBinding(e, access);
+                  });
+                case SyntaxKind.ArrayBindingPattern: {
+                  let arrayAccessed = new FuncCall(SpecialVars.ArrayAccess, [initExpr]);
+                  return flatMap(lhs.elements, (e: ts.ArrayBindingElement) => {
+                    if (e.kind == SyntaxKind.OmittedExpression) {
+                      return [];
+                    } else {
+                      return parseBinding(e as ts.BindingElement, arrayAccessed);
+                    }
+                  });
+                }
+                default:
+                  throw new Error("Unsupported binding pattern " + SyntaxKind[(lhs as any).kind] + ": " + x.getText());
               }
             }
-          }
 
-          let vars: NamedValue<[GMark, GExpr, boolean]>[] = [];
-          let funcDefs: [FuncDef, boolean][] = [];
-          let constructor: Constructor | null = null;
-
-          // let isAbstract = n.modifiers && n.modifiers.map(x => x.kind).includes(SyntaxKind.AbstractKeyword);
-          const innerEp = new ExprProcessor();
-
-          for (const v of n.members) {
-            const staticQ = isStatic(v);
-            if (ts.isPropertyDeclaration(v)) {
-              let v1 = v as ts.PropertyDeclaration;
-              const init = v1.initializer ? innerEp.processExpr(v1.initializer) : undefinedValue;
-              vars.push(new NamedValue(
-                getPropertyName(v1.name),
-                [parseMark(v1.type), init, staticQ]
-              ));
-            } else if (ts.isMethodDeclaration(v) || ts.isAccessor(v)) {
-              funcDefs.push([getSingleton(rec(v).stmts) as FuncDef, staticQ]);
-            } else if (ts.isConstructorDeclaration(v)) {
-              const c = getSingleton(rec(v).stmts) as Constructor;
-              c.args
-                .filter(v => c.publicVars.includes(v.name))
-                .forEach(p => vars.push(
-                  new NamedValue<[GMark, GExpr, boolean]>(
-                    p.name, [p.value, undefinedValue, false])));
-              constructor = c;
-            } else if (ts.isSemicolonClassElement(v)) {
-              // ignore
-            } else {
-              throw new Error("Unknown statements in class definitions: " + SyntaxKind[v.kind]);
-            }
-          }
-
-          let classModifiers = parseModifiers(n.modifiers);
-
-          let tVars = parseTVars(n);
-
-          let classStmt = new ClassDef(name, constructor, innerEp.lambdaDefs, vars, funcDefs,
-            superType, classModifiers, tVars);
-
-          return EP.alongWith(classStmt);
-        }
-        case SyntaxKind.SwitchStatement: {
-          let n = node as ts.SwitchStatement;
-
-          let switchCall = new FuncCall(SpecialVars.SWITCH, [EP.processExpr(n.expression)]);
-
-          let clauses = flatMap(
-            n.caseBlock.clauses,
-            (c: ts.CaseOrDefaultClause) => {
-              let body = flatMap(c.statements, (s: ts.Statement) => rec(s).stmts);
-              switch (c.kind) {
-                case SyntaxKind.CaseClause:
-                  let f = new FuncCall(SpecialVars.CASE, [EP.processExpr((c as ts.CaseClause).expression)]);
-                  let all = [new ExprStmt(f, false) as GStmt].concat(body);
-                  return EP.alongWithMany(all).stmts;
-                case SyntaxKind.DefaultClause:
-                  return EP.alongWithMany(body).stmts;
-              }
-            });
-          return EP.alongWithMany([new ExprStmt(switchCall, false) as GStmt].concat(clauses));
-        }
-
-        case SyntaxKind.ImportDeclaration: {
-          let n = node as ts.ImportDeclaration;
-          n.importClause; //todo
-          return EP.alongWith(new ImportStmt(node.getText()));
-        }
-        case SyntaxKind.ExportAssignment: {
-          const n = node as ts.ExportAssignment;
-          const e = EP.processExpr(n.expression);
-          return EP.alongWith(new VarDef("defaultVar", null, e, true,
-            ["export", "default"]));
-        }
-        case SyntaxKind.ExportDeclaration:
-          return EP.alongWith(new ExportStmt(node.getText()));
-        case SyntaxKind.EnumDeclaration: {
-          const enumEquiv = new TVar("number");
-          const n = node as ts.EnumDeclaration;
-          const vars = n.members.map(member => {
-            let vName = member.name.getText();
-            return new NamedValue(vName,
-              new Const("ENUM", enumEquiv, getLineNumber(n)));
+            let dec = node.declarations;
+            return flatMap(dec, (x: ts.VariableDeclaration) => parseBinding(x, undefined));
           });
-          const rhs = new ObjLiteral(vars);
-          const mds = parseModifiers(n.modifiers);
-          return EP.alongWithMany([
-            new VarDef(n.name.text, null, rhs,
-              true, mds),
-            new TypeAliasStmt(n.name.text, [], enumEquiv, mds)
-          ]);
-        }
-        case SyntaxKind.InterfaceDeclaration: {
-          let n = node as ts.InterfaceDeclaration;
-          let tVars = parseTVars(n);
-          let members = n.members.map(parseTypeMember);
-          let objT = new ObjectType(members); //todo: handle inheritance
-          return EP.alongWith(
-            new TypeAliasStmt(n.name.text, tVars, objT, parseModifiers(n.modifiers)));
-        }
-        case SyntaxKind.TypeAliasDeclaration: {
-          let n = node as ts.TypeAliasDeclaration;
-          let tVars = parseTVars(n);
-          return EP.alongWith(
-            new TypeAliasStmt(
-              n.name.text,
-              tVars,
-              parseType(n.type),
-              parseModifiers(n.modifiers)));
-        }
-        case SyntaxKind.TryStatement: {
-          let n = node as ts.TryStatement;
-
-          let tryPart = rec(n.tryBlock).stmts;
-          let finallyPart = n.finallyBlock ? rec(n.finallyBlock).stmts : [];
-          return EP.alongWithMany(tryPart.concat(finallyPart));
         }
 
-        case SyntaxKind.ModuleDeclaration: {
-          const n = node as ts.ModuleDeclaration;
-          const name = n.name.text;
-          const body = n.body;
-          if (body) {
-            switch (body.kind) {
-              case ts.SyntaxKind.ModuleBlock:
-                const stmts = flatMap(body.statements, (x: ts.Node) => rec(x).stmts);
-                const modifiers = parseModifiers(n.modifiers);
-                const r = new NamespaceStmt(name, new BlockStmt(stmts), modifiers);
-                return EP.alongWith(r);
-              default:
-                throw new Error("Module declare body? Text: \n" + body.getText());
+        function isStatic(n: ts.ClassElement): boolean {
+          return parseModifiers(n.modifiers).includes("static");
+        }
+
+        switch (node.kind) {
+          case SyntaxKind.ThrowStatement:
+          case SyntaxKind.ExpressionStatement: {
+            let n = <ts.ExpressionStatement>node;
+            if (n.expression.kind == SyntaxKind.BinaryExpression) {
+              let e = n.expression as ts.BinaryExpression;
+              if (e.operatorToken.kind == ts.SyntaxKind.FirstAssignment) {
+                let l = EP.processExpr(e.left);
+                let r = EP.processExpr(e.right);
+                return EP.alongWith(new AssignStmt(l, r));
+              }
+            }
+            let shouldReturn = n.expression.kind == SyntaxKind.YieldExpression;
+            return EP.alongWith(new ExprStmt(EP.processExpr(n.expression), shouldReturn));
+          }
+          case SyntaxKind.ReturnStatement: {
+            let n = <ts.ReturnStatement>node;
+            return n.expression ?
+              EP.alongWith(new ExprStmt(EP.processExpr(n.expression), true))
+              : EP.alongWith(new CommentStmt("return;"));
+          }
+          case SyntaxKind.VariableStatement: {
+            let n = node as ts.VariableStatement;
+            let ms = parseModifiers(n.modifiers);
+            let list = n.declarationList;
+            return EP.alongWithMany(parseVarDecList(list, ms));
+          }
+          case SyntaxKind.IfStatement: {
+            let n = node as ts.IfStatement;
+            let cond = EP.processExpr(n.expression);
+            let then = flattenBlock(rec(n.thenStatement).stmts);
+            let otherwise: GStmt[];
+            if (n.elseStatement == undefined) {
+              otherwise = [new BlockStmt([])];
+            } else {
+              otherwise = rec(n.elseStatement).stmts;
+            }
+            return EP.alongWith(new IfStmt(cond, then, flattenBlock(otherwise)));
+          }
+          case SyntaxKind.WhileStatement: {
+            let n = node as ts.WhileStatement;
+            let cond = EP.processExpr(n.expression);
+            let body = flattenBlock(rec(n.statement).stmts);
+            return EP.alongWith(new WhileStmt(cond, body));
+          }
+          case SyntaxKind.Block: {
+            let n = node as ts.Block;
+            let stmts = flatMap(n.statements, (x: ts.Node) => rec(x).stmts);
+            return EP.alongWith(new BlockStmt(stmts));
+          }
+          case ts.SyntaxKind.ForStatement: {
+            let n = node as ts.ForStatement;
+            let cond = mustExist(n.condition);
+            let init = n.initializer;
+            let outerBlock = new BlockStmt([]);
+
+            if (init && ts.isVariableDeclarationList(init)) {
+              outerBlock.stmts = parseVarDecList(init, []);
+            } else if (init) {
+              outerBlock.stmts.push(new ExprStmt(EP.processExpr(init as ts.Expression), false));
+            }
+
+            let incr = n.incrementor ? [new ExprStmt(EP.processExpr(n.incrementor), false)] : [];
+            let bodyStmts: GStmt[] = rec(n.statement).stmts.concat(incr);
+
+            outerBlock.stmts.push(new WhileStmt(
+              EP.processExpr(cond),
+              flattenBlock(bodyStmts)
+            ));
+            return EP.alongWith(outerBlock);
+          }
+          case SyntaxKind.FunctionDeclaration:
+          case SyntaxKind.MethodDeclaration:
+          case SyntaxKind.GetAccessor:
+          case SyntaxKind.SetAccessor:
+          case SyntaxKind.Constructor: {
+            let name = (node.kind == SyntaxKind.Constructor) ? "Constructor" :
+              tryFullyQualifiedName((node as any).name);
+            let n = <ts.FunctionLikeDeclaration>node;
+            const modifiers = parseModifiers(n.modifiers);
+            if (node.kind == SyntaxKind.SetAccessor) {
+              modifiers.push("set");
+            } else if (node.kind == SyntaxKind.GetAccessor) {
+              modifiers.push("get");
+            }
+            return EP.alongWith(parseFunction(name, n, modifiers));
+          }
+
+          case SyntaxKind.ClassDeclaration: {
+            let n = node as ts.ClassDeclaration;
+
+            let name = tryFullyQualifiedName(mustExist(n.name));
+
+            let superType: string | null = null;
+            if (n.heritageClauses != undefined) {
+              let clauses = n.heritageClauses;
+              for (const c of clauses) {
+                if (c.token == ts.SyntaxKind.ExtendsKeyword) {
+                  superType = c.types[0].expression.getText(); //todo: handle more cases
+                  // superType = mustExist((c.types[0].expression as any)["name"]) as string;
+                }
+              }
+            }
+
+            let vars: NamedValue<[GMark, GExpr, boolean]>[] = [];
+            let funcDefs: [FuncDef, boolean][] = [];
+            let constructor: Constructor | null = null;
+
+            // let isAbstract = n.modifiers && n.modifiers.map(x => x.kind).includes(SyntaxKind.AbstractKeyword);
+            const innerEp = new ExprProcessor();
+
+            for (const v of n.members) {
+              const staticQ = isStatic(v);
+              if (ts.isPropertyDeclaration(v)) {
+                let v1 = v as ts.PropertyDeclaration;
+                const init = v1.initializer ? innerEp.processExpr(v1.initializer) : undefinedValue;
+                vars.push(new NamedValue(
+                  getPropertyName(v1.name),
+                  [parseMark(v1.type), init, staticQ]
+                ));
+              } else if (ts.isMethodDeclaration(v) || ts.isAccessor(v)) {
+                funcDefs.push([getSingleton(rec(v).stmts) as FuncDef, staticQ]);
+              } else if (ts.isConstructorDeclaration(v)) {
+                const c = getSingleton(rec(v).stmts) as Constructor;
+                c.args
+                  .filter(v => c.publicVars.includes(v.name))
+                  .forEach(p => vars.push(
+                    new NamedValue<[GMark, GExpr, boolean]>(
+                      p.name, [p.value, undefinedValue, false])));
+                constructor = c;
+              } else if(ts.isIndexSignatureDeclaration(v)){
+                const n = v as ts.IndexSignatureDeclaration;
+                parseFunction("access", n, parseModifiers(n.modifiers));
+              } else if (ts.isSemicolonClassElement(v)) {
+                // ignore
+              } else {
+                throw new Error("Unknown statements in class definitions: " + SyntaxKind[v.kind]);
+              }
+            }
+
+            let classModifiers = parseModifiers(n.modifiers);
+
+            let tVars = parseTVars(n);
+
+            let classStmt = new ClassDef(name, constructor, innerEp.lambdaDefs, vars, funcDefs,
+              superType, classModifiers, tVars);
+
+            return EP.alongWith(classStmt);
+          }
+          case SyntaxKind.SwitchStatement: {
+            let n = node as ts.SwitchStatement;
+
+            let switchCall = new FuncCall(SpecialVars.SWITCH, [EP.processExpr(n.expression)]);
+
+            let clauses = flatMap(
+              n.caseBlock.clauses,
+              (c: ts.CaseOrDefaultClause) => {
+                let body = flatMap(c.statements, (s: ts.Statement) => rec(s).stmts);
+                switch (c.kind) {
+                  case SyntaxKind.CaseClause:
+                    let f = new FuncCall(SpecialVars.CASE, [EP.processExpr((c as ts.CaseClause).expression)]);
+                    let all = [new ExprStmt(f, false) as GStmt].concat(body);
+                    return EP.alongWithMany(all).stmts;
+                  case SyntaxKind.DefaultClause:
+                    return EP.alongWithMany(body).stmts;
+                }
+              });
+            return EP.alongWithMany([new ExprStmt(switchCall, false) as GStmt].concat(clauses));
+          }
+
+          case SyntaxKind.ImportDeclaration: {
+            let n = node as ts.ImportDeclaration;
+            n.importClause; //todo
+            return EP.alongWith(new ImportStmt(node.getText()));
+          }
+          case SyntaxKind.ExportAssignment: {
+            const n = node as ts.ExportAssignment;
+            const e = EP.processExpr(n.expression);
+            return EP.alongWith(new VarDef("defaultVar", null, e, true,
+              ["export", "default"]));
+          }
+          case SyntaxKind.NamespaceExportDeclaration:
+          case SyntaxKind.ExportDeclaration:
+            return EP.alongWith(new ExportStmt(node.getText()));
+          case SyntaxKind.EnumDeclaration: {
+            const enumEquiv = new TVar("number");
+            const n = node as ts.EnumDeclaration;
+            const vars = n.members.map(member => {
+              let vName = member.name.getText();
+              return new NamedValue(vName,
+                new Const("ENUM", enumEquiv, getLineNumber(n)));
+            });
+            const rhs = new ObjLiteral(vars);
+            const mds = parseModifiers(n.modifiers);
+            return EP.alongWithMany([
+              new VarDef(n.name.text, null, rhs,
+                true, mds),
+              new TypeAliasStmt(n.name.text, [], enumEquiv, mds)
+            ]);
+          }
+          case SyntaxKind.InterfaceDeclaration: {
+            let n = node as ts.InterfaceDeclaration;
+            let tVars = parseTVars(n);
+            let members = n.members.map(parseTypeMember);
+            let objT = new ObjectType(members); //todo: handle inheritance
+            return EP.alongWith(
+              new TypeAliasStmt(n.name.text, tVars, objT, parseModifiers(n.modifiers)));
+          }
+          case SyntaxKind.TypeAliasDeclaration: {
+            let n = node as ts.TypeAliasDeclaration;
+            let tVars = parseTVars(n);
+            return EP.alongWith(
+              new TypeAliasStmt(
+                n.name.text,
+                tVars,
+                parseType(n.type),
+                parseModifiers(n.modifiers)));
+          }
+          case SyntaxKind.TryStatement: {
+            let n = node as ts.TryStatement;
+
+            let tryPart = rec(n.tryBlock).stmts;
+            let finallyPart = n.finallyBlock ? rec(n.finallyBlock).stmts : [];
+            return EP.alongWithMany(tryPart.concat(finallyPart));
+          }
+
+          case SyntaxKind.ModuleDeclaration: {
+            const n = node as ts.ModuleDeclaration;
+            const name = n.name.text;
+            const body = n.body;
+            if (body) {
+              switch (body.kind) {
+                case ts.SyntaxKind.ModuleBlock: {
+                  const stmts = flatMap(body.statements, (x: ts.Node) => rec(x).stmts);
+                  const modifiers = parseModifiers(n.modifiers);
+                  const r = new NamespaceStmt(name, new BlockStmt(stmts), modifiers);
+                  return EP.alongWith(r);
+                }
+                case ts.SyntaxKind.ModuleDeclaration: {
+                  const modifiers = parseModifiers(n.modifiers);
+                  const r = new NamespaceStmt(name, new BlockStmt(rec(body).stmts), modifiers);
+                  return EP.alongWith(r);
+                }
+                default:
+                  throw new Error("Module declare body? Text: \n" + body.getText());
+              }
             }
           }
+
+          //todo: support these
+          case SyntaxKind.ForOfStatement:
+          case SyntaxKind.ForInStatement:
+
+          // ignored statements:
+          case SyntaxKind.ImportEqualsDeclaration: //fixme: may need to handle this
+          case SyntaxKind.BreakStatement:
+          case SyntaxKind.ContinueStatement:
+            return EP.alongWith(new CommentStmt(node.getText()));
+          case SyntaxKind.EmptyStatement:
+            return EP.alongWithMany([]);
+
+          default:
+            throw new Error("Unknown stmt category: " + ts.SyntaxKind[node.kind]);
         }
-
-        //todo: support these
-        case SyntaxKind.ForOfStatement:
-        case SyntaxKind.ForInStatement:
-
-        // ignored statements:
-        case SyntaxKind.ImportEqualsDeclaration: //fixme: may need to handle this
-        case SyntaxKind.BreakStatement:
-        case SyntaxKind.ContinueStatement:
-          return EP.alongWith(new CommentStmt(node.getText()));
-        case SyntaxKind.EmptyStatement:
-          return EP.alongWithMany([]);
-
-        default:
-          throw new Error("Unknown stmt category: " + ts.SyntaxKind[node.kind]);
-      }
+      });
     }
 
     function getPropertyName(name: ts.PropertyName): string {
@@ -1105,14 +1117,20 @@ export function parseFiles(sources: string[], libraryFiles: string[]): GModule[]
         r.forEach(s => stmts.push(s));
       } catch (e) {
         console.debug("Parsing failed for file: " + src.fileName);
-        const line = getLineNumber(s);
-        console.debug(`Failure occurred at line ${line}: ${s.getText()}`);
-        console.debug(`Parsing trace: ${astPath(s).join(" <- ")}`);
-
         throw e;
       }
 
     });
     return new GModule(sources[index], stmts);
   });
+}
+
+function handleError<T>(node: ts.Node, thunk: () => T): T {
+  try {
+    return thunk();
+  } catch (e) {
+    const line = getLineNumber(node);
+    console.debug(`Failure occurred at line ${line}: ${node.getText()}`);
+    throw e;
+  }
 }

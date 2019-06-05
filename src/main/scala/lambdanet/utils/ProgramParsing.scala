@@ -63,11 +63,16 @@ object ProgramParsing {
     DeclarationModule(varDefs.toMap, typeDefs.toMap, namespaces.toMap)
   }
 
-  def parseGModulesFromRoot(root: Path) = {
+  def parseGModulesFromRoot(
+      root: Path,
+      allowDeclarationFiles: Boolean = false,
+      filter: Path => Boolean = _ => true
+  ) = {
     val sources = ls
       .rec(root)
+      .filter(filter)
       .filter { f =>
-        if (f.last.endsWith(".d.ts")) {
+        if (!allowDeclarationFiles && f.last.endsWith(".d.ts")) {
           throw new Error(
             s".d.ts file encountered: $f, you are probably " +
               s"parsing the wrong files."
@@ -136,35 +141,35 @@ object ProgramParsing {
     modules.value.map(parseGModule).toVector
   }
 
-  private def asString(v: Js.Val): String = v.asInstanceOf[Str].value
+  def asString(v: Js.Val): String = v.asInstanceOf[Str].value
 
-  private def asArray(v: Js.Val): List[Val] = v match {
+  def asArray(v: Js.Val): List[Val] = v match {
     case Js.Null => List[Val]()
     case _       => v.asInstanceOf[Arr].value.toList
   }
 
-  private def asVector(v: Js.Val): Vector[Val] = v match {
+  def asVector(v: Js.Val): Vector[Val] = v match {
     case Js.Null => Vector[Val]()
     case _       => v.asInstanceOf[Arr].value.toVector
   }
 
-  private def asNumber(v: Js.Val): Double = v.asInstanceOf[Num].value
+  def asNumber(v: Js.Val): Double = v.asInstanceOf[Num].value
 
-  private def asSymbol(v: Js.Val): Symbol = Symbol(asString(v))
+  def asSymbol(v: Js.Val): Symbol = Symbol(asString(v))
 
-  private def asOptionSymbol(v: Js.Val): Option[Symbol] = v match {
+  def asOptionSymbol(v: Js.Val): Option[Symbol] = v match {
     case Null => None
     case _    => Some(asSymbol(v))
   }
 
-  private def asObj(v: Val): Map[String, Val] = v.asInstanceOf[Obj].value
+  def asObj(v: Val): Map[String, Val] = v.asInstanceOf[Obj].value
 
-  private def parseNamedValue(v: Js.Val): (String, Val) = {
+  def parseNamedValue(v: Js.Val): (String, Val) = {
     val p = asObj(v)
     asString(p("name")) -> p("value")
   }
 
-  private def arrayToMap(value: Js.Val): Map[String, Val] = {
+  def arrayToMap(value: Js.Val): Map[String, Val] = {
     value
       .asInstanceOf[Arr]
       .value
@@ -174,7 +179,7 @@ object ProgramParsing {
       .toMap
   }
 
-  private def asBoolean(v: Js.Val): Boolean = {
+  def asBoolean(v: Js.Val): Boolean = {
     (v: @unchecked) match {
       case False => false
       case True  => true
@@ -640,8 +645,16 @@ object ProgramParsing {
         )
       }
 
-      def stmt[_: P] =
+      def exportNamespace[_: P]: P[Vector[ExportStmt]] =
         P(
+          "export" ~ "as" ~ "namespace" ~/ identifier ~ ";".?
+        ).map { name =>
+          val s = Symbol(name)
+          Vector(ExportSingle(s, s, None))
+        }
+
+      def stmt[_: P] =
+        exportNamespace | P(
           "export" ~/ (exportFromOther | exportDefault | exportDefault2 | exportSingles)
             ~ ("from" ~/ path).? ~ ";".?
         ).map {
