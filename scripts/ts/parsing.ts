@@ -434,7 +434,8 @@ type SpecialExpressions =
   ts.DeleteExpression |
   ts.YieldExpression |
   ts.AsExpression |
-  ts.TypeAssertion
+  ts.TypeAssertion |
+  ts.AwaitExpression
 
 export function parseExpr(node: ts.Expression,
                           allocateLambda: (f: ts.FunctionLikeDeclaration) => Var): GExpr {
@@ -464,7 +465,8 @@ export function parseExpr(node: ts.Expression,
       }
       case SyntaxKind.ObjectLiteralExpression: {
         const fields = flatMap(n.properties, (p: ts.ObjectLiteralElementLike) => {
-          if (p.kind == SyntaxKind.PropertyAssignment) {
+          if (p.kind == SyntaxKind.PropertyAssignment ||
+            p.kind == SyntaxKind.ShorthandPropertyAssignment) {
             return [parseObjectLiteralElementLike(p)];
           } else {
             return []; //todo: other cases
@@ -547,6 +549,9 @@ export function parseExpr(node: ts.Expression,
       case SyntaxKind.YieldExpression: {
         return new FuncCall(SpecialVars.YIELD, [rec(mustExist(n.expression))]);
       }
+      case SyntaxKind.AwaitExpression: {
+        return new FuncCall(SpecialVars.AWAIT, [rec(n.expression)]);
+      }
       // type assertions are ignored
       case SyntaxKind.AsExpression:
       case SyntaxKind.TypeAssertionExpression: {
@@ -565,12 +570,11 @@ export function parseExpr(node: ts.Expression,
       return new Const(v, new TVar(typeName), getLineNumber(n));
     }
 
-    function parseObjectLiteralElementLike(p: ts.PropertyAssignment): NamedValue<GExpr> {
+    function parseObjectLiteralElementLike(p: ts.PropertyAssignment | ts.ShorthandPropertyAssignment): NamedValue<GExpr> {
       //todo: properly handle other cases like accessors
-      let a = (<ts.PropertyAssignment>p);
-      let fieldName = (<ts.StringLiteral>a.name).text;
-      return new NamedValue<GExpr>(fieldName,
-        a.initializer ? rec(a.initializer) : new Var(fieldName));
+      const fieldName = (<ts.StringLiteral>p.name).text;
+      const rhs = (p.kind == SyntaxKind.PropertyAssignment) ? rec(p.initializer) : new Var(fieldName);
+      return new NamedValue<GExpr>(fieldName, rhs);
     }
   }
 
@@ -906,7 +910,7 @@ export class StmtParser {
           const mds = parseModifiers(n.modifiers);
           return EP.alongWithMany([
             new VarDef(n.name.text, null, rhs,
-            true, mds),
+              true, mds),
             new TypeAliasStmt(n.name.text, [], enumEquiv, mds)
           ]);
         }
@@ -1031,6 +1035,7 @@ class SpecialVars {
   static DELETE = new Var("$Delete");
   static ArrayAccess = new Var("$ArrayAccess");
   static YIELD = new Var("$Yield");
+  static AWAIT = new Var("$Await");
 }
 
 // utilities

@@ -59,6 +59,7 @@ object JSExamples {
     '$Delete -> (List(any) -: void),
     '$ArrayAccess -> (List(anyArray) -: any),
     '$Yield -> (List(any) -: generator),
+    '$Await -> (List('Promise) -: void),
     // operators
     'MinusToken -> (List(number) -: number),
     'PlusToken -> (List(number) -: number),

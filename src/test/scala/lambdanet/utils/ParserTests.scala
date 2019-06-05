@@ -59,7 +59,8 @@ class ParserTests extends WordSpec with MyTest {
 
   "Simple cases parsing test" in {
     val content =
-      """declare type ClassDecorator = <TFunction extends Function>(target: TFunction) => TFunction | void;
+      """let a = {x};
+        |declare type ClassDecorator = <TFunction extends Function>(target: TFunction) => TFunction | void;
         |interface Test{
         |  g<T>(x:T): T
         |

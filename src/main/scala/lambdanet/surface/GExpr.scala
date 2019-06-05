@@ -102,7 +102,7 @@ object GExpr {
       case FuncCall(f, args) =>
         s"$f${args.mkString("(", ", ", ")")}"
       case ObjLiteral(fields) =>
-        fields.map { case (f, v) => s"$f: $v" }.mkString("{", ", ", "}")
+        fields.map { case (f, v) => s"${f.name}: $v" }.mkString("{", ", ", "}")
       case Access(receiver, label) =>
         s"$receiver.${label.name}"
       case IfExpr(cond, e1, e2) =>
