@@ -529,7 +529,11 @@ export function parseExpr(node: ts.Expression,
       }
       case SyntaxKind.ArrowFunction:
       case SyntaxKind.FunctionExpression: {
-        return allocateLambda(n);
+        try {
+          return allocateLambda(n);
+        } catch (e) {
+          return undefinedValue;
+        }
       }
 
       // Special treatments:
@@ -572,7 +576,7 @@ export function parseExpr(node: ts.Expression,
 
     function parseObjectLiteralElementLike(p: ts.PropertyAssignment | ts.ShorthandPropertyAssignment): NamedValue<GExpr> {
       //todo: properly handle other cases like accessors
-      const fieldName = (<ts.StringLiteral>p.name).text;
+      const fieldName = p.name.getText();
       const rhs = (p.kind == SyntaxKind.PropertyAssignment) ? rec(p.initializer) : new Var(fieldName);
       return new NamedValue<GExpr>(fieldName, rhs);
     }
@@ -581,7 +585,7 @@ export function parseExpr(node: ts.Expression,
   return rec(node);
 }
 
-export const undefinedValue = new Const("undefined", anyType, -1);
+export const undefinedValue = new Var("undefined");
 
 export class StmtParser {
   public nLambda: [number] = [0];
@@ -637,8 +641,16 @@ export class StmtParser {
 
       let publicArgs: string[] = [];
 
+      let bindingInArgs: boolean = false;
       let args = n.parameters.map(p => {
-        let name = (<ts.Identifier>p.name).text;
+        let name: string;
+        if (p.name.kind == SyntaxKind.Identifier) {
+          name = p.name.text;
+        } else {
+          name = "_";
+          bindingInArgs = true;
+        }
+
         if (parseModifiers(p.modifiers).includes("public")) {
           publicArgs.push(name);
         }
@@ -647,7 +659,7 @@ export class StmtParser {
 
 
       let body: StmtsHolder;
-      if (n.body) {
+      if (n.body && !bindingInArgs) {
         if (n.body.kind == SyntaxKind.Block) {
           body = rec(n.body as ts.Statement);
         } else {
@@ -895,7 +907,12 @@ export class StmtParser {
           n.importClause; //todo
           return EP.alongWith(new ImportStmt(node.getText()));
         }
-        case SyntaxKind.ExportAssignment:
+        case SyntaxKind.ExportAssignment: {
+          const n = node as ts.ExportAssignment;
+          const e = EP.processExpr(n.expression);
+          return EP.alongWith(new VarDef("defaultVar", null, e, true,
+            ["export", "default"]));
+        }
         case SyntaxKind.ExportDeclaration:
           return EP.alongWith(new ExportStmt(node.getText()));
         case SyntaxKind.EnumDeclaration: {

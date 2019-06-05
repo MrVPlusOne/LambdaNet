@@ -59,7 +59,16 @@ class ParserTests extends WordSpec with MyTest {
 
   "Simple cases parsing test" in {
     val content =
-      """let a = {x};
+      """
+        |({reducers = {}}: {
+        |  reducers?: object;
+        |}) =>
+        |  createStore(
+        |    combineReducers(reducers),
+        |    state,
+        |    compose(applyMiddleware(...middleware))
+        |  );
+        |export default {x};
         |declare type ClassDecorator = <TFunction extends Function>(target: TFunction) => TFunction | void;
         |interface Test{
         |  g<T>(x:T): T

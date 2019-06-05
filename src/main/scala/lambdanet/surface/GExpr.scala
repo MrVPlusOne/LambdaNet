@@ -62,6 +62,7 @@ case class IfExpr(cond: GExpr, e1: GExpr, e2: GExpr) extends GExpr
 /**
   * A context used for type checking expressions
   */
+@deprecated
 case class ExprContext(
     varAssign: Map[Symbol, GType],
     typeContext: TypeContext
@@ -135,6 +136,7 @@ object GExpr {
     *
     * @return a type and a set of [[GType.TypeCheckError]].
     */
+  @deprecated
   def typeCheckInfer(
       expr: GExpr,
       context: ExprContext
