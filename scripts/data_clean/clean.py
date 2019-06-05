@@ -4,6 +4,7 @@ import subprocess as sp
 import argparse
 import json
 import requests
+import tarfile
 
 filter_list = [filter_num_lines, filter_dep_avail]
 
@@ -108,6 +109,10 @@ def get_d_ts_files(valid_repos):
                     print(mv.args)
 
 
+def save_repos(repos):
+    with tarfile.open("final.tgz", "w:gz") as f:
+        for repo in repos:
+            f.add(repo)
 
 def main():
     repos = get_repos()
@@ -115,5 +120,7 @@ def main():
     get_d_ts_files(repos)
     freq_ = sorted(freq.items(), key = lambda x: x[1])
     print(freq_)
+    save_repos(repos)
 
-main()
+if __name__ == "__main__":
+    main()
