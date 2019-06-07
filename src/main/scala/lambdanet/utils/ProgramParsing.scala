@@ -514,7 +514,11 @@ object ProgramParsing {
         }
       val stmts2 = mergeInterfaces(stmts1)
 
-      val modulePath = RelPath(name.replace("." + RelPath(name).ext, ""))
+      val modulePath = RelPath(
+        name
+          .replace(".d.ts", "")
+          .replace(".ts", "")
+      )
       GModule(modulePath, stmts2)
     }
   }

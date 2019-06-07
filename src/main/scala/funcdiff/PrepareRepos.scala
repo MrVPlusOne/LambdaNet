@@ -33,6 +33,7 @@ object PrepareRepos {
       maxIterations = 1
     )
   }
+  println("Declaration files parsed.")
 
   def prepareProject(root: Path) = {
     val libMapping = {
