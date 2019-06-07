@@ -102,6 +102,7 @@ object PLang {
 
   case class PImport(content: ImportStmt) extends PStmt
   case class PExport(content: ExportStmt) extends PStmt
+  case class NamespaceAliasStmt(name: Symbol, rhs: Vector[Symbol]) extends PStmt
 }
 
 /**
@@ -212,6 +213,8 @@ object PLangTranslation {
             PImport(content)
           case surface.GExport(content) =>
             PExport(content)
+          case surface.NamespaceAliasStmt(name, rhs) =>
+            NamespaceAliasStmt(name, rhs)
         }
       }
 

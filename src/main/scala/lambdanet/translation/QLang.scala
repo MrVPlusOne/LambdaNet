@@ -219,6 +219,8 @@ object QLangTranslation {
             d.name -> NameDef.termDef(d.node)
           case f: PLang.FuncDef =>
             f.name -> NameDef.termDef(f.funcNode)
+          case a: PLang.NamespaceAliasStmt =>
+            a.name -> NameDef.namespaceDef(ctx.getNamespace(a.rhs))
         }.toMap
 
         ctx.copy(internalSymbols = ctx.internalSymbols |+| defs)

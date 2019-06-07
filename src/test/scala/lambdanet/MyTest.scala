@@ -10,6 +10,6 @@ trait MyTest extends Matchers {
   ): Assertion = {
     val p = paramTrans(Test.Parameters.default.withMaxSize(50))
     val result = Test.check(p, prop)
-    assert(result.passed, result.toString)
+    assert(result.passed, result.status)
   }
 }

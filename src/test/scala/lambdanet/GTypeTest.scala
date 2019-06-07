@@ -40,4 +40,23 @@ class GTypeTest extends WordSpec with MyTest {
     }
   }
 
+  "intersectionS" should {
+    val typeGen = GType.simpleGTypeGen
+    "remain unchanged when intersect self" in {
+      checkProp(forAll(typeGen) { r =>
+        r.intersectS(r) === r
+      })
+    }
+
+    "remain unchaged when intersect any" in {
+      checkProp(forAll(typeGen) { r =>
+        r.intersectS(AnyType) === r
+      })
+      checkProp(forAll(typeGen) { r =>
+        AnyType.intersectS(r) === r
+      })
+    }
+
+  }
+
 }

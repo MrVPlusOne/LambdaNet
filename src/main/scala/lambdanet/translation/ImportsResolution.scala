@@ -76,26 +76,30 @@ object ImportsResolution {
       defaultDefs: NameDef = NameDef.empty,
       publicSymbols: Map[Symbol, NameDef] = Map(),
       internalSymbols: Map[Symbol, NameDef] = Map()
-  )
+  ) {
+    def getNamespace(qualifiedName: Vector[Symbol]): ModuleExports = {
+      if (qualifiedName.isEmpty) this
+      else
+        publicSymbols(qualifiedName.head).namespace.get
+          .getNamespace(qualifiedName.tail)
+    }
+
+  }
 
   object ModuleExports {
     import cats.Monoid
     import cats.implicits._
 
-    val empty = ModuleExports(NameDef.empty, Map(), Map())
-
     implicit val ModuleExportsMonoid: Monoid[ModuleExports] =
-      new Monoid[ModuleExports] {
-        val empty: ModuleExports = ModuleExports.empty
+      (
+        Monoid[NameDef],
+        Monoid[Map[Symbol, NameDef]],
+        Monoid[Map[Symbol, NameDef]]
+      ).imapN(ModuleExports.apply)(
+        ModuleExports.unapply(_).get
+      )
 
-        def combine(x: ModuleExports, y: ModuleExports): ModuleExports = {
-          ModuleExports(
-            x.defaultDefs |+| y.defaultDefs,
-            x.publicSymbols |+| y.publicSymbols,
-            x.internalSymbols |+| y.internalSymbols
-          )
-        }
-      }
+    val empty: ModuleExports = ModuleExportsMonoid.empty
 
   }
 
@@ -213,28 +217,15 @@ object ImportsResolution {
               case PExport(content) =>
                 content match {
                   case ExportSingle(oldName, newName, from) =>
-                    from match {
-                      case Some(s) =>
-                        resolvePath(s).publicSymbols
-                          .get(oldName)
-                          .map(
-                            defs =>
-                              ModuleExports(
-                                publicSymbols = Map(newName -> defs)
-                              )
-                          )
-                          .getOrElse(ModuleExports.empty)
-                      case None =>
-                        thisExports.internalSymbols
-                          .get(oldName)
-                          .map(
-                            defs =>
-                              ModuleExports(
-                                publicSymbols = Map(newName -> defs)
-                              )
-                          )
-                          .getOrElse(ModuleExports.empty)
-                    }
+                    from
+                      .map(resolvePath(_).publicSymbols)
+                      .getOrElse(thisExports.internalSymbols)
+                      .get(oldName)
+                      .map(
+                        defs =>
+                          ModuleExports(publicSymbols = Map(newName -> defs))
+                      )
+                      .combineAll
                   case ExportOtherModule(from) =>
                     val toExport = resolvePath(from).publicSymbols
                     ModuleExports(publicSymbols = toExport)
@@ -260,9 +251,7 @@ object ImportsResolution {
                     .get
                 val df =
                   NameDef.namespaceDef(
-                    Monoid.combineAll(
-                      block.stmts.map(s => collectExports(ctx1, s))
-                    )
+                    block.stmts.map(s => collectExports(ctx1, s)).combineAll
                   )
                 ModuleExports(internalSymbols = Map(name -> df))
               case _ => ModuleExports.empty
@@ -271,12 +260,11 @@ object ImportsResolution {
 
           val module = modulesToResolve(thisPath)
           SimpleMath.withErrorMessage(s"In module '${module.path}'") {
-            val imported = thisExports |+| Monoid.combineAll(
-              module.stmts.map(collectImports)
-            )
-            val result = imported |+| Monoid.combineAll(
-              module.stmts.map(s => collectExports(imported, s))
-            )
+            val imported = thisExports |+|
+              module.stmts.map(collectImports).combineAll
+
+            val result = imported |+|
+              module.stmts.map(s => collectExports(imported, s)).combineAll
             thisPath -> result
           }
       } -> unresolved

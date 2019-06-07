@@ -1,5 +1,6 @@
 package lambdanet
 
+import cats.kernel.Monoid
 import lambdanet.GType._
 import lambdanet.surface.GExpr
 import org.scalacheck.Gen
@@ -64,6 +65,31 @@ sealed trait GType extends GTMark {
 
   def -:[T](from: List[T])(implicit conv: T => GType) =
     FuncType(from.map(conv), this)
+
+  /** Take the intersection of two types syntactically.
+    * (i.e., does not check the environment and type aliases) */
+  def intersectS(that: GType): GType =
+    (this, that) match {
+      case (AnyType, x) => x
+      case (x, AnyType) => x
+      case (TyVar(id1), TyVar(id2)) =>
+        if (id1 == id2) this else AnyType
+      case (FuncType(from1, to1), FuncType(from2, to2)) =>
+        val maxLen = from1.length.max(from2.length)
+        val a1 = from1 ++ Vector.fill(maxLen - from1.length)(AnyType)
+        val a2 = from2 ++ Vector.fill(maxLen - from2.length)(AnyType)
+        FuncType(
+          a1.zip(a2).map { case (a, b) => a.unionS(b) },
+          to1.intersectS(to2)
+        )
+      case (ObjectType(fields1), ObjectType(fields2)) =>
+        import cats.implicits._
+        implicit val m: Monoid[GType] = GType.intersectMonoid
+        ObjectType(fields1 |+| fields2)
+      case _ => AnyType
+    }
+
+  def unionS(that: GType): GType = intersectS(that)
 }
 
 /** A [[TyVar]] or [[AnyType]] */
@@ -98,15 +124,10 @@ case class ObjectType(fields: Map[Symbol, GType]) extends CompoundType {
   }
 
   def merge(that: ObjectType, allowOverloading: Boolean = true): ObjectType = {
-    val inter = fields.keySet.intersect(that.fields.keySet)
     if (allowOverloading) {
-      val overloads = inter.map { k =>
-        val t1 = this.fields(k).asInstanceOf[FuncType]
-        val t2 = that.fields(k).asInstanceOf[FuncType]
-        k -> Seq(t1, t2).maxBy(_.from.length)
-      }
-      ObjectType(fields ++ that.fields ++ overloads)
+      this.intersectS(that).asInstanceOf[ObjectType]
     } else {
+      val inter = fields.keySet.intersect(that.fields.keySet)
       assert(
         inter.isEmpty,
         s"Trying to merge objects with common fields: $inter. object1: $this, object2: $that"
@@ -366,4 +387,10 @@ object GType {
   }
 
   // === End of GType random sampling ===
+
+  val intersectMonoid: Monoid[GType] = new cats.Monoid[GType] {
+    def empty: GType = AnyType
+
+    def combine(x: GType, y: GType): GType = x.intersectS(y)
+  }
 }

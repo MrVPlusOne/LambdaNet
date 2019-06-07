@@ -6,7 +6,6 @@ import lambdanet._
 import lambdanet.utils.Js._
 import lambdanet.surface._
 import lambdanet.translation.OldIRTranslation
-import ProgramParsing.GTMark
 import SimpleMath.Extensions._
 import lambdanet.translation.groupInBlockSurface
 
@@ -469,7 +468,15 @@ object ProgramParsing {
         case "ExportStmt" =>
           val str = StringContext.treatEscapes(asString(map("text")))
           ExportPattern.parseExports(str).map(GExport)
-
+        case "NamespaceAliasStmt" =>
+          val name = Symbol(asString(map("name")))
+          val rhsText = asString(map("rhs"))
+          val rhs = if (rhsText.contains(".")) {
+            rhsText.split(".").map(Symbol(_)).toVector
+          } else {
+            Vector(Symbol(rhsText))
+          }
+          Vector(NamespaceAliasStmt(name, rhs))
         case other => throw new Error(s"Unknown category: $other")
       }
     }
@@ -478,60 +485,38 @@ object ProgramParsing {
     val obj = asObj(v)
     val name = asString(obj("name"))
 
-//    val aliases = mutable.HashMap[Symbol, TypeAliasStmt]()
-//
-//    SimpleMath.withErrorMessage(s"Error when parsing module: $name") {
-//      asVector(obj("stmts")).foreach { s =>
-//        SimpleMath.withErrorMessage(s"when parsing $s") {
-//          s match {
-//            case ImportPattern(ss) =>
-//              imports ++= ss
-//            case ExportPattern(ss) =>
-//              exports ++= ss
-//            case a: TypeAliasStmt if !aliases.contains(a.name) =>
-//              aliases(a.name) = a
-//            case a: TypeAliasStmt =>
-//              // merge interfaces
-//              val o1 = aliases(a.name).ty.asInstanceOf[ObjectType]
-//              val o2 = a.ty.asInstanceOf[ObjectType]
-//              aliases(a.name) =
-//                TypeAliasStmt(a.name, a.tyVars, o1.merge(o2), a.exportLevel)
-//            case other =>
-//              stmts ++= parseGStmt(other)
-//          }
-//        }
-//      }
-//    }
-    def mergeInterfaces(stmts: Vector[GStmt]): Vector[GStmt] = {
-      val aliases = mutable.HashMap[Symbol, TypeAliasStmt]()
-      var stmts1 = Vector[GStmt]()
-      stmts.foreach {
-        case a: TypeAliasStmt if !aliases.contains(a.name) =>
-          aliases(a.name) = a
-        case a: TypeAliasStmt =>
-          // merge interfaces
-          val o1 = aliases(a.name).ty.asInstanceOf[ObjectType]
-          val o2 = a.ty.asInstanceOf[ObjectType]
-          aliases(a.name) =
-            TypeAliasStmt(a.name, a.tyVars, o1.merge(o2), a.exportLevel)
-        case BlockStmt(s2) =>
-          stmts1 ++= mergeInterfaces(s2)
-        case Namespace(name, block, exportLevel) =>
-          val block1 = BlockStmt(mergeInterfaces(block.stmts))
-          stmts1 :+= Namespace(name, block1, exportLevel)
-        case other => stmts1 :+= other // I'm just lazy
+    SimpleMath.withErrorMessage(s"Error when parsing module: $name") {
+      def mergeInterfaces(stmts: Vector[GStmt]): Vector[GStmt] = {
+        val aliases = mutable.HashMap[Symbol, TypeAliasStmt]()
+        var stmts1 = Vector[GStmt]()
+        stmts.foreach {
+          case a: TypeAliasStmt if !aliases.contains(a.name) =>
+            aliases(a.name) = a
+          case a: TypeAliasStmt =>
+            // merge interfaces
+            val o1 = aliases(a.name).ty.asInstanceOf[ObjectType]
+            val o2 = a.ty.asInstanceOf[ObjectType]
+            aliases(a.name) =
+              TypeAliasStmt(a.name, a.tyVars, o1.merge(o2), a.exportLevel)
+          case BlockStmt(s2) =>
+            stmts1 ++= mergeInterfaces(s2)
+          case Namespace(symbol, block, exportLevel) =>
+            val block1 = BlockStmt(mergeInterfaces(block.stmts))
+            stmts1 :+= Namespace(symbol, block1, exportLevel)
+          case other => stmts1 :+= other // I'm just lazy
+        }
+        aliases.values.toVector ++ stmts1
       }
-      aliases.values.toVector ++ stmts1
+
+      val stmts1 =
+        SimpleMath.withErrorMessage(s"Error when parsing module: $name") {
+          asVector(obj("stmts")).flatMap(parseGStmt)
+        }
+      val stmts2 = mergeInterfaces(stmts1)
+
+      val modulePath = RelPath(name.replace("." + RelPath(name).ext, ""))
+      GModule(modulePath, stmts2)
     }
-
-    val stmts1 =
-      SimpleMath.withErrorMessage(s"Error when parsing module: $name") {
-        asVector(obj("stmts")).flatMap(parseGStmt)
-      }
-    val stmts2 = mergeInterfaces(stmts1)
-
-    val modulePath = RelPath(name.replace("." + RelPath(name).ext, ""))
-    GModule(modulePath, stmts2)
   }
 
   import fastparse.JavaWhitespace._
@@ -591,21 +576,36 @@ object ProgramParsing {
         importSingles | importModule | importDefault
       }
 
-      def stmt[_: P]: P[Vector[ImportStmt]] =
+      def parseImportEquals[_: P]: P[ImportStmt] = {
         P(
-          "import" ~ parseImportClause
-            .rep(min = 1, sep = ",") ~/ "from" ~ path ~ (";" | End)
+          "import" ~ identifier ~ "=" ~/ "require(" ~/ path ~ ")" ~ (";" | End)
         ).map {
-          case (clauses, p) =>
-            clauses.toVector.flatMap {
-              case Default(s) => Vector(ImportDefault(p, s))
-              case Singles(pairs) =>
-                pairs.map {
-                  case (oldName, newName) => ImportSingle(oldName, p, newName)
-                }
-              case Module(n) => Vector(ImportModule(p, n))
-            }
-        } | P("import" ~ path ~ (";" | End)).map(_ => Vector())
+          case (name, path: ProjectPath) =>
+            ImportSingle(Symbol("$ExportEquals"), path, Symbol(name))
+        }
+      }
+
+      def stmt[_: P]: P[Vector[ImportStmt]] = {
+        def normalImports =
+          P(
+            "import" ~ parseImportClause
+              .rep(min = 1, sep = ",") ~/ "from" ~ path ~ (";" | End)
+          ).map {
+            case (clauses, p) =>
+              clauses.toVector.flatMap {
+                case Default(s) => Vector(ImportDefault(p, s))
+                case Singles(pairs) =>
+                  pairs.map {
+                    case (oldName, newName) => ImportSingle(oldName, p, newName)
+                  }
+                case Module(n) => Vector(ImportModule(p, n))
+              }
+          }
+        def importForSideEffects =
+          P("import" ~ path ~ (";" | End)).map(_ => Vector())
+
+        parseImportEquals.map(Vector(_)) | normalImports | importForSideEffects
+      }
 
       parse(importText, stmt(_)) match {
         case Success(value, _) => value
@@ -676,19 +676,25 @@ object ProgramParsing {
 
       def exportNamespace[_: P]: P[Vector[ExportStmt]] =
         P(
-          "export" ~ "as" ~ "namespace" ~/ identifier ~ ";".?
+          "export" ~ "as" ~ "namespace" ~/ identifier
         ).map { name =>
           val s = Symbol(name)
           Vector(ExportSingle(s, s, None))
         }
 
-      def stmt[_: P] =
-        exportNamespace | P(
+//      def exportAssign[_: P] =
+//        P("export" ~ "=" ~/ identifier).map { name =>
+//          Vector(ExportDefault(name, None))
+//        }
+
+      def exportRest[_: P] =
+        P(
           "export" ~/ (exportFromOther | exportDefault | exportDefault2 | exportSingles)
-            ~ ("from" ~/ path).? ~ ";".?
-        ).map {
-          case (creator, p) => creator(p)
-        }
+            ~ ("from" ~/ path).?
+        ).map { case (creator, p) => creator(p) }
+
+      def stmt[_: P]: P[Vector[ExportStmt]] =
+        (exportNamespace | exportRest) ~ ";".?
 
       parse(str, stmt(_)) match {
         case Success(value, _) => value

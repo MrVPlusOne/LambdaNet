@@ -110,6 +110,8 @@ case class TypeAliasStmt(
     exportLevel: ExportLevel.Value
 ) extends GStmt
 
+case class NamespaceAliasStmt(name: Symbol, rhs: Vector[Symbol]) extends GStmt
+
 case class Namespace(
     name: Symbol,
     block: BlockStmt,

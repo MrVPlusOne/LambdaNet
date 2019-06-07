@@ -317,6 +317,12 @@ class ImportStmt implements GStmt {
   }
 }
 
+class NamespaceAliasStmt implements GStmt {
+  category: string = "NamespaceAliasStmt";
+
+  constructor(public name: string, public rhs: string){}
+}
+
 class ExportStmt implements GStmt {
   category: string = "ExportStmt";
 
@@ -906,15 +912,28 @@ export class StmtParser {
             return EP.alongWithMany([new ExprStmt(switchCall, false) as GStmt].concat(clauses));
           }
 
+          case SyntaxKind.ImportEqualsDeclaration: {
+            const n = node as ts.ImportEqualsDeclaration;
+            const rhs = n.moduleReference;
+            if (rhs.kind == SyntaxKind.ExternalModuleReference) {
+              return EP.alongWith(new ImportStmt(node.getText()));
+            } else {
+              return EP.alongWith(new NamespaceAliasStmt(n.name.getText(), rhs.getText()));
+            }
+          }
           case SyntaxKind.ImportDeclaration: {
-            let n = node as ts.ImportDeclaration;
+            const n = node as ts.ImportDeclaration;
             n.importClause; //todo
             return EP.alongWith(new ImportStmt(node.getText()));
           }
           case SyntaxKind.ExportAssignment: {
             const n = node as ts.ExportAssignment;
             const e = EP.processExpr(n.expression);
-            if(e.category == "Var"){
+            if(n.isExportEquals) {
+              return EP.alongWith(new VarDef("$ExportEquals", null, e, true,
+                ["export"]));
+            }
+            else if(e.category == "Var"){
               return EP.alongWith(new ExportStmt(node.getText()));
             }else {
               return EP.alongWith(new VarDef("defaultVar", null, e, true,
@@ -994,7 +1013,6 @@ export class StmtParser {
           case SyntaxKind.ForInStatement:
 
           // ignored statements:
-          case SyntaxKind.ImportEqualsDeclaration: //fixme: may need to handle this
           case SyntaxKind.BreakStatement:
           case SyntaxKind.ContinueStatement:
             return EP.alongWith(new CommentStmt(node.getText()));
