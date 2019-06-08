@@ -5,7 +5,7 @@ import funcdiff.SimpleMath
 import funcdiff.SimpleMath.Extensions._
 import lambdanet.ExportStmt._
 import lambdanet.ImportStmt._
-import lambdanet.surface.{GModule, GStmt, JSExamples}
+import lambdanet.Surface.{GModule, GStmt}
 import lambdanet.translation.ImportsResolution.PathMapping
 import lambdanet.translation.OldIR._
 import lambdanet.translation.OldPredicateGraph._
@@ -16,6 +16,7 @@ import lambdanet.{
   AnyType,
   FuncType,
   GType,
+  JSExamples,
   ObjectType,
   ProjectPath,
   TrainingProjects,

@@ -1,6 +1,6 @@
 package lambdanet
 
-import lambdanet.surface.GStmt
+import lambdanet.Surface.GStmt
 import lambdanet.translation.IR.{BlockStmt, IRStmt}
 import lambdanet.translation.PredicateGraph.{PNode, PType}
 
@@ -14,10 +14,10 @@ package object translation {
     }
   }
 
-  def groupInBlockSurface(stmts: Vector[GStmt]): surface.BlockStmt = {
+  def groupInBlockSurface(stmts: Vector[GStmt]): Surface.BlockStmt = {
     stmts match {
-      case Vector(b: surface.BlockStmt) => b
-      case _                            => surface.BlockStmt(stmts)
+      case Vector(b: Surface.BlockStmt) => b
+      case _                            => Surface.BlockStmt(stmts)
     }
   }
 

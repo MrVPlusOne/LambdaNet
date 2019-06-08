@@ -3,7 +3,7 @@ package lambdanet.utils
 import lambdanet._
 import org.scalatest.WordSpec
 import ammonite.ops._
-import lambdanet.surface._
+import lambdanet.Surface._
 import ImportStmt._
 import funcdiff.SimpleMath
 import lambdanet.translation.ImportsResolution.PathMapping

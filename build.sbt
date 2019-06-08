@@ -24,3 +24,10 @@ libraryDependencies ++= Seq(
   "com.typesafe.scala-logging" %% "scala-logging" % "3.7.2",
   "org.typelevel" %% "cats-core" % "2.0.0-M1"
 )
+
+val circeVersion = "0.10.0"
+libraryDependencies ++= Seq(
+  "io.circe" %% "circe-core",
+  "io.circe" %% "circe-generic",
+  "io.circe" %% "circe-parser"
+).map(_ % circeVersion)

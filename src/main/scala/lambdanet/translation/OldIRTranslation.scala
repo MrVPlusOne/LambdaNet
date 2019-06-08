@@ -2,7 +2,7 @@ package lambdanet.translation
 
 import funcdiff.SimpleMath
 import funcdiff.SimpleMath.Extensions._
-import lambdanet.surface.{GExpr, GModule, GStmt}
+import lambdanet.Surface.{GExpr, GModule, GStmt}
 import lambdanet.translation.OldIR._
 import lambdanet.translation.OldIRTranslation._
 import lambdanet._
@@ -204,7 +204,7 @@ class OldIRTranslation() {
   ): Vector[OldIR.IRStmt] = ???
 
   def translateFunc(
-      func: surface.FuncDef
+      func: Surface.FuncDef
   )(
       quantifiedTypes: Set[Symbol]
   ): OldIR.FuncDef = ???

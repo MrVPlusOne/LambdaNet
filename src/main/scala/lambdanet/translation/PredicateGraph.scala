@@ -8,8 +8,32 @@ import scala.collection.mutable
 
 case class PredicateGraph(
     nodes: Set[PNode],
-    predicates: Set[TyPredicate]
-)
+    predicates: Set[TyPredicate],
+    libraryTypes: Map[PNode, PObject]
+) {
+  import cats.implicits._
+  import cats.Monoid
+  type ObjType = PNode
+
+  /** which label is accessed on which variable as what */
+  val fieldUsages: Map[Symbol, Set[(ObjType, PNode)]] =
+    Monoid.combineAll(predicates.collect {
+      case DefineRel(v, PAccess(objType, l)) =>
+        Map(l -> Set(objType -> v))
+    })
+
+  /** which label is defined in which class as what */
+  val fieldDefs: Map[Symbol, Set[(PNode, ObjType)]] =
+    Monoid.combineAll(
+      (predicates ++
+        libraryTypes.map((DefineRel.apply _).tupled)).collect {
+        case DefineRel(v, PObject(fields)) =>
+          fields.flatMap {
+            case (l, t) => Map(l -> Set(v -> t))
+          }
+      }
+    )
+}
 
 object PredicateGraph {
 
@@ -191,7 +215,7 @@ object PredicateGraphTranslation {
 
     val nodes = modules.flatMap(m => m.mapping.keySet).toSet
     modules.foreach(_.stmts.foreach(encodeStmt))
-    PredicateGraph(nodes, predicates.toSet)
+    PredicateGraph(nodes, predicates.toSet, ???)
   }
 
 }

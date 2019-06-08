@@ -32,25 +32,8 @@ class NeuralEmbedding(
       graph: PredicateGraph,
       iterations: Int
   ): Vector[VarEmbedding] = {
-    import cats.implicits._
-
-    type ObjType = PNode
 
     //todo: encode this as predicates
-    /** which label is defined in which class as what */
-    var fieldDefs = Map[Symbol, Set[(ObjType, PNode)]]()
-
-    /** which label is accessed on which variable as what */
-    var fieldUsages = Map[Symbol, Set[(ObjType, PNode)]]()
-    graph.predicates.collect {
-      case DefineRel(v, PObject(fields)) =>
-        fields.foreach {
-          case (l, t) =>
-            fieldDefs |+|= Map(l -> Set(v -> t))
-        }
-      case DefineRel(v, PAccess(objType, l)) =>
-        fieldUsages |+|= Map(l -> Set(objType -> v))
-    }
 
     val labelMap: Symbol => CompNode = ???
 
@@ -162,6 +145,7 @@ class NeuralEmbedding(
                     embed(v),
                     label
                   )
+                  import graph.fieldUsages
                   if (fieldUsages.contains(label)) {
                     messages(tv) += {
                       val att =
@@ -178,7 +162,29 @@ class NeuralEmbedding(
                     }
                   }
               }
-            case PAccess(obj, label) => ???
+            case PAccess(objType, label) =>
+              messages(v) += fieldAccessMessage(
+                'FieldAccess / 'toV,
+                embed(objType),
+                label
+              )
+              messages(objType) += fieldAccessMessage(
+                'FieldAccess / 'toObj,
+                embed(v),
+                label
+              )
+              import graph.fieldDefs
+              if (fieldDefs.contains(label)) {
+                messages(v) += {
+                  val att =
+                    attentionLayer('FieldAccess / 'defs, transformKey = true)(
+                      embed(objType),
+                      fieldDefs(label).toVector
+                        .map { case (k, n) => embed(k) -> embed(n) }
+                    )
+                  messageModel('FieldAccess / 'defsMessage, att)
+                }
+              }
           }
       }
 

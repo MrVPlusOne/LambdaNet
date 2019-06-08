@@ -76,6 +76,7 @@ ignoredTypes.add(SyntaxKind.IndexedAccessType);
 ignoredTypes.add(SyntaxKind.UndefinedKeyword);
 ignoredTypes.add(SyntaxKind.NeverKeyword);
 ignoredTypes.add(SyntaxKind.TypeOperator);
+ignoredTypes.add(SyntaxKind.NullKeyword);
 
 function parseTVars(n: { typeParameters?: ts.NodeArray<ts.TypeParameterDeclaration> }): string[] {
   return n.typeParameters ? n.typeParameters.map(p => p.name.text) : [];

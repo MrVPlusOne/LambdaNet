@@ -19,7 +19,7 @@ import lambdanet.translation.ImportsResolution.{
 }
 import lambdanet.translation.PLang.PModule
 import funcdiff.SimpleMath.Extensions._
-import lambdanet.surface.{GModule, JSExamples}
+import lambdanet.Surface.GModule
 import lambdanet.utils.ProgramParsing
 
 import scala.collection.mutable
@@ -98,10 +98,10 @@ object QLangTranslation {
       ProgramParsing.parseGModulesFromFiles(Seq(file), root)
     val additionalDefs = JSExamples.specialVars.map {
       case (v, t) =>
-        surface.VarDef(
+        Surface.VarDef(
           v,
           Annot.User(t),
-          surface.Var(undefinedSymbol),
+          Surface.Var(undefinedSymbol),
           isConst = true,
           ExportLevel.Unspecified
         )
@@ -150,7 +150,7 @@ object QLangTranslation {
     SimpleMath.withErrorMessage(s"In PModule ${module.path}") {
 
       def translateExpr(
-          expr: surface.GExpr
+          expr: Surface.GExpr
       )(implicit ctx: ModuleExports): QExpr = {
 
         def asTerm(value: Either[ModuleExports, QExpr]): QExpr = value match {
@@ -160,16 +160,16 @@ object QLangTranslation {
           case Right(e) => e
         }
 
-        def rec(expr: surface.GExpr): Either[ModuleExports, QExpr] =
+        def rec(expr: Surface.GExpr): Either[ModuleExports, QExpr] =
           SimpleMath.withErrorMessage(s"In expr: $expr") {
             expr match {
-              case surface.Var(s) =>
+              case Surface.Var(s) =>
                 val nd = ctx.internalSymbols(s)
                 nd.namespace match {
                   case Some(ex) => Left(ex)
                   case None     => Right(Var(nd.term.get))
                 }
-              case surface.Access(e, l) =>
+              case Surface.Access(e, l) =>
                 rec(e) match {
                   case Left(ex) =>
                     val nd = ex.internalSymbols(l)
@@ -180,20 +180,20 @@ object QLangTranslation {
                   case Right(e1) =>
                     Right(Access(e1, l))
                 }
-              case c: surface.Const =>
+              case c: Surface.Const =>
                 Right(constToVar(c, ctx))
-              case surface.FuncCall(f, args) =>
+              case Surface.FuncCall(f, args) =>
                 Right(
                   FuncCall(
                     asTerm(rec(f)),
                     args.map(a => asTerm(rec(a))).toVector
                   )
                 )
-              case surface.Cast(e, ty) =>
+              case Surface.Cast(e, ty) =>
                 Right(Cast(asTerm(rec(e)), resolveType(ty)))
-              case surface.ObjLiteral(fields) =>
+              case Surface.ObjLiteral(fields) =>
                 Right(ObjLiteral(fields.mapValuesNow(p => asTerm(rec(p)))))
-              case surface.IfExpr(cond, e1, e2) =>
+              case Surface.IfExpr(cond, e1, e2) =>
                 Right(
                   IfExpr(
                     asTerm(rec(cond)),
@@ -343,7 +343,7 @@ object QLangTranslation {
       QModule(module.path, stmts1, newMapping.toMap)
     }
 
-  private def constToVar(c: surface.Const, ctx: ModuleExports): Var =
+  private def constToVar(c: Surface.Const, ctx: ModuleExports): Var =
     SimpleMath.withErrorMessage(s"In constToVar: $c") {
       Var(c.ty match {
         case AnyType => ctx.internalSymbols(undefinedSymbol).term.get

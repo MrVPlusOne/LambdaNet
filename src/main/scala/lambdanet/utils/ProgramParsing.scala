@@ -4,7 +4,7 @@ import ammonite.ops._
 import funcdiff.SimpleMath
 import lambdanet._
 import lambdanet.utils.Js._
-import lambdanet.surface._
+import lambdanet.Surface._
 import lambdanet.translation.OldIRTranslation
 import SimpleMath.Extensions._
 import lambdanet.translation.groupInBlockSurface
@@ -64,20 +64,15 @@ object ProgramParsing {
 
   def parseGModulesFromRoot(
       root: Path,
-      allowDeclarationFiles: Boolean = false,
+      declarationFileMod: Boolean = false,
       filter: Path => Boolean = _ => true
   ) = {
     val sources = ls
       .rec(root)
       .filter(filter)
       .filter { f =>
-        if (!allowDeclarationFiles && f.last.endsWith(".d.ts")) {
-          throw new Error(
-            s".d.ts file encountered: $f, you are probably " +
-              s"parsing the wrong files."
-          )
-        }
-        f.ext == "ts"
+        if (declarationFileMod) f.last.endsWith(".d.ts")
+        else f.last.endsWith(".ts")
       }
       .map(_.relativeTo(root))
     val parser = ProgramParsing

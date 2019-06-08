@@ -1,8 +1,9 @@
-package lambdanet.surface
+package lambdanet
 
-import lambdanet._
-import GType.API._
+import lambdanet.GType.API._
+import lambdanet.Surface.{ExprContext, GExpr, Var}
 
+//noinspection TypeAnnotation
 object JSExamples {
 
   val number = 'number

@@ -21,7 +21,7 @@ object PrepareRepos {
   val libExports = {
 //    val files = ls(declarationsDir).filter(_.last.endsWith(".d.ts"))
     val pModules = ProgramParsing
-      .parseGModulesFromRoot(declarationsDir, allowDeclarationFiles = true)
+      .parseGModulesFromRoot(declarationsDir, declarationFileMod = true)
       .map(m => PLangTranslation.fromGModule(m, libAllocator))
       .map(m => m.path -> m)
       .toMap

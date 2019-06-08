@@ -13,16 +13,16 @@ import lambdanet.{
   ProjectPath,
   TyAnnot,
   TyVar,
-  surface
+  Surface
 }
-import lambdanet.surface.{GExpr, GModule}
+import lambdanet.Surface.{GExpr, GModule}
 import funcdiff.SimpleMath.Extensions._
 import lambdanet.translation.PLang._
 import lambdanet.translation.PredicateGraph.{PNode, PNodeAllocator}
 
 import scala.collection.mutable
 
-/** [[surface.GStmt]] marked with [[PNode]]s  */
+/** [[Surface.GStmt]] marked with [[PNode]]s  */
 object PLang {
 
   type NodeMapping = PNode => Option[GType]
@@ -127,14 +127,14 @@ object PLangTranslation {
     }
 
     def translateStmt(
-        stmt: surface.GStmt
+        stmt: Surface.GStmt
     )(implicit outerTyVars: Set[Symbol]): PStmt =
       SimpleMath.withErrorMessage(s"failed to translate stmt: $stmt") {
         stmt match {
-          case surface.VarDef(name, annot, init, isConst, exportLevel) =>
+          case Surface.VarDef(name, annot, init, isConst, exportLevel) =>
             val node = allocate(Some(name), annot, isTerm = true)
             VarDef(name, node, init, isConst, exportLevel)
-          case surface.FuncDef(
+          case Surface.FuncDef(
               name,
               tyVars,
               args,
@@ -158,7 +158,7 @@ object PLangTranslation {
               translateStmt(body)(newTyVars),
               exportLevel
             )
-          case surface.ClassDef(
+          case Surface.ClassDef(
               name,
               tyVars,
               superType,
@@ -189,31 +189,31 @@ object PLangTranslation {
               ),
               exportLevel
             )
-          case surface.TypeAliasStmt(name, tyVars, ty, exportLevel) =>
+          case Surface.TypeAliasStmt(name, tyVars, ty, exportLevel) =>
             val newTyVars: Set[Symbol] = outerTyVars ++ tyVars
             val newTy = monotype(ty)(newTyVars)
             val node = allocate(Some(name), Annot.Fixed(newTy), isTerm = false)
             TypeAliasStmt(name, node, exportLevel)
           // uninteresting cases
-          case surface.IfStmt(cond, branch1, branch2) =>
+          case Surface.IfStmt(cond, branch1, branch2) =>
             IfStmt(cond, translateStmt(branch1), translateStmt(branch2))
-          case surface.WhileStmt(cond, body) =>
+          case Surface.WhileStmt(cond, body) =>
             WhileStmt(cond, translateStmt(body))
-          case surface.CommentStmt(text) =>
+          case Surface.CommentStmt(text) =>
             CommentStmt(text)
-          case surface.BlockStmt(stmts) =>
+          case Surface.BlockStmt(stmts) =>
             BlockStmt(stmts.map(translateStmt))
-          case surface.Namespace(name, block, level) =>
+          case Surface.Namespace(name, block, level) =>
             Namespace(name, translateStmt(block).asInstanceOf[BlockStmt], level)
-          case surface.AssignStmt(lhs, rhs) =>
+          case Surface.AssignStmt(lhs, rhs) =>
             AssignStmt(lhs, rhs)
-          case surface.ExprStmt(e, isReturn) =>
+          case Surface.ExprStmt(e, isReturn) =>
             ExprStmt(e, isReturn)
-          case surface.GImport(content) =>
+          case Surface.GImport(content) =>
             PImport(content)
-          case surface.GExport(content) =>
+          case Surface.GExport(content) =>
             PExport(content)
-          case surface.NamespaceAliasStmt(name, rhs) =>
+          case Surface.NamespaceAliasStmt(name, rhs) =>
             NamespaceAliasStmt(name, rhs)
         }
       }

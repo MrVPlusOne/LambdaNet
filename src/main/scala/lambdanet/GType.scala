@@ -2,7 +2,7 @@ package lambdanet
 
 import cats.kernel.Monoid
 import lambdanet.GType._
-import lambdanet.surface.GExpr
+import lambdanet.Surface.GExpr
 import org.scalacheck.Gen
 
 import scala.language.implicitConversions
