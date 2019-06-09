@@ -10,6 +10,10 @@ import lambdanet.ExportStmt._
 import lambdanet.ImportStmt._
 
 object ImportsResolution {
+  import cats.Monoid
+  import cats.instances.all._
+  import cats.syntax.foldable._
+  import cats.syntax.monoid._
 
   trait PathMapping {
     def map(currentPath: ProjectPath, pathToResolve: ProjectPath): ProjectPath
@@ -39,8 +43,6 @@ object ImportsResolution {
   }
 
   object NameDef {
-    import cats.Monoid
-    import cats.implicits._
 
     val empty: NameDef = NameDef(None, None, None)
 
@@ -113,8 +115,6 @@ object ImportsResolution {
     def collectTopLevelDefs(
         stmts: Vector[PStmt]
     ): ModuleExports = {
-      import cats.implicits._
-
       var defaults = NameDef.empty
       var publics = Map[Symbol, NameDef]()
       var all = Map[Symbol, NameDef]()
@@ -164,8 +164,6 @@ object ImportsResolution {
     def propagateExports(
         exports: Map[ProjectPath, ModuleExports]
     ): (Map[ProjectPath, ModuleExports], Set[Symbol]) = {
-      import cats.implicits._
-      import cats.Monoid
       import ModuleExports._
 
       var unresolved = Set[Symbol]()

@@ -11,7 +11,7 @@ case class PredicateGraph(
     predicates: Set[TyPredicate],
     libraryTypes: Map[PNode, PObject]
 ) {
-  import cats.implicits._
+  import cats.instances.all._
   import cats.Monoid
   type ObjType = PNode
 

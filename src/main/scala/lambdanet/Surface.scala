@@ -347,6 +347,8 @@ object Surface {
         case Namespace(name, block, level) =>
           (indent -> s"${asPrefix(level)}namespace ${name.name}") +:
             prettyPrintHelper(indent, block)
+        case NamespaceAliasStmt(name, rhs) =>
+          Vector(indent -> s"namespace ${name.name} = ${rhs.mkString(".")}")
         case GImport(content) =>
           Vector(indent -> content.toString)
         case GExport(content) =>

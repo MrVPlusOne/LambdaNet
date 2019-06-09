@@ -68,7 +68,10 @@ sealed trait GType extends GTMark {
 
   /** Take the intersection of two types syntactically.
     * (i.e., does not check the environment and type aliases) */
-  def intersectS(that: GType): GType =
+  def intersectS(that: GType): GType = {
+    import cats.syntax.monoid._
+    import cats.instances.map._
+
     (this, that) match {
       case (AnyType, x) => x
       case (x, AnyType) => x
@@ -83,11 +86,11 @@ sealed trait GType extends GTMark {
           to1.intersectS(to2)
         )
       case (ObjectType(fields1), ObjectType(fields2)) =>
-        import cats.implicits._
         implicit val m: Monoid[GType] = GType.intersectMonoid
         ObjectType(fields1 |+| fields2)
       case _ => AnyType
     }
+  }
 
   def unionS(that: GType): GType = intersectS(that)
 }

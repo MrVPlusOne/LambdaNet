@@ -66,6 +66,7 @@ basicTypes.add(SyntaxKind.SymbolKeyword);
 basicTypes.add(SyntaxKind.EnumKeyword);
 basicTypes.add(SyntaxKind.VoidKeyword);
 basicTypes.add(SyntaxKind.ObjectKeyword);
+basicTypes.add(SyntaxKind.BigIntKeyword);
 
 let ignoredTypes = new Set<SyntaxKind>();
 ignoredTypes.add(SyntaxKind.MappedType);
@@ -397,14 +398,6 @@ class ClassDef implements GStmt {
               public superType: string | null, public modifiers: string[],
               public tyVars: string[]) {
   }
-}
-
-function tryFullyQualifiedName(node: ts.Node): string {
-  // let symbol = checker.getSymbolAtLocation(node);
-  // let name: string = symbol ? checker.getFullyQualifiedName(symbol) : (<any>node)["text"]; fixme: not working
-  let name = (<any>node).text;
-  mustExist(name);
-  return name;
 }
 
 type SupportedExpression =
@@ -820,7 +813,7 @@ export class StmtParser {
           case SyntaxKind.SetAccessor:
           case SyntaxKind.Constructor: {
             let name = (node.kind == SyntaxKind.Constructor) ? "Constructor" :
-              tryFullyQualifiedName((node as any).name);
+              ((node as any).name.getText());
             let n = <ts.FunctionLikeDeclaration>node;
             const modifiers = parseModifiers(n.modifiers);
             if (node.kind == SyntaxKind.SetAccessor) {
@@ -834,7 +827,7 @@ export class StmtParser {
           case SyntaxKind.ClassDeclaration: {
             let n = node as ts.ClassDeclaration;
 
-            let name = tryFullyQualifiedName(mustExist(n.name));
+            const name = n.name ? n.name.text : "DefaultClass";
 
             let superType: string | null = null;
             if (n.heritageClauses != undefined) {

@@ -260,7 +260,7 @@ object TrainingCenter {
 
     val libraryTypes = {
       import cats.Monoid
-      import cats.implicits._
+      import cats.instances.all._
 
       val totalFreq = Monoid[Map[GType, Int]].combineAll(
         trainingProjects.map(_.libUsages.libTypeFreq)
