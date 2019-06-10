@@ -5,15 +5,9 @@ import lambdanet.Surface.GModule
 import lambdanet.translation.ImportsResolution.PathMapping
 import lambdanet.translation.OldPredicateGraphConstruction._
 import lambdanet.utils.ProgramParsing
-import lambdanet.utils.ProgramParsing.DeclarationModule
+import lambdanet.utils.ProgramParsing.{DeclarationModule, GProject}
 
 object TrainingProjects {
-
-  case class Project(
-      root: Path,
-      modules: Vector[GModule],
-      pathMapping: PathMapping
-  )
 
   lazy val standardLibs: Vector[DeclarationModule] = parseStandardLibs()
 
@@ -41,8 +35,8 @@ object TrainingProjects {
     "data/train/algorithms-train"
   ).map(p => pwd / RelPath(p))
 
-  val allProjects: Vector[Project] = {
-    val defaultMapping = PathMapping.identity
+  val allProjects: Vector[GProject] = {
+    val defaultMapping = PathMapping.empty
     val roots = Map[String, PathMapping](
       "data/train/algorithms-test" -> defaultMapping,
       "data/train/TypeScript-Algorithms-and-Data-Structures-master/ts" -> defaultMapping,
@@ -65,7 +59,7 @@ object TrainingProjects {
           } else if (pathToResolve == RelPath("mojiito-core")) {
             RelPath("core/src/core")
           } else {
-            target
+            throw new Error()
           }
         }
       },
@@ -75,7 +69,7 @@ object TrainingProjects {
     roots.map {
       case (s, pm) =>
         val path = pwd / RelPath(s)
-        Project(path, ProgramParsing.parseGModulesFromRoot(path), pm)
+        ProgramParsing.parseGProjectFromRoot(path).copy(pathMapping = pm)
     }.toVector
   }
 
@@ -99,7 +93,7 @@ object TrainingProjects {
             } else if (pathToResolve == RelPath("mojiito-core")) {
               RelPath("core/src/core")
             } else {
-              target
+              throw new Error()
             }
           }
         }

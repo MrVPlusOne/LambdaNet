@@ -19,6 +19,7 @@ import lambdanet.{
   JSExamples,
   ObjectType,
   ProjectPath,
+  ReferencePath,
   TrainingProjects,
   TyVar
 }
@@ -175,7 +176,7 @@ object OldPredicateGraphConstruction {
   def fromRootDirectory(
       root: Path,
       libModules: Seq[DeclarationModule] = TrainingProjects.standardLibs,
-      pathMapping: PathMapping = PathMapping.identity
+      pathMapping: PathMapping = PathMapping.empty
   ): ParsedProject = {
 
     val sources = ls
@@ -211,11 +212,12 @@ object OldPredicateGraphConstruction {
     var packageNames = Set[Symbol]()
     val currentDir = module.path / ammonite.ops.up
 
-    def getExports(path: ProjectPath): ModuleExports = {
+    def getExports(ref: ReferencePath): ModuleExports = {
       allModules
         .getOrElse(
-          pathMapping.map(currentDir, path),
-          throw new Error(s"Cannot find source file: '${currentDir / path}'.")
+          if (ref.isRelative) currentDir / ref.path
+          else pathMapping.map(currentDir, ref.path),
+          throw new Error(s"Cannot find source file: $ref in '$currentDir'.")
         )
         .exports
     }
@@ -303,12 +305,13 @@ private class OldPredicateGraphConstruction(libraryContext: LibraryContext) {
     ): Map[ProjectPath, IRModule] = {
       def getExports(
           currentDir: ProjectPath,
-          path: ProjectPath
+          ref: ReferencePath
       ): ModuleExports = {
         allModules
           .getOrElse(
-            pathMapping.map(currentDir, path),
-            throw new Error(s"Cannot find source file: '${currentDir / path}'.")
+            if (ref.isRelative) currentDir / ref.path
+            else pathMapping.map(currentDir, ref.path),
+            throw new Error(s"Cannot find source file: $ref in '$currentDir'.")
           )
           .exports
       }
@@ -348,7 +351,7 @@ private class OldPredicateGraphConstruction(libraryContext: LibraryContext) {
               case ExportSingle(oldName, newName, source) =>
                 val ex = source match {
                   case Some(from) =>
-                    allModules(pathMapping.map(dir, from)).exports
+                    getExports(dir, from)
                   case None => md.exports
                 }
 
@@ -372,12 +375,12 @@ private class OldPredicateGraphConstruction(libraryContext: LibraryContext) {
                 export(ex.typeAliases, ExportCategory.TypeAlias)
                 export(ex.classes, ExportCategory.Class)
               case ExportOtherModule(from) =>
-                val ex = allModules(pathMapping.map(dir, from)).exports
+                val ex = getExports(dir, from)
                 newDefs = newDefs ++ ex.definitions
               case ExportDefault(newName, from) =>
                 from match {
                   case Some(path) =>
-                    val ex = allModules(pathMapping.map(dir, path)).exports
+                    val ex = getExports(dir, path)
                     ex.defaultType.foreach {
                       case (name, t) =>
                         newDefaultType = Some(newName.getOrElse(name) -> t)

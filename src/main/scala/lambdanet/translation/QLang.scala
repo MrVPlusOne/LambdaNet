@@ -114,7 +114,7 @@ object QLangTranslation {
       .resolveExports(
         Map(pModule.path -> pModule),
         Map(),
-        PathMapping.identity
+        PathMapping.empty
       )
       .values
       .head

@@ -2,7 +2,7 @@ package lambdanet.translation
 
 import ammonite.ops
 import funcdiff.SimpleMath
-import lambdanet.{ExportLevel, ImportStmt, ProjectPath}
+import lambdanet.{ExportLevel, ImportStmt, ProjectPath, ReferencePath}
 import lambdanet.translation.PLang._
 import lambdanet.translation.PredicateGraph.PNode
 import funcdiff.SimpleMath.Extensions._
@@ -20,10 +20,9 @@ object ImportsResolution {
   }
 
   object PathMapping {
-    def identity: PathMapping =
-      (currentPath: ProjectPath, pathToResolve: ProjectPath) => {
-        currentPath / pathToResolve
-      }
+    def empty: PathMapping =
+      (d: ProjectPath, p: ProjectPath) =>
+        throw new Error(s"Could not resolve path $p in directory $d")
   }
 
   /** Type and term definitions that are associated with a symbol */
@@ -55,6 +54,7 @@ object ImportsResolution {
     def namespaceDef(namespace: ModuleExports) =
       NameDef(None, None, Some(namespace))
 
+    import lambdanet.combineOption
     implicit val NameDefMonoid: Monoid[NameDef] = new Monoid[NameDef] {
       def empty: NameDef = NameDef.empty
 
@@ -64,13 +64,6 @@ object ImportsResolution {
           combineOption(x.ty, y.ty),
           x.namespace |+| y.namespace
         )
-    }
-
-    private def combineOption[T](x: Option[T], y: Option[T]) = {
-      y match {
-        case Some(v) => Some(v)
-        case None    => x
-      }
     }
   }
 
@@ -169,7 +162,7 @@ object ImportsResolution {
       var unresolved = Set[Symbol]()
       exports.map {
         case (thisPath, thisExports) =>
-          def resolvePath(relPath: ProjectPath): ModuleExports = {
+          def resolvePath(relPath: ReferencePath): ModuleExports = {
             findExports(exports, pathMapping, resolvedModules)(
               thisPath,
               relPath
@@ -290,8 +283,10 @@ object ImportsResolution {
       exports: Map[ProjectPath, ModuleExports],
       pathMapping: PathMapping,
       resolvedModules: Map[ProjectPath, ModuleExports]
-  )(currentPath: ProjectPath, pathToResolve: ProjectPath): ModuleExports = {
-    val path = pathMapping.map(currentPath / ops.up, pathToResolve)
+  )(currentPath: ProjectPath, ref: ReferencePath): ModuleExports = {
+    val path =
+      if(ref.isRelative) currentPath /ops.up / ref.path
+      else pathMapping.map(currentPath / ops.up, ref.path)
     resolvedModules.getOrElse(
       path,
       exports.getOrElse(

@@ -45,16 +45,11 @@ class ParserTests extends WordSpec with MyTest {
     val modules = ProgramParsing.parseGModulesFromFiles(
       files,
       projectRoot,
-      Some(projectRoot / "parsed.json")
     )
     modules.foreach { module =>
       println(s"=== module: '${module.moduleName}' ===")
       module.stmts.foreach(println)
     }
-
-    val modules2 = ProgramParsing
-      .parseGModulesFromJson(read(projectRoot / "parsed.json"))
-    assert(modules == modules2, "Two parses do not match.")
   }
 
   "Simple cases parsing test" in {
@@ -169,20 +164,22 @@ class ParserTests extends WordSpec with MyTest {
       )
     }
 
+    def relPath(str: String) = ReferencePath(RelPath(str), isRelative = true)
+
     test(
       """import A1 from "./ZipCodeValidator";""",
-      Vector(ImportDefault(RelPath("./ZipCodeValidator"), 'A1))
+      Vector(ImportDefault(relPath("./ZipCodeValidator"), 'A1))
     )
     test(
       """import * as pkg from "./ZipCodeValidator";""",
-      Vector(ImportModule(RelPath("./ZipCodeValidator"), 'pkg))
+      Vector(ImportModule(relPath("./ZipCodeValidator"), 'pkg))
     )
     test(
       """import {A,
         |B as B1} from "./ZipCodeValidator";""".stripMargin,
       Vector(
-        ImportSingle('A, RelPath("./ZipCodeValidator"), 'A),
-        ImportSingle('B, RelPath("./ZipCodeValidator"), 'B1)
+        ImportSingle('A, relPath("./ZipCodeValidator"), 'A),
+        ImportSingle('B, relPath("./ZipCodeValidator"), 'B1)
       )
     )
     test(
@@ -191,13 +188,13 @@ class ParserTests extends WordSpec with MyTest {
         |  B,
         |} from "./ZipCodeValidator";""".stripMargin,
       Vector(
-        ImportSingle('A, RelPath("./ZipCodeValidator"), 'A),
-        ImportSingle('B, RelPath("./ZipCodeValidator"), 'B)
+        ImportSingle('A, relPath("./ZipCodeValidator"), 'A),
+        ImportSingle('B, relPath("./ZipCodeValidator"), 'B)
       )
     )
     test(
       """import {foo as fool} from "./file1";""",
-      Vector(ImportSingle('foo, RelPath("./file1"), 'fool))
+      Vector(ImportSingle('foo, relPath("./file1"), 'fool))
     )
     test("""import "./my-module.js";""", Vector())
 

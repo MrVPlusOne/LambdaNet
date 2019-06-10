@@ -7,6 +7,7 @@ import lambdanet.utils.Js._
 import lambdanet.Surface._
 import lambdanet.translation.OldIRTranslation
 import SimpleMath.Extensions._
+import lambdanet.translation.ImportsResolution.PathMapping
 import lambdanet.translation.groupInBlockSurface
 
 import scala.collection.mutable
@@ -21,6 +22,7 @@ object ProgramParsing {
       namespaces: Map[Symbol, DeclarationModule]
   )
 
+  @deprecated
   def extractDeclarationModule(stmts: Vector[GStmt]): DeclarationModule = {
     val varDefs: mutable.Map[Symbol, GType] = mutable.HashMap()
     val typeDefs: mutable.Map[Symbol, GType] = mutable.HashMap()
@@ -62,11 +64,81 @@ object ProgramParsing {
     DeclarationModule(varDefs.toMap, typeDefs.toMap, namespaces.toMap)
   }
 
-  def parseGModulesFromRoot(
+  case class PackageFile(
+      moduleName: Option[ProjectPath]
+  )
+  def parsePackageFile(path: Path): PackageFile = {
+    val map = asObj(parseJsonFromFile(path))
+    PackageFile(
+      moduleName = map.get("name").map(s => RelPath(asString(s)))
+    )
+  }
+
+  case class TsConfigFile(
+      baseUrl: Option[RelPath]
+  )
+
+  def parseTsConfigFile(path: Path): TsConfigFile = {
+    val map = asObj(parseJsonFromFile(path))
+    TsConfigFile(
+      map.get("baseUrl").map(s => RelPath(asString(s)))
+    )
+  }
+
+  case class GProject(
+      root: Path,
+      modules: Vector[GModule],
+      pathMapping: PathMapping
+  )
+
+  def parseGProjectFromRoot(
       root: Path,
       declarationFileMod: Boolean = false,
       filter: Path => Boolean = _ => true
-  ) = {
+  ): GProject = {
+    val subProjects =
+      (for {
+        f <- ls.rec(root) if f.last == "package.json"
+        name <- parsePackageFile(f).moduleName
+      } yield {
+        name -> (f / up / "src" / "index").relativeTo(root)
+      }).toMap
+
+    type Dir = ProjectPath
+    val baseDirs = {
+      def rec(
+          path: Path,
+          baseUrl: Option[ProjectPath]
+      ): Map[Dir, Option[ProjectPath]] = {
+        require(path.isDir)
+        val paths = ls(path)
+        val newBase = lambdanet.combineOption(
+          baseUrl,
+          paths
+            .find(_.last == "tsconfig.json")
+            .flatMap(
+              f =>
+                parseTsConfigFile(f).baseUrl
+                  .map(f.relativeTo(root) / up / _)
+            )
+        )
+
+        Map(path.relativeTo(root) -> newBase) ++ paths.filter(_.isDir).flatMap(rec(_, newBase))
+      }
+      rec(root, None)
+    }
+
+    val mapping = new PathMapping {
+      def map(currentPath: ProjectPath, path: ProjectPath): ProjectPath = {
+        subProjects.get(path).foreach { s =>
+          return s
+        }
+        val base = baseDirs(currentPath / up)
+          .getOrElse(currentPath / up)
+        base / path
+      }
+    }
+
     val sources = ls
       .rec(root)
       .filter(filter)
@@ -75,10 +147,10 @@ object ProgramParsing {
         else f.last.endsWith(".ts")
       }
       .map(_.relativeTo(root))
-    val parser = ProgramParsing
-    parser.parseGModulesFromFiles(
-      sources,
-      root
+    GProject(
+      root,
+      ProgramParsing.parseGModulesFromFiles(sources, root),
+      mapping
     )
   }
 
@@ -100,10 +172,11 @@ object ProgramParsing {
     }
   }
 
-  def parseJsonFromFile(jsonFile: Path): Js.Val = {
-    val text = read(jsonFile)
-    fastparse.parse(text, JsonParsing.jsonExpr(_)).get.value
-  }
+  def parseJsonFromFile(jsonFile: Path): Js.Val =
+    SimpleMath.withErrorMessage(s"Failed to parse json from file: $jsonFile") {
+      val text = read(jsonFile)
+      fastparse.parse(text, JsonParsing.jsonExpr(_)).get.value
+    }
 
   /**
     * only srcFiles get parsed into [[GModule]]s, libraryFiles are simply provided to
@@ -112,8 +185,7 @@ object ProgramParsing {
     */
   def parseGModulesFromFiles(
       srcFiles: Seq[RelPath],
-      projectRoot: Path,
-      writeToFile: Option[Path] = None
+      projectRoot: Path
   ): Vector[GModule] = {
     val r = %%(
       'node,
@@ -124,7 +196,6 @@ object ProgramParsing {
       srcFiles.toList.map(_.toString())
     )(projectRoot)
     val parsedJson = r.out.string
-    writeToFile.foreach(p => write.over(p, parsedJson))
     parseGModulesFromJson(parsedJson)
   }
 
@@ -543,9 +614,13 @@ object ProgramParsing {
 
     def identifier[_: P]: P[String] = CharsWhileIn("a-zA-Z0-9$_").!
 
-    def path[_: P]: P[ProjectPath] =
+    def path[_: P]: P[ReferencePath] =
       P(JsonParsing.string | JsonParsing.singleQuoteString)
-        .map(s => RelPath(s.value))
+        .map { s =>
+          val str = s.value
+          val isRelative = str.startsWith(".")
+          ReferencePath(RelPath(str), isRelative)
+        }
 
     def parseImports(importText: String): Vector[ImportStmt] = {
 
@@ -579,7 +654,7 @@ object ProgramParsing {
         P(
           "import" ~ identifier ~ "=" ~/ "require(" ~/ path ~ ")" ~ (";" | End)
         ).map {
-          case (name, path: ProjectPath) =>
+          case (name, path: ReferencePath) =>
             ImportSingle(Symbol("$ExportEquals"), path, Symbol(name))
         }
       }
@@ -637,7 +712,7 @@ object ProgramParsing {
     def parseExports(str: String): Vector[ExportStmt] = {
       import ImportPattern.{identifier, path}
 
-      type Creator = Option[ProjectPath] => Vector[ExportStmt]
+      type Creator = Option[ReferencePath] => Vector[ExportStmt]
 
       def exportDefault[_: P]: P[Creator] =
         P("{" ~ "default" ~/ ("as" ~/ identifier).? ~ "}").map {

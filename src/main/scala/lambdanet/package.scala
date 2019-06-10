@@ -1,3 +1,4 @@
+import ammonite.ops.RelPath
 import lambdanet.GType
 
 import scala.collection.mutable
@@ -5,7 +6,14 @@ import scala.collection.mutable
 package object lambdanet {
 
   /** the path related to the project root */
-  type ProjectPath = ammonite.ops.RelPath
+  type ProjectPath = RelPath
+  case class ReferencePath(path: RelPath, isRelative: Boolean){
+    override def toString: String = {
+      val prefix = if(isRelative) "relative" else "alias"
+      s"$prefix'$path'"
+    }
+  }
+
 
   val returnSymbol = 'return
   val thisSymbol = 'this
@@ -89,4 +97,11 @@ package object lambdanet {
   }
 
   type TyAnnot = Annot[GType]
+
+  def combineOption[T](x: Option[T], y: Option[T]): Option[T] = {
+    y match {
+      case Some(v) => Some(v)
+      case None    => x
+    }
+  }
 }

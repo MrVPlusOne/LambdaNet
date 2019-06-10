@@ -63,8 +63,8 @@ object JsonParsing {
 
   def pair[_: P]: P[(String, Js.Val)] = P(string.map(_.value) ~/ ":" ~/ jsonExpr)
 
-  def obj[_: P]: P[Js.Obj] =
-    P("{" ~/ pair.rep(sep = ","./) ~ space ~ "}").map(ps => Js.Obj(ps.toMap))
+  def obj[_: P]: P[Js.Obj] = // supports trailing comma
+    P("{" ~/ pair.rep(sep = ",") ~ space ~ ",".? ~ space ~ "}").map(ps => Js.Obj(ps.toMap))
 
   def jsonExpr[_: P]: P[Js.Val] = P(
     space ~ (obj | array | string | `true` | `false` | `null` | number) ~ space
