@@ -80,9 +80,11 @@ object ProgramParsing {
 
   def parseTsConfigFile(path: Path): TsConfigFile = {
     val map = asObj(parseJsonFromFile(path))
-    TsConfigFile(
-      map.get("baseUrl").map(s => RelPath(asString(s)))
-    )
+    val baseOpt = for{
+      opt <- map.get("compilerOptions")
+      url <- asObj(opt).get("baseUrl")
+    } yield RelPath(asString(url))
+    TsConfigFile(baseOpt)
   }
 
   case class GProject(
@@ -119,7 +121,7 @@ object ProgramParsing {
             .flatMap(
               f =>
                 parseTsConfigFile(f).baseUrl
-                  .map(f.relativeTo(root) / up / _)
+                  .map((f / up).relativeTo(root) / _)
             )
         )
 
@@ -133,9 +135,9 @@ object ProgramParsing {
         subProjects.get(path).foreach { s =>
           return s
         }
-        val base = baseDirs(currentPath / up)
-          .getOrElse(currentPath / up)
-        base / path
+        val base = baseDirs(currentPath).getOrElse(currentPath)
+        base / path / "index"
+//        throw new Exception(s"current path: $currentPath, ref path: $path")
       }
     }
 

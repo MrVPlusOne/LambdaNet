@@ -169,7 +169,8 @@ object ImportsResolution {
             )
           }
 
-          def collectImports(stmt: PStmt): ModuleExports = {
+          def collectImports(stmt: PStmt): ModuleExports =
+          SimpleMath.withErrorMessage(s"In import stmt: $stmt"){
             stmt match {
               case PImport(content) =>
                 val exports = resolvePath(content.path)
@@ -285,17 +286,19 @@ object ImportsResolution {
       resolvedModules: Map[ProjectPath, ModuleExports]
   )(currentPath: ProjectPath, ref: ReferencePath): ModuleExports = {
     val path =
-      if(ref.isRelative) currentPath /ops.up / ref.path
+      if (ref.isRelative) currentPath / ops.up / ref.path
       else pathMapping.map(currentPath / ops.up, ref.path)
-    resolvedModules.getOrElse(
-      path,
-      exports.getOrElse(
-        path,
+    def tryPath(path: ProjectPath): Option[ModuleExports] = {
+      resolvedModules.get(path).foreach(e => return Some(e))
+      exports.get(path)
+    }
+
+    tryPath(path).getOrElse(
+      tryPath(path / "index").getOrElse(
         throw new Error(
           s"Cannot find source file: mapped to '$path'.\nExports: ${exports.keys}"
         )
       )
     )
   }
-
 }

@@ -1,6 +1,8 @@
 package funcdiff
 
 import ammonite.ops._
+import lambdanet.ProjectPath
+import lambdanet.translation.ImportsResolution.PathMapping
 import lambdanet.translation.{
   IRTranslation,
   ImportsResolution,
@@ -18,19 +20,43 @@ object PrepareRepos {
   val (baseCtx, libAllocator, _) = QLangTranslation.parseDefaultModule()
   val libExports = {
 //    val files = ls(declarationsDir).filter(_.last.endsWith(".d.ts"))
-    val GProject(_, modules, mapping) = ProgramParsing
+    println("parsing GModules...")
+    val GProject(_, modules, mapping0) = ProgramParsing
       .parseGProjectFromRoot(declarationsDir, declarationFileMod = true)
+    val nodeFieMap = {
+      val nodeFiles = ls(declarationsDir / "node")
+        .filter(_.last.endsWith(".d.ts"))
+        .map { f =>
+          RelPath(f.last.replace(".d.ts", ""))
+        }
+      nodeFiles.map { f =>
+        f -> RelPath("node") / f
+      }.toMap
+    }
+    val mapping = new PathMapping {
+      def map(
+          currentPath: ProjectPath,
+          pathToResolve: ProjectPath
+      ): ProjectPath = {
+        nodeFieMap.getOrElse(
+          pathToResolve,
+          mapping0.map(currentPath, pathToResolve)
+        )
+      }
+    }
 
+    println("parsing PModules...")
     val pModules = modules
       .map(m => PLangTranslation.fromGModule(m, libAllocator))
       .map(m => m.path -> m)
       .toMap
 
+    println("imports resolution...")
     ImportsResolution.resolveExports(
       pModules,
       Map(),
       mapping,
-      maxIterations = 1
+      maxIterations = 5
     )
   }
   println("Declaration files parsed.")
