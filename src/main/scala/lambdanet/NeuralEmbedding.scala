@@ -179,8 +179,10 @@ class NeuralEmbedding(
                   val att =
                     attentionLayer('FieldAccess / 'defs, transformKey = true)(
                       embed(objType),
-                      fieldDefs(label).toVector
-                        .map { case (k, n) => embed(k) -> embed(n) }
+                      fieldDefs(label).toVector.map {
+                        case (k, Left(pt)) => embed(k) -> encodeLibType(pt)
+                        case (k, Right(t)) => embed(k) -> embed(t)
+                      }
                     )
                   messageModel('FieldAccess / 'defsMessage, att)
                 }

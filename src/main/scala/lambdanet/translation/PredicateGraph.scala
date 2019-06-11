@@ -9,28 +9,33 @@ import scala.collection.mutable
 case class PredicateGraph(
     nodes: Set[PNode],
     predicates: Set[TyPredicate],
-    libraryTypes: Map[PNode, PObject]
+    libraryTypes: Map[PNode, PType]
 ) {
   import cats.instances.all._
   import cats.Monoid
-  type ObjType = PNode
+  import cats.syntax.either._
+  type ObjNode = PNode
 
   /** which label is accessed on which variable as what */
-  val fieldUsages: Map[Symbol, Set[(ObjType, PNode)]] =
+  val fieldUsages: Map[Symbol, Set[(ObjNode, PNode)]] =
     Monoid.combineAll(predicates.collect {
       case DefineRel(v, PAccess(objType, l)) =>
         Map(l -> Set(objType -> v))
     })
 
   /** which label is defined in which class as what */
-  val fieldDefs: Map[Symbol, Set[(PNode, ObjType)]] =
+  val fieldDefs: Map[Symbol, Set[(ObjNode, Either[PType, PNode])]] =
     Monoid.combineAll(
-      (predicates ++
-        libraryTypes.map((DefineRel.apply _).tupled)).collect {
+      predicates.toVector.collect {
         case DefineRel(v, PObject(fields)) =>
           fields.flatMap {
-            case (l, t) => Map(l -> Set(v -> t))
+            case (l, t) => Map(l -> Set(v -> t.asRight[PType]))
           }
+      } ++ libraryTypes.collect{
+        case (node, PObjectType(fields)) =>
+        fields.flatMap{
+          case (l, t) => Map(l -> Set(node -> t.asLeft[PNode]))
+        }
       }
     )
 }
@@ -213,9 +218,19 @@ object PredicateGraphTranslation {
         }
       }
 
-    val nodes = modules.flatMap(m => m.mapping.keySet).toSet
     modules.foreach(_.stmts.foreach(encodeStmt))
-    PredicateGraph(nodes, predicates.toSet, ???)
+
+    val totalMapping = modules.foldLeft(Map[PNode, PAnnot]())(_ ++ _.mapping)
+    val libInMapping = totalMapping.filter(_._1.fromLib)
+    assert(libInMapping.isEmpty, s"lib node in totalMapping: $libInMapping")
+
+    // todo: compute a complete node set
+
+    val libTypes = for{
+      (n, annot) <- totalMapping if n.fromLib && n.isType
+      ty <- annot.typeOpt
+    } yield n -> ty //fixme: this is incomplete, should include all usages
+    PredicateGraph(totalMapping.keySet, predicates.toSet, libTypes)
   }
 
 }

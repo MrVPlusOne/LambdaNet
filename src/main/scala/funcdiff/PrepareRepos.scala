@@ -3,7 +3,13 @@ package funcdiff
 import ammonite.ops._
 import lambdanet.ProjectPath
 import lambdanet.translation.ImportsResolution.{ErrorHandler, PathMapping}
-import lambdanet.translation.{IRTranslation, ImportsResolution, PLangTranslation, PredicateGraphTranslation, QLangTranslation}
+import lambdanet.translation.{
+  IRTranslation,
+  ImportsResolution,
+  PLangTranslation,
+  PredicateGraphTranslation,
+  QLangTranslation
+}
 import lambdanet.translation.PredicateGraph.PNodeAllocator
 import lambdanet.utils.ProgramParsing
 import lambdanet.utils.ProgramParsing.GProject
@@ -70,8 +76,7 @@ object PrepareRepos {
       path.segments.forall(!skipSet.contains(_))
     }
 
-    val p =
-      ProgramParsing.parseGProjectFromRoot(root, filter = filterTests)
+    val p = ProgramParsing.parseGProjectFromRoot(root, filter = filterTests)
     val allocator = new PNodeAllocator(forLib = false)
     val irTranslator = new IRTranslation(allocator)
     val irModules = QLangTranslation
@@ -86,6 +91,7 @@ object PrepareRepos {
       .map(irTranslator.fromQModule)
       .toVector
     val graph = PredicateGraphTranslation.fromIRModules(irModules)
+    println(graph)
   }
 
   def main(args: Array[String]): Unit = {
