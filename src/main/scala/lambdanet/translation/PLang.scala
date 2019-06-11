@@ -223,7 +223,7 @@ object PLangTranslation {
     PModule(path, pStmts, mapping.toMap)
   }
 
-  /** project generic types into non-generic types */
+  /** projects generic types into non-generic types */
   def monotype(ty: GType)(implicit tyVars: Set[Symbol]): GType = {
     ty match {
       case tyVar: TyVar => if (tyVars.contains(tyVar.id)) AnyType else tyVar

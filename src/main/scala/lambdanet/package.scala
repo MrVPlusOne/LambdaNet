@@ -3,17 +3,25 @@ import lambdanet.GType
 
 import scala.collection.mutable
 
+/**
+  * == LambdaNet: Deep Probabilistic Type Inference that Type-Checks ==
+  *
+  * Main classes to look at:
+  * [[lambdanet.utils.ProgramParsing]]: Parsing from Typescript source code to the [[lambdanet.Surface]] AST.
+  * [[lambdanet.translation]]: A serious of transformations from [[lambdanet.Surface]] to [[lambdanet.translation.PredicateGraph]].
+  *
+  *
+  */
 package object lambdanet {
 
   /** the path related to the project root */
   type ProjectPath = RelPath
-  case class ReferencePath(path: RelPath, isRelative: Boolean){
+  case class ReferencePath(path: RelPath, isRelative: Boolean) {
     override def toString: String = {
-      val prefix = if(isRelative) "relative" else "alias"
+      val prefix = if (isRelative) "relative" else "alias"
       s"$prefix'$path'"
     }
   }
-
 
   val returnSymbol = 'return
   val thisSymbol = 'this

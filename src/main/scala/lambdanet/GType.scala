@@ -20,17 +20,19 @@ class GTHole(protected val id: Int, val annotation: TyAnnot)
   }
 }
 
-// @formatter:off
 /**
-  * T :=                  ([[GType]])
-  * | any                 ([[AnyType]])
-  * | tv                  ([[TyVar]])
-  * | (T, ..., T) -> T    ([[FuncType]])
-  * | {l: T, ..., l: T}   ([[ObjectType]])
+  * The syntax for non-generic types with gradual typing support.
   *
-  * where l is [[Symbol]]
+  * | Syntax  | Type        |
+  * | ---     | ---         |
+  * | T       | [[GType]]   |
+  * | any     | [[AnyType]] |
+  * | x       | [[TyVar]]   |
+  * | (T, ..., T) -> T |   [[FuncType]] |
+  * | {l: T, ..., l: T} | [[ObjectType]] |
+  *
+  * where x, l is [[scala.Symbol]]
   */
-// @formatter:on
 sealed trait GType extends GTMark {
   override def toString: String = prettyPrint
 

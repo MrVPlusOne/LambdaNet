@@ -7,6 +7,7 @@ import lambdanet.utils.Js._
 import lambdanet.Surface._
 import lambdanet.translation.OldIRTranslation
 import SimpleMath.Extensions._
+import fastparse.Parsed
 import lambdanet.translation.ImportsResolution.PathMapping
 import lambdanet.translation.groupInBlockSurface
 
@@ -185,7 +186,11 @@ object ProgramParsing {
   def parseJsonFromFile(jsonFile: Path): Js.Val =
     SimpleMath.withErrorMessage(s"Failed to parse json from file: $jsonFile") {
       val text = read(jsonFile)
-      fastparse.parse(text, JsonParsing.jsonExpr(_)).get.value
+      fastparse.parse(text, JsonParsing.jsonExpr(_)) match {
+        case Parsed.Success(value, _) => value
+        case Parsed.Failure(_, _, extra) =>
+          throw new Error("Parsing error: " + extra.trace().aggregateMsg)
+      }
     }
 
   /**

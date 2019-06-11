@@ -44,7 +44,7 @@ class ParserTests extends WordSpec with MyTest {
 
     val modules = ProgramParsing.parseGModulesFromFiles(
       files,
-      projectRoot,
+      projectRoot
     )
     modules.foreach { module =>
       println(s"=== module: '${module.moduleName}' ===")
@@ -154,6 +154,10 @@ class ParserTests extends WordSpec with MyTest {
 
     val stmts = ProgramParsing.parseContent(content)
     stmts.foreach(println)
+  }
+
+  "JSon parsing tests" in {
+    assert(Js.True == ProgramParsing.parseJson("""/* abc some @text */ true"""))
   }
 
   "Imports parsing tests" in {

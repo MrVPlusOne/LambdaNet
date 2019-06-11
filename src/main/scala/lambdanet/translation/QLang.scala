@@ -325,6 +325,7 @@ object QLangTranslation {
               block.stmts.flatMap(s => translateStmt(s)(ctx1))
             case _: PLang.PImport => Vector()
             case _: PLang.PExport => Vector()
+            case _: PLang.NamespaceAliasStmt => Vector()
           }
         }
 

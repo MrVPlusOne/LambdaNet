@@ -42,12 +42,13 @@ case class PredicateGraph(
 
 object PredicateGraph {
 
+  @SerialVersionUID(1)
   class PNode(
       protected val id: Int,
       val nameOpt: Option[Symbol],
       val isType: Boolean,
       val fromLib: Boolean
-  ) extends PExpr {
+  ) extends PExpr with Serializable {
     def isTerm: Boolean = !isType
 
     def showDetails: String = {
@@ -71,7 +72,8 @@ object PredicateGraph {
     }
   }
 
-  class PNodeAllocator(val forLib: Boolean) extends IdAllocator[PNode] {
+  @SerialVersionUID(1)
+  class PNodeAllocator(val forLib: Boolean) extends IdAllocator[PNode] with Serializable {
     def newNode(
         nameOpt: Option[Symbol],
         isType: Boolean
