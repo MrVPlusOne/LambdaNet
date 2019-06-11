@@ -17,7 +17,7 @@ object PrepareRepos {
     println("parsing GModules...")
     val GProject(_, modules, mapping0) = ProgramParsing
       .parseGProjectFromRoot(declarationsDir, declarationFileMod = true)
-    val nodeFieMap = {
+    val nodeFileMap = {
       val nodeFiles = ls(declarationsDir / "node")
         .filter(_.last.endsWith(".d.ts"))
         .map { f =>
@@ -32,11 +32,13 @@ object PrepareRepos {
           currentPath: ProjectPath,
           pathToResolve: ProjectPath
       ): ProjectPath = {
-        nodeFieMap.getOrElse(
+        nodeFileMap.getOrElse(
           pathToResolve,
           mapping0.map(currentPath, pathToResolve)
         )
       }
+
+      def aliases: Map[ProjectPath, ProjectPath] = mapping0.aliases
     }
 
     println("parsing PModules...")

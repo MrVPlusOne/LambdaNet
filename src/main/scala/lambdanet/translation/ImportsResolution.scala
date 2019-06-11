@@ -8,6 +8,7 @@ import lambdanet.translation.PredicateGraph.PNode
 import funcdiff.SimpleMath.Extensions._
 import lambdanet.ExportStmt._
 import lambdanet.ImportStmt._
+import lambdanet.utils.PrefixMap
 
 import scala.collection.mutable
 
@@ -18,13 +19,50 @@ object ImportsResolution {
   import cats.syntax.monoid._
 
   trait PathMapping {
-    def map(currentPath: ProjectPath, pathToResolve: ProjectPath): ProjectPath
+    def aliases: Map[ProjectPath, ProjectPath]
+
+    private type PMap = PrefixMap[String, ProjectPath]
+    private lazy val aliasMap: PMap = {
+      val prefixMap = new PrefixMap[String, ProjectPath]()
+      aliases.foreach {
+        case (path, mappedTo) =>
+          prefixMap.update(path.segments.toList, mappedTo)
+      }
+      prefixMap
+    }
+
+    /** If the path contains aliases, transform it into
+      * the actual path */
+    def alias(path: ProjectPath): ProjectPath = {
+      def rec(tree: PMap, path: List[String]): Option[ProjectPath] =
+        path match {
+          case List() => tree.value
+          case h :: path1 =>
+            tree.suffixes.get(h) match {
+              case None        =>
+                tree.value.map{ _ / path}
+              case Some(tree1) => rec(tree1, path1)
+            }
+        }
+      rec(aliasMap, path.segments.toList).getOrElse(path)
+    }
+
+    def map(currentDir: ProjectPath, pathToResolve: ProjectPath): ProjectPath
   }
 
   object PathMapping {
-    def empty: PathMapping =
-      (d: ProjectPath, p: ProjectPath) =>
-        throw new Error(s"Could not resolve path $p in directory $d")
+    def empty: PathMapping = new PathMapping {
+      def map(
+          currentDir: ProjectPath,
+          pathToResolve: ProjectPath
+      ): ProjectPath = {
+        throw new Error(
+          s"Could not resolve path $pathToResolve in directory $currentDir"
+        )
+      }
+
+      def aliases: Map[ProjectPath, ProjectPath] = Map()
+    }
   }
 
   /** Type and term definitions that are associated with a symbol */
@@ -101,8 +139,13 @@ object ImportsResolution {
   }
 
   sealed trait ResolutionError extends Error
-  case class SourceFileMissingError(path: ProjectPath) extends ResolutionError
-  case class ImportSymbolsNotResolved(symbols: Set[Symbol]) extends ResolutionError
+  case class SourceFileMissingError(path: ProjectPath) extends ResolutionError {
+    override def toString: String = s"Source file missing for path: $path"
+  }
+  case class ImportSymbolsNotResolved(symbols: Set[Symbol])
+      extends ResolutionError {
+    override def toString: String = s"Imported symbols not resolved: $symbols"
+  }
 
   trait ErrorHandler {
     def sourceFileMissing(path: ProjectPath): ModuleExports
@@ -111,7 +154,7 @@ object ImportsResolution {
 
   }
 
-  object ErrorHandler{
+  object ErrorHandler {
     def recoveryHandler() = new RecoveryHandler()
 
     def throwError() = new ErrorHandler {
@@ -203,7 +246,8 @@ object ImportsResolution {
         case (thisPath, thisExports) =>
           def resolvePath(ref: ReferencePath): ModuleExports = {
             val path =
-              if (ref.isRelative) thisPath / ops.up / ref.path
+              if (ref.isRelative)
+                pathMapping.alias(thisPath / ops.up / ref.path)
               else pathMapping.map(thisPath / ops.up, ref.path)
             def tryPath(path: ProjectPath): Option[ModuleExports] = {
               resolvedModules.get(path).foreach(e => return Some(e))
@@ -328,7 +372,7 @@ object ImportsResolution {
       }
       .drop(maxIterations)
       .next()
-    if(lastUnresolved.nonEmpty){
+    if (lastUnresolved.nonEmpty) {
       errorHandler.importSymbolsNotResolved(lastUnresolved)
     }
     r

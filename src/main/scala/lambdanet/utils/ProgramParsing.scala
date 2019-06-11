@@ -80,7 +80,7 @@ object ProgramParsing {
 
   def parseTsConfigFile(path: Path): TsConfigFile = {
     val map = asObj(parseJsonFromFile(path))
-    val baseOpt = for{
+    val baseOpt = for {
       opt <- map.get("compilerOptions")
       url <- asObj(opt).get("baseUrl")
     } yield RelPath(asString(url))
@@ -103,7 +103,7 @@ object ProgramParsing {
         f <- ls.rec(root) if f.last == "package.json"
         name <- parsePackageFile(f).moduleName
       } yield {
-        name -> (f / up / "src" / "index").relativeTo(root)
+        name -> (f / up).relativeTo(root)
       }).toMap
 
     type Dir = ProjectPath
@@ -125,7 +125,9 @@ object ProgramParsing {
             )
         )
 
-        Map(path.relativeTo(root) -> newBase) ++ paths.filter(_.isDir).flatMap(rec(_, newBase))
+        Map(path.relativeTo(root) -> newBase) ++ paths
+          .filter(_.isDir)
+          .flatMap(rec(_, newBase))
       }
       rec(root, None)
     }
@@ -136,9 +138,15 @@ object ProgramParsing {
           return s
         }
         val base = baseDirs(currentPath).getOrElse(currentPath)
-        base / path / "index"
+        base / path
 //        throw new Exception(s"current path: $currentPath, ref path: $path")
       }
+
+      val aliases: Map[ProjectPath, ProjectPath] =
+        (for {
+          f <- ls.rec(root) if f.isSymLink
+          pointsTo = f.tryFollowLinks.get
+        } yield f.relativeTo(root) -> pointsTo.relativeTo(root)).toMap
     }
 
     val sources = ls
@@ -146,7 +154,7 @@ object ProgramParsing {
       .filter(filter)
       .filter { f =>
         if (declarationFileMod) f.last.endsWith(".d.ts")
-        else f.last.endsWith(".ts")
+        else f.last.endsWith(".ts") || f.last.endsWith(".d.ts")
       }
       .map(_.relativeTo(root))
     GProject(
@@ -197,7 +205,8 @@ object ProgramParsing {
       "--lib",
       srcFiles.toList.map(_.toString())
     )(projectRoot)
-    if(r.exitCode!=0){
+    // fixme: this never fires
+    if (r.exitCode != 0) {
       throw new Error(s"TS compiler parsing failed: ${r.out.string}")
     }
     val parsedJson = r.out.string
@@ -208,7 +217,14 @@ object ProgramParsing {
     * generated through [[parseGModulesFromFiles]] when writeToFile is set to none-empty. */
   def parseGModulesFromJson(parsedJson: String): Vector[GModule] = {
     val modules = ProgramParsing.parseJson(parsedJson).asInstanceOf[Js.Arr]
-    modules.value.map(parseGModule).toVector
+    modules.value
+      .map(parseGModule)
+      .groupBy(_.path)
+      .map {
+        case (path, ms) =>
+          GModule(path, ms.toVector.flatMap(_.stmts))
+      }
+      .toVector
   }
 
   def asString(v: Js.Val): String = v.asInstanceOf[Str].value

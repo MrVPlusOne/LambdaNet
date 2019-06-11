@@ -43,26 +43,28 @@ object TrainingProjects {
       "data/train/philmander-typescript-algorithms/src" -> defaultMapping,
       //training
       "data/train/typehtml-master/src" -> defaultMapping,
-      "data/train/mojiito-master/packages" -> new PathMapping {
-        def map(
-            currentPath: ProjectPath,
-            pathToResolve: ProjectPath
-        ): ProjectPath = {
-          val target = currentPath / pathToResolve
-          if (target.startsWith(RelPath("core/src/facade"))) {
-            RelPath("facade/src") / target.segments.drop(3)
-          } else if (target
-                       .startsWith(RelPath("platform-browser/src/facade"))) {
-            RelPath("facade/src") / target.segments.drop(3)
-          } else if (pathToResolve == RelPath("mojiito-facade")) {
-            RelPath("facade/index")
-          } else if (pathToResolve == RelPath("mojiito-core")) {
-            RelPath("core/src/core")
-          } else {
-            throw new Error()
-          }
-        }
-      },
+      "data/train/mojiito-master/packages" ->
+//        new PathMapping {
+//        def map(
+//            currentPath: ProjectPath,
+//            pathToResolve: ProjectPath
+//        ): ProjectPath = {
+//          val target = currentPath / pathToResolve
+//          if (target.startsWith(RelPath("core/src/facade"))) {
+//            RelPath("facade/src") / target.segments.drop(3)
+//          } else if (target
+//                       .startsWith(RelPath("platform-browser/src/facade"))) {
+//            RelPath("facade/src") / target.segments.drop(3)
+//          } else if (pathToResolve == RelPath("mojiito-facade")) {
+//            RelPath("facade/index")
+//          } else if (pathToResolve == RelPath("mojiito-core")) {
+//            RelPath("core/src/core")
+//          } else {
+//            throw new Error()
+//          }
+//        }
+//      }
+      ???,
       "data/train/algorithms-train" -> defaultMapping
     )
 
@@ -77,26 +79,28 @@ object TrainingProjects {
     projectRoots.map(r => {
       fromRootDirectory(
         r,
-        pathMapping = new PathMapping {
-          def map(
-              currentPath: ProjectPath,
-              pathToResolve: ProjectPath
-          ): ProjectPath = {
-            val target = currentPath / pathToResolve
-            if (target.startsWith(RelPath("core/src/facade"))) {
-              RelPath("facade/src") / target.segments.drop(3)
-            } else if (target
-                         .startsWith(RelPath("platform-browser/src/facade"))) {
-              RelPath("facade/src") / target.segments.drop(3)
-            } else if (pathToResolve == RelPath("mojiito-facade")) {
-              RelPath("facade/index")
-            } else if (pathToResolve == RelPath("mojiito-core")) {
-              RelPath("core/src/core")
-            } else {
-              throw new Error()
-            }
-          }
-        }
+        pathMapping =
+//          new PathMapping {
+//          def map(
+//              currentPath: ProjectPath,
+//              pathToResolve: ProjectPath
+//          ): ProjectPath = {
+//            val target = currentPath / pathToResolve
+//            if (target.startsWith(RelPath("core/src/facade"))) {
+//              RelPath("facade/src") / target.segments.drop(3)
+//            } else if (target
+//                         .startsWith(RelPath("platform-browser/src/facade"))) {
+//              RelPath("facade/src") / target.segments.drop(3)
+//            } else if (pathToResolve == RelPath("mojiito-facade")) {
+//              RelPath("facade/index")
+//            } else if (pathToResolve == RelPath("mojiito-core")) {
+//              RelPath("core/src/core")
+//            } else {
+//              throw new Error()
+//            }
+//          }
+//        }
+        ???
       )
     })
   }
