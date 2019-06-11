@@ -9,6 +9,8 @@ import funcdiff.SimpleMath.Extensions._
 import lambdanet.ExportStmt._
 import lambdanet.ImportStmt._
 
+import scala.collection.mutable
+
 object ImportsResolution {
   import cats.Monoid
   import cats.instances.all._
@@ -98,11 +100,48 @@ object ImportsResolution {
 
   }
 
+  sealed trait ResolutionError extends Error
+  case class SourceFileMissingError(path: ProjectPath) extends ResolutionError
+  case class ImportSymbolsNotResolved(symbols: Set[Symbol]) extends ResolutionError
+
+  trait ErrorHandler {
+    def sourceFileMissing(path: ProjectPath): ModuleExports
+
+    def importSymbolsNotResolved(unresolved: Set[Symbol]): Unit
+
+  }
+
+  object ErrorHandler{
+    def recoveryHandler() = new RecoveryHandler()
+
+    def throwError() = new ErrorHandler {
+      def sourceFileMissing(path: ProjectPath): ModuleExports =
+        throw SourceFileMissingError(path)
+
+      def importSymbolsNotResolved(unresolved: Set[Symbol]): Unit =
+        throw ImportSymbolsNotResolved(unresolved)
+    }
+  }
+
+  class RecoveryHandler extends ErrorHandler {
+    val errors: mutable.HashSet[ResolutionError] = mutable.HashSet()
+
+    def sourceFileMissing(path: ProjectPath): ModuleExports = {
+      errors += SourceFileMissingError(path)
+      ModuleExports.empty
+    }
+
+    def importSymbolsNotResolved(unresolved: Set[Symbol]): Unit = {
+      errors += ImportSymbolsNotResolved(unresolved)
+    }
+  }
+
   def resolveExports(
       modulesToResolve: Map[ProjectPath, PModule],
       resolvedModules: Map[ProjectPath, ModuleExports],
       pathMapping: PathMapping,
-      maxIterations: Int = 10
+      maxIterations: Int = 10,
+      errorHandler: ErrorHandler
   ): Map[ProjectPath, ModuleExports] = {
 
     def collectTopLevelDefs(
@@ -162,46 +201,59 @@ object ImportsResolution {
       var unresolved = Set[Symbol]()
       exports.map {
         case (thisPath, thisExports) =>
-          def resolvePath(relPath: ReferencePath): ModuleExports = {
-            findExports(exports, pathMapping, resolvedModules)(
-              thisPath,
-              relPath
+          def resolvePath(ref: ReferencePath): ModuleExports = {
+            val path =
+              if (ref.isRelative) thisPath / ops.up / ref.path
+              else pathMapping.map(thisPath / ops.up, ref.path)
+            def tryPath(path: ProjectPath): Option[ModuleExports] = {
+              resolvedModules.get(path).foreach(e => return Some(e))
+              exports.get(path)
+            }
+
+            tryPath(path).getOrElse(
+              tryPath(path / "index").getOrElse(
+                errorHandler.sourceFileMissing(path)
+              )
             )
           }
 
           def collectImports(stmt: PStmt): ModuleExports =
-          SimpleMath.withErrorMessage(s"In import stmt: $stmt"){
-            stmt match {
-              case PImport(content) =>
-                val exports = resolvePath(content.path)
-                content match {
-                  case i: ImportSingle =>
-                    exports.publicSymbols.get(i.oldName) match {
-                      case Some(defs) =>
-                        ModuleExports(internalSymbols = Map(i.newName -> defs))
-                      case None =>
-                        unresolved += i.oldName
-                        ModuleExports.empty
-                    }
-                  case i: ImportModule =>
-                    ModuleExports(
-                      internalSymbols =
-                        Map(i.newName -> NameDef.namespaceDef(exports))
+            SimpleMath.withErrorMessage(s"In import stmt: $stmt") {
+              stmt match {
+                case PImport(content) =>
+                  val exports = resolvePath(content.path)
+                  content match {
+                    case i: ImportSingle =>
+                      exports.publicSymbols.get(i.oldName) match {
+                        case Some(defs) =>
+                          ModuleExports(
+                            internalSymbols = Map(i.newName -> defs)
+                          )
+                        case None =>
+                          unresolved += i.oldName
+                          ModuleExports(
+                            internalSymbols = Map(i.newName -> NameDef.empty)
+                          )
+                      }
+                    case i: ImportModule =>
+                      ModuleExports(
+                        internalSymbols =
+                          Map(i.newName -> NameDef.namespaceDef(exports))
+                      )
+                    case i: ImportDefault =>
+                      ModuleExports(
+                        internalSymbols = Map(i.newName -> exports.defaultDefs)
+                      )
+                  }
+                case Namespace(name, block, _) =>
+                  val df =
+                    NameDef.namespaceDef(
+                      Monoid.combineAll(block.stmts.map(collectImports))
                     )
-                  case i: ImportDefault =>
-                    ModuleExports(
-                      internalSymbols = Map(i.newName -> exports.defaultDefs)
-                    )
-                }
-              case Namespace(name, block, _) =>
-                val df =
-                  NameDef.namespaceDef(
-                    Monoid.combineAll(block.stmts.map(collectImports))
-                  )
-                ModuleExports(internalSymbols = Map(name -> df))
-              case _ => ModuleExports.empty
+                  ModuleExports(internalSymbols = Map(name -> df))
+                case _ => ModuleExports.empty
+              }
             }
-          }
 
           def collectExports(ctx: ModuleExports, stmt: PStmt): ModuleExports = {
             val thisExports = ctx
@@ -276,29 +328,10 @@ object ImportsResolution {
       }
       .drop(maxIterations)
       .next()
-    assert(lastUnresolved.isEmpty, s"Unresolved symbols: $lastUnresolved")
+    if(lastUnresolved.nonEmpty){
+      errorHandler.importSymbolsNotResolved(lastUnresolved)
+    }
     r
   }
 
-  private def findExports(
-      exports: Map[ProjectPath, ModuleExports],
-      pathMapping: PathMapping,
-      resolvedModules: Map[ProjectPath, ModuleExports]
-  )(currentPath: ProjectPath, ref: ReferencePath): ModuleExports = {
-    val path =
-      if (ref.isRelative) currentPath / ops.up / ref.path
-      else pathMapping.map(currentPath / ops.up, ref.path)
-    def tryPath(path: ProjectPath): Option[ModuleExports] = {
-      resolvedModules.get(path).foreach(e => return Some(e))
-      exports.get(path)
-    }
-
-    tryPath(path).getOrElse(
-      tryPath(path / "index").getOrElse(
-        throw new Error(
-          s"Cannot find source file: mapped to '$path'.\nExports: ${exports.keys}"
-        )
-      )
-    )
-  }
 }

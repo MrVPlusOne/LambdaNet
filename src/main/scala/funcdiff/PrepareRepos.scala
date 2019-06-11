@@ -2,14 +2,8 @@ package funcdiff
 
 import ammonite.ops._
 import lambdanet.ProjectPath
-import lambdanet.translation.ImportsResolution.PathMapping
-import lambdanet.translation.{
-  IRTranslation,
-  ImportsResolution,
-  PLangTranslation,
-  PredicateGraphTranslation,
-  QLangTranslation
-}
+import lambdanet.translation.ImportsResolution.{ErrorHandler, PathMapping}
+import lambdanet.translation.{IRTranslation, ImportsResolution, PLangTranslation, PredicateGraphTranslation, QLangTranslation}
 import lambdanet.translation.PredicateGraph.PNodeAllocator
 import lambdanet.utils.ProgramParsing
 import lambdanet.utils.ProgramParsing.GProject
@@ -56,7 +50,8 @@ object PrepareRepos {
       pModules,
       Map(),
       mapping,
-      maxIterations = 5
+      maxIterations = 5,
+      errorHandler = ErrorHandler.recoveryHandler()
     )
   }
   println("Declaration files parsed.")
@@ -68,8 +63,9 @@ object PrepareRepos {
       }
     }
 
+    val skipSet = Set("__tests__", "dist")
     def filterTests(path: Path): Boolean = {
-      !path.segments.contains("__tests__")
+      path.segments.forall(!skipSet.contains(_))
     }
 
     val p =

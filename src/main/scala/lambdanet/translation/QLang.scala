@@ -1,22 +1,10 @@
 package lambdanet.translation
 
 import lambdanet._
-import lambdanet.translation.PredicateGraph.{
-  PAny,
-  PFuncType,
-  PNode,
-  PNodeAllocator,
-  PObjectType,
-  PTyVar,
-  PType
-}
+import lambdanet.translation.PredicateGraph.{PAny, PFuncType, PNode, PNodeAllocator, PObjectType, PTyVar, PType}
 import QLang._
 import funcdiff.SimpleMath
-import lambdanet.translation.ImportsResolution.{
-  ModuleExports,
-  NameDef,
-  PathMapping
-}
+import lambdanet.translation.ImportsResolution.{ErrorHandler, ModuleExports, NameDef, PathMapping}
 import lambdanet.translation.PLang.PModule
 import funcdiff.SimpleMath.Extensions._
 import lambdanet.Surface.GModule
@@ -114,7 +102,8 @@ object QLangTranslation {
       .resolveExports(
         Map(pModule.path -> pModule),
         Map(),
-        PathMapping.empty
+        PathMapping.empty,
+        errorHandler = ErrorHandler.throwError()
       )
       .values
       .head
@@ -138,7 +127,8 @@ object QLangTranslation {
     val exports = ImportsResolution.resolveExports(
       modules1,
       resolved,
-      pathMapping
+      pathMapping,
+      errorHandler = ErrorHandler.throwError()
     )
 
     modules1.mapValuesNow { m =>

@@ -197,6 +197,9 @@ object ProgramParsing {
       "--lib",
       srcFiles.toList.map(_.toString())
     )(projectRoot)
+    if(r.exitCode!=0){
+      throw new Error(s"TS compiler parsing failed: ${r.out.string}")
+    }
     val parsedJson = r.out.string
     parseGModulesFromJson(parsedJson)
   }

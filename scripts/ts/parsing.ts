@@ -322,7 +322,8 @@ class ImportStmt implements GStmt {
 class NamespaceAliasStmt implements GStmt {
   category: string = "NamespaceAliasStmt";
 
-  constructor(public name: string, public rhs: string){}
+  constructor(public name: string, public rhs: string) {
+  }
 }
 
 class ExportStmt implements GStmt {
@@ -436,7 +437,8 @@ type SpecialExpressions =
   ts.YieldExpression |
   ts.AsExpression |
   ts.TypeAssertion |
-  ts.AwaitExpression
+  ts.AwaitExpression |
+  ts.NonNullExpression
 
 export function parseExpr(node: ts.Expression,
                           allocateLambda: (f: ts.FunctionLikeDeclaration) => Var): GExpr {
@@ -556,6 +558,9 @@ export function parseExpr(node: ts.Expression,
       }
       case SyntaxKind.AwaitExpression: {
         return new FuncCall(SpecialVars.AWAIT, [rec(n.expression)]);
+      }
+      case SyntaxKind.NonNullExpression: {
+        return rec(n.expression);
       }
       // type assertions are ignored
       case SyntaxKind.AsExpression:
@@ -693,7 +698,7 @@ export class StmtParser {
 
         function parseVarDecList(node: ts.VariableDeclarationList, modifiers: string[]): VarDef[] {
 
-          return forNode(node, () => {
+          return handleError(node, () => {
             let isConst = (node.flags & ts.NodeFlags.Const) != 0;
 
             function parseBinding(x: ts.BindingElement | ts.VariableDeclaration, rhs?: GExpr): VarDef[] {
@@ -866,7 +871,7 @@ export class StmtParser {
                     new NamedValue<[GMark, GExpr, boolean]>(
                       p.name, [p.value, undefinedValue, false])));
                 constructor = c;
-              } else if(ts.isIndexSignatureDeclaration(v)){
+              } else if (ts.isIndexSignatureDeclaration(v)) {
                 const n = v as ts.IndexSignatureDeclaration;
                 parseFunction("access", n, parseModifiers(n.modifiers));
               } else if (ts.isSemicolonClassElement(v)) {
@@ -923,13 +928,12 @@ export class StmtParser {
           case SyntaxKind.ExportAssignment: {
             const n = node as ts.ExportAssignment;
             const e = EP.processExpr(n.expression);
-            if(n.isExportEquals) {
+            if (n.isExportEquals) {
               return EP.alongWith(new VarDef("$ExportEquals", null, e, true,
                 ["export"]));
-            }
-            else if(e.category == "Var"){
+            } else if (e.category == "Var") {
               return EP.alongWith(new ExportStmt(node.getText()));
-            }else {
+            } else {
               return EP.alongWith(new VarDef("defaultVar", null, e, true,
                 ["export", "default"]));
             }
@@ -1132,10 +1136,9 @@ export function parseFiles(sources: string[], libraryFiles: string[]): GModule[]
         let r = parser.parseStmt(s);
         r.forEach(s => stmts.push(s));
       } catch (e) {
-        console.debug("Parsing failed for file: " + src.fileName);
+        console.error("Parsing failed for file: " + src.fileName);
         throw e;
       }
-
     });
     return new GModule(sources[index], stmts);
   });
@@ -1146,7 +1149,8 @@ function handleError<T>(node: ts.Node, thunk: () => T): T {
     return thunk();
   } catch (e) {
     const line = getLineNumber(node);
-    console.debug(`Failure occurred at line ${line}: ${node.getText()}`);
+    console.log(`Failure occurred at line ${line}: ${node.getText()}`);
+    console.log(`Error message: ${e.message}`);
     throw e;
   }
 }
