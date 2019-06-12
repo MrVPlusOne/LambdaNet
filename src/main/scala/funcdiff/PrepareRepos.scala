@@ -2,8 +2,18 @@ package funcdiff
 
 import ammonite.ops._
 import lambdanet.ProjectPath
-import lambdanet.translation.ImportsResolution.{ErrorHandler, ModuleExports, PathMapping}
-import lambdanet.translation.{IRTranslation, ImportsResolution, PLangTranslation, PredicateGraphTranslation, QLangTranslation}
+import lambdanet.translation.ImportsResolution.{
+  ErrorHandler,
+  ModuleExports,
+  PathMapping
+}
+import lambdanet.translation.{
+  IRTranslation,
+  ImportsResolution,
+  PLangTranslation,
+  PredicateGraphTranslation,
+  QLangTranslation
+}
 import lambdanet.translation.PredicateGraph.PNodeAllocator
 import lambdanet.utils.ProgramParsing
 import lambdanet.utils.ProgramParsing.GProject
@@ -51,10 +61,8 @@ object PrepareRepos {
       }
 
       println("parsing PModules...")
-      val pModules = modules
-        .map(m => PLangTranslation.fromGModule(m, libAllocator))
-        .map(m => m.path -> m)
-        .toMap
+      val pModules =
+        modules.map(m => PLangTranslation.fromGModule(m, libAllocator))
 
       println("imports resolution...")
       val exports = ImportsResolution.resolveExports(
@@ -70,8 +78,7 @@ object PrepareRepos {
           name -> exports.getOrElse(
             path,
             exports.getOrElse(
-              path / "index",
-              {
+              path / "index", {
                 Console.err.println(
                   s"Couldn't find Exports located at $path for $name, ignore this named project."
                 )
@@ -107,9 +114,7 @@ object PrepareRepos {
         allocator,
         p.pathMapping
       )
-      .values
       .map(irTranslator.fromQModule)
-      .toVector
     val graph = PredicateGraphTranslation.fromIRModules(irModules)
     println(graph)
   }

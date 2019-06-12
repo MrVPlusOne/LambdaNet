@@ -1,10 +1,23 @@
 package lambdanet.translation
 
 import lambdanet._
-import lambdanet.translation.PredicateGraph.{PAny, PFuncType, PNode, PNodeAllocator, PObjectType, PTyVar, PType}
+import lambdanet.translation.PredicateGraph.{
+  PAny,
+  PFuncType,
+  PNode,
+  PNodeAllocator,
+  PObjectType,
+  PTyVar,
+  PType
+}
 import QLang._
 import funcdiff.SimpleMath
-import lambdanet.translation.ImportsResolution.{ErrorHandler, ModuleExports, NameDef, PathMapping}
+import lambdanet.translation.ImportsResolution.{
+  ErrorHandler,
+  ModuleExports,
+  NameDef,
+  PathMapping
+}
 import lambdanet.translation.PLang.PModule
 import funcdiff.SimpleMath.Extensions._
 import lambdanet.Surface.GModule
@@ -100,7 +113,7 @@ object QLangTranslation {
 
     val exports = ImportsResolution
       .resolveExports(
-        Map(pModule.path -> pModule),
+        Seq(pModule),
         Map(),
         PathMapping.empty,
         errorHandler = ErrorHandler.throwError()
@@ -118,11 +131,8 @@ object QLangTranslation {
       resolved: Map[ProjectPath, ModuleExports],
       allocator: PNodeAllocator,
       pathMapping: PathMapping
-  ): Map[ProjectPath, QModule] = {
-    val modules1 = modules.map { m =>
-      m.path ->
-        PLangTranslation.fromGModule(m, allocator)
-    }.toMap
+  ): Vector[QModule] = {
+    val modules1 = modules.map { PLangTranslation.fromGModule(_, allocator) }
 
     val exports = ImportsResolution.resolveExports(
       modules1,
@@ -131,7 +141,7 @@ object QLangTranslation {
       errorHandler = ErrorHandler.throwError()
     )
 
-    modules1.mapValuesNow { m =>
+    modules1.map { m =>
       fromPModule(m, baseCtx |+| exports(m.path))
     }
   }
@@ -323,8 +333,8 @@ object QLangTranslation {
             case PLang.Namespace(name, block, _) =>
               val ctx1 = ctx |+| ctx.internalSymbols(name).namespace.get
               block.stmts.flatMap(s => translateStmt(s)(ctx1))
-            case _: PLang.PImport => Vector()
-            case _: PLang.PExport => Vector()
+            case _: PLang.PImport            => Vector()
+            case _: PLang.PExport            => Vector()
             case _: PLang.NamespaceAliasStmt => Vector()
           }
         }

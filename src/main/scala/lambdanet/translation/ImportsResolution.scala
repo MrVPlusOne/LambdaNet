@@ -31,16 +31,17 @@ object ImportsResolution {
       prefixMap
     }
 
-    /** If the path contains aliases, transform it into
+    /** If the path contains aliases, transforms it into
       * the actual path */
     def alias(path: ProjectPath): ProjectPath = {
+      @scala.annotation.tailrec
       def rec(tree: PMap, path: List[String]): Option[ProjectPath] =
         path match {
           case List() => tree.value
           case h :: path1 =>
             tree.suffixes.get(h) match {
-              case None        =>
-                tree.value.map{ _ / path}
+              case None =>
+                tree.value.map { _ / path }
               case Some(tree1) => rec(tree1, path1)
             }
         }
@@ -180,7 +181,7 @@ object ImportsResolution {
   }
 
   def resolveExports(
-      modulesToResolve: Map[ProjectPath, PModule],
+      modulesToResolve: Seq[PModule],
       resolvedModules: Map[ProjectPath, ModuleExports],
       pathMapping: PathMapping,
       maxIterations: Int = 10,
@@ -236,137 +237,139 @@ object ImportsResolution {
       ModuleExports(defaults, publics, all)
     }
 
+    def linkIndexFiles(
+        exports: Map[ProjectPath, ModuleExports]
+    ): Map[ProjectPath, ModuleExports] = {
+      exports ++ exports.keys.filter(_.last == "index").map { path =>
+        (path / ops.up) -> exports(path)
+      }
+    }
+
+    /** Assumes `linkIndexFiles` is already called on `exports` */
     def propagateExports(
         exports: Map[ProjectPath, ModuleExports]
     ): (Map[ProjectPath, ModuleExports], Set[Symbol]) = {
       import ModuleExports._
 
       var unresolved = Set[Symbol]()
-      exports.map {
-        case (thisPath, thisExports) =>
-          def resolvePath(ref: ReferencePath): ModuleExports = {
-            val path =
-              if (ref.isRelative)
-                pathMapping.alias(thisPath / ops.up / ref.path)
-              else {
-                resolvedModules.get(ref.path).foreach(return _)
-                pathMapping.map(thisPath / ops.up, ref.path)
-              }
-            def tryPath(path: ProjectPath): Option[ModuleExports] = {
-              exports.get(path)
+      val exports1 = modulesToResolve.map { module =>
+        val thisPath = module.path
+        val thisExports = exports(thisPath)
+        def resolvePath(ref: ReferencePath): ModuleExports = {
+          val path =
+            if (ref.isRelative)
+              pathMapping.alias(thisPath / ops.up / ref.path)
+            else {
+              resolvedModules.get(ref.path).foreach(return _)
+              pathMapping.map(thisPath / ops.up, ref.path)
             }
+          exports.getOrElse(path, errorHandler.sourceFileMissing(path))
+        }
 
-            tryPath(path).getOrElse(
-              tryPath(path / "index").getOrElse(
-                errorHandler.sourceFileMissing(path)
-              )
-            )
-          }
-
-          def collectImports(stmt: PStmt): ModuleExports =
-            SimpleMath.withErrorMessage(s"In import stmt: $stmt") {
-              stmt match {
-                case PImport(content) =>
-                  val exports = resolvePath(content.path)
-                  content match {
-                    case i: ImportSingle =>
-                      exports.publicSymbols.get(i.oldName) match {
-                        case Some(defs) =>
-                          ModuleExports(
-                            internalSymbols = Map(i.newName -> defs)
-                          )
-                        case None =>
-                          unresolved += i.oldName
-                          ModuleExports(
-                            internalSymbols = Map(i.newName -> NameDef.empty)
-                          )
-                      }
-                    case i: ImportModule =>
-                      ModuleExports(
-                        internalSymbols =
-                          Map(i.newName -> NameDef.namespaceDef(exports))
-                      )
-                    case i: ImportDefault =>
-                      ModuleExports(
-                        internalSymbols = Map(i.newName -> exports.defaultDefs)
-                      )
-                  }
-                case Namespace(name, block, _) =>
-                  val df =
-                    NameDef.namespaceDef(
-                      Monoid.combineAll(block.stmts.map(collectImports))
-                    )
-                  ModuleExports(internalSymbols = Map(name -> df))
-                case _ => ModuleExports.empty
-              }
-            }
-
-          def collectExports(ctx: ModuleExports, stmt: PStmt): ModuleExports = {
-            val thisExports = ctx
+        def collectImports(stmt: PStmt): ModuleExports =
+          SimpleMath.withErrorMessage(s"In import stmt: $stmt") {
             stmt match {
-              case PExport(content) =>
+              case PImport(content) =>
+                val exports = resolvePath(content.path)
                 content match {
-                  case ExportSingle(oldName, newName, from) =>
-                    from
-                      .map(resolvePath(_).publicSymbols)
-                      .getOrElse(thisExports.internalSymbols)
-                      .get(oldName)
-                      .map(
-                        defs =>
-                          ModuleExports(publicSymbols = Map(newName -> defs))
-                      )
-                      .combineAll
-                  case ExportOtherModule(from) =>
-                    val toExport = resolvePath(from).publicSymbols
-                    ModuleExports(publicSymbols = toExport)
-                  case ExportDefault(newName, Some(s)) =>
-                    val defs = resolvePath(s).defaultDefs
-                    newName match {
-                      case Some(n) =>
-                        ModuleExports(publicSymbols = Map(n -> defs))
+                  case i: ImportSingle =>
+                    exports.publicSymbols.get(i.oldName) match {
+                      case Some(defs) =>
+                        ModuleExports(
+                          internalSymbols = Map(i.newName -> defs)
+                        )
                       case None =>
-                        ModuleExports(defaultDefs = defs)
+                        unresolved += i.oldName
+                        ModuleExports(
+                          internalSymbols = Map(i.newName -> NameDef.empty)
+                        )
                     }
-                  case ExportDefault(newName, None) =>
-                    val name = newName.get
+                  case i: ImportModule =>
                     ModuleExports(
-                      defaultDefs = thisExports.internalSymbols(name)
+                      internalSymbols =
+                        Map(i.newName -> NameDef.namespaceDef(exports))
+                    )
+                  case i: ImportDefault =>
+                    ModuleExports(
+                      internalSymbols = Map(i.newName -> exports.defaultDefs)
                     )
                 }
               case Namespace(name, block, _) =>
-                val ctx1 = thisExports |+|
-                  thisExports
-                    .internalSymbols(name)
-                    .namespace
-                    .get
                 val df =
                   NameDef.namespaceDef(
-                    block.stmts.map(s => collectExports(ctx1, s)).combineAll
+                    Monoid.combineAll(block.stmts.map(collectImports))
                   )
                 ModuleExports(internalSymbols = Map(name -> df))
               case _ => ModuleExports.empty
             }
           }
 
-          val module = modulesToResolve(thisPath)
-          SimpleMath.withErrorMessage(s"In module '${module.path}'") {
-            val imported = thisExports |+|
-              module.stmts.map(collectImports).combineAll
-
-            val result = imported |+|
-              module.stmts.map(s => collectExports(imported, s)).combineAll
-            thisPath -> result
+        def collectExports(ctx: ModuleExports, stmt: PStmt): ModuleExports = {
+          val thisExports = ctx
+          stmt match {
+            case PExport(content) =>
+              content match {
+                case ExportSingle(oldName, newName, from) =>
+                  from
+                    .map(resolvePath(_).publicSymbols)
+                    .getOrElse(thisExports.internalSymbols)
+                    .get(oldName)
+                    .map(
+                      defs =>
+                        ModuleExports(publicSymbols = Map(newName -> defs))
+                    )
+                    .combineAll
+                case ExportOtherModule(from) =>
+                  val toExport = resolvePath(from).publicSymbols
+                  ModuleExports(publicSymbols = toExport)
+                case ExportDefault(newName, Some(s)) =>
+                  val defs = resolvePath(s).defaultDefs
+                  newName match {
+                    case Some(n) =>
+                      ModuleExports(publicSymbols = Map(n -> defs))
+                    case None =>
+                      ModuleExports(defaultDefs = defs)
+                  }
+                case ExportDefault(newName, None) =>
+                  val name = newName.get
+                  ModuleExports(
+                    defaultDefs = thisExports.internalSymbols(name)
+                  )
+              }
+            case Namespace(name, block, _) =>
+              val ctx1 = thisExports |+|
+                thisExports
+                  .internalSymbols(name)
+                  .namespace
+                  .get
+              val df =
+                NameDef.namespaceDef(
+                  block.stmts.map(s => collectExports(ctx1, s)).combineAll
+                )
+              ModuleExports(internalSymbols = Map(name -> df))
+            case _ => ModuleExports.empty
           }
-      } -> unresolved
+        }
+
+        SimpleMath.withErrorMessage(s"In module '${module.path}'") {
+          val imported = thisExports |+|
+            module.stmts.map(collectImports).combineAll
+
+          val result = imported |+|
+            module.stmts.map(s => collectExports(imported, s)).combineAll
+          thisPath -> result
+        }
+      }.toMap
+
+      linkIndexFiles(exports1) -> unresolved
     }
 
     var lastUnresolved = Set[Symbol]()
     val r = Iterator
       .iterate(
-        modulesToResolve.map {
-          case (p, m) =>
-            p -> collectTopLevelDefs(m.stmts)
-        }
+        linkIndexFiles(modulesToResolve.map { m =>
+          m.path -> collectTopLevelDefs(m.stmts)
+        }.toMap)
       ) { ex =>
         val (ex1, unresolved) = propagateExports(ex)
         lastUnresolved = unresolved

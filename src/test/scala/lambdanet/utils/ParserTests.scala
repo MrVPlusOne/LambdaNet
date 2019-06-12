@@ -248,9 +248,7 @@ class ParserTests extends WordSpec with MyTest {
             allocator,
             p.pathMapping
           )
-          .values
           .map(irTranslator.fromQModule)
-          .toVector
         val graph = PredicateGraphTranslation.fromIRModules(irModules)
       }
     }
