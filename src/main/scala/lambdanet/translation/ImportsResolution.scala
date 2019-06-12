@@ -248,9 +248,11 @@ object ImportsResolution {
             val path =
               if (ref.isRelative)
                 pathMapping.alias(thisPath / ops.up / ref.path)
-              else pathMapping.map(thisPath / ops.up, ref.path)
+              else {
+                resolvedModules.get(ref.path).foreach(return _)
+                pathMapping.map(thisPath / ops.up, ref.path)
+              }
             def tryPath(path: ProjectPath): Option[ModuleExports] = {
-              resolvedModules.get(path).foreach(e => return Some(e))
               exports.get(path)
             }
 

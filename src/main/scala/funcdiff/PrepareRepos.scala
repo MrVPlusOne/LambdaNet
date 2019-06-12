@@ -2,25 +2,20 @@ package funcdiff
 
 import ammonite.ops._
 import lambdanet.ProjectPath
-import lambdanet.translation.ImportsResolution.{ErrorHandler, PathMapping}
-import lambdanet.translation.{
-  IRTranslation,
-  ImportsResolution,
-  PLangTranslation,
-  PredicateGraphTranslation,
-  QLangTranslation
-}
+import lambdanet.translation.ImportsResolution.{ErrorHandler, ModuleExports, PathMapping}
+import lambdanet.translation.{IRTranslation, ImportsResolution, PLangTranslation, PredicateGraphTranslation, QLangTranslation}
 import lambdanet.translation.PredicateGraph.PNodeAllocator
 import lambdanet.utils.ProgramParsing
 import lambdanet.utils.ProgramParsing.GProject
 
-object PrepareRepos {
+@SerialVersionUID(1)
+case class LibDefs(
+    baseCtx: ImportsResolution.ModuleExports,
+    libAllocator: PNodeAllocator,
+    libExports: Map[ProjectPath, ImportsResolution.ModuleExports]
+)
 
-  case class LibDefs(
-      baseCtx: ImportsResolution.ModuleExports,
-      libAllocator: PNodeAllocator,
-      libExports: Map[ProjectPath, ImportsResolution.ModuleExports]
-  )
+object PrepareRepos {
 
   def parseLibDefs() = {
     val declarationsDir = pwd / up / "lambda-repos" / "declarations"
@@ -29,9 +24,9 @@ object PrepareRepos {
     val libExports = {
       //    val files = ls(declarationsDir).filter(_.last.endsWith(".d.ts"))
       println("parsing GModules...")
-      val GProject(_, modules, mapping0) = ProgramParsing
+      val GProject(_, modules, mapping0, subProjects) = ProgramParsing
         .parseGProjectFromRoot(declarationsDir, declarationFileMod = true)
-      val nodeFileMap = {
+      val extraFilesMap = {
         val nodeFiles = ls(declarationsDir / "node")
           .filter(_.last.endsWith(".d.ts"))
           .map { f =>
@@ -46,7 +41,7 @@ object PrepareRepos {
             currentPath: ProjectPath,
             pathToResolve: ProjectPath
         ): ProjectPath = {
-          nodeFileMap.getOrElse(
+          extraFilesMap.getOrElse(
             pathToResolve,
             mapping0.map(currentPath, pathToResolve)
           )
@@ -62,13 +57,30 @@ object PrepareRepos {
         .toMap
 
       println("imports resolution...")
-      ImportsResolution.resolveExports(
+      val exports = ImportsResolution.resolveExports(
         pModules,
         Map(),
         mapping,
         maxIterations = 5,
         errorHandler = ErrorHandler.recoveryHandler()
       )
+
+      val namedExports = subProjects.map {
+        case (name, path) =>
+          name -> exports.getOrElse(
+            path,
+            exports.getOrElse(
+              path / "index",
+              {
+                Console.err.println(
+                  s"Couldn't find Exports located at $path for $name, ignore this named project."
+                )
+                ModuleExports.empty
+              }
+            )
+          )
+      }
+      exports ++ namedExports
     }
     println("Declaration files parsed.")
     LibDefs(baseCtx, libAllocator, libExports)
@@ -76,12 +88,6 @@ object PrepareRepos {
 
   def prepareProject(libDefs: LibDefs, root: Path) = {
     import libDefs._
-
-//    val libMapping = {
-//      libExports.map {
-//        case (p, _) => p.last -> (declarationsDir / p).relativeTo(root)
-//      }
-//    }
 
     val skipSet = Set("__tests__", "dist")
     def filterTests(path: Path): Boolean = {
@@ -91,11 +97,13 @@ object PrepareRepos {
     val p = ProgramParsing.parseGProjectFromRoot(root, filter = filterTests)
     val allocator = new PNodeAllocator(forLib = false)
     val irTranslator = new IRTranslation(allocator)
+
+    println(s"LibExports key set: ${libExports.keySet}")
     val irModules = QLangTranslation
       .fromProject(
         p.modules,
         baseCtx,
-        Map(),
+        libExports,
         allocator,
         p.pathMapping
       )
@@ -111,7 +119,7 @@ object PrepareRepos {
 
     val libDefsFile = pwd / up / "lambda-repos" / "libDefs.serialized"
 
-    val libDefs = if(loadFromFile) {
+    val libDefs = if (loadFromFile) {
       val read = SimpleMath.readObjectFromFile[LibDefs](libDefsFile.toIO)
       println(s"library definitions read from $libDefsFile")
       read

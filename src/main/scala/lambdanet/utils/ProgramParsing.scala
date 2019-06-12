@@ -91,7 +91,8 @@ object ProgramParsing {
   case class GProject(
       root: Path,
       modules: Vector[GModule],
-      pathMapping: PathMapping
+      pathMapping: PathMapping,
+      subProjects: Map[ProjectPath,ProjectPath]
   )
 
   def parseGProjectFromRoot(
@@ -161,7 +162,8 @@ object ProgramParsing {
     GProject(
       root,
       ProgramParsing.parseGModulesFromFiles(sources, root),
-      mapping
+      mapping,
+      subProjects
     )
   }
 
