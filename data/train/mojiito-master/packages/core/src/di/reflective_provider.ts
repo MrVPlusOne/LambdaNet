@@ -88,6 +88,9 @@ export class ResolvedReflectiveProvider_ implements ResolvedReflectiveProvider {
  * @experimental
  */
 export class ResolvedReflectiveFactory {
+  public static factory: Function;
+  public static dependencies: ReflectiveDependency[];
+
   constructor(
     /**
      * Factory function which can return an instance of an object represented by a key.

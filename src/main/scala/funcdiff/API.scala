@@ -6,9 +6,10 @@ import DiffFunc._
 
 import scala.language.{implicitConversions, reflectiveCalls}
 
-object API {
+trait APITrait {
 
-  implicit def symbol2Path(symbol: Symbol): SymbolPath = SymbolPath(Vector(symbol))
+  implicit def symbol2Path(symbol: Symbol): SymbolPath =
+    SymbolPath(Vector(symbol))
 
   def const(value: Tensor): CompNode = {
     new CompNode(ConstFunc(value))
@@ -57,7 +58,8 @@ object API {
 
   def total(xs: IS[CompNode]): CompNode = funcNode(Total(xs))
 
-  def concatN(xs: IS[CompNode], axis: Int): CompNode = funcNode(ConcatN(xs, axis))
+  def concatN(xs: IS[CompNode], axis: Int): CompNode =
+    funcNode(ConcatN(xs, axis))
 
   def crossEntropy(prediction: CompNode, targets: Tensor): CompNode =
     -sum(log(prediction + 1e-7) * targets, axis = 1)
@@ -80,7 +82,10 @@ object API {
 
     for (i <- targets.indices) {
       val groupSum = numsca.sum(
-        probabilities(i * predictionGroupSize :> (i + 1) * predictionGroupSize, :>),
+        probabilities(
+          i * predictionGroupSize :> (i + 1) * predictionGroupSize,
+          :>
+        ),
         axis = 0
       )
       val prediction = TensorExtension.argmax(groupSum, axis = 1).squeeze()
@@ -108,7 +113,11 @@ object API {
       .toSeq
 
     val (correct, wrong) =
-      correctWrongSets(numsca.softmax(logits), effectiveTargets, predictionGroupSize)
+      correctWrongSets(
+        numsca.softmax(logits),
+        effectiveTargets,
+        predictionGroupSize
+      )
     (correct.size.toDouble / (correct.size + wrong.size), (correct, wrong))
   }
 
@@ -136,7 +145,8 @@ object API {
 
     def ^(p: Double): CompNode = funcNode(PowerConst(x1, p))
 
-    def concat(x2: CompNode, axis: Int): CompNode = funcNode(Concat(x1, x2, axis))
+    def concat(x2: CompNode, axis: Int): CompNode =
+      funcNode(Concat(x1, x2, axis))
 
     def slice(ranges: NumscaRange*): CompNode = funcNode(Slice(x1, ranges))
 
@@ -150,17 +160,17 @@ object API {
     }
   }
 
-  /** convenient import for NumscaRange */
-  def :>(end: Int) = NumscaRange(0, Some(end))
-
-  /** convenient import for NumscaRange */
-  def :> = NumscaRange(0, None)
-
-  /** convenient import for NumscaRange */
-  implicit class NumscaInt(i: Long) {
-    def :>(end: Long) = NumscaRange(i, Some(end))
-    def :> = NumscaRange(i, None)
-  }
+//  /** convenient import for NumscaRange */
+//  def :>(end: Int) = NumscaRange(0, Some(end))
+//
+//  /** convenient import for NumscaRange */
+//  def :> = NumscaRange(0, None)
+//
+//  /** convenient import for NumscaRange */
+//  implicit class NumscaInt(i: Long) {
+//    def :>(end: Long) = NumscaRange(i, Some(end))
+//    def :> = NumscaRange(i, None)
+//  }
 
   def printShape(withShape: { def shape: Shape }, name: String): Unit = {
     println(s"$name shape: ${withShape.shape}")

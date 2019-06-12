@@ -1,4 +1,4 @@
-package object funcdiff {
+package object funcdiff extends APITrait {
   type IS[T] = IndexedSeq[T]
   val IS = IndexedSeq
 

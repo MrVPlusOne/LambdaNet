@@ -5,7 +5,6 @@ import botkop.numsca
 import botkop.numsca.{Shape, Tensor}
 import botkop.{numsca => ns}
 import funcdiff.Optimizers.{Adam, SGD}
-import API._
 
 class RnnOptimizationTest extends TestUtils {
   ns.rand.setSeed(11)
@@ -38,11 +37,14 @@ class RnnOptimizationTest extends TestUtils {
             factory.lstm('LSTM)((h, c), input)
         }
         val error = sum(
-          total(states.zip(targets).map { case ((h, _), t) => square(h - t): CompNode })
+          total(states.zip(targets).map {
+            case ((h, _), t) => square(h - t): CompNode
+          })
         )
         //      val outputs = states.map{x => x ~> factory.linear('GruOutput, 1) }
 
-        optimizer.minimize(error, collection.allParams, weightDecay = Some(1e-4))
+        optimizer
+          .minimize(error, collection.allParams, weightDecay = Some(1e-4))
         val e = error.value.squeeze()
         println(s"error[$i]: $e")
         e
@@ -68,10 +70,13 @@ class RnnOptimizationTest extends TestUtils {
             factory.gru('TestGRU)(s, input)
         }
         val error =
-          sum(total(states.zip(targets).map { case (s, t) => square(s - t): CompNode }))
+          sum(total(states.zip(targets).map {
+            case (s, t) => square(s - t): CompNode
+          }))
         //      val outputs = states.map{x => x ~> factory.linear('GruOutput, 1) }
 
-        optimizer.minimize(error, collection.allParams, weightDecay = Some(1e-4))
+        optimizer
+          .minimize(error, collection.allParams, weightDecay = Some(1e-4))
         val e = error.value.squeeze()
         println(s"error[$i]: $e")
         e

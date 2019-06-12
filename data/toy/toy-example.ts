@@ -19,6 +19,12 @@ interface A {
 
 type B = {foo: number; bar: number};
 
+function foo(x: {x1: string, x2: number}){
+  const {x1, x2} = x;
+  return x1
+}
+
+
 let x: A = {foo: 5, bar: 4};
 
 class FieldTest2{

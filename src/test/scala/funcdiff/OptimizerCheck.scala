@@ -2,10 +2,10 @@ package funcdiff
 
 import botkop.{numsca => ns}
 import funcdiff.Optimizers._
-import API._
 
 class OptimizerCheck extends TestUtils {
-  val optimizers = Seq[Optimizer](SGD(learningRate = 0.25), Adam(learningRate = 0.1))
+  val optimizers =
+    Seq[Optimizer](SGD(learningRate = 0.25), Adam(learningRate = 0.1))
 
   "All Optimizers" should "be able to solve this linear regression problem" in {
 
@@ -31,7 +31,10 @@ class OptimizerCheck extends TestUtils {
 
       val finalError = errors.last.squeeze()
       println(s"Optimizer $optimizer final error: $finalError")
-      assert(finalError < 1e-3, s"Optimizer $optimizer failed. Final error: $finalError")
+      assert(
+        finalError < 1e-3,
+        s"Optimizer $optimizer failed. Final error: $finalError"
+      )
     }
   }
 
@@ -59,7 +62,10 @@ class OptimizerCheck extends TestUtils {
 
       val finalError = errors.last.squeeze()
       println(s"Optimizer $optimizer final error: $finalError")
-      assert(finalError < 1e-3, s"Optimizer $optimizer failed. Final error: $finalError")
+      assert(
+        finalError < 1e-3,
+        s"Optimizer $optimizer failed. Final error: $finalError"
+      )
     }
   }
 

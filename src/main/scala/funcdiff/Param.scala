@@ -73,7 +73,7 @@ object ParamCollection {
 
   def main(args: Array[String]): Unit = {
     import ammonite.ops._
-    import infer.TrainingCenter._
+    import lambdanet.TrainingCenter._
     import funcdiff.Optimizers.Adam
 
     val pc = new ParamCollection()

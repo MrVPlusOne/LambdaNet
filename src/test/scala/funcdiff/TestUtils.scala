@@ -6,7 +6,6 @@ import com.typesafe.scalalogging.LazyLogging
 import org.nd4j.linalg.api.buffer.DataBuffer
 import org.nd4j.linalg.factory.Nd4j
 import org.scalatest.{FlatSpec, Matchers}
-import API._
 
 import scala.util.Random
 
@@ -128,7 +127,8 @@ trait TestUtils extends FlatSpec with Matchers with LazyLogging {
             f(newArgs).value
           }
 
-          val numerical = evalNumericalGradientArray(fi, x(i).value, dOut.toTensor())
+          val numerical =
+            evalNumericalGradientArray(fi, x(i).value, dOut.toTensor())
           println(s"[$testName]: numerical[$i] = $numerical")
 
           gradients.get(n) match {
@@ -169,7 +169,8 @@ trait TestUtils extends FlatSpec with Matchers with LazyLogging {
         f(pc).value
       }
 
-      val numerical = evalNumericalGradientArray(fi, p.node.value, dOut.toTensor())
+      val numerical =
+        evalNumericalGradientArray(fi, p.node.value, dOut.toTensor())
       println(s"numerical[$p] = $numerical")
       gradients.get(p.path) match {
         case Some(calculated) =>
@@ -177,7 +178,10 @@ trait TestUtils extends FlatSpec with Matchers with LazyLogging {
           println(s"calculated[$p] = ${calculated}")
           val diError = relError(calcTensor, numerical)
           println(s"Difference: ${calcTensor - numerical}")
-          assert(diError < 1e-5, s"*** $out failed to pass numerical gradient check")
+          assert(
+            diError < 1e-5,
+            s"*** $out failed to pass numerical gradient check"
+          )
         case None =>
           assert(
             numerical.data.forall(x => math.abs(x) < 1e-5),

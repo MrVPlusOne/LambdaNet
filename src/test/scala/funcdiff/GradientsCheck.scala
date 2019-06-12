@@ -5,7 +5,7 @@ import botkop.{numsca => ns}
 import org.nd4j.linalg.api.buffer.DataBuffer
 import org.nd4j.linalg.factory.Nd4j
 import org.scalactic.{Equality, TolerantNumerics}
-import API._
+import ns._
 
 import scala.language.postfixOps
 import scala.util.Random
@@ -91,14 +91,20 @@ class GradientScalarCheck extends TestUtils {
     val x = const(ns.ones(3, 1))
     val y = x * 2
 
-    def acc(v: CompNode): CompNode = if (ns.sum(v.value) < 100) acc(v * 2) else v
+    def acc(v: CompNode): CompNode =
+      if (ns.sum(v.value) < 100) acc(v * 2) else v
 
     val z = acc(y)
     val gradients = CompNode.backprop(
       List(z),
       List(DenseGradient(Tensor(0.1, 1.0, 0.0001).reshape(3, 1)))
     )
-    assert(ns.arrayEqual(gradients(x).toTensor(), Tensor(6.4, 64, 0.0064).reshape(3, 1)))
+    assert(
+      ns.arrayEqual(
+        gradients(x).toTensor(),
+        Tensor(6.4, 64, 0.0064).reshape(3, 1)
+      )
+    )
   }
 }
 
@@ -210,8 +216,12 @@ class GradientMatrixTest extends TestUtils {
       "square" -> square,
       "x => sqrt(abs(x) + 0.1)" -> (x => sqrt(abs(x) + 0.1)),
       "x => total(IS(x,x,x,x))" -> (x => total(IS(x, x, x, x))),
-      "x => concatN(IS(x,x,x,x), axis = 0)" -> (x => concatN(IS(x, x, x, x), axis = 0)),
-      "x => concatN(IS(x,x,x,x), axis = 1)" -> (x => concatN(IS(x, x, x, x), axis = 1)),
+      "x => concatN(IS(x,x,x,x), axis = 0)" -> (
+          x => concatN(IS(x, x, x, x), axis = 0)
+      ),
+      "x => concatN(IS(x,x,x,x), axis = 1)" -> (
+          x => concatN(IS(x, x, x, x), axis = 1)
+      ),
       "crossEntropyOnSoftmax(x, t)" -> (x => crossEntropyOnSoftmax(x, t))
     )
   }
@@ -284,7 +294,9 @@ class GradientMatrixTest extends TestUtils {
         case (s, (input, t)) =>
           factory.gru('TestGRU)(s, input)
       }
-      sum(total(states.zip(targets).map { case (s, t) => square(s - t): CompNode }))
+      sum(total(states.zip(targets).map {
+        case (s, t) => square(s - t): CompNode
+      }))
     }
 
     val pc = ParamCollection()
@@ -305,7 +317,6 @@ class GradientMatrixTest extends TestUtils {
   }
 
   "Parallel version of Backprop" should "be consistent with old version" in {
-    import API._
     import org.scalatest.concurrent.ScalaFutures._
 
     val x = const(ns.randn(20, 30))
@@ -329,7 +340,6 @@ class GradientMatrixTest extends TestUtils {
   }
 
   "Parallel version of Backprop" should "be faster" in {
-    import API._
     import scala.concurrent._
     import duration._
 
