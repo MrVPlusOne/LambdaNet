@@ -7,7 +7,6 @@
     "module": "commonjs",
     "noImplicitAny": true,
     "preserveConstEnums": true,
-    "sourceMap": true,
     "strict": true,
   }
 }

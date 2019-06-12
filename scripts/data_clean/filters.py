@@ -2,6 +2,7 @@ import subprocess as sp
 import json
 import requests
 import os
+from pathlib import Path
 
 def filter_num_lines(repo):
     cloc = sp.run(["cloc", repo], text=True, capture_output=True)
@@ -17,18 +18,14 @@ def filter_num_lines(repo):
 
     return False
 
-def check_pkg_json(packages, internals):
+def check_pkg_json(packages, internals, def_typed_url):
     deps = set()
 
     if "dependencies" in packages:
         deps = deps.union(set(packages["dependencies"].keys()))
 
-#         if "devDependencies" in packages:
-#             deps = deps.union(set(packages["devDependencies"].keys()))
-
-
-    if "name" in packages:
-        internals.add(packages["name"])
+    if "peerDependencies" in packages:
+        deps = deps.union(set(packages["peerDependencies"].keys()))
 
     deps_ = set()
 
@@ -41,30 +38,41 @@ def check_pkg_json(packages, internals):
 
     for dep in deps_:
         dep_name = dep[len("@types/"):]
-        github_url = "https://raw.githubusercontent.com/DefinitelyTyped/DefinitelyTyped/master/types/%s/index.d.ts" % dep_name
-
-        d_ts = requests.get(github_url)
-        if d_ts.status_code != 200 and (dep_name not in internals):
+        dep_dir_url = def_typed_url + "/types/" + dep_name
+        if not (Path(dep_dir_url).is_dir()) and (dep_name not in internals):
             return False
 
     return True
 
 
-def filter_dep_avail(repo):
-    # try:
-    #     packages = json.load(open(repo + "/" + "package.json"))
-    # except:
-    #     return True
-
+def filter_dep_avail_(def_typed_dir, repo):
+    internals = set()
     for (dirname, _, files) in os.walk(repo):
-        internals = set()
         for filename in files:
             if filename == "package.json":
                 try:
                     packages = json.load(open(os.path.join(dirname, filename)))
-                    if not check_pkg_json(packages, internals):
+                    if "name" in packages:
+                        internals.add(packages["name"])
+                except:
+                    continue
+    for (dirname, _, files) in os.walk(repo):
+
+        for filename in files:
+            if filename == "package.json":
+                try:
+                    packages = json.load(open(os.path.join(dirname, filename)))
+                    if not check_pkg_json(packages, internals, def_typed_dir):
                         return False
                 except:
                     continue
 
     return True
+
+
+def filter_dep_avail(definitely_typed_dir):
+    return lambda repo: filter_dep_avail_(definitely_typed_dir, repo)
+    # try:
+    #     packages = json.load(open(repo + "/" + "package.json"))
+    # except:
+    #     return True
