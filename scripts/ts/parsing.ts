@@ -429,6 +429,8 @@ type LiteralExpression =
   ts.ArrayLiteralExpression |
   ts.NoSubstitutionTemplateLiteral
 
+type JsxExpressions = ts.JsxElement | ts.JsxSelfClosingElement
+
 type SpecialExpressions =
   ts.SpreadElement |
   ts.TypeOfExpression |
@@ -438,7 +440,8 @@ type SpecialExpressions =
   ts.AsExpression |
   ts.TypeAssertion |
   ts.AwaitExpression |
-  ts.NonNullExpression
+  ts.NonNullExpression |
+  JsxExpressions
 
 export function parseExpr(node: ts.Expression,
                           allocateLambda: (f: ts.FunctionLikeDeclaration) => Var): GExpr {
@@ -561,6 +564,10 @@ export function parseExpr(node: ts.Expression,
       }
       case SyntaxKind.NonNullExpression: {
         return rec(n.expression);
+      }
+      case SyntaxKind.JsxElement:
+      case SyntaxKind.JsxSelfClosingElement: {
+        return undefinedValue;
       }
       // type assertions are ignored
       case SyntaxKind.AsExpression:
@@ -697,43 +704,44 @@ export class StmtParser {
         let EP = new ExprProcessor();
 
         function parseVarDecList(node: ts.VariableDeclarationList, modifiers: string[]): VarDef[] {
-
           return handleError(node, () => {
             let isConst = (node.flags & ts.NodeFlags.Const) != 0;
 
-            function parseBinding(x: ts.BindingElement | ts.VariableDeclaration, rhs?: GExpr): VarDef[] {
-              let initExpr = rhs ? rhs : (x.initializer ? EP.processExpr(x.initializer) : undefinedValue);
-              const lhs: ts.BindingName = x.name;
+            function parseVarDec(dec: ts.VariableDeclaration): VarDef[] {
+              const rhs = dec.initializer ? EP.processExpr(dec.initializer): undefinedValue;
+              return parseBindingName(dec.name, rhs, dec.type)
+            }
+
+            function parseBindingName(lhs: ts.BindingName, rhs: GExpr, ty?: ts.TypeNode): VarDef[] {
               switch (lhs.kind) {
                 case SyntaxKind.Identifier:
                   return [new VarDef(
-                    (<ts.Identifier>lhs).text,
-                    parseMark((<any>x).type),
-                    initExpr,
+                    lhs.text,
+                    parseMark(ty),
+                    rhs,
                     isConst,
                     modifiers)];
                 case SyntaxKind.ObjectBindingPattern:
-                  return flatMap((lhs as ts.ObjectBindingPattern).elements, (e: ts.BindingElement) => {
-                    let access = new Access(initExpr, (e.name as ts.Identifier).text);
-                    return parseBinding(e, access);
+                  return flatMap(lhs.elements, (e: ts.BindingElement) => {
+                    const fieldName = e.propertyName ? e.propertyName: e.name;
+                    const access = new Access(rhs, (fieldName as ts.Identifier).text);
+                    return parseBindingName(e.name, access);
                   });
                 case SyntaxKind.ArrayBindingPattern: {
-                  let arrayAccessed = new FuncCall(SpecialVars.ArrayAccess, [initExpr]);
+                  let arrayAccessed = new FuncCall(SpecialVars.ArrayAccess, [rhs]);
                   return flatMap(lhs.elements, (e: ts.ArrayBindingElement) => {
                     if (e.kind == SyntaxKind.OmittedExpression) {
                       return [];
                     } else {
-                      return parseBinding(e as ts.BindingElement, arrayAccessed);
+                      return parseBindingName((e as ts.BindingElement).name, arrayAccessed);
                     }
                   });
                 }
-                default:
-                  throw new Error("Unsupported binding pattern " + SyntaxKind[(lhs as any).kind] + ": " + x.getText());
               }
             }
 
             let dec = node.declarations;
-            return flatMap(dec, (x: ts.VariableDeclaration) => parseBinding(x, undefined));
+            return flatMap(dec, parseVarDec);
           });
         }
 

@@ -55,6 +55,7 @@ class ParserTests extends WordSpec with MyTest {
   "Simple cases parsing test" in {
     val content =
       """
+        |const {f: [a,{w:y}], onChange} = this.props;
         |({reducers = {}}: {
         |  reducers?: object;
         |}) =>

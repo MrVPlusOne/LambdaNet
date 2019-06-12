@@ -155,8 +155,9 @@ object ProgramParsing {
       .rec(root)
       .filter(filter)
       .filter { f =>
-        if (declarationFileMod) f.last.endsWith(".d.ts")
-        else f.last.endsWith(".ts") || f.last.endsWith(".d.ts")
+      val name = f.last
+        if (declarationFileMod) name.endsWith(".d.ts")
+        else name.endsWith(".ts") || name.endsWith(".d.ts") || name.endsWith(".tsx")
       }
       .map(_.relativeTo(root))
     GProject(
@@ -576,6 +577,11 @@ object ProgramParsing {
     }
 
   private def parseGModule(v: Js.Val): GModule = {
+    def removeSuffix(name: String, ext: String): String = {
+      if(name.endsWith(ext)) name.dropRight(ext.length)
+      else name
+    }
+
     val obj = asObj(v)
     val name = asString(obj("name"))
 
@@ -609,9 +615,7 @@ object ProgramParsing {
       val stmts2 = mergeInterfaces(stmts1)
 
       val modulePath = RelPath(
-        name
-          .replace(".d.ts", "")
-          .replace(".ts", "")
+        Seq(".d.ts",".tsx",".ts").foldLeft(name)((n, ext) => removeSuffix(n, ext))
       )
       GModule(modulePath, stmts2)
     }
