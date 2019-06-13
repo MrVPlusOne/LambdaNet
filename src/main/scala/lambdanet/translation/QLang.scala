@@ -1,26 +1,13 @@
 package lambdanet.translation
 
 import lambdanet._
-import lambdanet.translation.PredicateGraph.{
-  PAny,
-  PFuncType,
-  PNode,
-  PNodeAllocator,
-  PObjectType,
-  PTyVar,
-  PType
-}
+import lambdanet.translation.PredicateGraph.{PAny, PFuncType, PNode, PNodeAllocator, PObjectType, PTyVar, PType}
 import QLang._
 import funcdiff.SimpleMath
-import lambdanet.translation.ImportsResolution.{
-  ErrorHandler,
-  ModuleExports,
-  NameDef,
-  PathMapping
-}
+import lambdanet.translation.ImportsResolution.{ErrorHandler, ModuleExports, NameDef, PathMapping}
 import lambdanet.translation.PLang.PModule
 import funcdiff.SimpleMath.Extensions._
-import lambdanet.Surface.GModule
+import lambdanet.Surface.{GModule, GStmt}
 import lambdanet.utils.ProgramParsing
 
 import scala.collection.mutable
@@ -94,9 +81,14 @@ object QLangTranslation {
     import ammonite.ops._
 
     val root = pwd / RelPath("data/libraries")
-    val file = "default.lib.d.ts"
-    val Vector(m) =
-      ProgramParsing.parseGModulesFromFiles(Seq(file), root)
+    val files = ls.rec(root)
+      .filter(f => f.last.endsWith(".d.ts"))
+      .map(f => f.relativeTo(root))
+    val allStmts =
+      ProgramParsing.parseGModulesFromFiles(files, root)
+      .map(_.stmts)
+      .reduce(_ ++ _)
+    val m = GModule(RelPath("default-imports"), allStmts)
     val additionalDefs = JSExamples.specialVars.map {
       case (v, t) =>
         Surface.VarDef(
@@ -116,6 +108,7 @@ object QLangTranslation {
         Seq(pModule),
         Map(),
         PathMapping.empty,
+        defaultPublicMode = true,
         errorHandler = ErrorHandler.throwError()
       )
       .values
@@ -130,7 +123,8 @@ object QLangTranslation {
       baseCtx: ModuleExports,
       resolved: Map[ProjectPath, ModuleExports],
       allocator: PNodeAllocator,
-      pathMapping: PathMapping
+      pathMapping: PathMapping,
+      defaultPublicMode: Boolean
   ): Vector[QModule] = {
     val modules1 = modules.map { PLangTranslation.fromGModule(_, allocator) }
 
@@ -138,6 +132,7 @@ object QLangTranslation {
       modules1,
       resolved,
       pathMapping,
+      defaultPublicMode,
       errorHandler = ErrorHandler.throwError()
     )
 
@@ -165,9 +160,9 @@ object QLangTranslation {
             expr match {
               case Surface.Var(s) =>
                 val nd = ctx.internalSymbols(s)
-                nd.namespace match {
-                  case Some(ex) => Left(ex)
-                  case None     => Right(Var(nd.term.get))
+                nd.term match {
+                  case Some(n) => Right(Var(n))  // default to variable binding
+                  case None => Left(nd.namespace.get)
                 }
               case Surface.Access(e, l) =>
                 rec(e) match {
@@ -360,7 +355,8 @@ object QLangTranslation {
     'symbol -> 'Symbol,
     'void -> 'Void,
     'object -> 'Object,
-    'array -> 'Array
+    'array -> 'Array,
+    'bigint -> 'BigInt
   )
 
   private def resolveType(ty: GType)(implicit ctx: ModuleExports): PType =

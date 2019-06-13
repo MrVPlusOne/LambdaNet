@@ -58,7 +58,7 @@ object ImportsResolution {
           pathToResolve: ProjectPath
       ): ProjectPath = {
         throw new Error(
-          s"Could not resolve path $pathToResolve in directory $currentDir"
+          s"Could not resolve path $pathToResolve in directory '$currentDir'"
         )
       }
 
@@ -140,18 +140,24 @@ object ImportsResolution {
   }
 
   sealed trait ResolutionError extends Error
-  case class SourceFileMissingError(path: ProjectPath) extends ResolutionError {
-    override def toString: String = s"Source file missing for path: $path"
+  case class SourceFileMissingError(path: ProjectPath, ctx: ModuleExports) extends ResolutionError {
+    override def toString: String = s"Source file missing for path: $path, ctx: $ctx"
   }
-  case class ImportSymbolsNotResolved(symbols: Set[Symbol])
-      extends ResolutionError {
-    override def toString: String = s"Imported symbols not resolved: $symbols"
+  case class ImportSingleNotResolved(
+      s: ImportStmt,
+      inside: ProjectPath,
+      exports: ModuleExports
+  ) extends ResolutionError {
+    override def toString: String =
+      s"Import single not resolved inside module '$inside', statement: $s, exports available: $exports"
   }
 
   trait ErrorHandler {
-    def sourceFileMissing(path: ProjectPath): ModuleExports
+    def sourceFileMissing(path: ProjectPath, ctx: ModuleExports): ModuleExports
 
-    def importSymbolsNotResolved(unresolved: Set[Symbol]): Unit
+    def importSymbolsNotResolved(
+        error: ImportSingleNotResolved
+    ): Unit
 
   }
 
@@ -159,24 +165,24 @@ object ImportsResolution {
     def recoveryHandler() = new RecoveryHandler()
 
     def throwError() = new ErrorHandler {
-      def sourceFileMissing(path: ProjectPath): ModuleExports =
-        throw SourceFileMissingError(path)
+      def sourceFileMissing(path: ProjectPath, ctx: ModuleExports): ModuleExports =
+        throw SourceFileMissingError(path, ctx)
 
-      def importSymbolsNotResolved(unresolved: Set[Symbol]): Unit =
-        throw ImportSymbolsNotResolved(unresolved)
+      def importSymbolsNotResolved(error: ImportSingleNotResolved): Unit =
+        throw error
     }
   }
 
   class RecoveryHandler extends ErrorHandler {
     val errors: mutable.HashSet[ResolutionError] = mutable.HashSet()
 
-    def sourceFileMissing(path: ProjectPath): ModuleExports = {
-      errors += SourceFileMissingError(path)
+    def sourceFileMissing(path: ProjectPath, ctx: ModuleExports): ModuleExports = {
+      errors += SourceFileMissingError(path, ctx)
       ModuleExports.empty
     }
 
-    def importSymbolsNotResolved(unresolved: Set[Symbol]): Unit = {
-      errors += ImportSymbolsNotResolved(unresolved)
+    def importSymbolsNotResolved(error: ImportSingleNotResolved): Unit = {
+      errors += error
     }
   }
 
@@ -184,6 +190,7 @@ object ImportsResolution {
       modulesToResolve: Seq[PModule],
       resolvedModules: Map[ProjectPath, ModuleExports],
       pathMapping: PathMapping,
+      defaultPublicMode: Boolean,
       maxIterations: Int = 10,
       errorHandler: ErrorHandler
   ): Map[ProjectPath, ModuleExports] = {
@@ -203,6 +210,8 @@ object ImportsResolution {
         all |+|= Map(name -> NameDef.fromPNode(node))
         level match {
           case ExportLevel.Unspecified =>
+            if(defaultPublicMode)
+              publics |+|= Map(name -> NameDef.fromPNode(node))
           case ExportLevel.Public =>
             publics |+|= Map(name -> NameDef.fromPNode(node))
           case ExportLevel.Default =>
@@ -226,6 +235,8 @@ object ImportsResolution {
           all |+|= rhs
           level match {
             case ExportLevel.Unspecified =>
+              if(defaultPublicMode)
+                publics |+|= rhs
             case ExportLevel.Public =>
               publics |+|= rhs
             case ExportLevel.Default =>
@@ -247,11 +258,22 @@ object ImportsResolution {
 
     /** Assumes `linkIndexFiles` is already called on `exports` */
     def propagateExports(
-        exports: Map[ProjectPath, ModuleExports]
-    ): (Map[ProjectPath, ModuleExports], Set[Symbol]) = {
+        exports: Map[ProjectPath, ModuleExports],
+        shouldReportError: Boolean
+    ): Map[ProjectPath, ModuleExports] = {
       import ModuleExports._
 
-      var unresolved = Set[Symbol]()
+      def failToResolve(
+          s: ImportStmt,
+          inside: ProjectPath,
+          exports: ModuleExports
+      ): Unit = {
+        if (shouldReportError)
+          errorHandler.importSymbolsNotResolved(
+            ImportSingleNotResolved(s, inside, exports)
+          )
+      }
+
       val exports1 = modulesToResolve.map { module =>
         val thisPath = module.path
         val thisExports = exports(thisPath)
@@ -260,10 +282,18 @@ object ImportsResolution {
             if (ref.isRelative)
               pathMapping.alias(thisPath / ops.up / ref.path)
             else {
+              ref.path.segments match {
+                case Vector(name) => // could also import from a namespace (rather than a file)
+                  thisExports.internalSymbols.get(Symbol(name)).collect {
+                    case d if d.namespace.nonEmpty =>
+                      return d.namespace.get
+                  }
+                case _ =>
+              }
               resolvedModules.get(ref.path).foreach(return _)
               pathMapping.map(thisPath / ops.up, ref.path)
             }
-          exports.getOrElse(path, errorHandler.sourceFileMissing(path))
+          exports.getOrElse(path, errorHandler.sourceFileMissing(path, thisExports))
         }
 
         def collectImports(stmt: PStmt): ModuleExports =
@@ -279,7 +309,7 @@ object ImportsResolution {
                           internalSymbols = Map(i.newName -> defs)
                         )
                       case None =>
-                        unresolved += i.oldName
+                        failToResolve(i, thisPath, exports)
                         ModuleExports(
                           internalSymbols = Map(i.newName -> NameDef.empty)
                         )
@@ -361,26 +391,21 @@ object ImportsResolution {
         }
       }.toMap
 
-      linkIndexFiles(exports1) -> unresolved
+      linkIndexFiles(exports1)
     }
 
-    var lastUnresolved = Set[Symbol]()
-    val r = Iterator
+    var i = 0
+    Iterator
       .iterate(
         linkIndexFiles(modulesToResolve.map { m =>
           m.path -> collectTopLevelDefs(m.stmts)
         }.toMap)
       ) { ex =>
-        val (ex1, unresolved) = propagateExports(ex)
-        lastUnresolved = unresolved
-        ex1
+        i += 1
+        propagateExports(ex, i == maxIterations)
       }
       .drop(maxIterations)
       .next()
-    if (lastUnresolved.nonEmpty) {
-      errorHandler.importSymbolsNotResolved(lastUnresolved)
-    }
-    r
   }
 
 }

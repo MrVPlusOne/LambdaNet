@@ -36,22 +36,23 @@ object PrepareRepos {
       println("parsing GModules...")
       val GProject(_, modules, mapping0, subProjects) = ProgramParsing
         .parseGProjectFromRoot(declarationsDir, declarationFileMod = true)
-      val extraFilesMap = {
-        val nodeFiles = ls(declarationsDir / "node")
-          .filter(_.last.endsWith(".d.ts"))
-          .map { f =>
-            RelPath(f.last.replace(".d.ts", ""))
-          }
-        nodeFiles.map { f =>
-          f -> RelPath("node") / f
-        }.toMap
+      val nodeFilesMap = {
+//        val nodeFiles = ls(declarationsDir / "node")
+//          .filter(_.last.endsWith(".d.ts"))
+//          .map { f =>
+//            RelPath(f.last.replace(".d.ts", ""))
+//          }
+//        nodeFiles.map { f =>
+//          f -> RelPath("node") / f
+//        }.toMap
+        Map[ProjectPath,ProjectPath]()
       }
       val mapping = new PathMapping {
         def map(
             currentPath: ProjectPath,
             pathToResolve: ProjectPath
         ): ProjectPath = {
-          extraFilesMap.getOrElse(
+          nodeFilesMap.getOrElse(
             pathToResolve,
             mapping0.map(currentPath, pathToResolve)
           )
@@ -69,6 +70,7 @@ object PrepareRepos {
         pModules,
         Map(),
         mapping,
+        defaultPublicMode = true,
         maxIterations = 5,
         errorHandler = ErrorHandler.recoveryHandler()
       )
@@ -87,7 +89,10 @@ object PrepareRepos {
             )
           )
       }
-      exports ++ namedExports
+      val nodeShortcuts = nodeFilesMap.map {
+        case (name, path) => name -> exports(path)
+      }
+      exports ++ namedExports ++ nodeShortcuts
     }
     println("Declaration files parsed.")
     LibDefs(baseCtx, libAllocator, libExports)
@@ -96,7 +101,7 @@ object PrepareRepos {
   def prepareProject(libDefs: LibDefs, root: Path) = {
     import libDefs._
 
-    val skipSet = Set("__tests__", "dist")
+    val skipSet = Set("__tests__", "dist", "test")
     def filterTests(path: Path): Boolean = {
       path.segments.forall(!skipSet.contains(_))
     }
@@ -105,14 +110,15 @@ object PrepareRepos {
     val allocator = new PNodeAllocator(forLib = false)
     val irTranslator = new IRTranslation(allocator)
 
-    println(s"LibExports key set: ${libExports.keySet}")
+//    println(s"LibExports key set: ${libExports.keySet}")
     val irModules = QLangTranslation
       .fromProject(
         p.modules,
         baseCtx,
         libExports,
         allocator,
-        p.pathMapping
+        p.pathMapping,
+        defaultPublicMode = false
       )
       .map(irTranslator.fromQModule)
     val graph = PredicateGraphTranslation.fromIRModules(irModules)
@@ -120,7 +126,7 @@ object PrepareRepos {
   }
 
   def main(args: Array[String]): Unit = {
-    val loadFromFile = true
+    val loadFromFile = false
 
     val libDefsFile = pwd / up / "lambda-repos" / "libDefs.serialized"
 

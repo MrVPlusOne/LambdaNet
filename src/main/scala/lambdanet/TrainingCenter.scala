@@ -18,7 +18,7 @@ import lambdanet.utils.{EventLogger, ReportFinish}
 
 import scala.collection.mutable
 import scala.collection.parallel.ForkJoinTaskSupport
-import scala.concurrent.{Await, ExecutionContextExecutorService, Future}
+import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutorService, Future}
 import scala.util.Random
 
 /**
@@ -38,7 +38,7 @@ object TrainingCenter {
   val forkJoinPool = new ForkJoinPool(numOfThreads)
   val taskSupport: ForkJoinTaskSupport = new ForkJoinTaskSupport(forkJoinPool)
   val parallelCtx: ExecutionContextExecutorService =
-    concurrent.ExecutionContext.fromExecutorService(forkJoinPool)
+    ExecutionContext.fromExecutorService(forkJoinPool)
 
   TensorExtension.checkNaN = false // skip checking to train faster
 
@@ -500,7 +500,7 @@ object TrainingCenter {
   }
 
   object Timeouts {
-    import concurrent.duration._
+    import scala.concurrent.duration._
 
     var restartOnTimeout = true
     var optimizationTimeout = 1000.seconds

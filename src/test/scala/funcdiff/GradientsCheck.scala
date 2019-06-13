@@ -7,6 +7,7 @@ import org.nd4j.linalg.factory.Nd4j
 import org.scalactic.{Equality, TolerantNumerics}
 import ns._
 
+import scala.concurrent.ExecutionContext
 import scala.language.postfixOps
 import scala.util.Random
 
@@ -329,7 +330,7 @@ class GradientMatrixTest extends TestUtils {
       grads(x) -> grads(y)
     }
     val (dx1, dy1) = {
-      val ctx = concurrent.ExecutionContext.global
+      val ctx = ExecutionContext.global
       val grads = z.backpropParallel(ctx).futureValue
 
       grads(x) -> grads(y)

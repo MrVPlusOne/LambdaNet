@@ -8,6 +8,7 @@ scalaVersion in ThisBuild := "2.12.7"
 scalacOptions += "-Ypartial-unification" // for using cats
 scalacOptions += "-language:higherKinds"
 
+
 libraryDependencies ++= Seq(
   "com.lihaoyi" %% "fastparse" % "2.0.4",
   "org.scalacheck" %% "scalacheck" % "1.14.0",

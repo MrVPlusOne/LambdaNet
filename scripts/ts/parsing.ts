@@ -1017,7 +1017,6 @@ export class StmtParser {
           //todo: support these
           case SyntaxKind.ForOfStatement:
           case SyntaxKind.ForInStatement:
-
           // ignored statements:
           case SyntaxKind.BreakStatement:
           case SyntaxKind.ContinueStatement:

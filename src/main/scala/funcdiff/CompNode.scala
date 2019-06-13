@@ -5,9 +5,7 @@ import java.util.concurrent.TimeoutException
 import botkop.numsca._
 import funcdiff.DiffFunc.ConstFunc
 import SimpleMath.Extensions._
-import lambdanet.TrainingCenter.Timeouts
-
-import concurrent._
+import scala.concurrent._
 
 class CompNode(val func: DiffFunc) {
   def value: Tensor = func.value

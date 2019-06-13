@@ -5,8 +5,7 @@ import botkop.{numsca => ns}
 import funcdiff.Optimizers.Adam.Momentum
 import funcdiff.ParameterAttribute.NeedRegularization
 import collection.mutable
-import concurrent.duration.Duration
-
+import scala.concurrent.duration.Duration
 import scala.concurrent.ExecutionContext
 
 trait Optimizer extends Serializable {
