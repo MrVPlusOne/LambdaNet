@@ -141,7 +141,6 @@ object ProgramParsing {
         }
         val base = baseDirs(currentPath).getOrElse(currentPath)
         base / path
-//        throw new Exception(s"current path: $currentPath, ref path: $path")
       }
 
       val aliases: Map[ProjectPath, ProjectPath] =
@@ -227,10 +226,10 @@ object ProgramParsing {
     val modules = ProgramParsing.parseJson(parsedJson).asInstanceOf[Js.Arr]
     modules.value
       .map(parseGModule)
-      .groupBy(_.path)
+      .groupBy(m => (m.isDeclarationFile, m.path))
       .map {
-        case (path, ms) =>
-          GModule(path, ms.toVector.flatMap(_.stmts))
+        case ((isIndex, path), ms) =>
+          GModule(path, ms.toVector.flatMap(_.stmts), isIndex)
       }
       .toVector
   }
@@ -617,7 +616,7 @@ object ProgramParsing {
       val modulePath = RelPath(
         Seq(".d.ts",".tsx",".ts").foldLeft(name)((n, ext) => removeSuffix(n, ext))
       )
-      GModule(modulePath, stmts2)
+      GModule(modulePath, stmts2, name.endsWith(".d.ts"))
     }
   }
 

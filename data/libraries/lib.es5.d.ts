@@ -22,9 +22,15 @@ and limitations under the License.
 /// ECMAScript APIs
 /////////////////////////////
 
+// --- Start of modifications ---
+
 interface Void {
   _void: any
 }
+
+declare var arguments: IArguments;
+
+// --- End of modifications ---
 
 declare var NaN: number;
 declare var Infinity: number;

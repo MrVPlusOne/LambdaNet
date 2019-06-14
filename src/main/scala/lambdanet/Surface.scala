@@ -10,8 +10,9 @@ object Surface {
 
   /** Models a source file */
   case class GModule(
-      path: ProjectPath,
-      stmts: Vector[GStmt]
+                      path: ProjectPath,
+                      stmts: Vector[GStmt],
+                      isDeclarationFile: Boolean
   ) {
     val moduleName: String = path.toString()
   }

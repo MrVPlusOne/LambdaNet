@@ -110,9 +110,6 @@ object PrepareRepos {
     val allocator = new PNodeAllocator(forLib = false)
     val irTranslator = new IRTranslation(allocator)
 
-    assert(baseCtx.internalSymbols.contains('fs))
-    assert(baseCtx.publicSymbols.contains('fs))
-
 //    println(s"LibExports key set: ${libExports.keySet}")
     val irModules = QLangTranslation
       .fromProject(

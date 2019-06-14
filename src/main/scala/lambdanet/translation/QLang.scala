@@ -1,11 +1,24 @@
 package lambdanet.translation
 
 import lambdanet._
-import lambdanet.translation.PredicateGraph.{PAny, PFuncType, PNode, PNodeAllocator, PObjectType, PTyVar, PType}
+import lambdanet.translation.PredicateGraph.{
+  PAny,
+  PFuncType,
+  PNode,
+  PNodeAllocator,
+  PObjectType,
+  PTyVar,
+  PType
+}
 import QLang._
 import ammonite.ops.RelPath
 import funcdiff.SimpleMath
-import lambdanet.translation.ImportsResolution.{ErrorHandler, ModuleExports, NameDef, PathMapping}
+import lambdanet.translation.ImportsResolution.{
+  ErrorHandler,
+  ModuleExports,
+  NameDef,
+  PathMapping
+}
 import lambdanet.translation.PLang.PModule
 import funcdiff.SimpleMath.Extensions._
 import lambdanet.Surface.{GModule, GStmt}
@@ -82,14 +95,17 @@ object QLangTranslation {
     import ammonite.ops._
 
     val root = pwd / RelPath("data/libraries")
-    val files = ls.rec(root)
+    val files = ls
+      .rec(root)
       .filter(f => f.last.endsWith(".d.ts"))
       .map(f => f.relativeTo(root))
     val allStmts =
-      ProgramParsing.parseGModulesFromFiles(files, root)
-      .map(_.stmts)
-      .reduce(_ ++ _)
-    val m = GModule(RelPath("default-imports"), allStmts)
+      ProgramParsing
+        .parseGModulesFromFiles(files, root)
+        .map(_.stmts)
+        .reduce(_ ++ _)
+    val m =
+      GModule(RelPath("default-imports"), allStmts, isDeclarationFile = true)
     val additionalDefs = JSExamples.specialVars.map {
       case (v, t) =>
         Surface.VarDef(
@@ -127,21 +143,50 @@ object QLangTranslation {
       pathMapping: PathMapping,
       defaultPublicMode: Boolean
   ): Vector[QModule] = {
-    val modules1 = modules.map { PLangTranslation.fromGModule(_, allocator) }
+    // first, merge all .d.ts files in the project
+    val dPath = RelPath("projectDeclarations")
+    val declarations = {
+      val m = GModule(
+        dPath,
+        modules
+          .filter(_.isDeclarationFile)
+          .flatMap(_.stmts),
+        isDeclarationFile = true
+      )
+      PLangTranslation.fromGModule(m, allocator)
+    }
 
-    val resolved1 = baseCtx.publicNamespaces.map{
+    val resolved1 = baseCtx.publicNamespaces.map {
       case (k, m) => (k: RelPath) -> m
     } ++ resolved
+
+    val dExports = ImportsResolution.resolveExports(
+      Seq(declarations),
+      resolved1,
+      pathMapping,
+      defaultPublicMode = true,
+      errorHandler = ErrorHandler.throwError()
+    )(dPath)
+
+    // then, make the modules in the .d.ts files available for import
+    val resolved2 = dExports.publicNamespaces.map {
+      case (k, m) => (k: RelPath) -> m
+    } ++ resolved1
+
+    // resolve the project files
+    val modules1 = modules.filterNot(_.isDeclarationFile).map {
+      PLangTranslation.fromGModule(_, allocator)
+    }
     val exports = ImportsResolution.resolveExports(
       modules1,
-      resolved1,
+      resolved2,
       pathMapping,
       defaultPublicMode,
       errorHandler = ErrorHandler.throwError()
     )
 
     modules1.map { m =>
-      fromPModule(m, baseCtx |+| exports(m.path))
+      fromPModule(m, baseCtx |+| dExports |+| exports(m.path))
     }
   }
 
@@ -165,8 +210,8 @@ object QLangTranslation {
               case Surface.Var(s) =>
                 val nd = ctx.internalSymbols(s)
                 nd.term match {
-                  case Some(n) => Right(Var(n))  // default to variable binding
-                  case None => Left(nd.namespace.get)
+                  case Some(n) => Right(Var(n)) // default to variable binding
+                  case None    => Left(nd.namespace.get)
                 }
               case Surface.Access(e, l) =>
                 rec(e) match {
