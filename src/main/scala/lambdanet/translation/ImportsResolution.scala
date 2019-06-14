@@ -1,10 +1,11 @@
 package lambdanet.translation
 
 import ammonite.ops
+import ammonite.ops.RelPath
 import funcdiff.SimpleMath
 import lambdanet.{ExportLevel, ImportStmt, ProjectPath, ReferencePath}
 import lambdanet.translation.PLang._
-import lambdanet.translation.PredicateGraph.PNode
+import lambdanet.translation.PredicateGraph.{PNode, PNodeAllocator}
 import funcdiff.SimpleMath.Extensions._
 import lambdanet.ExportStmt._
 import lambdanet.ImportStmt._
@@ -67,6 +68,7 @@ object ImportsResolution {
   }
 
   /** Type and term definitions that are associated with a symbol */
+  @SerialVersionUID(1)
   case class NameDef(
       term: Option[PNode],
       ty: Option[PNode],
@@ -80,9 +82,33 @@ object ImportsResolution {
       if (p.isType) copy(ty = Some(p))
       else copy(term = Some(p))
     }
+
+    override def toString: String = {
+      Seq(
+        term.map("term: " + _),
+        ty.map("ty: " + _),
+        namespace.map(_ => "namespace")
+      ).map(_.getOrElse("")).mkString("[", ", ", "]")
+    }
+
   }
 
   object NameDef {
+
+    def makeUnknownDef(allocator: PNodeAllocator): NameDef = {
+      require(allocator.forLib)
+      NameDef(
+        Some(allocator.newNode(None, isType = false)),
+        Some(allocator.newNode(None, isType = true)),
+        None
+      )
+    }
+
+    // fixme: handle type mapping
+    val unknownDef: NameDef = {
+      val libAllocator = new PNodeAllocator(forLib = true)
+      libAllocator.unknownDef
+    }
 
     val empty: NameDef = NameDef(None, None, None)
 
@@ -108,21 +134,47 @@ object ImportsResolution {
     }
   }
 
+  @SerialVersionUID(1)
   case class ModuleExports(
       defaultDefs: NameDef = NameDef.empty,
       publicSymbols: Map[Symbol, NameDef] = Map(),
       internalSymbols: Map[Symbol, NameDef] = Map()
   ) {
-    lazy val publicNamespaces: Map[Symbol, ModuleExports] = publicSymbols.collect{
-      case (s, NameDef(_, _, Some(m))) =>
-        s -> m
-    }
+    lazy val publicNamespaces: Map[Symbol, ModuleExports] =
+      publicSymbols.collect {
+        case (s, NameDef(_, _, Some(m))) =>
+          s -> m
+      }
 
     def getNamespace(qualifiedName: Vector[Symbol]): ModuleExports = {
-      if (qualifiedName.isEmpty) this
+      getNamespaceOpt(qualifiedName).get
+    }
+
+    def getNamespaceOpt(
+        qualifiedName: Vector[Symbol]
+    ): Option[ModuleExports] = {
+      if (qualifiedName.isEmpty) Some(this)
       else
-        publicSymbols(qualifiedName.head).namespace.get
-          .getNamespace(qualifiedName.tail)
+        publicSymbols
+          .get(qualifiedName.head)
+          .flatMap(_.namespace.flatMap {
+            _.getNamespaceOpt(qualifiedName.tail)
+          })
+    }
+
+    override def toString: String = {
+      val all = publicSymbols ++ internalSymbols
+      all.keys
+        .map { k =>
+          val prefix =
+            if (publicSymbols.contains(k))
+              if (internalSymbols.contains(k)) "public"
+              else "public but not internal"
+            else if (internalSymbols.contains(k)) "internal"
+            else throw new Error("not possible")
+          s"($prefix)$k ${all(k)}"
+        }
+        .mkString("ModuleExports(", "; ", ")")
     }
 
   }
@@ -145,8 +197,10 @@ object ImportsResolution {
   }
 
   sealed trait ResolutionError extends Error
-  case class SourceFileMissingError(path: ProjectPath, ctx: ModuleExports) extends ResolutionError {
-    override def toString: String = s"Source file missing for path: $path, ctx: $ctx"
+  case class SourceFileMissingError(path: ProjectPath, ctx: ModuleExports)
+      extends ResolutionError {
+    override def toString: String =
+      s"Source file missing for path: $path, ctx: $ctx"
   }
   case class ImportSingleNotResolved(
       s: ImportStmt,
@@ -169,9 +223,13 @@ object ImportsResolution {
   object ErrorHandler {
     def recoveryHandler() = new RecoveryHandler()
 
-    def throwError() = new ErrorHandler {
-      def sourceFileMissing(path: ProjectPath, ctx: ModuleExports): ModuleExports =
+    def throwError(): ErrorHandler = new ErrorHandler {
+      def sourceFileMissing(
+          path: ProjectPath,
+          ctx: ModuleExports
+      ): ModuleExports = {
         throw SourceFileMissingError(path, ctx)
+      }
 
       def importSymbolsNotResolved(error: ImportSingleNotResolved): Unit =
         throw error
@@ -181,7 +239,10 @@ object ImportsResolution {
   class RecoveryHandler extends ErrorHandler {
     val errors: mutable.HashSet[ResolutionError] = mutable.HashSet()
 
-    def sourceFileMissing(path: ProjectPath, ctx: ModuleExports): ModuleExports = {
+    def sourceFileMissing(
+        path: ProjectPath,
+        ctx: ModuleExports
+    ): ModuleExports = {
       errors += SourceFileMissingError(path, ctx)
       ModuleExports.empty
     }
@@ -197,8 +258,9 @@ object ImportsResolution {
       resolvedModules: Map[ProjectPath, ModuleExports],
       pathMapping: PathMapping,
       defaultPublicMode: Boolean,
-      maxIterations: Int = 10,
-      errorHandler: ErrorHandler
+      errorHandler: ErrorHandler,
+      devDependencies: Set[ProjectPath],
+      maxIterations: Int = 10
   ): Map[ProjectPath, ModuleExports] = {
 
     def collectTopLevelDefs(
@@ -216,7 +278,7 @@ object ImportsResolution {
         all |+|= Map(name -> NameDef.fromPNode(node))
         level match {
           case ExportLevel.Unspecified =>
-            if(defaultPublicMode)
+            if (defaultPublicMode)
               publics |+|= Map(name -> NameDef.fromPNode(node))
           case ExportLevel.Public =>
             publics |+|= Map(name -> NameDef.fromPNode(node))
@@ -241,7 +303,7 @@ object ImportsResolution {
           all |+|= rhs
           level match {
             case ExportLevel.Unspecified =>
-              if(defaultPublicMode)
+              if (defaultPublicMode)
                 publics |+|= rhs
             case ExportLevel.Public =>
               publics |+|= rhs
@@ -295,12 +357,18 @@ object ImportsResolution {
                     case d if d.namespace.nonEmpty =>
                       return d.namespace.get
                   }
+                  if (devDependencies.contains(RelPath(name))) {
+                    return ModuleExports.empty
+                  }
                 case _ =>
               }
               resolvedModules.get(ref.path).foreach(return _)
               pathMapping.map(thisPath / ops.up, ref.path)
             }
-          exports.getOrElse(path, errorHandler.sourceFileMissing(path, thisExports))
+          exports.getOrElse(
+            path,
+            errorHandler.sourceFileMissing(path, thisExports)
+          )
         }
 
         def collectImports(stmt: PStmt): ModuleExports =
@@ -310,15 +378,23 @@ object ImportsResolution {
                 val exports = resolvePath(content.path)
                 content match {
                   case i: ImportSingle =>
+//                    def tryExportEquals =
+//                      for {
+//                        exEq <- exports.publicSymbols.get('$ExportEquals)
+//                        ns <- exEq.namespace
+//                        r <- ns.publicSymbols.get(i.oldName)
+//                      } yield r
+
                     exports.publicSymbols.get(i.oldName) match {
                       case Some(defs) =>
                         ModuleExports(
                           internalSymbols = Map(i.newName -> defs)
                         )
                       case None =>
-                        failToResolve(i, thisPath, exports)
+                        if (exports != ModuleExports.empty)
+                          failToResolve(i, thisPath, exports)
                         ModuleExports(
-                          internalSymbols = Map(i.newName -> NameDef.empty)
+                          internalSymbols = Map(i.newName -> NameDef.unknownDef)
                         )
                     }
                   case i: ImportModule =>
@@ -384,6 +460,10 @@ object ImportsResolution {
                   block.stmts.map(s => collectExports(ctx1, s)).combineAll
                 )
               ModuleExports(internalSymbols = Map(name -> df))
+            case NamespaceAliasStmt(Symbol("$ExportEquals"), rhs) =>
+              ctx
+                .getNamespaceOpt(rhs)
+                .getOrElse(ModuleExports.empty)
             case _ => ModuleExports.empty
           }
         }

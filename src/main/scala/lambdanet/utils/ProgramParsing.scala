@@ -66,12 +66,19 @@ object ProgramParsing {
   }
 
   case class PackageFile(
-      moduleName: Option[ProjectPath]
+      moduleName: Option[ProjectPath],
+      devDependencies: Set[ProjectPath]
   )
   def parsePackageFile(path: Path): PackageFile = {
     val map = asObj(parseJsonFromFile(path))
     PackageFile(
-      moduleName = map.get("name").map(s => RelPath(asString(s)))
+      moduleName = map.get("name").map(s => RelPath(asString(s))),
+      devDependencies = map
+        .get("devDependencies")
+        .map { m =>
+          asObj(m).keySet.map(RelPath(_))
+        }
+        .getOrElse(Set())
     )
   }
 
@@ -92,7 +99,8 @@ object ProgramParsing {
       root: Path,
       modules: Vector[GModule],
       pathMapping: PathMapping,
-      subProjects: Map[ProjectPath,ProjectPath]
+      subProjects: Map[ProjectPath, ProjectPath],
+      devDependencies: Set[ProjectPath]
   )
 
   def parseGProjectFromRoot(
@@ -154,16 +162,25 @@ object ProgramParsing {
       .rec(root)
       .filter(filter)
       .filter { f =>
-      val name = f.last
+        val name = f.last
         if (declarationFileMod) name.endsWith(".d.ts")
-        else name.endsWith(".ts") || name.endsWith(".d.ts") || name.endsWith(".tsx")
+        else
+          name.endsWith(".ts") || name.endsWith(".d.ts") || name.endsWith(
+            ".tsx"
+          )
       }
       .map(_.relativeTo(root))
+
+    val devDependencies = (for {
+      f <- ls.rec(root) if f.last == "package.json"
+    } yield parsePackageFile(f)).toSet[PackageFile].flatMap(_.devDependencies)
+
     GProject(
       root,
       ProgramParsing.parseGModulesFromFiles(sources, root),
       mapping,
-      subProjects
+      subProjects,
+      devDependencies
     )
   }
 
@@ -577,7 +594,7 @@ object ProgramParsing {
 
   private def parseGModule(v: Js.Val): GModule = {
     def removeSuffix(name: String, ext: String): String = {
-      if(name.endsWith(ext)) name.dropRight(ext.length)
+      if (name.endsWith(ext)) name.dropRight(ext.length)
       else name
     }
 
@@ -614,7 +631,9 @@ object ProgramParsing {
       val stmts2 = mergeInterfaces(stmts1)
 
       val modulePath = RelPath(
-        Seq(".d.ts",".tsx",".ts").foldLeft(name)((n, ext) => removeSuffix(n, ext))
+        Seq(".d.ts", ".tsx", ".ts").foldLeft(name)(
+          (n, ext) => removeSuffix(n, ext)
+        )
       )
       GModule(modulePath, stmts2, name.endsWith(".d.ts"))
     }

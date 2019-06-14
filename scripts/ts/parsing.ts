@@ -937,8 +937,10 @@ export class StmtParser {
             const n = node as ts.ExportAssignment;
             const e = EP.processExpr(n.expression);
             if (n.isExportEquals) {
-              return EP.alongWith(new VarDef("$ExportEquals", null, e, true,
-                ["export"]));
+              const alias = new NamespaceAliasStmt("$ExportEquals", n.expression.getText());
+              return EP.alongWith(alias);
+              // return EP.alongWith(new VarDef("$ExportEquals", null, e, true,
+              //   ["export"]));
             } else if (e.category == "Var") {
               return EP.alongWith(new ExportStmt(node.getText()));
             } else {

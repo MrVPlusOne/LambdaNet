@@ -248,7 +248,7 @@ class ParserTests extends WordSpec with MyTest {
             Map(),
             allocator,
             p.pathMapping,
-            defaultPublicMode = false
+            devDependencies = Set() // fixme: devDependencies
           )
           .map(irTranslator.fromQModule)
         val graph = PredicateGraphTranslation.fromIRModules(irModules)

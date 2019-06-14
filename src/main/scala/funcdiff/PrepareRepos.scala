@@ -34,7 +34,7 @@ object PrepareRepos {
     val libExports = {
       //    val files = ls(declarationsDir).filter(_.last.endsWith(".d.ts"))
       println("parsing GModules...")
-      val GProject(_, modules, mapping0, subProjects) = ProgramParsing
+      val GProject(_, modules, mapping0, subProjects, devDependencies) = ProgramParsing
         .parseGProjectFromRoot(declarationsDir, declarationFileMod = true)
       val nodeFilesMap = {
 //        val nodeFiles = ls(declarationsDir / "node")
@@ -71,8 +71,9 @@ object PrepareRepos {
         Map(),
         mapping,
         defaultPublicMode = true,
+        errorHandler = ErrorHandler.recoveryHandler(),
+        devDependencies,
         maxIterations = 5,
-        errorHandler = ErrorHandler.recoveryHandler()
       )
 
       val namedExports = subProjects.map {
@@ -118,7 +119,7 @@ object PrepareRepos {
         libExports,
         allocator,
         p.pathMapping,
-        defaultPublicMode = false
+        p.devDependencies
       )
       .map(irTranslator.fromQModule)
     val graph = PredicateGraphTranslation.fromIRModules(irModules)
@@ -131,8 +132,9 @@ object PrepareRepos {
     val libDefsFile = pwd / up / "lambda-repos" / "libDefs.serialized"
 
     val libDefs = if (loadFromFile) {
+      println(s"loading library definitions from $libDefsFile...")
       val read = SimpleMath.readObjectFromFile[LibDefs](libDefsFile.toIO)
-      println(s"library definitions read from $libDefsFile")
+      println(s"library definitions loaded.")
       read
     } else {
       val defs = parseLibDefs()

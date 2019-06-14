@@ -3,6 +3,7 @@ package lambdanet.translation
 import lambdanet.IdAllocator
 import PredicateGraph._
 import funcdiff.SimpleMath
+import lambdanet.translation.ImportsResolution.NameDef
 
 import scala.collection.mutable
 
@@ -31,11 +32,11 @@ case class PredicateGraph(
           fields.flatMap {
             case (l, t) => Map(l -> Set(v -> t.asRight[PType]))
           }
-      } ++ libraryTypes.collect{
+      } ++ libraryTypes.collect {
         case (node, PObjectType(fields)) =>
-        fields.flatMap{
-          case (l, t) => Map(l -> Set(node -> t.asLeft[PNode]))
-        }
+          fields.flatMap {
+            case (l, t) => Map(l -> Set(node -> t.asLeft[PNode]))
+          }
       }
     )
 }
@@ -48,7 +49,8 @@ object PredicateGraph {
       val nameOpt: Option[Symbol],
       val isType: Boolean,
       val fromLib: Boolean
-  ) extends PExpr with Serializable {
+  ) extends PExpr
+      with Serializable {
     def isTerm: Boolean = !isType
 
     def showDetails: String = {
@@ -73,7 +75,12 @@ object PredicateGraph {
   }
 
   @SerialVersionUID(1)
-  class PNodeAllocator(val forLib: Boolean) extends IdAllocator[PNode] with Serializable {
+  class PNodeAllocator(val forLib: Boolean)
+      extends IdAllocator[PNode]
+      with Serializable {
+    val unknownDef: NameDef =
+      if (forLib) NameDef.makeUnknownDef(this) else null
+
     def newNode(
         nameOpt: Option[Symbol],
         isType: Boolean
@@ -228,7 +235,7 @@ object PredicateGraphTranslation {
 
     // todo: compute a complete node set
 
-    val libTypes = for{
+    val libTypes = for {
       (n, annot) <- totalMapping if n.fromLib && n.isType
       ty <- annot.typeOpt
     } yield n -> ty //fixme: this is incomplete, should include all usages

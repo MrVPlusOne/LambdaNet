@@ -126,7 +126,8 @@ object QLangTranslation {
         Map(),
         PathMapping.empty,
         defaultPublicMode = true,
-        errorHandler = ErrorHandler.throwError()
+        errorHandler = ErrorHandler.throwError(),
+        devDependencies = Set()
       )
       .values
       .head
@@ -141,7 +142,7 @@ object QLangTranslation {
       resolved: Map[ProjectPath, ModuleExports],
       allocator: PNodeAllocator,
       pathMapping: PathMapping,
-      defaultPublicMode: Boolean
+      devDependencies: Set[ProjectPath]
   ): Vector[QModule] = {
     // first, merge all .d.ts files in the project
     val dPath = RelPath("projectDeclarations")
@@ -165,7 +166,8 @@ object QLangTranslation {
       resolved1,
       pathMapping,
       defaultPublicMode = true,
-      errorHandler = ErrorHandler.throwError()
+      errorHandler = ErrorHandler.throwError(),
+      devDependencies
     )(dPath)
 
     // then, make the modules in the .d.ts files available for import
@@ -181,8 +183,9 @@ object QLangTranslation {
       modules1,
       resolved2,
       pathMapping,
-      defaultPublicMode,
-      errorHandler = ErrorHandler.throwError()
+      defaultPublicMode = false,
+      errorHandler = ErrorHandler.throwError(),
+      devDependencies
     )
 
     modules1.map { m =>
@@ -263,7 +266,8 @@ object QLangTranslation {
             d.name -> NameDef.termDef(d.node)
           case f: PLang.FuncDef =>
             f.name -> NameDef.termDef(f.funcNode)
-          case a: PLang.NamespaceAliasStmt =>
+          case a: PLang.NamespaceAliasStmt
+              if ctx.getNamespaceOpt(a.rhs).nonEmpty =>
             a.name -> NameDef.namespaceDef(ctx.getNamespace(a.rhs))
         }.toMap
 
