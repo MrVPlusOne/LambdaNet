@@ -113,6 +113,11 @@ object ImportsResolution {
       publicSymbols: Map[Symbol, NameDef] = Map(),
       internalSymbols: Map[Symbol, NameDef] = Map()
   ) {
+    lazy val publicNamespaces: Map[Symbol, ModuleExports] = publicSymbols.collect{
+      case (s, NameDef(_, _, Some(m))) =>
+        s -> m
+    }
+
     def getNamespace(qualifiedName: Vector[Symbol]): ModuleExports = {
       if (qualifiedName.isEmpty) this
       else
@@ -186,6 +191,7 @@ object ImportsResolution {
     }
   }
 
+  /** `resolvedModules` should also include the namespaces in the baseCtx */
   def resolveExports(
       modulesToResolve: Seq[PModule],
       resolvedModules: Map[ProjectPath, ModuleExports],
@@ -283,7 +289,8 @@ object ImportsResolution {
               pathMapping.alias(thisPath / ops.up / ref.path)
             else {
               ref.path.segments match {
-                case Vector(name) => // could also import from a namespace (rather than a file)
+                case Vector(name) =>
+                  // could also import from a namespace defined in the current module
                   thisExports.internalSymbols.get(Symbol(name)).collect {
                     case d if d.namespace.nonEmpty =>
                       return d.namespace.get

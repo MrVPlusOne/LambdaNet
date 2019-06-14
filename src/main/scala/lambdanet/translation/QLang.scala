@@ -3,6 +3,7 @@ package lambdanet.translation
 import lambdanet._
 import lambdanet.translation.PredicateGraph.{PAny, PFuncType, PNode, PNodeAllocator, PObjectType, PTyVar, PType}
 import QLang._
+import ammonite.ops.RelPath
 import funcdiff.SimpleMath
 import lambdanet.translation.ImportsResolution.{ErrorHandler, ModuleExports, NameDef, PathMapping}
 import lambdanet.translation.PLang.PModule
@@ -128,9 +129,12 @@ object QLangTranslation {
   ): Vector[QModule] = {
     val modules1 = modules.map { PLangTranslation.fromGModule(_, allocator) }
 
+    val resolved1 = baseCtx.publicNamespaces.map{
+      case (k, m) => (k: RelPath) -> m
+    } ++ resolved
     val exports = ImportsResolution.resolveExports(
       modules1,
-      resolved,
+      resolved1,
       pathMapping,
       defaultPublicMode,
       errorHandler = ErrorHandler.throwError()
