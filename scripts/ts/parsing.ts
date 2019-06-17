@@ -427,7 +427,8 @@ type LiteralExpression =
   ts.NullLiteral |
   ts.VoidExpression |
   ts.ArrayLiteralExpression |
-  ts.NoSubstitutionTemplateLiteral
+  ts.NoSubstitutionTemplateLiteral |
+  ts.TaggedTemplateExpression
 
 type JsxExpressions = ts.JsxElement | ts.JsxSelfClosingElement
 
@@ -549,6 +550,7 @@ export function parseExpr(node: ts.Expression,
       case SyntaxKind.TypeOfExpression: {
         return new FuncCall(SpecialVars.typeOf, [rec(n.expression)]);
       }
+      case SyntaxKind.TaggedTemplateExpression:
       case SyntaxKind.NoSubstitutionTemplateLiteral:
       case SyntaxKind.TemplateExpression: {
         return constExpr("string");

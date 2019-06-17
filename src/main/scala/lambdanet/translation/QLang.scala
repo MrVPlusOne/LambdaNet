@@ -218,6 +218,8 @@ object QLangTranslation {
                 }
               case Surface.Access(e, l) =>
                 rec(e) match {
+                  case Left(ModuleExports.empty) =>
+                    Right(Var(NameDef.unknownDef.term.get)) // todo: might need to double check this
                   case Left(ex) =>
                     val nd = ex.internalSymbols(l)
                     nd.namespace match {
@@ -414,7 +416,6 @@ object QLangTranslation {
 
   private def resolveType(ty: GType)(implicit ctx: ModuleExports): PType =
     SimpleMath.withErrorMessage(s"Failed to resolve type: $ty") {
-      // todo: parsing qualified types, handle cases like 'pv => pv'
       ty match {
         case AnyType => PAny
         case TyVar(n) =>
@@ -427,7 +428,12 @@ object QLangTranslation {
             val newCtx = nameSegs.init.foldLeft(ctx) {
               case (c, seg) => c.internalSymbols(seg).namespace.get
             }
-            PTyVar(newCtx.internalSymbols(nameSegs.last).ty.get)
+            PTyVar(
+              newCtx.internalSymbols
+                .getOrElse(nameSegs.last, NameDef.unknownDef)
+                .ty
+                .get
+            )
           }
         case FuncType(from, to) =>
           PFuncType(from.map(resolveType).toVector, resolveType(to))

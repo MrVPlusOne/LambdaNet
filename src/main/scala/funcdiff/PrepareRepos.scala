@@ -127,7 +127,7 @@ object PrepareRepos {
   }
 
   def main(args: Array[String]): Unit = {
-    val loadFromFile = false
+    val loadFromFile = true
 
     val libDefsFile = pwd / up / "lambda-repos" / "libDefs.serialized"
 
