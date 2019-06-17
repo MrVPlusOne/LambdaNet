@@ -39,6 +39,12 @@ case class PredicateGraph(
           }
       }
     )
+
+  def printStat(): Unit = {
+    val nodeNum = nodes.size
+    val predicatesNum = predicates.size
+    println(s"Stats{nodeNum: $nodeNum, predicates: $predicatesNum}")
+  }
 }
 
 object PredicateGraph {

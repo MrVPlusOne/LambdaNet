@@ -102,7 +102,7 @@ object PrepareRepos {
   def prepareProject(libDefs: LibDefs, root: Path) = {
     import libDefs._
 
-    val skipSet = Set("__tests__", "dist", "test")
+    val skipSet = Set("__tests__", "dist", "test", "tests")
     def filterTests(path: Path): Boolean = {
       path.segments.forall(!skipSet.contains(_))
     }
@@ -110,6 +110,8 @@ object PrepareRepos {
     val p = ProgramParsing.parseGProjectFromRoot(root, filter = filterTests)
     val allocator = new PNodeAllocator(forLib = false)
     val irTranslator = new IRTranslation(allocator)
+
+    val errorHandler = ErrorHandler.recoveryHandler()
 
 //    println(s"LibExports key set: ${libExports.keySet}")
     val irModules = QLangTranslation
@@ -119,10 +121,20 @@ object PrepareRepos {
         libExports,
         allocator,
         p.pathMapping,
-        p.devDependencies
+        p.devDependencies,
+        errorHandler
       )
       .map(irTranslator.fromQModule)
     val graph = PredicateGraphTranslation.fromIRModules(irModules)
+    errorHandler.errors.foreach{ e =>
+      Console.err.println(s"[warn] translation error: $e")
+    }
+
+    println(s"Project parsed: '$root'")
+    if(errorHandler.errors.isEmpty){
+      println("No errors encountered.")
+    }
+    graph.printStat()
     println(graph)
   }
 

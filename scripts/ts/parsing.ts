@@ -828,7 +828,7 @@ export class StmtParser {
           case SyntaxKind.SetAccessor:
           case SyntaxKind.Constructor: {
             let name = (node.kind == SyntaxKind.Constructor) ? "Constructor" :
-              ((node as any).name.getText());
+              useOrElse((node as any).name, x => x.getText(), "defaultFunc");
             let n = <ts.FunctionLikeDeclaration>node;
             const modifiers = parseModifiers(n.modifiers);
             if (node.kind == SyntaxKind.SetAccessor) {
@@ -938,21 +938,23 @@ export class StmtParser {
           case SyntaxKind.ExportAssignment: {
             const n = node as ts.ExportAssignment;
             const e = EP.processExpr(n.expression);
-            if (n.isExportEquals) {
+            if (n.isExportEquals == true) {
               const alias = new NamespaceAliasStmt("$ExportEquals", n.expression.getText());
               return EP.alongWith(alias);
               // return EP.alongWith(new VarDef("$ExportEquals", null, e, true,
               //   ["export"]));
             } else if (e.category == "Var") {
-              return EP.alongWith(new ExportStmt(node.getText()));
+              const text = `export default ${(e as Var).name}`;
+              return EP.alongWith(new ExportStmt(text));
             } else {
               return EP.alongWith(new VarDef("defaultVar", null, e, true,
                 ["export", "default"]));
             }
           }
           case SyntaxKind.NamespaceExportDeclaration:
-          case SyntaxKind.ExportDeclaration:
+          case SyntaxKind.ExportDeclaration: {
             return EP.alongWith(new ExportStmt(node.getText()));
+          }
           case SyntaxKind.EnumDeclaration: {
             const enumEquiv = new TVar("number");
             const n = node as ts.EnumDeclaration;
@@ -1164,4 +1166,9 @@ function handleError<T>(node: ts.Node, thunk: () => T): T {
     console.log(`Error message: ${e.message}`);
     throw e;
   }
+}
+
+function useOrElse<T,G>(v: T|undefined|null, f: (_:T) => G, backup: G): G {
+  if(v) return f(v);
+  else return backup;
 }

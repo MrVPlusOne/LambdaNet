@@ -6,6 +6,7 @@ import botkop.numsca.Tensor.{Size}
 import ns._
 import funcdiff.LayerFactory.WeightsInitializer
 import funcdiff.ParameterAttribute.NeedRegularization
+import scala.language.postfixOps
 
 object LayerFactory {
   type WeightsInitializer = (Size, Size) => Tensor

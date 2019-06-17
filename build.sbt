@@ -9,7 +9,7 @@ scalacOptions ++= Seq(
   "-feature",
   "-Ypartial-unification", // for using cats
   "-language:higherKinds",
-  "-deprecation"
+//  "-deprecation"
 )
 
 

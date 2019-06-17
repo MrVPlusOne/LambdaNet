@@ -142,7 +142,8 @@ object QLangTranslation {
       resolved: Map[ProjectPath, ModuleExports],
       allocator: PNodeAllocator,
       pathMapping: PathMapping,
-      devDependencies: Set[ProjectPath]
+      devDependencies: Set[ProjectPath],
+      errorHandler: ErrorHandler
   ): Vector[QModule] = {
     // first, merge all .d.ts files in the project
     val dPath = RelPath("projectDeclarations")
@@ -166,7 +167,7 @@ object QLangTranslation {
       resolved1,
       pathMapping,
       defaultPublicMode = true,
-      errorHandler = ErrorHandler.throwError(),
+      errorHandler = errorHandler,
       devDependencies
     )(dPath)
 
@@ -184,12 +185,17 @@ object QLangTranslation {
       resolved2,
       pathMapping,
       defaultPublicMode = false,
-      errorHandler = ErrorHandler.throwError(),
+      errorHandler = errorHandler,
       devDependencies
     )
 
     modules1.map { m =>
-      fromPModule(m, baseCtx |+| dExports |+| exports(m.path))
+      SimpleMath.withErrorMessage{
+        val gm = modules.find(_.path == m.path).get
+        s"GModule source code:\n ${gm.prettyPrint}"
+      } {
+        fromPModule(m, baseCtx |+| dExports |+| exports(m.path))
+      }
     }
   }
 

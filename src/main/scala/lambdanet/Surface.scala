@@ -10,11 +10,21 @@ object Surface {
 
   /** Models a source file */
   case class GModule(
-                      path: ProjectPath,
-                      stmts: Vector[GStmt],
-                      isDeclarationFile: Boolean
+      path: ProjectPath,
+      stmts: Vector[GStmt],
+      isDeclarationFile: Boolean
   ) {
     val moduleName: String = path.toString()
+
+    def prettyPrint: String = {
+      stmts
+        .map(_.prettyPrint())
+        .mkString(
+          s"=== Start of '$path' ===\n",
+          "\n",
+          s"\n=== End of '$path' ==="
+        )
+    }
   }
 
   // === Expression definitions ===

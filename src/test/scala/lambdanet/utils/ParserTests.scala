@@ -6,15 +6,9 @@ import ammonite.ops._
 import lambdanet.Surface._
 import ImportStmt._
 import funcdiff.SimpleMath
-import lambdanet.translation.ImportsResolution.PathMapping
+import lambdanet.translation.ImportsResolution.{ErrorHandler, PathMapping}
 import lambdanet.translation.PredicateGraph.PNodeAllocator
-import lambdanet.translation.{
-  IRTranslation,
-  ImportsResolution,
-  OldPredicateGraphConstruction,
-  PredicateGraphTranslation,
-  QLangTranslation
-}
+import lambdanet.translation.{IRTranslation, ImportsResolution, OldPredicateGraphConstruction, PredicateGraphTranslation, QLangTranslation}
 import lambdanet.utils.ProgramParsing.ImportPattern
 
 class ParserTests extends WordSpec with MyTest {
@@ -55,6 +49,7 @@ class ParserTests extends WordSpec with MyTest {
   "Simple cases parsing test" in {
     val content =
       """
+        |export default (x: number) => x;
         |const {f: [a,{w:y}], onChange} = this.props;
         |({reducers = {}}: {
         |  reducers?: object;
@@ -248,7 +243,8 @@ class ParserTests extends WordSpec with MyTest {
             Map(),
             allocator,
             p.pathMapping,
-            devDependencies = Set() // fixme: devDependencies
+            devDependencies = Set(), // fixme: devDependencies
+            errorHandler = ErrorHandler.throwError()
           )
           .map(irTranslator.fromQModule)
         val graph = PredicateGraphTranslation.fromIRModules(irModules)

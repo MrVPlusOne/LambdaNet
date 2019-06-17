@@ -252,7 +252,7 @@ object ImportsResolution {
     }
   }
 
-  /** `resolvedModules` should also include the namespaces in the baseCtx */
+  /** Note: parameter `resolvedModules` should also include the namespaces in the baseCtx */
   def resolveExports(
       modulesToResolve: Seq[PModule],
       resolvedModules: Map[ProjectPath, ModuleExports],

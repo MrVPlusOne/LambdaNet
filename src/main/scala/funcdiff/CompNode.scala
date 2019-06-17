@@ -151,7 +151,7 @@ object CompNode {
     class Counter(var i: Int)
 
     class GradientHolder(val builder: GradientBuilder) {
-      private var currentTask: Future[Unit] = Future.successful()
+      private var currentTask: Future[Unit] = Future.successful(())
 
       def add(g: Gradient): Unit = synchronized {
         val fut = currentTask.map { _ =>

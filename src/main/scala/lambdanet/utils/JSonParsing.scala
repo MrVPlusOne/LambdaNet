@@ -33,7 +33,7 @@ object JsonParsing {
   def CommentChunk[_: P]: P[Unit] = P( CharsWhile(c => c != '/' && c != '*') | MultilineComment | !"*/" ~ AnyChar )
   def MultilineComment[_: P]: P[Unit] = P( "/*" ~/ CommentChunk.rep ~ "*/" )
 
-  def space[_: P]: P[Unit] =  P((MultilineComment | CharsWhileIn(" \r\n", 1)).rep(0))
+  def space[_: P]: P[Unit] =  P((MultilineComment | CharsWhileIn(" \r\n\t", 1)).rep(0))
   def digits[_: P]: P[Unit] = P(CharsWhileIn("0-9"))
   def exponent[_: P]: P[Unit] = P(CharIn("eE") ~ CharIn("+\\-").? ~ digits)
   def fractional[_: P]: P[Unit] = P("." ~ digits)
