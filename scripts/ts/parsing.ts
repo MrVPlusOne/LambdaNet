@@ -393,7 +393,8 @@ class ClassDef implements GStmt {
   category: string = "ClassDef";
 
   constructor(public name: string, public constructor: FuncDef | null,
-              public initLambdas: FuncDef[],
+              public instanceLambdas: FuncDef[],
+              public staticLambdas: FuncDef[],
               public vars: NamedValue<[GMark, GExpr, boolean]>[],
               public funcDefs: [FuncDef, boolean][],
               public superType: string | null, public modifiers: string[],
@@ -790,8 +791,9 @@ export class StmtParser {
             }
             return EP.alongWith(new IfStmt(cond, then, flattenBlock(otherwise)));
           }
+          case SyntaxKind.DoStatement: // simply treat do as while
           case SyntaxKind.WhileStatement: {
-            let n = node as ts.WhileStatement;
+            const n = node as ts.WhileStatement | ts.DoStatement;
             let cond = EP.processExpr(n.expression);
             let body = flattenBlock(rec(n.statement).stmts);
             return EP.alongWith(new WhileStmt(cond, body));
@@ -860,13 +862,15 @@ export class StmtParser {
             let constructor: Constructor | null = null;
 
             // let isAbstract = n.modifiers && n.modifiers.map(x => x.kind).includes(SyntaxKind.AbstractKeyword);
-            const innerEp = new ExprProcessor();
+            const instanceEp = new ExprProcessor();
+            const staticEp = new ExprProcessor();
 
             for (const v of n.members) {
               const staticQ = isStatic(v);
+              const ep = staticQ ? staticEp : instanceEp;
               if (ts.isPropertyDeclaration(v)) {
                 let v1 = v as ts.PropertyDeclaration;
-                const init = v1.initializer ? innerEp.processExpr(v1.initializer) : undefinedValue;
+                const init = v1.initializer ? ep.processExpr(v1.initializer) : undefinedValue;
                 vars.push(new NamedValue(
                   getPropertyName(v1.name),
                   [parseMark(v1.type), init, staticQ]
@@ -895,7 +899,9 @@ export class StmtParser {
 
             let tVars = parseTVars(n);
 
-            let classStmt = new ClassDef(name, constructor, innerEp.lambdaDefs, vars, funcDefs,
+            let classStmt = new ClassDef(name, constructor,
+              instanceEp.lambdaDefs, staticEp.lambdaDefs,
+              vars, funcDefs,
               superType, classModifiers, tVars);
 
             return EP.alongWith(classStmt);

@@ -537,7 +537,7 @@ object ProgramParsing {
               thisDef,
               thisDef.copy(name = superSymbol)
             )
-            val lambdas = asVector(map("initLambdas"))
+            val lambdas = asVector(map("instanceLambdas"))
               .flatMap(parseGStmt)
               .asInstanceOf[Vector[FuncDef]]
             val stmts = groupInBlockSurface(Vector(constructor0.body)).stmts
@@ -556,7 +556,11 @@ object ProgramParsing {
             if (isAbstract) staticMethods0 else constructor +: staticMethods0
 
           val staticVarIsConst = true
-          val staticMembers = staticVars.map {
+
+          val staticLambdas = asVector(map("staticLambdas"))
+            .flatMap(parseGStmt)
+            .asInstanceOf[Vector[FuncDef]]
+          val staticMembers = staticLambdas ++ staticVars.map {
             case (vn, (ty, init)) =>
               VarDef(vn, ty, init, staticVarIsConst, ms.exportLevel)
           }.toVector ++ staticMethods
