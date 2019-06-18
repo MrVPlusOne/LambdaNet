@@ -5,7 +5,8 @@ import lambdanet.ProjectPath
 import lambdanet.translation.ImportsResolution.{
   ErrorHandler,
   ModuleExports,
-  PathMapping
+  PathMapping,
+  SourceFileMissingError
 }
 import lambdanet.translation.{
   IRTranslation,
@@ -34,8 +35,9 @@ object PrepareRepos {
     val libExports = {
       //    val files = ls(declarationsDir).filter(_.last.endsWith(".d.ts"))
       println("parsing GModules...")
-      val GProject(_, modules, mapping0, subProjects, devDependencies) = ProgramParsing
-        .parseGProjectFromRoot(declarationsDir, declarationFileMod = true)
+      val GProject(_, modules, mapping0, subProjects, devDependencies) =
+        ProgramParsing
+          .parseGProjectFromRoot(declarationsDir, declarationFileMod = true)
       val nodeFilesMap = {
 //        val nodeFiles = ls(declarationsDir / "node")
 //          .filter(_.last.endsWith(".d.ts"))
@@ -45,7 +47,7 @@ object PrepareRepos {
 //        nodeFiles.map { f =>
 //          f -> RelPath("node") / f
 //        }.toMap
-        Map[ProjectPath,ProjectPath]()
+        Map[ProjectPath, ProjectPath]()
       }
       val mapping = new PathMapping {
         def map(
@@ -73,7 +75,7 @@ object PrepareRepos {
         defaultPublicMode = true,
         errorHandler = ErrorHandler.recoveryHandler(),
         devDependencies,
-        maxIterations = 5,
+        maxIterations = 5
       )
 
       val namedExports = subProjects.map {
@@ -99,44 +101,45 @@ object PrepareRepos {
     LibDefs(baseCtx, libAllocator, libExports)
   }
 
-  def prepareProject(libDefs: LibDefs, root: Path) = {
-    import libDefs._
+  def prepareProject(libDefs: LibDefs, root: Path) =
+    SimpleMath.withErrorMessage(s"In project: $root") {
+      import libDefs._
 
-    val skipSet = Set("__tests__", "dist", "test", "tests")
-    def filterTests(path: Path): Boolean = {
-      path.segments.forall(!skipSet.contains(_))
-    }
+      val skipSet = Set("__tests__", "dist", "test", "tests")
+      def filterTests(path: Path): Boolean = {
+        path.segments.forall(!skipSet.contains(_))
+      }
 
-    val p = ProgramParsing.parseGProjectFromRoot(root, filter = filterTests)
-    val allocator = new PNodeAllocator(forLib = false)
-    val irTranslator = new IRTranslation(allocator)
+      val p = ProgramParsing.parseGProjectFromRoot(root, filter = filterTests)
+      val allocator = new PNodeAllocator(forLib = false)
+      val irTranslator = new IRTranslation(allocator)
 
-    val errorHandler = ErrorHandler.recoveryHandler()
+      val errorHandler = ErrorHandler.recoveryHandler()
 
 //    println(s"LibExports key set: ${libExports.keySet}")
-    val irModules = QLangTranslation
-      .fromProject(
-        p.modules,
-        baseCtx,
-        libExports,
-        allocator,
-        p.pathMapping,
-        p.devDependencies,
-        errorHandler
-      )
-      .map(irTranslator.fromQModule)
-    val graph = PredicateGraphTranslation.fromIRModules(irModules)
-    errorHandler.errors.foreach{ e =>
-      Console.err.println(s"[warn] translation error: $e")
-    }
+      val irModules = QLangTranslation
+        .fromProject(
+          p.modules,
+          baseCtx,
+          libExports,
+          allocator,
+          p.pathMapping,
+          p.devDependencies,
+          errorHandler
+        )
+        .map(irTranslator.fromQModule)
+      val graph = PredicateGraphTranslation.fromIRModules(irModules)
+      errorHandler.errors.foreach { e =>
+        Console.err.println(s"[warn] translation error: $e")
+      }
 
-    println(s"Project parsed: '$root'")
-    if(errorHandler.errors.isEmpty){
-      println("No errors encountered.")
+      println(s"Project parsed: '$root'")
+      if (errorHandler.errors.isEmpty) {
+        println("No errors encountered.")
+      }
+      graph.printStat()
+      println(graph)
     }
-    graph.printStat()
-    println(graph)
-  }
 
   def main(args: Array[String]): Unit = {
     val loadFromFile = true

@@ -64,7 +64,7 @@ object JsonParsing {
   def array[_: P]: P[Js.Arr] =
     P("[" ~/ jsonExpr.rep(sep = ","./) ~ space ~ "]").map(Js.Arr(_: _*))
 
-  def pair[_: P]: P[(String, Js.Val)] = P(string.map(_.value) ~/ ":" ~/ jsonExpr)
+  def pair[_: P]: P[(String, Js.Val)] = P(string.map(_.value) ~ space ~/ ":" ~/ jsonExpr)
 
   def obj[_: P]: P[Js.Obj] = // supports trailing comma
     P("{" ~/ pair.rep(sep = ",") ~ space ~ ",".? ~ space ~ "}").map(ps => Js.Obj(ps.toMap))

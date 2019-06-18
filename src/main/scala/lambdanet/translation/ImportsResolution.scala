@@ -243,8 +243,9 @@ object ImportsResolution {
         path: ProjectPath,
         ctx: ModuleExports
     ): ModuleExports = {
-      errors += SourceFileMissingError(path, ctx)
-      ModuleExports.empty
+      throw SourceFileMissingError(path, ctx)
+//      errors += SourceFileMissingError(path, ctx)
+//      ModuleExports.empty
     }
 
     def importSymbolsNotResolved(error: ImportSingleNotResolved): Unit = {
@@ -262,8 +263,25 @@ object ImportsResolution {
       devDependencies: Set[ProjectPath],
       maxIterations: Int = 10
   ): Map[ProjectPath, ModuleExports] = {
+    val devDependencyTree = {
+      val map = new PrefixMap[String, Unit]()
+      devDependencies.foreach(p => map.update(p.segments.toList, ()))
+      map
+    }
+    def isInDevelopDeps(path: List[String]): Boolean = {
+      @scala.annotation.tailrec
+      def rec(tree: PrefixMap[String, Unit], path: List[String]): Boolean = {
+        if (tree.value.nonEmpty) return true
+        if (path.isEmpty) return false
+        tree.suffixes.get(path.head) match {
+          case Some(t1) => rec(t1, path.tail)
+          case None     => false
+        }
+      }
+      rec(devDependencyTree, path)
+    }
 
-    def collectTopLevelDefs(
+    def collectDefs(
         stmts: Vector[PStmt]
     ): ModuleExports = {
       var defaults = NameDef.empty
@@ -292,12 +310,14 @@ object ImportsResolution {
           record(vd.node, vd.exportLevel)
         case fd: FuncDef =>
           record(fd.funcNode, fd.exportLevel)
+        // fixme: handle class defs inside a function body
+//          all |+|= collectDefs(Vector(fd.body)).internalSymbols
         case cd: ClassDef =>
           record(cd.classNode, cd.exportLevel)
         case ts: TypeAliasStmt =>
           record(ts.node, ts.exportLevel)
         case Namespace(name, block, level) =>
-          val nd = NameDef.namespaceDef(collectTopLevelDefs(block.stmts))
+          val nd = NameDef.namespaceDef(collectDefs(block.stmts))
           val rhs =
             Map(name -> nd)
           all |+|= rhs
@@ -350,24 +370,26 @@ object ImportsResolution {
             if (ref.isRelative)
               pathMapping.alias(thisPath / ops.up / ref.path)
             else {
-              ref.path.segments match {
-                case Vector(name) =>
-                  // could also import from a namespace defined in the current module
-                  thisExports.internalSymbols.get(Symbol(name)).collect {
-                    case d if d.namespace.nonEmpty =>
-                      return d.namespace.get
-                  }
-                  if (devDependencies.contains(RelPath(name))) {
-                    return ModuleExports.empty
-                  }
-                case _ =>
+              val segs = ref.path.segments
+              if(segs.length==1){
+                // could also import from a namespace defined in the current module
+                thisExports.internalSymbols.get(Symbol(segs.head)).collect {
+                  case d if d.namespace.nonEmpty =>
+                    return d.namespace.get
+                }
+              }
+              if (isInDevelopDeps(segs.toList)) {
+                return ModuleExports.empty
               }
               resolvedModules.get(ref.path).foreach(return _)
               pathMapping.map(thisPath / ops.up, ref.path)
             }
           exports.getOrElse(
-            path,
-            errorHandler.sourceFileMissing(path, thisExports)
+            path, {
+              println(s"all dev deps: $devDependencies")
+              println(s"all exports: $exports")
+              errorHandler.sourceFileMissing(path, thisExports)
+            }
           )
         }
 
@@ -403,8 +425,11 @@ object ImportsResolution {
                         Map(i.newName -> NameDef.namespaceDef(exports))
                     )
                   case i: ImportDefault =>
+                    val d =
+                      if (exports == ModuleExports.empty) NameDef.unknownDef
+                      else exports.defaultDefs
                     ModuleExports(
-                      internalSymbols = Map(i.newName -> exports.defaultDefs)
+                      internalSymbols = Map(i.newName -> d)
                     )
                 }
               case Namespace(name, block, _) =>
@@ -485,7 +510,7 @@ object ImportsResolution {
     Iterator
       .iterate(
         linkIndexFiles(modulesToResolve.map { m =>
-          m.path -> collectTopLevelDefs(m.stmts)
+          m.path -> collectDefs(m.stmts)
         }.toMap)
       ) { ex =>
         i += 1

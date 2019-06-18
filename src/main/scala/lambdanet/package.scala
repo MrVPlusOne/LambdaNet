@@ -112,4 +112,8 @@ package object lambdanet {
       case None    => x
     }
   }
+
+  implicit class PipeSyntax[A](x: A){
+    def pipe[B](f: A => B): B = f(x)
+  }
 }

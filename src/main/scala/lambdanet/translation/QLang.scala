@@ -190,7 +190,7 @@ object QLangTranslation {
     )
 
     modules1.map { m =>
-      SimpleMath.withErrorMessage{
+      SimpleMath.withErrorMessage {
         val gm = modules.find(_.path == m.path).get
         s"GModule source code:\n ${gm.prettyPrint}"
       } {
@@ -217,7 +217,12 @@ object QLangTranslation {
           SimpleMath.withErrorMessage(s"In expr: $expr") {
             expr match {
               case Surface.Var(s) =>
-                val nd = ctx.internalSymbols(s)
+                val nd = ctx.internalSymbols.getOrElse(s, {
+                  Console.err.println(
+                    s"[warn] Unable to resolve var: ${s.name}"
+                  )
+                  NameDef.unknownDef
+                })
                 nd.term match {
                   case Some(n) => Right(Var(n)) // default to variable binding
                   case None    => Left(nd.namespace.get)
@@ -425,22 +430,28 @@ object QLangTranslation {
       ty match {
         case AnyType => PAny
         case TyVar(n) =>
+          def cantResolve() = {
+            Console.err.println(s"[warn] Unable to resolve type: ${n.name}")
+            NameDef.unknownDef
+          }
+
           val nameSegs = n.name.split("\\.").map(Symbol.apply).toVector
-          if (nameSegs.length == 1) {
+          val tyOpt = if (nameSegs.length == 1) {
             val renamed = basicTypeRenaming.getOrElse(n, n)
-            PTyVar(ctx.internalSymbols(renamed).ty.get)
+            ctx.internalSymbols.getOrElse(renamed, cantResolve())
           } else {
             assert(nameSegs.length > 1, s"empty name segs?: $nameSegs")
-            val newCtx = nameSegs.init.foldLeft(ctx) {
-              case (c, seg) => c.internalSymbols(seg).namespace.get
+            val newCtx = nameSegs.init.foldLeft(Option(ctx)) {
+              case (Some(c), seg) =>
+                c.internalSymbols.get(seg).flatMap(_.namespace)
+              case (None, _) => None
             }
-            PTyVar(
-              newCtx.internalSymbols
-                .getOrElse(nameSegs.last, NameDef.unknownDef)
-                .ty
-                .get
-            )
+
+            newCtx
+              .flatMap(_.internalSymbols.get(nameSegs.last))
+              .getOrElse(cantResolve())
           }
+          tyOpt.ty.getOrElse(cantResolve().ty.get).pipe(PTyVar)
         case FuncType(from, to) =>
           PFuncType(from.map(resolveType).toVector, resolveType(to))
         case ObjectType(fields) =>

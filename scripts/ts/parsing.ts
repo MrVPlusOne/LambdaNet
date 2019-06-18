@@ -443,6 +443,7 @@ type SpecialExpressions =
   ts.TypeAssertion |
   ts.AwaitExpression |
   ts.NonNullExpression |
+  ts.ClassExpression |
   JsxExpressions
 
 export function parseExpr(node: ts.Expression,
@@ -576,6 +577,9 @@ export function parseExpr(node: ts.Expression,
       case SyntaxKind.AsExpression:
       case SyntaxKind.TypeAssertionExpression: {
         return rec(n.expression);
+      }
+      case SyntaxKind.ClassExpression:{
+        return undefinedValue //todo: properly handle
       }
 
       default: {

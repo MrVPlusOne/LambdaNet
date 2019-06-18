@@ -113,7 +113,14 @@ object ProgramParsing {
         f <- ls.rec(root) if f.last == "package.json"
         name <- parsePackageFile(f).moduleName
       } yield {
-        name -> (f / up).relativeTo(root)
+        def isIndexFile(p: FilePath): Boolean = {
+          p.last == "index.ts" || p.last == "index.d.ts"
+        }
+
+        val linkTarget =
+          if (ls(f / up).any(isIndexFile)) f / up
+          else f / up / "src"
+        name -> linkTarget.relativeTo(root)
       }).toMap
 
     type Dir = ProjectPath
@@ -639,8 +646,12 @@ object ProgramParsing {
           (n, ext) => removeSuffix(n, ext)
         )
       )
-      GModule(modulePath, stmts2, name.endsWith(".d.ts"))
+      GModule(modulePath, stmts2, isDeclarationFileName(name))
     }
+  }
+
+  def isDeclarationFileName(name: String): Boolean = {
+    name.endsWith(".d.ts")
   }
 
   import fastparse.JavaWhitespace._
