@@ -120,13 +120,15 @@ object QLangTranslation {
     val libAllocator = new PNodeAllocator(forLib = true)
     val pModule = PLangTranslation.fromGModule(defaultModule, libAllocator)
 
+    val errorHandler = ErrorHandler.alwaysThrow
     val exports = ImportsResolution
       .resolveExports(
         Seq(pModule),
+        ModuleExports.empty,
         Map(),
         PathMapping.empty,
         defaultPublicMode = true,
-        errorHandler = ErrorHandler.throwError(),
+        errorHandler = errorHandler,
         devDependencies = Set()
       )
       .values
@@ -164,6 +166,7 @@ object QLangTranslation {
 
     val dExports = ImportsResolution.resolveExports(
       Seq(declarations),
+      baseCtx,
       resolved1,
       pathMapping,
       defaultPublicMode = true,
@@ -182,6 +185,7 @@ object QLangTranslation {
     }
     val exports = ImportsResolution.resolveExports(
       modules1,
+      baseCtx,
       resolved2,
       pathMapping,
       defaultPublicMode = false,

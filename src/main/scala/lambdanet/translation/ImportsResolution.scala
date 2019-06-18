@@ -7,6 +7,7 @@ import lambdanet.{ExportLevel, ImportStmt, ProjectPath, ReferencePath}
 import lambdanet.translation.PLang._
 import lambdanet.translation.PredicateGraph.{PNode, PNodeAllocator}
 import funcdiff.SimpleMath.Extensions._
+import lambdanet._
 import lambdanet.ExportStmt._
 import lambdanet.ImportStmt._
 import lambdanet.utils.PrefixMap
@@ -208,11 +209,22 @@ object ImportsResolution {
       exports: ModuleExports
   ) extends ResolutionError {
     override def toString: String =
-      s"Import single not resolved inside module '$inside', statement: $s, exports available: $exports"
+      s"Import single not resolved inside module '$inside', statement: $s"
   }
 
   trait ErrorHandler {
-    def sourceFileMissing(path: ProjectPath, ctx: ModuleExports): ModuleExports
+    def warnErrors(): Unit = {
+      if (errors.isEmpty) {
+        println("No errors encountered.")
+      }
+      errors.foreach { e =>
+        Console.err.println(s"[warn] translation error: $e")
+      }
+    }
+
+    val errors: mutable.HashSet[ResolutionError] = mutable.HashSet()
+
+    def sourceFileMissing(path: ProjectPath, ctx: ModuleExports): Unit
 
     def importSymbolsNotResolved(
         error: ImportSingleNotResolved
@@ -221,41 +233,35 @@ object ImportsResolution {
   }
 
   object ErrorHandler {
-    def recoveryHandler() = new RecoveryHandler()
+    sealed trait Policy
+    case object ThrowError extends Policy
+    case object StoreError extends Policy
 
-    def throwError(): ErrorHandler = new ErrorHandler {
-      def sourceFileMissing(
-          path: ProjectPath,
-          ctx: ModuleExports
-      ): ModuleExports = {
-        throw SourceFileMissingError(path, ctx)
+    def apply(whenSourceFileMissing: Policy, whenImportSymbols: Policy): ErrorHandler = {
+      new ErrorHandler {
+        def sourceFileMissing(path: ProjectPath, ctx: ModuleExports): Unit = {
+          val e = SourceFileMissingError(path, ctx)
+          errors += e
+          if(whenSourceFileMissing == ThrowError)
+            throw e
+        }
+
+        def importSymbolsNotResolved(e: ImportSingleNotResolved): Unit = {
+          errors += e
+          if(whenImportSymbols == ThrowError)
+            throw e
+        }
       }
-
-      def importSymbolsNotResolved(error: ImportSingleNotResolved): Unit =
-        throw error
-    }
-  }
-
-  class RecoveryHandler extends ErrorHandler {
-    val errors: mutable.HashSet[ResolutionError] = mutable.HashSet()
-
-    def sourceFileMissing(
-        path: ProjectPath,
-        ctx: ModuleExports
-    ): ModuleExports = {
-      throw SourceFileMissingError(path, ctx)
-//      errors += SourceFileMissingError(path, ctx)
-//      ModuleExports.empty
     }
 
-    def importSymbolsNotResolved(error: ImportSingleNotResolved): Unit = {
-      errors += error
-    }
+    def alwaysThrow: ErrorHandler = apply(ThrowError, ThrowError)
+
   }
 
   /** Note: parameter `resolvedModules` should also include the namespaces in the baseCtx */
   def resolveExports(
       modulesToResolve: Seq[PModule],
+      defaultCtx: ModuleExports,
       resolvedModules: Map[ProjectPath, ModuleExports],
       pathMapping: PathMapping,
       defaultPublicMode: Boolean,
@@ -371,9 +377,11 @@ object ImportsResolution {
               pathMapping.alias(thisPath / ops.up / ref.path)
             else {
               val segs = ref.path.segments
-              if(segs.length==1){
-                // could also import from a namespace defined in the current module
-                thisExports.internalSymbols.get(Symbol(segs.head)).collect {
+              if (segs.length == 1) {
+                // could import from a namespace defined in the current module or defaultCtx
+                tryEach(defaultCtx, thisExports)(
+                  _.internalSymbols.get(Symbol(segs.head))
+                ).collect {
                   case d if d.namespace.nonEmpty =>
                     return d.namespace.get
                 }
@@ -386,9 +394,8 @@ object ImportsResolution {
             }
           exports.getOrElse(
             path, {
-              Console.err.println(s"all dev deps: $devDependencies")
-              Console.err.println(s"all exports: $exports")
               errorHandler.sourceFileMissing(path, thisExports)
+              ModuleExports.empty
             }
           )
         }
@@ -519,5 +526,4 @@ object ImportsResolution {
       .drop(maxIterations)
       .next()
   }
-
 }

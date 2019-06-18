@@ -31,49 +31,30 @@ object PrepareRepos {
   def parseLibDefs() = {
     val declarationsDir = pwd / up / "lambda-repos" / "declarations"
 
+    println("parsing default module...")
     val (baseCtx, libAllocator, _) = QLangTranslation.parseDefaultModule()
+    println("default module parsed")
+
     val libExports = {
-      //    val files = ls(declarationsDir).filter(_.last.endsWith(".d.ts"))
-      println("parsing GModules...")
-      val GProject(_, modules, mapping0, subProjects, devDependencies) =
+      println("parsing library modules...")
+      val GProject(_, modules, mapping, subProjects, devDependencies) =
         ProgramParsing
           .parseGProjectFromRoot(declarationsDir, declarationFileMod = true)
-      val nodeFilesMap = {
-//        val nodeFiles = ls(declarationsDir / "node")
-//          .filter(_.last.endsWith(".d.ts"))
-//          .map { f =>
-//            RelPath(f.last.replace(".d.ts", ""))
-//          }
-//        nodeFiles.map { f =>
-//          f -> RelPath("node") / f
-//        }.toMap
-        Map[ProjectPath, ProjectPath]()
-      }
-      val mapping = new PathMapping {
-        def map(
-            currentPath: ProjectPath,
-            pathToResolve: ProjectPath
-        ): ProjectPath = {
-          nodeFilesMap.getOrElse(
-            pathToResolve,
-            mapping0.map(currentPath, pathToResolve)
-          )
-        }
-
-        def aliases: Map[ProjectPath, ProjectPath] = mapping0.aliases
-      }
 
       println("parsing PModules...")
       val pModules =
         modules.map(m => PLangTranslation.fromGModule(m, libAllocator))
 
       println("imports resolution...")
+      val handler = ErrorHandler(ErrorHandler.StoreError, ErrorHandler.StoreError)
+
       val exports = ImportsResolution.resolveExports(
         pModules,
+        baseCtx,
         Map(),
         mapping,
         defaultPublicMode = true,
-        errorHandler = ErrorHandler.recoveryHandler(),
+        errorHandler = handler,
         devDependencies,
         maxIterations = 5
       )
@@ -92,10 +73,8 @@ object PrepareRepos {
             )
           )
       }
-      val nodeShortcuts = nodeFilesMap.map {
-        case (name, path) => name -> exports(path)
-      }
-      exports ++ namedExports ++ nodeShortcuts
+      handler.warnErrors()
+      exports ++ namedExports
     }
     println("Declaration files parsed.")
     LibDefs(baseCtx, libAllocator, libExports)
@@ -114,7 +93,7 @@ object PrepareRepos {
       val allocator = new PNodeAllocator(forLib = false)
       val irTranslator = new IRTranslation(allocator)
 
-      val errorHandler = ErrorHandler.recoveryHandler()
+      val errorHandler = ErrorHandler(ErrorHandler.ThrowError, ErrorHandler.StoreError)
 
 //    println(s"LibExports key set: ${libExports.keySet}")
       val irModules = QLangTranslation
@@ -129,14 +108,8 @@ object PrepareRepos {
         )
         .map(irTranslator.fromQModule)
       val graph = PredicateGraphTranslation.fromIRModules(irModules)
-      errorHandler.errors.foreach { e =>
-        Console.err.println(s"[warn] translation error: $e")
-      }
-
+      errorHandler.warnErrors()
       println(s"Project parsed: '$root'")
-      if (errorHandler.errors.isEmpty) {
-        println("No errors encountered.")
-      }
       graph.printStat()
       println(graph)
     }

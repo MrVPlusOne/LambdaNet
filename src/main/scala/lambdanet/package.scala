@@ -116,4 +116,8 @@ package object lambdanet {
   implicit class PipeSyntax[A](x: A){
     def pipe[B](f: A => B): B = f(x)
   }
+
+  def tryEach[A, B](x1: A, x2: A)(f: A => Option[B]): Option[B] = {
+    f(x1).orElse(f(x2))
+  }
 }
