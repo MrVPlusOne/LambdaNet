@@ -111,7 +111,7 @@ function eliminateTypeVars(ty: GType, tVars: string[]): GType {
 function parseSignatureType(sig: ts.SignatureDeclarationBase) {
   let tVars = parseTVars(sig);
   let argTypes = sig.parameters.map(p =>
-    eliminateTypeVars(parseType(mustExist(p.type)), tVars));
+    p.type ? eliminateTypeVars(parseType(mustExist(p.type)), tVars) : anyType);
   let retType = sig.type ? eliminateTypeVars(parseType(sig.type), tVars) : new TVar("void");
   return new FuncType(argTypes, retType);
 }

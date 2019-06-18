@@ -386,8 +386,8 @@ object ImportsResolution {
             }
           exports.getOrElse(
             path, {
-              println(s"all dev deps: $devDependencies")
-              println(s"all exports: $exports")
+              Console.err.println(s"all dev deps: $devDependencies")
+              Console.err.println(s"all exports: $exports")
               errorHandler.sourceFileMissing(path, thisExports)
             }
           )
