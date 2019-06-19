@@ -519,8 +519,11 @@ export function parseExpr(node: ts.Expression,
         return constExpr("void", "void");
       }
 
-      case SyntaxKind.ArrayLiteralExpression:
-        return constExpr("array"); //todo: might need to distinguish array types
+      case SyntaxKind.ArrayLiteralExpression:{
+        const a = node as ts.ArrayLiteralExpression;
+        const exs = a.elements.map(rec);
+        return new FuncCall(new Var("Array"), exs);
+      }
 
       // operators
       case ts.SyntaxKind.BinaryExpression: {

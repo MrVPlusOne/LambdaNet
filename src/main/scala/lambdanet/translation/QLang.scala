@@ -210,15 +210,33 @@ object QLangTranslation {
           expr: Surface.GExpr
       )(implicit ctx: ModuleExports): QExpr = {
 
-        def asTerm(value: Either[ModuleExports, QExpr]): QExpr = value match {
-          case Left(_) =>
-            // todo: check if there is a better way to handle namespace expressions
-            Var(ctx.internalSymbols(undefinedSymbol).term.get)
-          case Right(e) => e
-        }
+        def asTerm(value: Either[ModuleExports, QExpr]): QExpr =
+          value.right.get
 
-        def rec(expr: Surface.GExpr): Either[ModuleExports, QExpr] =
+        def rec(
+            expr: Surface.GExpr,
+            canBeNamespace: Boolean
+        ): Either[ModuleExports, QExpr] =
           SimpleMath.withErrorMessage(s"In expr: $expr") {
+            def processNd(nd: NameDef, canBeNamespace: Boolean) = {
+              if (canBeNamespace) {
+                nd.namespace
+                  .map(Left.apply)
+                  .getOrElse {
+                    val n = nd.term.getOrElse(
+                      throw new Error(s"Empty namedDef encountered in expr: $expr")
+                    )
+                    Right(Var(n))
+                  }
+              } else {
+                nd.term
+                  .map(t => Right(Var(t)))
+                  .getOrElse(
+                    Right(Var(ctx.internalSymbols(undefinedSymbol).term.get))
+                  )
+              }
+            }
+
             expr match {
               case Surface.Var(s) =>
                 val nd = ctx.internalSymbols.getOrElse(s, {
@@ -227,17 +245,9 @@ object QLangTranslation {
                   )
                   NameDef.unknownDef
                 })
-                nd.term match {
-                  case Some(n) => Right(Var(n)) // default to variable binding
-                  case None =>
-                    Left(
-                      nd.namespace.getOrElse(
-                        throw new Error(s"What is nd for symbol $s: $nd")
-                      )
-                    )
-                }
+                processNd(nd, canBeNamespace)
               case a @ Surface.Access(e, l) =>
-                rec(e) match {
+                rec(e, canBeNamespace = true) match {
                   case Left(ModuleExports.empty) =>
                     Right(Var(NameDef.unknownDef.term.get)) // todo: might need to double check this
                   case Left(ex) =>
@@ -248,10 +258,7 @@ object QLangTranslation {
                       return Right(Var(NameDef.unknownDef.term.get))
 
                     })
-                    nd.namespace match {
-                      case Some(ex1) => Left(ex1)
-                      case None      => Right(Var(nd.term.get))
-                    }
+                    processNd(nd, canBeNamespace)
                   case Right(e1) =>
                     Right(Access(e1, l))
                 }
@@ -260,26 +267,35 @@ object QLangTranslation {
               case Surface.FuncCall(f, args) =>
                 Right(
                   FuncCall(
-                    asTerm(rec(f)),
-                    args.map(a => asTerm(rec(a))).toVector
+                    asTerm(rec(f, canBeNamespace = false)),
+                    args
+                      .map(a => asTerm(rec(a, canBeNamespace = false)))
+                      .toVector
                   )
                 )
               case Surface.Cast(e, ty) =>
-                Right(Cast(asTerm(rec(e)), resolveType(ty)))
+                Right(
+                  Cast(asTerm(rec(e, canBeNamespace = false)), resolveType(ty))
+                )
               case Surface.ObjLiteral(fields) =>
-                Right(ObjLiteral(fields.mapValuesNow(p => asTerm(rec(p)))))
+                Right(
+                  ObjLiteral(
+                    fields
+                      .mapValuesNow(p => asTerm(rec(p, canBeNamespace = false)))
+                  )
+                )
               case Surface.IfExpr(cond, e1, e2) =>
                 Right(
                   IfExpr(
-                    asTerm(rec(cond)),
-                    asTerm(rec(e1)),
-                    asTerm(rec(e2))
+                    asTerm(rec(cond, canBeNamespace = false)),
+                    asTerm(rec(e1, canBeNamespace = false)),
+                    asTerm(rec(e2, canBeNamespace = false))
                   )
                 )
             }
           }
 
-        asTerm(rec(expr))
+        asTerm(rec(expr, canBeNamespace = false))
       }
 
       def collectDefs(

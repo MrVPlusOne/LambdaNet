@@ -113,7 +113,7 @@ package object lambdanet {
     }
   }
 
-  implicit class PipeSyntax[A](x: A){
+  implicit class PipeSyntax[A](x: A) {
     def pipe[B](f: A => B): B = f(x)
   }
 
@@ -121,7 +121,9 @@ package object lambdanet {
     f(x1).orElse(f(x2))
   }
 
+  var shouldWarn = true
   def warn(str: String): Unit = {
-    Console.err.println("[warn] " + str)
+    if (shouldWarn)
+      Console.err.println("[warn] " + str)
   }
 }

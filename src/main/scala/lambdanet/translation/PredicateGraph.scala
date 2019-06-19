@@ -5,7 +5,7 @@ import PredicateGraph._
 import funcdiff.SimpleMath
 import lambdanet.translation.ImportsResolution.NameDef
 
-import scala.collection.mutable
+import scala.collection.{GenTraversableOnce, mutable}
 
 case class PredicateGraph(
     nodes: Set[PNode],
@@ -39,6 +39,10 @@ case class PredicateGraph(
           }
       }
     )
+
+  lazy val allNodes: Set[PNode] = {
+    nodes ++ predicates.flatMap(_.allNodes)
+  }
 
   def printStat(): Unit = {
     val nodeNum = nodes.size
@@ -78,6 +82,8 @@ object PredicateGraph {
     override def hashCode(): Int = {
       (id, isType).hashCode()
     }
+
+    def allNodes: Set[PNode] = Set(this)
   }
 
   @SerialVersionUID(1)
@@ -118,21 +124,35 @@ object PredicateGraph {
     val madeFromLibTypes: Boolean = fields.forall(_._2.madeFromLibTypes)
   }
 
-  sealed trait TyPredicate
+  sealed trait TyPredicate {
+    def allNodes: Set[PNode]
+
+  }
 
   case class HasLibType(v: PNode, ty: PType) extends TyPredicate {
+    val allNodes: Set[PNode] = Set(v)
     assert(ty.madeFromLibTypes)
   }
 
-  case class SubtypeRel(sub: PNode, sup: PNode) extends TyPredicate
+  case class SubtypeRel(sub: PNode, sup: PNode) extends TyPredicate{
+    val allNodes: Set[PNode] = Set(sub, sup)
+  }
 
-  case class AssignRel(lhs: PNode, rhs: PNode) extends TyPredicate
+  case class AssignRel(lhs: PNode, rhs: PNode) extends TyPredicate{
+    val allNodes: Set[PNode] = Set(lhs, rhs)
+  }
 
-  case class UsedAsBool(n: PNode) extends TyPredicate
+  case class UsedAsBool(n: PNode) extends TyPredicate{
+    val allNodes: Set[PNode] = Set(n)
+  }
 
-  case class InheritanceRel(child: PNode, parent: PNode) extends TyPredicate
+  case class InheritanceRel(child: PNode, parent: PNode) extends TyPredicate{
+    val allNodes: Set[PNode] = Set(child, parent)
+  }
 
-  case class DefineRel(v: PNode, expr: PExpr) extends TyPredicate
+  case class DefineRel(v: PNode, expr: PExpr) extends TyPredicate{
+    val allNodes: Set[PNode] = expr.allNodes + v
+  }
 
   // @formatter:off
   /**
@@ -144,15 +164,25 @@ object PredicateGraph {
     *   | n.l
     */
   // @formatter:on
-  sealed trait PExpr
+  sealed trait PExpr{
+    def allNodes: Set[PNode]
+  }
 
-  case class PFunc(args: Vector[PNode], returnType: PNode) extends PExpr
+  case class PFunc(args: Vector[PNode], returnType: PNode) extends PExpr{
+    val allNodes: Set[PNode] = args.toSet + returnType
+  }
 
-  case class PCall(f: PNode, args: Vector[PNode]) extends PExpr
+  case class PCall(f: PNode, args: Vector[PNode]) extends PExpr{
+    val allNodes: Set[PNode] = args.toSet + f
+  }
 
-  case class PObject(fields: Map[Symbol, PNode]) extends PExpr
+  case class PObject(fields: Map[Symbol, PNode]) extends PExpr{
+    val allNodes: Set[PNode] = fields.values.toSet
+  }
 
-  case class PAccess(obj: PNode, label: Symbol) extends PExpr
+  case class PAccess(obj: PNode, label: Symbol) extends PExpr{
+    val allNodes: Set[PNode] = Set(obj)
+  }
 }
 
 object PredicateGraphTranslation {

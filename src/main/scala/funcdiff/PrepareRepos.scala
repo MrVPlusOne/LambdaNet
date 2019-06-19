@@ -46,7 +46,8 @@ object PrepareRepos {
         modules.map(m => PLangTranslation.fromGModule(m, libAllocator))
 
       println("imports resolution...")
-      val handler = ErrorHandler(ErrorHandler.StoreError, ErrorHandler.StoreError)
+      val handler =
+        ErrorHandler(ErrorHandler.StoreError, ErrorHandler.StoreError)
 
       val exports = ImportsResolution.resolveExports(
         pModules,
@@ -84,7 +85,7 @@ object PrepareRepos {
     SimpleMath.withErrorMessage(s"In project: $root") {
       import libDefs._
 
-      val skipSet = Set("__tests__", "dist", "test", "tests")
+      val skipSet = Set("dist")//, "__tests__", "test", "tests")
       def filterTests(path: Path): Boolean = {
         path.segments.forall(!skipSet.contains(_))
       }
@@ -93,7 +94,8 @@ object PrepareRepos {
       val allocator = new PNodeAllocator(forLib = false)
       val irTranslator = new IRTranslation(allocator)
 
-      val errorHandler = ErrorHandler(ErrorHandler.ThrowError, ErrorHandler.StoreError)
+      val errorHandler =
+        ErrorHandler(ErrorHandler.ThrowError, ErrorHandler.StoreError)
 
 //    println(s"LibExports key set: ${libExports.keySet}")
       val irModules = QLangTranslation
@@ -111,7 +113,8 @@ object PrepareRepos {
       errorHandler.warnErrors()
       println(s"Project parsed: '$root'")
       graph.printStat()
-      println(graph)
+
+      (root, graph)
     }
 
   def main(args: Array[String]): Unit = {
@@ -133,7 +136,41 @@ object PrepareRepos {
 
     val projectsDir = pwd / up / "lambda-repos" / "projects"
 
-    (ls ! projectsDir).foreach(f => if (f.isDir) prepareProject(libDefs, f))
+    lambdanet.shouldWarn = false
+
+    val results =
+      (ls ! projectsDir).par
+        .collect { case f if f.isDir => prepareProject(libDefs, f) }.seq
+
+    val stats = results
+      .map {
+        case (path, graph) =>
+          println(s"lib nodes for $path:")
+          graph.allNodes.filter(_.fromLib).foreach(println)
+          println(s"Graph: $graph")
+
+          val projectName = path.relativeTo(projectsDir)
+          val nLib = graph.allNodes.count(_.fromLib)
+          val nProj = graph.allNodes.count(!_.fromLib)
+          val nPred = graph.predicates.size
+          projectName.toString() -> Seq(nLib, nProj, nPred)
+      }
+      .sortBy(_._2.last)
+
+    val (paths, vec) = stats.unzip
+    val average = vec
+      .reduce(_.zip(_).map { case (x, y) => x + y })
+        .map(_.toDouble /paths.length)
+
+    write.over(
+      pwd / "parsedStatistics.csv",{
+        val head = ("name", Seq("libNodes","projNodes","predicates"))
+        val avgRow = ("average", average)
+        (head +: avgRow +: stats).map{ case (n, data) =>
+          s"$n,${data.mkString(",")}"
+        }.mkString("\n")
+      }
+    )
   }
 
 }

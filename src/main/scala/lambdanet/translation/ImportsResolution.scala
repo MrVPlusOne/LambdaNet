@@ -214,11 +214,8 @@ object ImportsResolution {
 
   trait ErrorHandler {
     def warnErrors(): Unit = {
-      if (errors.isEmpty) {
-        println("No errors encountered.")
-      }
       errors.foreach { e =>
-        Console.err.println(s"[warn] translation error: $e")
+        warn(s"translation error: $e")
       }
     }
 
@@ -409,15 +406,13 @@ object ImportsResolution {
                     return d.namespace.get
                 }
               }
-              if (isInDevelopDeps(segs.toList)) {
-                return ModuleExports.empty
-              }
               resolvedModules.get(ref.path).foreach(return _)
               pathMapping.map(thisPath / ops.up, ref.path)
             }
           exports.getOrElse(
             path, {
-              errorHandler.sourceFileMissing(path, thisExports)
+              if(!isInDevelopDeps(ref.path.segments.toList))
+                errorHandler.sourceFileMissing(path, thisExports)
               ModuleExports.empty
             }
           )
