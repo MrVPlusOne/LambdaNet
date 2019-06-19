@@ -120,4 +120,8 @@ package object lambdanet {
   def tryEach[A, B](x1: A, x2: A)(f: A => Option[B]): Option[B] = {
     f(x1).orElse(f(x2))
   }
+
+  def warn(str: String): Unit = {
+    Console.err.println("[warn] " + str)
+  }
 }

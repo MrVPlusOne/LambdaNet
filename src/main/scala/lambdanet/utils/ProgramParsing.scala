@@ -178,9 +178,16 @@ object ProgramParsing {
       }
       .map(_.relativeTo(root))
 
+    def handleTypesPrefix(p: ProjectPath): Set[ProjectPath] = {
+      if(p.segments.head == "@types") Set(RelPath(p.segments.tail, 0), p)
+      else Set(p)
+    }
+
     val devDependencies = (for {
       f <- ls.rec(root) if f.last == "package.json"
-    } yield parsePackageFile(f)).toSet[PackageFile].flatMap(_.devDependencies)
+    } yield parsePackageFile(f))
+      .toSet[PackageFile]
+      .flatMap(_.devDependencies.flatMap(handleTypesPrefix))
 
     GProject(
       root,

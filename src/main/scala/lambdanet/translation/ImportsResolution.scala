@@ -237,18 +237,21 @@ object ImportsResolution {
     case object ThrowError extends Policy
     case object StoreError extends Policy
 
-    def apply(whenSourceFileMissing: Policy, whenImportSymbols: Policy): ErrorHandler = {
+    def apply(
+        whenSourceFileMissing: Policy,
+        whenImportSymbols: Policy
+    ): ErrorHandler = {
       new ErrorHandler {
         def sourceFileMissing(path: ProjectPath, ctx: ModuleExports): Unit = {
           val e = SourceFileMissingError(path, ctx)
           errors += e
-          if(whenSourceFileMissing == ThrowError)
+          if (whenSourceFileMissing == ThrowError)
             throw e
         }
 
         def importSymbolsNotResolved(e: ImportSingleNotResolved): Unit = {
           errors += e
-          if(whenImportSymbols == ThrowError)
+          if (whenImportSymbols == ThrowError)
             throw e
         }
       }
@@ -311,7 +314,7 @@ object ImportsResolution {
         }
       }
 
-      def addToInternals(stmts: Vector[PStmt]): Unit ={
+      def addToInternals(stmts: Vector[PStmt]): Unit = {
         all |+|= collectDefs(stmts).internalSymbols
       }
 
@@ -381,11 +384,21 @@ object ImportsResolution {
       val exports1 = modulesToResolve.map { module =>
         val thisPath = module.path
         val thisExports = exports(thisPath)
-        def resolvePath(ref: ReferencePath): ModuleExports = {
+        def resolvePath(ref0: ReferencePath): ModuleExports = {
+          val ref: ReferencePath = ref0.copy(path = removeExtension(ref0.path))
+
           val path =
-            if (ref.isRelative)
-              pathMapping.alias(thisPath / ops.up / ref.path)
-            else {
+            if (ref.isRelative) {
+              val p1 = pathMapping.alias(thisPath / ops.up / ref.path)
+              if (p1.ups > 0) {
+                lambdanet.warn(
+                  s"Import from outside of the project using relative " +
+                    s"path: ${ref.path}, treated as unknowns."
+                )
+                return ModuleExports.empty
+              }
+              p1
+            } else {
               val segs = ref.path.segments
               if (segs.length == 1) {
                 // could import from a namespace defined in the current module or defaultCtx
@@ -437,11 +450,10 @@ object ImportsResolution {
                   case i: ImportDefault =>
                     val d =
                       if (exports == ModuleExports.empty) NameDef.unknownDef
-                      else if(exports.defaultDefs == NameDef.empty){
+                      else if (exports.defaultDefs == NameDef.empty) {
                         failToResolve(i, thisPath, exports)
                         NameDef.unknownDef
-                      }
-                      else exports.defaultDefs
+                      } else exports.defaultDefs
                     ModuleExports(
                       internalSymbols = Map(i.newName -> d)
                     )
@@ -532,5 +544,18 @@ object ImportsResolution {
       }
       .drop(maxIterations)
       .next()
+  }
+
+  def removeExtension(path: RelPath): RelPath = {
+    if (path.segments.nonEmpty) {
+      val last = path.segments.last
+      Seq(".d.ts", ".js", ".ts", ".d").foreach { ext =>
+        if (last.endsWith(ext)) {
+          val newLast = last.dropRight(ext.length)
+          return path.copy(segments = path.segments.init :+ newLast)
+        }
+      }
+    }
+    path
   }
 }

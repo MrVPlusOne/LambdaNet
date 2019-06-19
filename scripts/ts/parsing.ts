@@ -417,6 +417,7 @@ type SupportedExpression =
   ts.BinaryExpression |
   ts.PrefixUnaryExpression | ts.PostfixUnaryExpression |
   ts.FunctionExpression | ts.ArrowFunction |
+  ts.ImportExpression |
   SpecialExpressions
 
 
@@ -578,6 +579,7 @@ export function parseExpr(node: ts.Expression,
       case SyntaxKind.TypeAssertionExpression: {
         return rec(n.expression);
       }
+      case SyntaxKind.ImportKeyword:
       case SyntaxKind.ClassExpression:{
         return undefinedValue //todo: properly handle
       }
@@ -809,7 +811,8 @@ export class StmtParser {
           }
           case ts.SyntaxKind.ForStatement: {
             let n = node as ts.ForStatement;
-            let cond = mustExist(n.condition);
+            let cond = n.condition ? EP.processExpr(n.condition) :
+              new Const("true", new TVar("boolean"), getLineNumber(n));
             let init = n.initializer;
             let outerBlock = new BlockStmt([]);
 
@@ -823,7 +826,7 @@ export class StmtParser {
             let bodyStmts: GStmt[] = rec(n.statement).stmts.concat(incr);
 
             outerBlock.stmts.push(new WhileStmt(
-              EP.processExpr(cond),
+              cond,
               flattenBlock(bodyStmts)
             ));
             return EP.alongWith(outerBlock);

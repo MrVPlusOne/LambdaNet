@@ -26,6 +26,7 @@ object Js {
   }
 }
 
+// fixme: replace with a library
 object JsonParsing {
   import fastparse._, NoWhitespace._
   def stringChars(c: Char): Boolean = c != '\"' && c != '\\'
@@ -72,10 +73,11 @@ object JsonParsing {
     ).map(Js.Str)
 
   def array[_: P]: P[Js.Arr] =
-    P("[" ~/ jsonExpr.rep(sep = ","./) ~ space ~ "]").map(Js.Arr(_: _*))
+    P("[" ~/ jsonExpr.rep(sep = ",") ~ space ~ ",".? ~ space ~ "]")
+      .map(Js.Arr(_: _*))
 
   def pair[_: P]: P[(String, Js.Val)] =
-    P(string.map(_.value) ~ space ~/ ":" ~/ jsonExpr)
+    P(string.map(_.value) ~ space ~/ ":" ~ space ~/ jsonExpr)
 
   def obj[_: P]: P[Js.Obj] = // supports trailing comma
     P("{" ~/ pair.rep(sep = ",") ~ space ~ ",".? ~ space ~ "}")

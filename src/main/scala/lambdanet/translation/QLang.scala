@@ -23,7 +23,7 @@ import lambdanet.translation.PLang.PModule
 import funcdiff.SimpleMath.Extensions._
 import lambdanet.Surface.{GModule, GStmt}
 import lambdanet.utils.ProgramParsing
-
+import lambdanet._
 import scala.collection.mutable
 
 object QLang {
@@ -408,13 +408,6 @@ object QLangTranslation {
               Vector()
             case PLang.Namespace(name, block, _) =>
               val ctx1 = ctx |+| ctx.internalSymbols(name).namespace.get
-//              OrElse {
-//                warn(
-//                  s"unable to access the inner namespace for $name " +
-//                    s"(possibly because this namespace is wrapped inside a block)"
-//                )
-//                ModuleExports.empty
-//              }
               block.stmts.flatMap(s => translateStmt(s)(ctx1))
             case _: PLang.PImport            => Vector()
             case _: PLang.PExport            => Vector()
@@ -481,7 +474,4 @@ object QLangTranslation {
       }
     }
 
-  def warn(str: String): Unit = {
-    Console.err.println("[warn] " + str)
-  }
 }
