@@ -247,41 +247,52 @@ class IRTranslation(allocator: PNodeAllocator) {
     * possibly generating some extra definitional statements
     */
   def translateExpr2(expr: QExpr): (Vector[IRStmt], IRExpr) = {
-    def rec(expr: QExpr)(
-        implicit defs: mutable.ListBuffer[IRStmt]
-    ): IRExpr = {
-      def asVar(expr: IRExpr): PNode = {
-        val (stmts, v) = exprAsPNode(expr)
-        defs.appendAll(stmts)
-        v
+    import cats.data.Writer
+    import cats.syntax.all._
+    import cats.instances.all._
+
+    type W[T] = Writer[Vector[IRStmt], T]
+
+    def rec(expr: QExpr): W[IRExpr] = {
+      def asVar(expr: QExpr): W[PNode] = {
+        rec(expr).flatMap { expr =>
+          val (stmts, v) = exprAsPNode(expr)
+          v.writer(stmts)
+        }
       }
 
+      def pure(ex: IRExpr): W[IRExpr] = ex.pure[W]
+
       expr match {
-        case QLang.Var(n) => Var(n)
+        case QLang.Var(n) => pure(Var(n))
         case QLang.FuncCall(f, args) =>
-          val fVar = asVar(rec(f))
-          val argsVars = args.map(e => asVar(rec(e)))
-          IR.FuncCall(fVar, argsVars)
+          val fVar = asVar(f)
+          val argsVars = args.map(arg => asVar(arg)).sequence
+          for {
+            fV <- fVar
+            argsV <- argsVars
+          } yield IR.FuncCall(fV, argsV)
         case QLang.Cast(e, ty) =>
           val node = allocator.newNode(None, isType = false)
           mapping(node) = Annot.Fixed(ty)
-          Cast(asVar(rec(e)), node)
+          asVar(e).map(v => Cast(v, node))
         case QLang.ObjLiteral(fields) =>
-          ObjLiteral(fields.mapValuesNow(e => asVar(rec(e))))
+          fields.toVector
+            .map { case (k, e) => asVar(e).map(k -> _) }
+            .sequence
+            .map(_.toMap.pipe(ObjLiteral))
         case QLang.Access(receiver, field) =>
-          val v = asVar(rec(receiver))
-          FieldAccess(v, field)
+          asVar(receiver).map(FieldAccess(_, field))
         case QLang.IfExpr(cond, e1, e2) =>
-          val condV = asVar(rec(cond))
-          val e1V = asVar(rec(e1))
-          val e2V = asVar(rec(e2))
-          IfExpr(condV, e1V, e2V)
+          for{
+            c <- asVar(cond)
+            e1V <- asVar(e1)
+            e2V <- asVar(e2)
+          } yield IfExpr(c, e1V, e2V)
       }
-
     }
 
-    val defs = mutable.ListBuffer[IRStmt]()
-    (defs.toVector, rec(expr)(defs))
+    rec(expr).run
   }
 
   private def exprAsPNode(expr: IRExpr): (Vector[IRStmt], PNode) =
