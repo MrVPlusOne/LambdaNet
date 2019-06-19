@@ -31,11 +31,3 @@ if(argv.out){
 }else{
   console.log(json);
 }
-
-function twice<a,b>(f: (arg: a|b) => b, x: a): b {
-  return f(f(x))
-}
-
-function sf<a,b>(f: ((_: a)=>b) & a):b {
-  return f(f)
-}

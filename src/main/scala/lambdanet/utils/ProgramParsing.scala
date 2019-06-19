@@ -212,6 +212,9 @@ object ProgramParsing {
   def parseJsonFromFile(jsonFile: Path): Js.Val =
     SimpleMath.withErrorMessage(s"Failed to parse json from file: $jsonFile") {
       val text = read(jsonFile)
+      if(text.trim.isEmpty){
+        throw new Error(s"Trying to parse Json from an empty file: '$jsonFile'")
+      }
       fastparse.parse(text, JsonParsing.jsonExpr(_)) match {
         case Parsed.Success(value, _) => value
         case Parsed.Failure(_, _, extra) =>

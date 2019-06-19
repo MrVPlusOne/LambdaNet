@@ -311,15 +311,19 @@ object ImportsResolution {
         }
       }
 
+      def addToInternals(stmts: Vector[PStmt]): Unit ={
+        all |+|= collectDefs(stmts).internalSymbols
+      }
+
       stmts.foreach {
         case vd: VarDef =>
           record(vd.node, vd.exportLevel)
         case fd: FuncDef =>
           record(fd.funcNode, fd.exportLevel)
-        // fixme: handle class defs inside a function body
-//          all |+|= collectDefs(Vector(fd.body)).internalSymbols
+          addToInternals(Vector(fd.body))
         case cd: ClassDef =>
           record(cd.classNode, cd.exportLevel)
+          addToInternals(cd.funcDefs)
         case ts: TypeAliasStmt =>
           record(ts.node, ts.exportLevel)
         case Namespace(name, block, level) =>
@@ -336,6 +340,12 @@ object ImportsResolution {
             case ExportLevel.Default =>
               defaults |+|= nd
           }
+        case IfStmt(_, b1, b2) =>
+          addToInternals(Vector(b1, b2))
+        case WhileStmt(_, body) =>
+          addToInternals(Vector(body))
+        case BlockStmt(s1) =>
+          addToInternals(s1)
         case _ =>
       }
 
@@ -407,13 +417,6 @@ object ImportsResolution {
                 val exports = resolvePath(content.path)
                 content match {
                   case i: ImportSingle =>
-//                    def tryExportEquals =
-//                      for {
-//                        exEq <- exports.publicSymbols.get('$ExportEquals)
-//                        ns <- exEq.namespace
-//                        r <- ns.publicSymbols.get(i.oldName)
-//                      } yield r
-
                     exports.publicSymbols.get(i.oldName) match {
                       case Some(defs) =>
                         ModuleExports(
@@ -434,6 +437,10 @@ object ImportsResolution {
                   case i: ImportDefault =>
                     val d =
                       if (exports == ModuleExports.empty) NameDef.unknownDef
+                      else if(exports.defaultDefs == NameDef.empty){
+                        failToResolve(i, thisPath, exports)
+                        NameDef.unknownDef
+                      }
                       else exports.defaultDefs
                     ModuleExports(
                       internalSymbols = Map(i.newName -> d)

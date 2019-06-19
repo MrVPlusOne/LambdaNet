@@ -176,7 +176,7 @@ object QLangTranslation {
 
     // then, make the modules in the .d.ts files available for import
     val resolved2 = dExports.publicNamespaces.map {
-      case (k, m) => (k: RelPath) -> m
+      case (k, m) => RelPath(k.toString()) -> m
     } ++ resolved1
 
     // resolve the project files
@@ -222,21 +222,32 @@ object QLangTranslation {
             expr match {
               case Surface.Var(s) =>
                 val nd = ctx.internalSymbols.getOrElse(s, {
-                  Console.err.println(
-                    s"[warn] Unable to resolve var: ${s.name}"
+                  warn(
+                    s"Unable to resolve var: ${s.name}"
                   )
                   NameDef.unknownDef
                 })
                 nd.term match {
                   case Some(n) => Right(Var(n)) // default to variable binding
-                  case None    => Left(nd.namespace.get)
+                  case None =>
+                    Left(
+                      nd.namespace.getOrElse(
+                        throw new Error(s"What is nd for symbol $s: $nd")
+                      )
+                    )
                 }
-              case Surface.Access(e, l) =>
+              case a @ Surface.Access(e, l) =>
                 rec(e) match {
                   case Left(ModuleExports.empty) =>
                     Right(Var(NameDef.unknownDef.term.get)) // todo: might need to double check this
                   case Left(ex) =>
-                    val nd = ex.internalSymbols(l)
+                    val nd = ex.internalSymbols.getOrElse(l, {
+                      if (l != 'prototype) {
+                        warn(s"Unable to resolve namespace access: $a")
+                      }
+                      return Right(Var(NameDef.unknownDef.term.get))
+
+                    })
                     nd.namespace match {
                       case Some(ex1) => Left(ex1)
                       case None      => Right(Var(nd.term.get))
@@ -397,6 +408,13 @@ object QLangTranslation {
               Vector()
             case PLang.Namespace(name, block, _) =>
               val ctx1 = ctx |+| ctx.internalSymbols(name).namespace.get
+//              OrElse {
+//                warn(
+//                  s"unable to access the inner namespace for $name " +
+//                    s"(possibly because this namespace is wrapped inside a block)"
+//                )
+//                ModuleExports.empty
+//              }
               block.stmts.flatMap(s => translateStmt(s)(ctx1))
             case _: PLang.PImport            => Vector()
             case _: PLang.PExport            => Vector()
@@ -435,7 +453,7 @@ object QLangTranslation {
         case AnyType => PAny
         case TyVar(n) =>
           def cantResolve() = {
-            Console.err.println(s"[warn] Unable to resolve type: ${n.name}")
+            warn(s"Unable to resolve type: ${n.name}")
             NameDef.unknownDef
           }
 
@@ -462,4 +480,8 @@ object QLangTranslation {
           PObjectType(fields.mapValuesNow(resolveType))
       }
     }
+
+  def warn(str: String): Unit = {
+    Console.err.println("[warn] " + str)
+  }
 }

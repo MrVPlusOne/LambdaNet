@@ -30,10 +30,18 @@ object JsonParsing {
   import fastparse._, NoWhitespace._
   def stringChars(c: Char): Boolean = c != '\"' && c != '\\'
 
-  def CommentChunk[_: P]: P[Unit] = P( CharsWhile(c => c != '/' && c != '*') | MultilineComment | !"*/" ~ AnyChar )
-  def MultilineComment[_: P]: P[Unit] = P( "/*" ~/ CommentChunk.rep ~ "*/" )
+  def CommentChunk[_: P]: P[Unit] =
+    P(
+      CharsWhile(c => c != '/' && c != '*') | MultilineComment | !"*/" ~ AnyChar
+    )
+  def MultilineComment[_: P]: P[Unit] = P("/*" ~/ CommentChunk.rep ~ "*/")
 
-  def space[_: P]: P[Unit] =  P((MultilineComment | CharsWhileIn(" \r\n\t", 1)).rep(0))
+  def singleLineComment[_: P]: P[Unit] = P("//" ~ CharsWhile(_ != '\n'))
+
+  def space[_: P]: P[Unit] =
+    P(
+      (MultilineComment | singleLineComment | CharsWhileIn(" \r\n\t", 1)).rep(0)
+    )
   def digits[_: P]: P[Unit] = P(CharsWhileIn("0-9"))
   def exponent[_: P]: P[Unit] = P(CharIn("eE") ~ CharIn("+\\-").? ~ digits)
   def fractional[_: P]: P[Unit] = P("." ~ digits)
@@ -49,7 +57,8 @@ object JsonParsing {
   def `true`[_: P]: P[Js.True.type] = P("true").map(_ => Js.True)
 
   def hexDigit[_: P]: P[Unit] = P(CharIn("0-9a-fA-F"))
-  def unicodeEscape[_: P]: P[Unit] = P("u" ~ hexDigit ~ hexDigit ~ hexDigit ~ hexDigit)
+  def unicodeEscape[_: P]: P[Unit] =
+    P("u" ~ hexDigit ~ hexDigit ~ hexDigit ~ hexDigit)
   def escape[_: P]: P[Unit] = P("\\" ~ (CharIn("\"/\\\\bfnrt") | unicodeEscape))
 
   def strChars[_: P]: P[Unit] = P(CharsWhile(stringChars))
@@ -58,16 +67,19 @@ object JsonParsing {
 
   def singleQuoteStringChars(c: Char): Boolean = c != '\'' && c != '\\'
   def singleQuoteString[_: P]: P[Js.Str] =
-    P(space ~ "'" ~/ (P(CharsWhile(singleQuoteStringChars)) | escape).rep.! ~ "'")
-      .map(Js.Str)
+    P(
+      space ~ "'" ~/ (P(CharsWhile(singleQuoteStringChars)) | escape).rep.! ~ "'"
+    ).map(Js.Str)
 
   def array[_: P]: P[Js.Arr] =
     P("[" ~/ jsonExpr.rep(sep = ","./) ~ space ~ "]").map(Js.Arr(_: _*))
 
-  def pair[_: P]: P[(String, Js.Val)] = P(string.map(_.value) ~ space ~/ ":" ~/ jsonExpr)
+  def pair[_: P]: P[(String, Js.Val)] =
+    P(string.map(_.value) ~ space ~/ ":" ~/ jsonExpr)
 
   def obj[_: P]: P[Js.Obj] = // supports trailing comma
-    P("{" ~/ pair.rep(sep = ",") ~ space ~ ",".? ~ space ~ "}").map(ps => Js.Obj(ps.toMap))
+    P("{" ~/ pair.rep(sep = ",") ~ space ~ ",".? ~ space ~ "}")
+      .map(ps => Js.Obj(ps.toMap))
 
   def jsonExpr[_: P]: P[Js.Val] = P(
     space ~ (obj | array | string | `true` | `false` | `null` | number) ~ space

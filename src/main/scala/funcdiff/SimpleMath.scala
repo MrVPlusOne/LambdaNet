@@ -190,7 +190,7 @@ object SimpleMath {
     import parallel._
 
     val taskSupport = new ForkJoinTaskSupport(
-      new scala.concurrent.forkjoin.ForkJoinPool(threadNum)
+      new java.util.concurrent.ForkJoinPool(threadNum)
     )
 
     if (threadNum > 1) {
@@ -221,7 +221,7 @@ object SimpleMath {
     import scala.collection.parallel
     import parallel._
     val taskSupport = new ForkJoinTaskSupport(
-      new scala.concurrent.forkjoin.ForkJoinPool(threadNum)
+      new java.util.concurrent.ForkJoinPool(threadNum)
     )
     def parExecute(seq: Seq[A])(f: A => B): IS[B] = {
       if (threadNum > 1) {
@@ -468,7 +468,7 @@ object SimpleMath {
   }
 
   /** Print the error message if there is an exception or error when executing the computation */
-  def withErrorMessage[T](msg: => String, prepend: Boolean = true)(
+  def withErrorMessage[T](msg: => String)(
       computation: => T
   ): T = {
     try {

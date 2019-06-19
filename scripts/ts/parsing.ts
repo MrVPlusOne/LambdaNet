@@ -156,7 +156,7 @@ function parseType(node: ts.TypeNode): GType {
     let n = node as ts.FunctionOrConstructorTypeNode;
     let ret: GType = parseType(n.type);
     let args: GType[] = n.parameters.map(p => {
-      return parseType(mustExist(p.type));
+      return p.type ? parseType(p.type) : anyType;
     });
 
     return eliminateTypeVars(new FuncType(args, ret), parseTVars(n));
@@ -1028,6 +1028,11 @@ export class StmtParser {
                   throw new Error("Module declare body? Text: \n" + body.getText());
               }
             }
+            return EP.alongWith();
+          }
+          case SyntaxKind.LabeledStatement: {
+            const n = node as ts.LabeledStatement;
+            return rec(n.statement)
           }
 
           //todo: support these
