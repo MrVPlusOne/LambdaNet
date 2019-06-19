@@ -212,7 +212,7 @@ object ProgramParsing {
 
   def parseJson(text: String): Js.Val = {
     SimpleMath.withErrorMessage(s"JSON source text: $text") {
-      fastparse.parse(text, JsonParsing.jsonExpr(_)).get.value
+      JsonParsing.parseJson(text)
     }
   }
 
@@ -712,7 +712,7 @@ object ProgramParsing {
         P(identifier ~ ("as" ~/ identifier).?)
 
       def importSingles[_: P]: P[Singles] =
-        P("{" ~/ clause.rep(min = 1, sep = ",") ~ ",".? ~ "}")
+        P("{" ~/ clause.rep(min = 0, sep = ",") ~ ",".? ~ "}")
           .map { clauses =>
             Singles(clauses.map {
               case (oldName, newNameOpt) =>

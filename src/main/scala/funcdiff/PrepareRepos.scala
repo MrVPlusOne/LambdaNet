@@ -85,7 +85,7 @@ object PrepareRepos {
     SimpleMath.withErrorMessage(s"In project: $root") {
       import libDefs._
 
-      val skipSet = Set("dist")//, "__tests__", "test", "tests")
+      val skipSet = Set("dist", "__tests__", "test", "tests") //todo: also parsing the tests
       def filterTests(path: Path): Boolean = {
         path.segments.forall(!skipSet.contains(_))
       }
@@ -118,7 +118,8 @@ object PrepareRepos {
     }
 
   def main(args: Array[String]): Unit = {
-    val loadFromFile = true //set to true to load declarations from the serialization file
+    /** set to true to load declarations from the serialization file */
+    val loadFromFile = false
 
     val libDefsFile = pwd / up / "lambda-repos" / "libDefs.serialized"
 
@@ -145,10 +146,6 @@ object PrepareRepos {
     val stats = results
       .map {
         case (path, graph) =>
-          println(s"lib nodes for $path:")
-          graph.allNodes.filter(_.fromLib).foreach(println)
-          println(s"Graph: $graph")
-
           val projectName = path.relativeTo(projectsDir)
           val nLib = graph.allNodes.count(_.fromLib)
           val nProj = graph.allNodes.count(!_.fromLib)

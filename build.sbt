@@ -29,9 +29,9 @@ libraryDependencies ++= Seq(
   "org.typelevel" %% "cats-effect" % "2.0.0-M3",
 )
 
-//val circeVersion = "0.10.0"
-//libraryDependencies ++= Seq(
-//  "io.circe" %% "circe-core",
-//  "io.circe" %% "circe-generic",
-//  "io.circe" %% "circe-parser"
-//).map(_ % circeVersion)
+val circeVersion = "0.11.0"
+libraryDependencies ++= Seq(
+  "io.circe" %% "circe-core",
+  "io.circe" %% "circe-generic",
+  "io.circe" %% "circe-parser"
+).map(_ % circeVersion)
