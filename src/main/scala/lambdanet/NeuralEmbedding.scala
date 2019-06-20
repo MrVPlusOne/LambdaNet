@@ -4,7 +4,7 @@ import botkop.numsca
 import botkop.numsca.Tensor
 import funcdiff._
 import lambdanet.NeuralEmbedding.VarEmbedding
-import lambdanet.translation.PredicateGraph
+import lambdanet.translation.{PAnnot, PredicateGraph}
 import lambdanet.translation.PredicateGraph._
 
 import scala.collection.{GenSeq, mutable}
@@ -29,7 +29,7 @@ class NeuralEmbedding(
   require(dimMessage % 2 == 0, "dimMessage should be even")
 
   def embedNodes(
-      graph: PredicateGraph,
+      graph: PredicateGraphWithCtx,
       iterations: Int
   ): Vector[VarEmbedding] = {
 
@@ -282,5 +282,61 @@ class NeuralEmbedding(
           .reshape(1, -1)
       }
     }
+  }
+}
+
+case class PredicateGraphWithCtx(
+    nodes: Set[PNode],
+    predicates: Set[TyPredicate],
+    libraryTypes: Map[PNode, PType]
+) {
+  import cats.instances.all._
+  import cats.Monoid
+  import cats.syntax.either._
+  type ObjNode = PNode
+
+  /** which label is accessed on which variable as what */
+  val fieldUsages: Map[Symbol, Set[(ObjNode, PNode)]] =
+    Monoid.combineAll(predicates.collect {
+      case DefineRel(v, PAccess(objType, l)) =>
+        Map(l -> Set(objType -> v))
+    })
+
+  /** which label is defined in which class as what */
+  val fieldDefs: Map[Symbol, Set[(ObjNode, Either[PType, PNode])]] =
+    Monoid.combineAll(
+      predicates.toVector.collect {
+        case DefineRel(v, PObject(fields)) =>
+          fields.flatMap {
+            case (l, t) => Map(l -> Set(v -> t.asRight[PType]))
+          }
+      } ++ libraryTypes.collect {
+        case (node, PObjectType(fields)) =>
+          fields.flatMap {
+            case (l, t) => Map(l -> Set(node -> t.asLeft[PNode]))
+          }
+      }
+    )
+
+  def printStat(): Unit = {
+    val nodeNum = nodes.size
+    val predicatesNum = predicates.size
+    println(s"Stats{nodeNum: $nodeNum, predicates: $predicatesNum}")
+  }
+}
+
+object PredicateGraphWithCtx {
+  def fromGraph(
+      graph: PredicateGraph,
+      nodeMapping: Map[PNode, PAnnot]
+  ): PredicateGraphWithCtx = {
+    val libTypes = for{
+      (n, annot) <- nodeMapping if n.isType
+      ty <- annot.typeOpt
+    } yield {
+      assert(n.fromLib)
+      n -> ty
+    }
+    PredicateGraphWithCtx(graph.nodes, graph.predicates, libTypes)
   }
 }

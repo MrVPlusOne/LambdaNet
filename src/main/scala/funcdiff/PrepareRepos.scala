@@ -1,7 +1,7 @@
 package funcdiff
 
 import ammonite.ops._
-import lambdanet.ProjectPath
+import lambdanet.{PredicateGraphWithCtx, ProjectPath}
 import lambdanet.translation.ImportsResolution.{
   ErrorHandler,
   ModuleExports,
@@ -11,19 +11,21 @@ import lambdanet.translation.ImportsResolution.{
 import lambdanet.translation.{
   IRTranslation,
   ImportsResolution,
+  PAnnot,
   PLangTranslation,
   PredicateGraphTranslation,
   QLangTranslation
 }
-import lambdanet.translation.PredicateGraph.PNodeAllocator
+import lambdanet.translation.PredicateGraph.{PNode, PNodeAllocator}
 import lambdanet.utils.ProgramParsing
 import lambdanet.utils.ProgramParsing.GProject
 
-@SerialVersionUID(1)
+@SerialVersionUID(2)
 case class LibDefs(
-    baseCtx: ImportsResolution.ModuleExports,
+    baseCtx: ModuleExports,
+    nodeMapping: Map[PNode, PAnnot],
     libAllocator: PNodeAllocator,
-    libExports: Map[ProjectPath, ImportsResolution.ModuleExports]
+    libExports: Map[ProjectPath, ModuleExports]
 )
 
 object PrepareRepos {
@@ -32,53 +34,57 @@ object PrepareRepos {
     val declarationsDir = pwd / up / "lambda-repos" / "declarations"
 
     println("parsing default module...")
-    val (baseCtx, libAllocator, _) = QLangTranslation.parseDefaultModule()
+    val (baseCtx, libAllocator, defaultMapping) =
+      QLangTranslation.parseDefaultModule()
     println("default module parsed")
 
-    val libExports = {
-      println("parsing library modules...")
-      val GProject(_, modules, mapping, subProjects, devDependencies) =
-        ProgramParsing
-          .parseGProjectFromRoot(declarationsDir, declarationFileMod = true)
+    println("parsing library modules...")
+    val GProject(_, modules, mapping, subProjects, devDependencies) =
+      ProgramParsing
+        .parseGProjectFromRoot(declarationsDir, declarationFileMod = true)
 
-      println("parsing PModules...")
-      val pModules =
-        modules.map(m => PLangTranslation.fromGModule(m, libAllocator))
+    println("parsing PModules...")
+    val pModules =
+      modules.map(m => PLangTranslation.fromGModule(m, libAllocator))
 
-      println("imports resolution...")
-      val handler =
-        ErrorHandler(ErrorHandler.StoreError, ErrorHandler.StoreError)
+    println("imports resolution...")
+    val handler =
+      ErrorHandler(ErrorHandler.StoreError, ErrorHandler.StoreError)
 
-      val exports = ImportsResolution.resolveExports(
-        pModules,
-        baseCtx,
-        Map(),
-        mapping,
-        defaultPublicMode = true,
-        errorHandler = handler,
-        devDependencies,
-        maxIterations = 5
-      )
+    val exports = ImportsResolution.resolveExports(
+      pModules,
+      baseCtx,
+      Map(),
+      mapping,
+      defaultPublicMode = true,
+      errorHandler = handler,
+      devDependencies,
+      maxIterations = 5
+    )
 
-      val namedExports = subProjects.map {
-        case (name, path) =>
-          name -> exports.getOrElse(
-            path,
-            exports.getOrElse(
-              path / "index", {
-                Console.err.println(
-                  s"Couldn't find Exports located at $path for $name, ignore this named project."
-                )
-                ModuleExports.empty
-              }
-            )
+    val namedExports = subProjects.map {
+      case (name, path) =>
+        name -> exports.getOrElse(
+          path,
+          exports.getOrElse(
+            path / "index", {
+              Console.err.println(
+                s"Couldn't find Exports located at $path for $name, ignore this named project."
+              )
+              ModuleExports.empty
+            }
           )
-      }
-      handler.warnErrors()
-      exports ++ namedExports
+        )
     }
+    handler.warnErrors()
+    val libExports = exports ++ namedExports
+    val qModules =
+      pModules.map(m => QLangTranslation.fromPModule(m, exports(m.path)))
+
+    val nodeMapping = defaultMapping ++ qModules.flatMap(_.mapping)
+
     println("Declaration files parsed.")
-    LibDefs(baseCtx, libAllocator, libExports)
+    LibDefs(baseCtx, defaultMapping, libAllocator, libExports)
   }
 
   def prepareProject(libDefs: LibDefs, root: Path) =
@@ -112,12 +118,13 @@ object PrepareRepos {
       val graph = PredicateGraphTranslation.fromIRModules(irModules)
       errorHandler.warnErrors()
       println(s"Project parsed: '$root'")
-      graph.printStat()
+      PredicateGraphWithCtx.fromGraph(graph, nodeMapping)
 
       (root, graph)
     }
 
   def main(args: Array[String]): Unit = {
+
     /** set to true to load declarations from the serialization file */
     val loadFromFile = false
 
@@ -140,15 +147,16 @@ object PrepareRepos {
     lambdanet.shouldWarn = false
 
     val results =
-      (ls ! projectsDir).par
-        .collect { case f if f.isDir => prepareProject(libDefs, f) }.seq
+      (ls ! projectsDir).par.collect {
+        case f if f.isDir => prepareProject(libDefs, f)
+      }.seq
 
     val stats = results
       .map {
         case (path, graph) =>
           val projectName = path.relativeTo(projectsDir)
-          val nLib = graph.allNodes.count(_.fromLib)
-          val nProj = graph.allNodes.count(!_.fromLib)
+          val nLib = graph.nodes.count(_.fromLib)
+          val nProj = graph.nodes.count(!_.fromLib)
           val nPred = graph.predicates.size
           projectName.toString() -> Seq(nLib, nProj, nPred)
       }
@@ -157,15 +165,18 @@ object PrepareRepos {
     val (paths, vec) = stats.unzip
     val average = vec
       .reduce(_.zip(_).map { case (x, y) => x + y })
-        .map(_.toDouble /paths.length)
+      .map(_.toDouble / paths.length)
 
     write.over(
-      pwd / "parsedStatistics.csv",{
-        val head = ("name", Seq("libNodes","projNodes","predicates"))
+      pwd / "parsedStatistics.csv", {
+        val head = ("name", Seq("libNodes", "projNodes", "predicates"))
         val avgRow = ("average", average)
-        (head +: avgRow +: stats).map{ case (n, data) =>
-          s"$n,${data.mkString(",")}"
-        }.mkString("\n")
+        (head +: avgRow +: stats)
+          .map {
+            case (n, data) =>
+              s"$n,${data.mkString(",")}"
+          }
+          .mkString("\n")
       }
     )
   }
