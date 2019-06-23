@@ -3,19 +3,37 @@ package lambdanet
 import botkop.numsca
 import botkop.numsca.Tensor
 import funcdiff._
-import lambdanet.NeuralEmbedding.VarEmbedding
+import lambdanet.NeuralInference.VarEmbedding
+import lambdanet.translation.ImportsResolution.NameDef
 import lambdanet.translation.{PAnnot, PredicateGraph}
 import lambdanet.translation.PredicateGraph._
 
 import scala.collection.{GenSeq, mutable}
 import scala.collection.parallel.ForkJoinTaskSupport
 
-object NeuralEmbedding {
+object NeuralInference {
   case class VarEmbedding(nodeMap: Map[PNode, CompNode])
 
 }
 
-class NeuralEmbedding(
+case class PredictionSpace(allTypes: Set[PType]) {
+  val unknownType = PTyVar(NameDef.unknownDef.ty.get)
+
+  val typeVector: Vector[PType] = allTypes.toVector
+  val maxIndex: Int = typeVector.length
+
+  private val indexMap: Map[PType, Int] = {
+    typeVector.zipWithIndex.toMap
+  }
+  require(indexMap.contains(unknownType))
+
+  def indexOfType(ty: PType): Int = {
+    indexMap.getOrElse(ty, indexMap(unknownType))
+  }
+
+}
+
+class NeuralInference(
     pc: ParamCollection,
     dimMessage: Int,
     taskSupport: Option[ForkJoinTaskSupport]
@@ -28,15 +46,20 @@ class NeuralEmbedding(
 
   require(dimMessage % 2 == 0, "dimMessage should be even")
 
-  def embedNodes(
+  /** returns a matrix of shape [ nodes number, prediction space ] */
+  def predictTypes(
       graph: PredicateGraphWithCtx,
+      nodesToPredict: Vector[PNode],
+      predictionSpace: PredictionSpace,
       iterations: Int
-  ): Vector[VarEmbedding] = {
+  ): CompNode = {
 
-    //todo: encode this as predicates
+    val labelMap: Symbol => CompNode = {
+      val allLabels = graph.fieldDefs.keySet ++ graph.fieldUsages.keySet
+      allLabels.map(_ -> (randomVec(): CompNode)).toMap
+    }
 
-    val labelMap: Symbol => CompNode = ???
-
+    // todo: Implement batching
     def fieldAccessMessage(
         name: SymbolPath,
         objEmbed: CompNode,
@@ -57,8 +80,10 @@ class NeuralEmbedding(
       }
 
       def embed(node: PNode): CompNode = {
-        if (node.fromLib) encodeLibType(PTyVar(node))
-        else embedding.nodeMap(node)
+        if (node.fromLib) encodeLibType {
+          if (node.isType) PTyVar(node)
+          else graph.libraryTerms(node)
+        } else embedding.nodeMap(node)
       }
 
       val messages =
@@ -73,6 +98,7 @@ class NeuralEmbedding(
 
       def sendMessages(predicate: TyPredicate): Unit = predicate match {
         case HasLibType(v, ty) =>
+          ???
           messages(v) += messageModel('HasLibType, encodeLibType(ty))
         case SubtypeRel(sub, sup) =>
           messageMutually(sub, sup, 'SubtypeRel)
@@ -196,10 +222,15 @@ class NeuralEmbedding(
           .map { t =>
             val node = embed(t)
             //        val nodePair = messageModel('MessageAggregate / 'nodeMessage, nodeMap(id))
+
+            val vs = messages(t).receiver.toVector
+              .map {
+                case (k, v) =>
+                  mix('keyMix, node, k) -> mix('valueMix, node, v) //todo: batching
+              }
             val out = attentionLayer('MessageAggregate, transformKey = true)(
               node,
-              //todo: mix the messages with the old embedding
-              messages(t).receiver.toIndexedSeq :+ (node, node)
+              vs :+ (node, node)
             )
             val outLen = sqrt(sum(square(out)))
             val newEmbed = out / outLen
@@ -211,15 +242,38 @@ class NeuralEmbedding(
       VarEmbedding(newNodeMap)
     }
 
+    def encodeLibType(pType: PType): CompNode = ???
+
+    def encodePType(ty: PType): CompNode = ???
+
+    def similarity(inputMatrix: CompNode, candidateMatrix: CompNode) = {
+      inputMatrix.dot(candidateMatrix.t) / dimMessage
+    }
+
+    def decode(embedding: VarEmbedding): CompNode = {
+      val candidates =
+        concatN(
+          par(predictionSpace.typeVector)
+            .map(encodePType)
+            .toVector,
+          axis = 0
+        )
+      val inputs =
+        concatN(nodesToPredict.map { embedding.nodeMap }, axis = 0)
+
+      similarity(inputs, candidates)
+    }
+
     val nodeInitVec: CompNode =
       getVar('nodeInitVec)(TensorExtension.randomUnitVec(dimMessage))
     val init = VarEmbedding(
-      graph.nodes
-        .filterNot(_.fromLib)
+      graph.projectNodes
         .map(n => n -> nodeInitVec)
         .toMap
     )
-    Vector.iterate(init, iterations + 1)(iterate)
+    val embeddings = Vector.iterate(init, iterations + 1)(iterate)
+
+    decode(embeddings.last)
   }
 
   private def par[T](xs: Seq[T]): GenSeq[T] = {
@@ -232,8 +286,6 @@ class NeuralEmbedding(
     }
   }
 
-  private def encodeLibType(pType: PType): CompNode = ???
-
   /** Each message consists of a key-value pair */
   type Message = (CompNode, CompNode)
 
@@ -245,6 +297,10 @@ class NeuralEmbedding(
     relu(linear(name / 'header, dimMessage)(vec)) -> relu(
       linear(name / 'content, dimMessage)(vec)
     )
+  }
+
+  private def mix(name: SymbolPath, x1: CompNode, x2: CompNode): CompNode = {
+    singleLayer(name, x1.concat(x2, axis = 1))
   }
 
 //  private def binaryMessage(
@@ -288,12 +344,16 @@ class NeuralEmbedding(
 case class PredicateGraphWithCtx(
     nodes: Set[PNode],
     predicates: Set[TyPredicate],
-    libraryTypes: Map[PNode, PType]
+    libraryTypes: Map[PNode, PType],
+    libraryTerms: Map[PNode, PType],
+    userAnnotations: Map[PNode, PAnnot]
 ) {
   import cats.instances.all._
   import cats.Monoid
   import cats.syntax.either._
   type ObjNode = PNode
+
+  lazy val projectNodes: Set[PNode] = nodes.filterNot(_.fromLib)
 
   /** which label is accessed on which variable as what */
   val fieldUsages: Map[Symbol, Set[(ObjNode, PNode)]] =
@@ -330,13 +390,13 @@ object PredicateGraphWithCtx {
       graph: PredicateGraph,
       nodeMapping: Map[PNode, PAnnot]
   ): PredicateGraphWithCtx = {
-    val libTypes = for{
+    val libTypes = for {
       (n, annot) <- nodeMapping if n.isType
       ty <- annot.typeOpt
     } yield {
       assert(n.fromLib)
       n -> ty
     }
-    PredicateGraphWithCtx(graph.nodes, graph.predicates, libTypes)
+    PredicateGraphWithCtx(graph.nodes, graph.predicates, libTypes, ???, ???)
   }
 }

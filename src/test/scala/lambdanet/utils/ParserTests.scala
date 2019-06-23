@@ -229,29 +229,6 @@ class ParserTests extends WordSpec with MyTest {
     baseCtx.publicSymbols.foreach(println)
   }
 
-  "Project parsing integration test" in {
-    val (baseCtx, libAllocator, _) = QLangTranslation.parseDefaultModule()
-
-    TrainingProjects.allProjects.foreach { p =>
-      SimpleMath.withErrorMessage(s"In project ${p.root}") {
-        val allocator = new PNodeAllocator(forLib = false)
-        val irTranslator = new IRTranslation(allocator)
-        val irModules = QLangTranslation
-          .fromProject(
-            p.modules,
-            baseCtx,
-            Map(),
-            allocator,
-            p.pathMapping,
-            devDependencies = Set(), // fixme: devDependencies
-            errorHandler = ErrorHandler.alwaysThrow
-          )
-          .map(irTranslator.fromQModule)
-        val graph = PredicateGraphTranslation.fromIRModules(irModules)
-      }
-    }
-  }
-
   "playground" in {
     val root = pwd / RelPath(
       "data/train/TypeScript-Algorithms-and-Data-Structures-master/ts"

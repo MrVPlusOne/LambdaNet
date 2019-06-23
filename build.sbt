@@ -29,6 +29,8 @@ libraryDependencies ++= Seq(
   "org.typelevel" %% "cats-effect" % "2.0.0-M3",
 )
 
+addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.0")
+
 //val circeVersion = "0.10.0"
 //libraryDependencies ++= Seq(
 //  "io.circe" %% "circe-core",

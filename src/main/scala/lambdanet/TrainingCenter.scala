@@ -92,9 +92,9 @@ object TrainingCenter {
     }
   }
 
-  /** Remember to use these VM options to increase memory limits.
-    * VM Options: -Xms2G -Xmx8G -Dorg.bytedeco.javacpp.maxbytes=18G -Dorg.bytedeco.javacpp.maxphysicalbytes=27G */
   def main(args: Array[String]): Unit = {
+    /** Remember to use these VM options to increase memory limits.
+      * VM Options: -Xms2G -Xmx8G -Dorg.bytedeco.javacpp.maxbytes=18G -Dorg.bytedeco.javacpp.maxphysicalbytes=27G */
     println(s"Using threads: $numOfThreads")
 
 //    println("loading toy examples")
