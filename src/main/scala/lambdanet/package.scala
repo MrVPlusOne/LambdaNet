@@ -1,4 +1,5 @@
 import ammonite.ops.RelPath
+import funcdiff.SimpleMath
 import lambdanet.GType
 
 import scala.collection.mutable
@@ -12,7 +13,7 @@ import scala.collection.mutable
   *
   *
   */
-package object lambdanet {
+package object lambdanet extends SimpleMath.ExtensionsTrait {
 
   /** the path related to the project root */
   type ProjectPath = RelPath

@@ -16,7 +16,8 @@ import collection.mutable
 
 object SimpleMath {
 
-  object Extensions {
+  object Extensions extends ExtensionsTrait
+  trait ExtensionsTrait {
 
     implicit class CollectionExtension[T](xs: Iterable[T]) {
       def any(p: T => Boolean): Boolean = {

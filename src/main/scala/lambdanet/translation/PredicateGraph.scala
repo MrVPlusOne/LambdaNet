@@ -5,7 +5,7 @@ import PredicateGraph._
 import funcdiff.SimpleMath
 import lambdanet.translation.ImportsResolution.NameDef
 
-import scala.collection.{mutable}
+import scala.collection.{GenTraversableOnce, mutable}
 
 case class PredicateGraph(
     nodes: Set[PNode],
@@ -47,6 +47,8 @@ object PredicateGraph {
     def allNodes: Set[PNode] = Set(this)
 
     val symbol: Symbol = Symbol(id.toString)
+
+    def allLabels: Set[Symbol] = Set()
   }
 
   @SerialVersionUID(1)
@@ -66,25 +68,38 @@ object PredicateGraph {
 
   sealed trait PType {
     val madeFromLibTypes: Boolean
+
+    def allLabels: Set[Symbol]
   }
 
   case object PAny extends PType {
     val madeFromLibTypes = true
+
+    val allLabels: Set[Symbol] = Set()
   }
 
   case class PTyVar(node: PNode) extends PType {
     assert(node.isType)
 
     val madeFromLibTypes: Boolean = node.fromLib
+
+    def allLabels: Set[Symbol] = Set()
   }
 
   case class PFuncType(args: Vector[PType], to: PType) extends PType {
-    val madeFromLibTypes
-        : Boolean = args.forall(_.madeFromLibTypes) && to.madeFromLibTypes
+    val madeFromLibTypes: Boolean =
+      args.forall(_.madeFromLibTypes) && to.madeFromLibTypes
+
+    lazy val allLabels: Set[Symbol] = to.allLabels ++ args.toSet.flatMap(_.allLabels)
+
   }
 
   case class PObjectType(fields: Map[Symbol, PType]) extends PType {
     val madeFromLibTypes: Boolean = fields.forall(_._2.madeFromLibTypes)
+
+    lazy val allLabels: Set[Symbol] = {
+      fields.keySet ++ fields.values.toSet.flatMap(_.allLabels)
+    }
   }
 
   sealed trait TyPredicate {
@@ -125,22 +140,32 @@ object PredicateGraph {
   // @formatter:on
   sealed trait PExpr {
     def allNodes: Set[PNode]
+
+    def allLabels: Set[Symbol]
   }
 
   case class PFunc(args: Vector[PNode], returnType: PNode) extends PExpr {
     val allNodes: Set[PNode] = args.toSet + returnType
+
+    def allLabels: Set[Symbol] = Set()
   }
 
   case class PCall(f: PNode, args: Vector[PNode]) extends PExpr {
     val allNodes: Set[PNode] = args.toSet + f
+
+    def allLabels: Set[Symbol] = Set()
   }
 
   case class PObject(fields: Map[Symbol, PNode]) extends PExpr {
     val allNodes: Set[PNode] = fields.values.toSet
+
+    def allLabels: Set[Symbol] = fields.keySet
   }
 
   case class PAccess(obj: PNode, label: Symbol) extends PExpr {
     val allNodes: Set[PNode] = Set(obj)
+
+    def allLabels: Set[Symbol] = Set(label)
   }
 }
 
