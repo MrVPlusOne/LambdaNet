@@ -8,7 +8,7 @@ import lambdanet.translation.PredicateGraph.{
   PNodeAllocator,
   PObjectType,
   PTyVar,
-  PType
+  PType,
 }
 import QLang._
 import ammonite.ops.RelPath
@@ -17,7 +17,7 @@ import lambdanet.translation.ImportsResolution.{
   ErrorHandler,
   ModuleExports,
   NameDef,
-  PathMapping
+  PathMapping,
 }
 import lambdanet.translation.PLang.PModule
 import funcdiff.SimpleMath.Extensions._
@@ -32,7 +32,7 @@ object QLang {
   case class QModule(
       path: ProjectPath,
       stmts: Vector[QStmt],
-      mapping: Map[PNode, PAnnot]
+      mapping: Map[PNode, PAnnot],
   )
 
   sealed trait QStmt
@@ -55,14 +55,14 @@ object QLang {
       funcNode: PNode,
       args: Vector[PNode],
       returnType: PNode,
-      body: QStmt
+      body: QStmt,
   ) extends QStmt
 
   case class ClassDef(
       classNode: PNode,
       superType: Option[PTyVar],
       vars: Map[Symbol, PNode],
-      funcDefs: Map[Symbol, FuncDef]
+      funcDefs: Map[Symbol, FuncDef],
   ) extends QStmt
 
   sealed trait QExpr
@@ -90,7 +90,7 @@ object QLangTranslation {
   def parseDefaultModule(): (
       ModuleExports,
       PNodeAllocator,
-      Map[PNode, PAnnot]
+      Map[PNode, PAnnot],
   ) = {
     import ammonite.ops._
 
@@ -113,7 +113,7 @@ object QLangTranslation {
           Annot.User(t),
           Surface.Var(undefinedSymbol),
           isConst = true,
-          ExportLevel.Unspecified
+          ExportLevel.Unspecified,
         )
     }
     val defaultModule = m.copy(stmts = m.stmts ++ additionalDefs)
@@ -129,7 +129,7 @@ object QLangTranslation {
         PathMapping.empty,
         defaultPublicMode = true,
         errorHandler = errorHandler,
-        devDependencies = Set()
+        devDependencies = Set(),
       )
       .values
       .head
@@ -145,7 +145,7 @@ object QLangTranslation {
       allocator: PNodeAllocator,
       pathMapping: PathMapping,
       devDependencies: Set[ProjectPath],
-      errorHandler: ErrorHandler
+      errorHandler: ErrorHandler,
   ): Vector[QModule] = {
     // first, merge all .d.ts files in the project
     val dPath = RelPath("projectDeclarations")
@@ -155,7 +155,7 @@ object QLangTranslation {
         modules
           .filter(_.isDeclarationFile)
           .flatMap(_.stmts),
-        isDeclarationFile = true
+        isDeclarationFile = true,
       )
       PLangTranslation.fromGModule(m, allocator)
     }
@@ -171,7 +171,7 @@ object QLangTranslation {
       pathMapping,
       defaultPublicMode = true,
       errorHandler = errorHandler,
-      devDependencies
+      devDependencies,
     )(dPath)
 
     // then, make the modules in the .d.ts files available for import
@@ -190,7 +190,7 @@ object QLangTranslation {
       pathMapping,
       defaultPublicMode = false,
       errorHandler = errorHandler,
-      devDependencies
+      devDependencies,
     )
 
     modules1.map { m =>
@@ -207,7 +207,7 @@ object QLangTranslation {
     SimpleMath.withErrorMessage(s"In PModule ${module.path}") {
 
       def translateExpr(
-          expr: Surface.GExpr
+          expr: Surface.GExpr,
       )(implicit ctx: ModuleExports): QExpr = {
 
         def asTerm(value: Either[ModuleExports, QExpr]): QExpr =
@@ -215,7 +215,7 @@ object QLangTranslation {
 
         def rec(
             expr: Surface.GExpr,
-            canBeNamespace: Boolean
+            canBeNamespace: Boolean,
         ): Either[ModuleExports, QExpr] =
           SimpleMath.withErrorMessage(s"In expr: $expr") {
             def processNd(nd: NameDef, canBeNamespace: Boolean) = {
@@ -224,7 +224,9 @@ object QLangTranslation {
                   .map(Left.apply)
                   .getOrElse {
                     val n = nd.term.getOrElse(
-                      throw new Error(s"Empty namedDef encountered in expr: $expr")
+                      throw new Error(
+                        s"Empty namedDef encountered in expr: $expr",
+                      ),
                     )
                     Right(Var(n))
                   }
@@ -232,7 +234,7 @@ object QLangTranslation {
                 nd.term
                   .map(t => Right(Var(t)))
                   .getOrElse(
-                    Right(Var(ctx.internalSymbols(undefinedSymbol).term.get))
+                    Right(Var(ctx.internalSymbols(undefinedSymbol).term.get)),
                   )
               }
             }
@@ -241,7 +243,7 @@ object QLangTranslation {
               case Surface.Var(s) =>
                 val nd = ctx.internalSymbols.getOrElse(s, {
                   warn(
-                    s"Unable to resolve var: ${s.name}"
+                    s"Unable to resolve var: ${s.name}",
                   )
                   NameDef.unknownDef
                 })
@@ -270,27 +272,27 @@ object QLangTranslation {
                     asTerm(rec(f, canBeNamespace = false)),
                     args
                       .map(a => asTerm(rec(a, canBeNamespace = false)))
-                      .toVector
-                  )
+                      .toVector,
+                  ),
                 )
               case Surface.Cast(e, ty) =>
                 Right(
-                  Cast(asTerm(rec(e, canBeNamespace = false)), resolveType(ty))
+                  Cast(asTerm(rec(e, canBeNamespace = false)), resolveType(ty)),
                 )
               case Surface.ObjLiteral(fields) =>
                 Right(
                   ObjLiteral(
                     fields
-                      .mapValuesNow(p => asTerm(rec(p, canBeNamespace = false)))
-                  )
+                      .mapValuesNow(p => asTerm(rec(p, canBeNamespace = false))),
+                  ),
                 )
               case Surface.IfExpr(cond, e1, e2) =>
                 Right(
                   IfExpr(
                     asTerm(rec(cond, canBeNamespace = false)),
                     asTerm(rec(e1, canBeNamespace = false)),
-                    asTerm(rec(e2, canBeNamespace = false))
-                  )
+                    asTerm(rec(e2, canBeNamespace = false)),
+                  ),
                 )
             }
           }
@@ -299,7 +301,7 @@ object QLangTranslation {
       }
 
       def collectDefs(
-          stmts: Vector[PLang.PStmt]
+          stmts: Vector[PLang.PStmt],
       )(implicit ctx: ModuleExports): ModuleExports = {
         val defs = stmts.collect {
           case c: PLang.ClassDef =>
@@ -332,7 +334,7 @@ object QLangTranslation {
       }
 
       def translateStmt(
-          stmt: PLang.PStmt
+          stmt: PLang.PStmt,
       )(implicit ctx: ModuleExports): Vector[QStmt] =
         SimpleMath.withErrorMessage(s"failed to translate stmt: $stmt") {
 
@@ -354,15 +356,15 @@ object QLangTranslation {
                 IfStmt(
                   translateExpr(cond),
                   groupInBlock(translateStmt(branch1)),
-                  groupInBlock(translateStmt(branch2))
-                )
+                  groupInBlock(translateStmt(branch2)),
+                ),
               )
             case PLang.WhileStmt(cond, body) =>
               Vector(
                 WhileStmt(
                   translateExpr(cond),
-                  groupInBlock(translateStmt(body))
-                )
+                  groupInBlock(translateStmt(body)),
+                ),
               )
             case _: PLang.CommentStmt => Vector()
             case PLang.BlockStmt(stmts) =>
@@ -381,8 +383,8 @@ object QLangTranslation {
                   funcNode,
                   args1,
                   returnType,
-                  groupInBlock(translateStmt(body)(ctx1))
-                )
+                  groupInBlock(translateStmt(body)(ctx1)),
+                ),
               )
             case PLang.ClassDef(
                 _,
@@ -391,7 +393,7 @@ object QLangTranslation {
                 superType,
                 vars,
                 funcDefs,
-                _
+                _,
                 ) =>
               mapNode(classNode)
               mapNode(thisNode)
@@ -406,18 +408,18 @@ object QLangTranslation {
                   .map(
                     f =>
                       f.name -> translateStmt(f)(ctx1).head
-                        .asInstanceOf[FuncDef]
+                        .asInstanceOf[FuncDef],
                   )
                   .toMap
               Vector(
                 ClassDef(
                   classNode,
                   superType.map(
-                    t => resolveType(TyVar(t)).asInstanceOf[PTyVar]
+                    t => resolveType(TyVar(t)).asInstanceOf[PTyVar],
                   ),
                   vars,
-                  funcDefs1
-                )
+                  funcDefs1,
+                ),
               )
             case a: PLang.TypeAliasStmt =>
               mapNode(a.node)
@@ -453,7 +455,7 @@ object QLangTranslation {
     'void -> 'Void,
     'object -> 'Object,
     'array -> 'Array,
-    'bigint -> 'BigInt
+    'bigint -> 'BigInt,
   )
 
   private def resolveType(ty: GType)(implicit ctx: ModuleExports): PType =

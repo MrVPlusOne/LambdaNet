@@ -14,7 +14,7 @@ object OldIR {
       imports: Vector[ImportStmt],
       exportStmts: Vector[ExportStmt],
       exports: ModuleExports,
-      stmts: Vector[IRStmt]
+      stmts: Vector[IRStmt],
   ) {
     def moduleStats: IRModuleStats = {
       var fieldsUsed, fieldsDefined: Set[Symbol] = Set()
@@ -52,7 +52,7 @@ object OldIR {
 
   case class IRModuleStats(
       fieldsUsed: Set[Symbol],
-      fieldsDefined: Set[Symbol]
+      fieldsDefined: Set[Symbol],
   )
 
   object ExportCategory extends Enumeration {
@@ -64,7 +64,7 @@ object OldIR {
   case class ModuleExports(
       definitions: Map[(Symbol, ExportCategory.Value), (IRType, Exported)],
       defaultVar: Option[(Var, IRType)],
-      defaultType: Option[(TypeName, IRType)]
+      defaultType: Option[(TypeName, IRType)],
   ) {
     lazy val terms: Map[Symbol, (IRType, Exported)] =
       definitions.toIterator.collect {
@@ -138,7 +138,7 @@ object OldIR {
       protected val id: Int,
       val name: Option[Symbol],
       val annotation: Option[TyAnnot],
-      val libId: Option[Symbol]
+      val libId: Option[Symbol],
   ) extends IdEquality {
     def showDetails: String = {
       val parts = name.map(n => s"{${n.name}}").toList ++ annotation
@@ -158,7 +158,7 @@ object OldIR {
         id: Int,
         name: Option[Symbol],
         annotation: Option[TyAnnot],
-        libId: Option[Symbol]
+        libId: Option[Symbol],
     ): IRType = new IRType(id, name, annotation, libId)
   }
 
@@ -202,7 +202,7 @@ object OldIR {
       v: Var,
       mark: IRType,
       rhs: IRExpr,
-      exportLevel: ExportLevel.Value
+      exportLevel: ExportLevel.Value,
   ) extends IRStmt
 
   case class Assign(lhs: Var, rhs: Var) extends IRStmt
@@ -221,7 +221,7 @@ object OldIR {
       returnType: IRType,
       body: BlockStmt,
       funcT: IRType,
-      exportLevel: ExportLevel.Value
+      exportLevel: ExportLevel.Value,
   ) extends IRStmt
 
   case class ClassDef(
@@ -231,7 +231,7 @@ object OldIR {
       funcDefs: Vector[FuncDef],
       classT: IRType,
       companionT: IRType,
-      exportLevel: ExportLevel.Value
+      exportLevel: ExportLevel.Value,
   ) extends IRStmt
 
   case class TypeAliasIRStmt(aliasT: IRType, level: ExportLevel.Value)
@@ -263,7 +263,7 @@ object OldIR {
           (indent -> s"while ($cond)") +: prettyPrintHelper(indent, body)
         case BlockStmt(stmts) =>
           (indent -> "{") +: stmts.flatMap(
-            s => prettyPrintHelper(indent + 1, s)
+            s => prettyPrintHelper(indent + 1, s),
           ) :+ (indent -> "}")
         case FuncDef(funcName, args, returnType, body, funcT, level) =>
           val argList = args
@@ -273,7 +273,7 @@ object OldIR {
             if (returnType.annotation.contains(GType.voidType)) ""
             else s": $returnType"
           Vector(
-            indent -> s"${asPrefix(level)}function ${funcName.name}:$funcT $argList$returnMark"
+            indent -> s"${asPrefix(level)}function ${funcName.name}:$funcT $argList$returnMark",
           ) ++ prettyPrintHelper(indent, body)
 
         case ClassDef(name, superType, vars, funcDefs, classT, _, level) =>
@@ -281,14 +281,14 @@ object OldIR {
             .map(t => s"extends $t")
             .getOrElse("")
           Vector(
-            indent -> s"${asPrefix(level)}class ${name.name}: $classT $superPart {"
+            indent -> s"${asPrefix(level)}class ${name.name}: $classT $superPart {",
           ) ++
             vars.toList.map {
               case (fieldName, tv) =>
                 (indent + 1, s"${fieldName.name}: $tv;")
             } ++
             funcDefs.flatMap(
-              fDef => prettyPrintHelper(indent + 1, fDef)
+              fDef => prettyPrintHelper(indent + 1, fDef),
             ) ++
             Vector(indent -> "}")
         case TypeAliasIRStmt(aliasT, level) =>

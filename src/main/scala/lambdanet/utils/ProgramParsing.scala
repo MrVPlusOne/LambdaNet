@@ -20,7 +20,7 @@ object ProgramParsing {
   case class DeclarationModule(
       varDefs: Map[Symbol, GType],
       typeDefs: Map[Symbol, GType],
-      namespaces: Map[Symbol, DeclarationModule]
+      namespaces: Map[Symbol, DeclarationModule],
   )
 
   @deprecated
@@ -35,7 +35,7 @@ object ProgramParsing {
           Annot.WithContent(t),
           _: Const,
           _,
-          ExportLevel.Unspecified
+          ExportLevel.Unspecified,
           ) =>
         varDefs(x) = t
       case f: FuncDef =>
@@ -58,7 +58,7 @@ object ProgramParsing {
         namespaces(ns.name) = extractDeclarationModule(ns.block.stmts)
       case other =>
         throw new Error(
-          s"Illegal statement encountered in a declaration file: $other"
+          s"Illegal statement encountered in a declaration file: $other",
         )
     }
 
@@ -67,7 +67,7 @@ object ProgramParsing {
 
   case class PackageFile(
       moduleName: Option[ProjectPath],
-      devDependencies: Set[ProjectPath]
+      devDependencies: Set[ProjectPath],
   )
   def parsePackageFile(path: Path): PackageFile = {
     val map = asObj(parseJsonFromFile(path))
@@ -78,12 +78,12 @@ object ProgramParsing {
         .map { m =>
           asObj(m).keySet.map(RelPath(_))
         }
-        .getOrElse(Set())
+        .getOrElse(Set()),
     )
   }
 
   case class TsConfigFile(
-      baseUrl: Option[RelPath]
+      baseUrl: Option[RelPath],
   )
 
   def parseTsConfigFile(path: Path): TsConfigFile = {
@@ -100,13 +100,13 @@ object ProgramParsing {
       modules: Vector[GModule],
       pathMapping: PathMapping,
       subProjects: Map[ProjectPath, ProjectPath],
-      devDependencies: Set[ProjectPath]
+      devDependencies: Set[ProjectPath],
   )
 
   def parseGProjectFromRoot(
       root: Path,
       declarationFileMod: Boolean = false,
-      filter: Path => Boolean = _ => true
+      filter: Path => Boolean = _ => true,
   ): GProject = {
     val subProjects =
       (for {
@@ -127,7 +127,7 @@ object ProgramParsing {
     val baseDirs = {
       def rec(
           path: Path,
-          baseUrl: Option[ProjectPath]
+          baseUrl: Option[ProjectPath],
       ): Map[Dir, Option[ProjectPath]] = {
         require(path.isDir)
         val paths = ls(path)
@@ -138,8 +138,8 @@ object ProgramParsing {
             .flatMap(
               f =>
                 parseTsConfigFile(f).baseUrl
-                  .map((f / up).relativeTo(root) / _)
-            )
+                  .map((f / up).relativeTo(root) / _),
+            ),
         )
 
         Map(path.relativeTo(root) -> newBase) ++ paths
@@ -173,13 +173,13 @@ object ProgramParsing {
         if (declarationFileMod) name.endsWith(".d.ts")
         else
           name.endsWith(".ts") || name.endsWith(".d.ts") || name.endsWith(
-            ".tsx"
+            ".tsx",
           )
       }
       .map(_.relativeTo(root))
 
     def handleTypesPrefix(p: ProjectPath): Set[ProjectPath] = {
-      if(p.segments.head == "@types") Set(RelPath(p.segments.tail, 0), p)
+      if (p.segments.head == "@types") Set(RelPath(p.segments.tail, 0), p)
       else Set(p)
     }
 
@@ -194,13 +194,13 @@ object ProgramParsing {
       ProgramParsing.parseGModulesFromFiles(sources, root),
       mapping,
       subProjects,
-      devDependencies
+      devDependencies,
     )
   }
 
   def parseContent(content: String): Vector[GStmt] = {
     SimpleMath.withErrorMessage(
-      "failed when parsing content: \n" + content
+      "failed when parsing content: \n" + content,
     ) {
       val r = %%('node, "./parsingFromString.js", content)(pwd / 'scripts / 'ts)
       val json = ProgramParsing.parseJson(r.out.string).asInstanceOf[Js.Arr]
@@ -219,7 +219,7 @@ object ProgramParsing {
   def parseJsonFromFile(jsonFile: Path): Js.Val =
     SimpleMath.withErrorMessage(s"Failed to parse json from file: $jsonFile") {
       val text = read(jsonFile)
-      if(text.trim.isEmpty){
+      if (text.trim.isEmpty) {
         throw new Error(s"Trying to parse Json from an empty file: '$jsonFile'")
       }
       fastparse.parse(text, JsonParsing.jsonExpr(_)) match {
@@ -236,7 +236,7 @@ object ProgramParsing {
     */
   def parseGModulesFromFiles(
       srcFiles: Seq[RelPath],
-      projectRoot: Path
+      projectRoot: Path,
   ): Vector[GModule] = {
     val r = %%(
       'node,
@@ -244,7 +244,7 @@ object ProgramParsing {
       "--src",
       srcFiles.map(_.toString()),
       "--lib",
-      srcFiles.toList.map(_.toString())
+      srcFiles.toList.map(_.toString()),
     )(projectRoot)
     // fixme: this never fires
     if (r.exitCode != 0) {
@@ -316,7 +316,7 @@ object ProgramParsing {
   private def parseType(v: Js.Val): GType = {
     assert(
       v != Null,
-      "Use parseGTMark instead if you are parsing an optional user type annotation."
+      "Use parseGTMark instead if you are parsing an optional user type annotation.",
     )
     val o = asObj(v)
     val t = asString(o("category")) match {
@@ -399,7 +399,7 @@ object ProgramParsing {
       exportLevel: ExportLevel.Value,
       isGetter: Boolean,
       isSetter: Boolean,
-      isAbstract: Boolean
+      isAbstract: Boolean,
   )
 
   private def parseModifiers(v: Js.Val): DefModifiers = {
@@ -443,8 +443,8 @@ object ProgramParsing {
             IfStmt(
               cond,
               groupInBlockSurface(branch1),
-              groupInBlockSurface(branch2)
-            )
+              groupInBlockSurface(branch2),
+            ),
           )
         case "WhileStmt" =>
           val cond = parseGExpr(map("cond"))
@@ -508,14 +508,14 @@ object ProgramParsing {
                     instanceInits(s) = expr
                   s -> mark
               },
-              v1.getOrElse(true, Map()).map(p => p._1 -> (p._2._1, p._2._2))
+              v1.getOrElse(true, Map()).map(p => p._1 -> (p._2._1, p._2._2)),
             )
           }
           val (instanceMethods, staticMethods0) = {
             val v1 = funcDefs.groupBy(_._2)
             (
               v1.getOrElse(false, Vector()).map(_._1),
-              v1.getOrElse(true, Vector()).map(_._1)
+              v1.getOrElse(true, Vector()).map(_._1),
             )
           }
 
@@ -530,7 +530,7 @@ object ProgramParsing {
                 Vector(),
                 Annot.Missing,
                 BlockStmt(Vector()),
-                ExportLevel.Unspecified
+                ExportLevel.Unspecified,
               )
             } else {
               parseGStmt(constructorValue).asInstanceOf[Vector[FuncDef]].head
@@ -538,7 +538,7 @@ object ProgramParsing {
             f.copy(
               name = GStmt.constructorName,
               returnType = Annot.Fixed(TyVar(name)),
-              tyVars = tyVars // constructor has the same tyVars as the class
+              tyVars = tyVars, // constructor has the same tyVars as the class
             )
           }
           //put instance var instantiation into the constructor
@@ -548,11 +548,11 @@ object ProgramParsing {
               Annot.Fixed(TyVar(name)),
               Var(undefinedSymbol),
               isConst = true,
-              ExportLevel.Unspecified
+              ExportLevel.Unspecified,
             )
             val thisSuperVars = Vector(
               thisDef,
-              thisDef.copy(name = superSymbol)
+              thisDef.copy(name = superSymbol),
             )
             val lambdas = asVector(map("instanceLambdas"))
               .flatMap(parseGStmt)
@@ -564,7 +564,7 @@ object ProgramParsing {
             }
             constructor0.copy(
               body =
-                groupInBlockSurface(thisSuperVars ++ lambdas ++ inits ++ stmts)
+                groupInBlockSurface(thisSuperVars ++ lambdas ++ inits ++ stmts),
             )
           }
 
@@ -591,8 +591,8 @@ object ProgramParsing {
               superType,
               instanceVars.toMap,
               instanceMethods,
-              ms.exportLevel
-            )
+              ms.exportLevel,
+            ),
           )
         case "ImportStmt" =>
           val importString = StringContext.treatEscapes(asString(map("text")))
@@ -653,8 +653,8 @@ object ProgramParsing {
 
       val modulePath = RelPath(
         Seq(".d.ts", ".tsx", ".ts").foldLeft(name)(
-          (n, ext) => removeSuffix(n, ext)
-        )
+          (n, ext) => removeSuffix(n, ext),
+        ),
       )
       GModule(modulePath, stmts2, isDeclarationFileName(name))
     }
@@ -727,7 +727,7 @@ object ProgramParsing {
 
       def parseImportEquals[_: P]: P[ImportStmt] = {
         P(
-          "import" ~ identifier ~ "=" ~/ "require(" ~/ path ~ ")" ~ (";" | End)
+          "import" ~ identifier ~ "=" ~/ "require(" ~/ path ~ ")" ~ (";" | End),
         ).map {
           case (name, path: ReferencePath) =>
             ImportSingle(Symbol("$ExportEquals"), path, Symbol(name))
@@ -738,7 +738,7 @@ object ProgramParsing {
         def normalImports =
           P(
             "import" ~ parseImportClause
-              .rep(min = 1, sep = ",") ~/ "from" ~ path ~ (";" | End)
+              .rep(min = 1, sep = ",") ~/ "from" ~ path ~ (";" | End),
           ).map {
             case (clauses, p) =>
               clauses.toVector.flatMap {
@@ -760,7 +760,7 @@ object ProgramParsing {
         case Success(value, _) => value
         case f: Failure =>
           throw new Error(
-            s"Failed to parse import statement: '$importText', errors: ${f.trace().longMsg}"
+            s"Failed to parse import statement: '$importText', errors: ${f.trace().longMsg}",
           )
       }
     }
@@ -802,14 +802,14 @@ object ProgramParsing {
       def exportSingles[_: P]: P[Creator] =
         P(
           "{" ~ (identifier ~/ ("as" ~/ identifier).?)
-            .rep(min = 1, sep = ",") ~ ",".? ~ "}"
+            .rep(min = 1, sep = ",") ~ ",".? ~ "}",
         ).map { clauses => p =>
           clauses.toVector.map {
             case (oldName, newNameOpt) =>
               ExportSingle(
                 Symbol(oldName),
                 Symbol(newNameOpt.getOrElse(oldName)),
-                p
+                p,
               )
           }
         }
@@ -818,14 +818,14 @@ object ProgramParsing {
         P("*").map(
           _ =>
             p => {
-              Vector(ExportOtherModule(p.get))
-            }
+              Vector(ExportOtherModule(p.get)),
+            },
         )
       }
 
       def exportNamespace[_: P]: P[Vector[ExportStmt]] =
         P(
-          "export" ~ "as" ~ "namespace" ~/ identifier
+          "export" ~ "as" ~ "namespace" ~/ identifier,
         ).map { name =>
           val s = Symbol(name)
           Vector(ExportSingle(s, s, None))
@@ -839,7 +839,7 @@ object ProgramParsing {
       def exportRest[_: P] =
         P(
           "export" ~/ (exportFromOther | exportDefault | exportDefault2 | exportSingles)
-            ~ ("from" ~/ path).?
+            ~ ("from" ~/ path).?,
         ).map { case (creator, p) => creator(p) }
 
       def stmt[_: P]: P[Vector[ExportStmt]] =
@@ -849,7 +849,7 @@ object ProgramParsing {
         case Success(value, _) => value
         case f: Failure =>
           throw new Error(
-            s"Failed to parse export statement: '$str', errors: ${f.trace().longMsg}"
+            s"Failed to parse export statement: '$str', errors: ${f.trace().longMsg}",
           )
       }
     }
@@ -857,7 +857,7 @@ object ProgramParsing {
 
   def main(args: Array[String]): Unit = {
     val jValue = parseJsonFromFile(
-      pwd / up / 'DeepTypeTS / 'output / "foo.json"
+      pwd / up / 'DeepTypeTS / 'output / "foo.json",
     )
     //    println(jValue)
 

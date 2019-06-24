@@ -56,7 +56,7 @@ object OldIRTranslation {
           case ExportLevel.Default =>
             require(
               defaultVar.isEmpty,
-              s"trying to set default to $mark, but get ${defaultVar.get}"
+              s"trying to set default to $mark, but get ${defaultVar.get}",
             )
             defaultVar = Some(v -> mark)
           case ExportLevel.Unspecified =>
@@ -131,7 +131,7 @@ class OldIRTranslation() {
       origin: Option[GTHole],
       name: Option[Symbol],
       freezeToType: Option[TyAnnot] = None,
-      libId: Option[Symbol]
+      libId: Option[Symbol],
   )(implicit tyVars: Set[Symbol]): IRType = ???
   def newVar(): Var = {
     assert(varIdx >= 0)
@@ -141,11 +141,11 @@ class OldIRTranslation() {
   }
 
   def getTyVar(gMark: GTMark, name: Option[Symbol])(
-      implicit tyVars: Set[Symbol]
+      implicit tyVars: Set[Symbol],
   ): IRType = ???
 
   private def exprAsVar(
-      expr: IRExpr
+      expr: IRExpr,
   )(implicit tyVars: Set[Symbol]): (Vector[IRStmt], Var) =
     expr match {
       case v: Var => (Vector(), v)
@@ -164,8 +164,8 @@ class OldIRTranslation() {
             v,
             newTyVar(None, None, None, None),
             expr,
-            ExportLevel.Unspecified
-          )
+            ExportLevel.Unspecified,
+          ),
         ) -> v
     }
 
@@ -176,7 +176,7 @@ class OldIRTranslation() {
       SimpleMath.withErrorMessage(
         s"collectExports failed for ${module.path}\nmodule:\n${irStmts
           .map(_.prettyPrint())
-          .mkString("\n")}"
+          .mkString("\n")}",
       ) {
         collectExports(irStmts)
       }
@@ -186,7 +186,7 @@ class OldIRTranslation() {
       ???,
       ???,
       moduleExports,
-      irStmts
+      irStmts,
     )
   }
 
@@ -198,21 +198,21 @@ class OldIRTranslation() {
   }
 
   def translateStmt(
-      stmt: GStmt
+      stmt: GStmt,
   )(
-      implicit quantifiedTypes: Set[Symbol]
+      implicit quantifiedTypes: Set[Symbol],
   ): Vector[OldIR.IRStmt] = ???
 
   def translateFunc(
-      func: Surface.FuncDef
+      func: Surface.FuncDef,
   )(
-      quantifiedTypes: Set[Symbol]
+      quantifiedTypes: Set[Symbol],
   ): OldIR.FuncDef = ???
   import collection.mutable
 
   /** @see [[translateExpr]] */
   def translateExpr2(expr: GExpr)(
-      implicit tyVars: Set[Symbol]
+      implicit tyVars: Set[Symbol],
   ): (Vector[IRStmt], IRExpr) = {
     val defs = mutable.ListBuffer[IRStmt]()
     val e = translateExpr(expr)(tyVars, defs)
@@ -226,6 +226,6 @@ class OldIRTranslation() {
     */
   def translateExpr(expr: GExpr)(
       implicit tyVars: Set[Symbol],
-      defs: mutable.ListBuffer[IRStmt]
+      defs: mutable.ListBuffer[IRStmt],
   ): IRExpr = ???
 }

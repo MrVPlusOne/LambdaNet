@@ -23,7 +23,7 @@ object JSExamples {
       'push -> (List(baseType) -: number),
       'forEach -> (List(List(baseType) -: any) -: void),
       'slice -> (List(number, number) -: arrayType),
-      'access -> (List(number) -: baseType)
+      'access -> (List(number) -: baseType),
     )
   }
 
@@ -70,7 +70,7 @@ object JSExamples {
     'POST_MinusMinusToken -> (List(number) -: number),
     'TildeToken -> (List(number) -: number),
     'ExclamationToken -> (List(any) -: boolean),
-    thisSymbol -> any
+    thisSymbol -> any,
   )
 
   @deprecated
@@ -85,16 +85,16 @@ object JSExamples {
         'OP_Minus -> (List(number) -: number),
         'OP_Times -> (List(number) -: number),
         'OP_Divide -> (List(number) -: number),
-        'OP_LessThan -> (List(number) -: boolean)
+        'OP_LessThan -> (List(number) -: boolean),
       ),
       string -> obj(
         'OP_Plus -> (List(any) -: string),
         'charAt -> (List(number) -: string),
-        'length -> number
+        'length -> number,
       ),
       'Comparator -> obj(
-        'equal -> (List(any, any) -: boolean)
-      )
+        'equal -> (List(any, any) -: boolean),
+      ),
     )
 
     var varAssign = Map[Symbol, GType](
@@ -104,13 +104,13 @@ object JSExamples {
       'emptyArray -> anyArray,
       'Math -> obj(
         'floor -> (List(number) -: number),
-        'abs -> (List(number) -: number)
+        'abs -> (List(number) -: number),
       ),
       'isFinite -> (List(number) -: boolean),
       'Infinity -> number,
       'parseInt -> (List(string, number) -: number),
       'isNaN -> (List(number) -: boolean),
-      'parseFloat -> (List(string) -: number)
+      'parseFloat -> (List(string) -: number),
     ) ++ specialVars
 
     def addType(name: Symbol): Unit = {
@@ -145,13 +145,13 @@ object JSExamples {
       'undefined,
       'Element,
       'Text,
-      'Comment
+      'Comment,
     ).foreach(addType)
 
     Seq('super, 'window, 'global, 'self, 'document, 'setTimeout,
       'getComputedStyle, 'JSON, 'NaN, 'console)
       .foreach(s => {
-        varAssign += (s -> any)
+        varAssign += (s -> any),
       })
 
     val typeContext = TypeContext(Set(), typeUnfold, Set())
@@ -181,7 +181,7 @@ object JSExamples {
       'removeChild -> (List('BinaryTreeNode) -: boolean),
       'replaceChild -> (List('BinaryTreeNode, 'BinaryTreeNode) -: boolean),
       'traverseInOrder -> (List() -: anyArray),
-      'toString -> (List() -: string)
+      'toString -> (List() -: string),
     )
 
     val heapObj = obj(
@@ -195,39 +195,39 @@ object JSExamples {
       'remove -> (List(any, TyVar('Comparator)) -: 'Heap),
       'find -> (List(any, TyVar('Comparator)) -: 'numberArray),
       'isEmpty -> (List() -: boolean),
-      'toString -> (List() -: string)
+      'toString -> (List() -: string),
     )
 
     val newUnfold = typeContext.typeUnfold ++ Map[Symbol, CompoundType](
       'BinarySearchTree -> obj(
         'insert -> (List(any) -: 'BinarySearchTreeNode),
         'contains -> (List(any) -: boolean),
-        'toString -> (List() -: string)
+        'toString -> (List() -: string),
       ),
       'BinaryTreeNode -> binaryTreeNodeObj,
       'BinarySearchTreeNode -> binaryTreeNodeObj.extended(
         'insert -> (List(any) -: 'BinarySearchTreeNode),
         'contains -> (List(any) -: boolean),
-        'findMin -> (List() -: 'BinarySearchTreeNode)
+        'findMin -> (List() -: 'BinarySearchTreeNode),
       ),
       'RedBlackTree -> obj(
         'insert -> (List(any) -: 'BinarySearchTreeNode),
         'remove -> (List(any) -: boolean),
         'balance -> (List('BinarySearchTreeNode) -: void),
         'leftLeftRotation -> (List('BinarySearchTreeNode) -: 'BinarySearchTreeNode),
-        'isNodeRed -> (List('BinarySearchTreeNode) -: boolean)
+        'isNodeRed -> (List('BinarySearchTreeNode) -: boolean),
       ),
       'FenwickTree -> obj(
         'increase -> (List(number, number) -: 'FenwickTree),
         'query -> (List(number) -: number),
-        'queryRange -> (List(number, number) -: number)
+        'queryRange -> (List(number, number) -: number),
       ),
       'AvlTree -> obj(
         'insert -> (List(number) -: void),
         'remove -> (List(any) -: boolean),
-        'balance -> (List('BinarySearchTreeNode) -: void)
+        'balance -> (List('BinarySearchTreeNode) -: void),
       ),
-      'Heap -> heapObj
+      'Heap -> heapObj,
     )
 
     typeContext.copy(typeUnfold = newUnfold)

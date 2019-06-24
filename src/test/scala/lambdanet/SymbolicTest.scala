@@ -7,7 +7,7 @@ import lambdanet.translation.OldPredicateGraphConstruction
 class SymbolicTest extends WordSpec with MyTest {
   "print generated constraints" in {
     val parsed = OldPredicateGraphConstruction.fromRootDirectory(
-      pwd / RelPath("data/tests/symbolic/ex1")
+      pwd / RelPath("data/tests/symbolic/ex1"),
     )
 
     parsed.predModules.zip(parsed.irModules).foreach {

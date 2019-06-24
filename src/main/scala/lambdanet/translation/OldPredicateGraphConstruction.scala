@@ -21,7 +21,7 @@ import lambdanet.{
   ProjectPath,
   ReferencePath,
   TrainingProjects,
-  TyVar
+  TyVar,
 }
 
 import scala.collection.mutable
@@ -37,7 +37,7 @@ object OldPredicateGraphConstruction {
   case class LibraryUsageStats(
       libVars: Map[VarName, IRType],
       libTypes: Map[GType, IRType],
-      libTypeFreq: Map[GType, Int]
+      libTypeFreq: Map[GType, Int],
   )
 
   /** Allocate IRTypes for library definitions, useful for generating embeddings
@@ -46,35 +46,35 @@ object OldPredicateGraphConstruction {
       val transEnv: OldIRTranslation,
       libraryVars: mutable.HashMap[VarName, IRType] = mutable.HashMap(),
       libraryTypeFreq: mutable.HashMap[GType, Int] = mutable.HashMap(),
-      libraryTypes: mutable.HashMap[GType, IRType] = mutable.HashMap()
+      libraryTypes: mutable.HashMap[GType, IRType] = mutable.HashMap(),
   ) {
     def usageStats: LibraryUsageStats = LibraryUsageStats(
       libraryVars.toMap,
       libraryTypes.toMap,
-      libraryTypeFreq.toMap
+      libraryTypeFreq.toMap,
     )
 
     def newLibVar(name: VarName, ty: Option[GType])(
-        implicit tyVars: Set[Symbol]
+        implicit tyVars: Set[Symbol],
     ): IRType = {
       val tv = transEnv.newTyVar(
         None,
         Some(name),
         ???, //ty.map(t => TyAnnot(t, needInfer = false)),
-        Some(LibraryContext.libIdForVar(name))
+        Some(LibraryContext.libIdForVar(name)),
       )
       libraryVars(name) = tv
       tv
     }
 
     def getVarType(
-        v: Var
+        v: Var,
     )(implicit predCtx: PredicateContext, tyVars: Set[Symbol]): IRType = {
       predCtx.varTypeMap.getOrElse(
         v, {
           val name = v.nameOpt.get
           libraryVars.getOrElse(name, newLibVar(name, None))
-        }
+        },
       )
     }
 
@@ -88,7 +88,7 @@ object OldPredicateGraphConstruction {
         None,
         nameOpt,
         None,
-        libId = Some(Symbol(ty.toString))
+        libId = Some(Symbol(ty.toString)),
       ) //todo: improve to use type structure
     }
 
@@ -116,7 +116,7 @@ object OldPredicateGraphConstruction {
   case class PredicateContext(
       varTypeMap: Map[Var, IRType],
       newTypeMap: Map[TypeName, IRType],
-      packageNames: Set[Symbol]
+      packageNames: Set[Symbol],
   )
 
   def qualifiedName(`package`: Symbol, name: Symbol): Symbol = {
@@ -129,14 +129,14 @@ object OldPredicateGraphConstruction {
       libUsages: LibraryUsageStats,
       irModules: Vector[IRModule],
       predModules: Vector[PredicateModule],
-      predCtx: PredicateContext
+      predCtx: PredicateContext,
   )
 
   def fromModules(
       projectName: String,
       modules: Seq[GModule],
       libraryModules: Seq[DeclarationModule],
-      pathMapping: PathMapping
+      pathMapping: PathMapping,
   ): ParsedProject = {
     val env = new OldIRTranslation()
     val libCtx = new LibraryContext(env)
@@ -169,14 +169,14 @@ object OldPredicateGraphConstruction {
       libUsages,
       irModules,
       pModules,
-      ctx
+      ctx,
     )
   }
 
   def fromRootDirectory(
       root: Path,
       libModules: Seq[DeclarationModule] = TrainingProjects.standardLibs,
-      pathMapping: PathMapping = PathMapping.empty
+      pathMapping: PathMapping = PathMapping.empty,
   ): ParsedProject = {
 
     val sources = ls
@@ -185,7 +185,7 @@ object OldPredicateGraphConstruction {
         if (f.last.endsWith(".d.ts")) {
           throw new Error(
             s".d.ts file encountered: $f, you are probably " +
-              s"parsing the wrong files."
+              s"parsing the wrong files.",
           )
         }
         f.ext == "ts"
@@ -194,7 +194,7 @@ object OldPredicateGraphConstruction {
     val parser = ProgramParsing
     val modules = parser.parseGModulesFromFiles(
       sources,
-      root
+      root,
     )
 
     fromModules(root.toString(), modules, libModules, pathMapping)
@@ -204,7 +204,7 @@ object OldPredicateGraphConstruction {
       module: IRModule,
       baseCtx: PredicateContext,
       allModules: Map[ProjectPath, IRModule],
-      pathMapping: PathMapping
+      pathMapping: PathMapping,
   ): PredicateContext = {
 
     var varTypeMap = baseCtx.varTypeMap
@@ -217,7 +217,7 @@ object OldPredicateGraphConstruction {
         .getOrElse(
           if (ref.isRelative) currentDir / ref.path
           else pathMapping.map(currentDir, ref.path),
-          throw new Error(s"Cannot find source file: $ref in '$currentDir'.")
+          throw new Error(s"Cannot find source file: $ref in '$currentDir'."),
         )
         .exports
     }
@@ -274,13 +274,13 @@ object OldPredicateGraphConstruction {
   }
 
   def encodeUnaryPredicates(
-      vars: Iterable[IRType]
+      vars: Iterable[IRType],
   ): Vector[TyVarPredicate] = {
     import collection.mutable
     var newPredicates = mutable.ListBuffer[TyVarPredicate]()
     vars.foreach { tv =>
       tv.annotation.foreach(
-        a => ??? // if (!a.needInfer) newPredicates += FreezeType(tv, a.ty)
+        a => ???, // if (!a.needInfer) newPredicates += FreezeType(tv, a.ty)
       )
       tv.name.foreach(n => newPredicates += HasName(tv, n))
       tv.libId.foreach(libId => newPredicates += IsLibraryType(tv, libId))
@@ -295,23 +295,23 @@ private class OldPredicateGraphConstruction(libraryContext: LibraryContext) {
       modules: Seq[IRModule],
       baseCtx: PredicateContext,
       pathMapping: PathMapping,
-      exportIterations: Int = 20
+      exportIterations: Int = 20,
   ): Vector[PredicateModule] = {
 
     /** Try to turn export statements into export definitions, may need multiple
       * iteration of this function to achieve fixed-point */
     def propagateExports(
-        allModules: Map[ProjectPath, IRModule]
+        allModules: Map[ProjectPath, IRModule],
     ): Map[ProjectPath, IRModule] = {
       def getExports(
           currentDir: ProjectPath,
-          ref: ReferencePath
+          ref: ReferencePath,
       ): ModuleExports = {
         allModules
           .getOrElse(
             if (ref.isRelative) currentDir / ref.path
             else pathMapping.map(currentDir, ref.path),
-            throw new Error(s"Cannot find source file: $ref in '$currentDir'.")
+            throw new Error(s"Cannot find source file: $ref in '$currentDir'."),
           )
           .exports
       }
@@ -336,7 +336,7 @@ private class OldPredicateGraphConstruction(libraryContext: LibraryContext) {
                      if exported) {
                   newDefs = newDefs.updated(
                     (newName, ExportCategory.TypeAlias),
-                    (t, false)
+                    (t, false),
                   )
                 }
                 for ((t, exported) <- exports.classes.get(oldName)
@@ -357,7 +357,7 @@ private class OldPredicateGraphConstruction(libraryContext: LibraryContext) {
 
                 def export(
                     map: Map[Symbol, (IRType, Exported)],
-                    category: ExportCategory.Value
+                    category: ExportCategory.Value,
                 ): Unit = {
                   map.get(oldName).foreach {
                     case (tv, exported) =>
@@ -412,8 +412,8 @@ private class OldPredicateGraphConstruction(libraryContext: LibraryContext) {
             exports = md.exports.copy(
               definitions = newDefs,
               defaultType = newDefaultType,
-              defaultVar = newDefaultVar
-            )
+              defaultVar = newDefaultVar,
+            ),
           )
       }
     }
@@ -426,12 +426,12 @@ private class OldPredicateGraphConstruction(libraryContext: LibraryContext) {
     irModules.toVector.zipWithIndex.map {
       case ((path, module), idx) =>
         SimpleMath.withErrorMessage(
-          s"[$idx parsed] Predicate Graph Construction failed for module: '$path'"
+          s"[$idx parsed] Predicate Graph Construction failed for module: '$path'",
         ) {
           val (predicates, ctx1, labels) =
             encodeStmts(
               module.stmts,
-              resolveImports(module, baseCtx, irModules, pathMapping)
+              resolveImports(module, baseCtx, irModules, pathMapping),
             )
           val newTypes = ctx1.newTypeMap.map(_.swap)
           PredicateModule(module.path, predicates, newTypes, labels)
@@ -443,7 +443,7 @@ private class OldPredicateGraphConstruction(libraryContext: LibraryContext) {
 
   def encodeStmts(
       stmts: Vector[IRStmt],
-      ctx: PredicateContext
+      ctx: PredicateContext,
   ): (Vector[TyVarPredicate], PredicateContext, Map[IRType, TypeLabel]) = {
     import collection.mutable
 
@@ -457,7 +457,7 @@ private class OldPredicateGraphConstruction(libraryContext: LibraryContext) {
     /** Collect the variable, function, and class definitions declared in a
       * block and return a new context */
     def collectDefinitions(
-        stmts: Vector[IRStmt]
+        stmts: Vector[IRStmt],
     )(implicit ctx: PredicateContext): PredicateContext = {
       val typeDefs = stmts.collect {
         case c: ClassDef        => c.name -> c.classT
@@ -471,7 +471,7 @@ private class OldPredicateGraphConstruction(libraryContext: LibraryContext) {
 
       ctx.copy(
         varTypeMap = ctx.varTypeMap ++ defs,
-        newTypeMap = ctx.newTypeMap ++ typeDefs
+        newTypeMap = ctx.newTypeMap ++ typeDefs,
       )
     }
     def getTypeFromName(ctx: PredicateContext, name: TypeName): IRType = {
@@ -523,15 +523,15 @@ private class OldPredicateGraphConstruction(libraryContext: LibraryContext) {
                 add(
                   DefineRel(
                     tv,
-                    CallTypeExpr(varTypeMap(f), args.map(varTypeMap))
-                  )
+                    CallTypeExpr(varTypeMap(f), args.map(varTypeMap)),
+                  ),
                 )
               case ObjLiteral(fields) =>
                 add(
                   DefineRel(
                     tv,
-                    ObjLiteralTypeExpr(fields.mapValuesNow(varTypeMap))
-                  )
+                    ObjLiteralTypeExpr(fields.mapValuesNow(varTypeMap)),
+                  ),
                 )
               case FieldAccess(receiver, label) =>
                 //fixme: properly handle namespaces
@@ -540,16 +540,16 @@ private class OldPredicateGraphConstruction(libraryContext: LibraryContext) {
                     equalityRel(
                       tv,
                       varTypeMap(
-                        Var(Right(qualifiedName(receiver.nameOpt.get, label)))
-                      )
-                    )
+                        Var(Right(qualifiedName(receiver.nameOpt.get, label))),
+                      ),
+                    ),
                   )
                 } else {
                   add(
                     DefineRel(
                       tv,
-                      FieldAccessTypeExpr(varTypeMap(receiver), label)
-                    )
+                      FieldAccessTypeExpr(varTypeMap(receiver), label),
+                    ),
                   )
                 }
               case IfExpr(cond, e1, e2) =>
@@ -563,8 +563,8 @@ private class OldPredicateGraphConstruction(libraryContext: LibraryContext) {
             add(
               SubtypeRel(
                 varTypeMap(v),
-                ctx.varTypeMap(OldPredicateGraph.returnVar)
-              )
+                ctx.varTypeMap(OldPredicateGraph.returnVar),
+              ),
             )
           case IfStmt(cond, e1, e2) =>
             add(UsedAsBoolean(varTypeMap(cond)))
@@ -590,10 +590,10 @@ private class OldPredicateGraphConstruction(libraryContext: LibraryContext) {
                 if (isConstructor)
                   map1 ++ Seq(
                     ClassDef.thisVar -> newReturnType,
-                    ClassDef.superVar -> newReturnType
+                    ClassDef.superVar -> newReturnType,
                   )
                 else map1
-              }
+              },
             )
             add(DefineRel(funcT, FuncTypeExpr(args.map(_._2), newReturnType)))
             encodeStmt(body)(ctx1)
@@ -612,7 +612,7 @@ private class OldPredicateGraphConstruction(libraryContext: LibraryContext) {
 
             val innerCtx =
               ctx.copy(
-                varTypeMap = ctx.varTypeMap + (ClassDef.thisVar -> classT) ++ superMap.toList
+                varTypeMap = ctx.varTypeMap + (ClassDef.thisVar -> classT) ++ superMap.toList,
               )
             funcDefs.foreach(s => encodeStmt(s)(innerCtx))
           case _: TypeAliasIRStmt => //do nothing

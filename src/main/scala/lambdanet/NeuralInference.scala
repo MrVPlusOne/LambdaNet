@@ -10,8 +10,7 @@ import lambdanet.translation.PredicateGraph._
 import scala.collection.{GenSeq, mutable}
 import scala.collection.parallel.ForkJoinTaskSupport
 
-object NeuralInference {
-}
+object NeuralInference {}
 
 case class PredictionSpace(allTypes: Set[PType]) {
   val unknownType = PTyVar(NameDef.unknownDef.ty.get)
@@ -34,7 +33,7 @@ class NeuralInference(
     graph: PredicateGraphWithCtx,
     layerFactory: LayerFactory,
     dimMessage: Int,
-    taskSupport: Option[ForkJoinTaskSupport]
+    taskSupport: Option[ForkJoinTaskSupport],
 ) {
   import layerFactory._
 
@@ -44,7 +43,7 @@ class NeuralInference(
   def predictTypes(
       nodesToPredict: Vector[PNode],
       predictionSpace: PredictionSpace,
-      iterations: Int
+      iterations: Int,
   ): CompNode = {
 
     val labelMap: Symbol => CompNode = {
@@ -56,7 +55,7 @@ class NeuralInference(
     def fieldAccessMessage(
         name: SymbolPath,
         objEmbed: CompNode,
-        fieldLabel: Symbol
+        fieldLabel: Symbol,
     ): Message = {
       val input = objEmbed.concat(labelMap(fieldLabel), axis = 1)
       messageModel(name, singleLayer(name / 'compress, input))
@@ -116,12 +115,12 @@ class NeuralInference(
                   messages(v) += argAccessMessage(
                     'FuncTypeExpr_toF,
                     embed(tId),
-                    argId
+                    argId,
                   )
                   messages(tId) += argAccessMessage(
                     'FuncTypeExpr_toArg,
                     embed(v),
-                    argId
+                    argId,
                   )
               }
             case PCall(f, args) =>
@@ -135,13 +134,13 @@ class NeuralInference(
                   argAccessMessage(
                     'CallTypeExpr / 'embedArg,
                     embed(argT),
-                    argId
+                    argId,
                   )
               }
 
               val fEmbed = attentionLayer('CallTypeExpr / 'fEmbed)(
                 fKey,
-                fPair +: argPairs
+                fPair +: argPairs,
               )
               messages(v) += messageModel('CallTypeExpr / 'toV, fEmbed)
               args.zipWithIndex.foreach {
@@ -149,7 +148,7 @@ class NeuralInference(
                   messages(arg) += argAccessMessage(
                     'CallTypeExpr / 'toArg,
                     fEmbed,
-                    argId
+                    argId,
                   )
               }
             case PObject(fields) =>
@@ -159,12 +158,12 @@ class NeuralInference(
                   messages(v) += fieldAccessMessage(
                     'ObjLiteralTypeExpr / 'toV,
                     embed(tv),
-                    label
+                    label,
                   )
                   messages(tv) += fieldAccessMessage(
                     'ObjLiteralTypeExpr / 'toField,
                     embed(v),
-                    label
+                    label,
                   )
                   import graph.fieldUsages
                   if (fieldUsages.contains(label)) {
@@ -172,12 +171,12 @@ class NeuralInference(
                       val att =
                         attentionLayer(
                           'ObjLiteralTypeExpr / 'fieldUsage,
-                          transformKey = true
+                          transformKey = true,
                         )(
                           embed(v),
                           fieldUsages(label).toVector.map {
                             case (k, n) => embed(k) -> embed(n)
-                          }
+                          },
                         )
                       messageModel('ObjLiteralTypeExpr / 'usageMessage, att)
                     }
@@ -187,12 +186,12 @@ class NeuralInference(
               messages(v) += fieldAccessMessage(
                 'FieldAccess / 'toV,
                 embed(objType),
-                label
+                label,
               )
               messages(objType) += fieldAccessMessage(
                 'FieldAccess / 'toObj,
                 embed(v),
-                label
+                label,
               )
               import graph.fieldDefs
               if (fieldDefs.contains(label)) {
@@ -203,7 +202,7 @@ class NeuralInference(
                       fieldDefs(label).toVector.map {
                         case (k, Left(pt)) => embed(k) -> encodeLibType(pt)
                         case (k, Right(t)) => embed(k) -> embed(t)
-                      }
+                      },
                     )
                   messageModel('FieldAccess / 'defsMessage, att)
                 }
@@ -225,7 +224,7 @@ class NeuralInference(
               }
             val out = attentionLayer('MessageAggregate, transformKey = true)(
               node,
-              vs :+ (node, node)
+              vs :+ (node, node),
             )
             val outLen = sqrt(sum(square(out)))
             val newEmbed = out / outLen
@@ -247,9 +246,11 @@ class NeuralInference(
 
     def decode(embedding: VarEmbedding): CompNode = {
       val candidates =
-        concatN(axis = 0)(par(predictionSpace.typeVector)
+        concatN(axis = 0)(
+          par(predictionSpace.typeVector)
             .map(encodePType)
-            .toVector)
+            .toVector,
+        )
       val inputs =
         concatN(axis = 0)(nodesToPredict.map { embedding.nodeMap })
 
@@ -261,7 +262,7 @@ class NeuralInference(
     val embedding0 = VarEmbedding(
       graph.projectNodes
         .map(n => n -> nodeInitVec)
-        .toMap
+        .toMap,
     )
     val embeddings = Vector.iterate(embedding0, iterations + 1)(iterate)
 
@@ -287,7 +288,7 @@ class NeuralInference(
 
   private def messageModel(name: SymbolPath, vec: CompNode): Message = {
     relu(linear(name / 'header, dimMessage)(vec)) -> relu(
-      linear(name / 'content, dimMessage)(vec)
+      linear(name / 'content, dimMessage)(vec),
     )
   }
 
@@ -307,7 +308,7 @@ class NeuralInference(
   private def argAccessMessage(
       name: SymbolPath,
       fEmbed: CompNode,
-      argId: Int
+      argId: Int,
   ): Message = {
     val input = fEmbed.concat(positionalEncoding(argId), axis = 1)
     messageModel(name, singleLayer(name / 'compress, input))
@@ -338,7 +339,7 @@ case class PredicateGraphWithCtx(
     predicates: Set[TyPredicate],
     libraryTypes: Map[PNode, PType],
     libraryTerms: Map[PNode, PType],
-    userAnnotations: Map[PNode, PAnnot]
+    userAnnotations: Map[PNode, PAnnot],
 ) {
   import cats.instances.all._
   import cats.Monoid
@@ -367,7 +368,7 @@ case class PredicateGraphWithCtx(
           fields.flatMap {
             case (l, t) => Map(l -> Set(node -> t.asLeft[PNode]))
           }
-      }
+      },
     )
 
   def printStat(): Unit = {
@@ -380,7 +381,7 @@ case class PredicateGraphWithCtx(
 object PredicateGraphWithCtx {
   def fromGraph(
       graph: PredicateGraph,
-      nodeMapping: Map[PNode, PAnnot]
+      nodeMapping: Map[PNode, PAnnot],
   ): PredicateGraphWithCtx = {
     val libTypes = for {
       (n, annot) <- nodeMapping if n.isType

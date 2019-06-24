@@ -44,7 +44,7 @@ object MinCharRnn {
         new Array[Tensor](inputs.length),
         new Array[Tensor](inputs.length),
         new Array[Tensor](inputs.length),
-        new Array[Tensor](inputs.length)
+        new Array[Tensor](inputs.length),
       )
       hs(hs.length - 1) = ns.copy(hprev)
       var loss = 0.0
@@ -140,7 +140,7 @@ object MinCharRnn {
       (
         List(Wxh, Whh, Why, bh, by),
         List(dWxh, dWhh, dWhy, dbh, dby),
-        List(mWxh, mWhh, mWhy, mbh, mby)
+        List(mWxh, mWhh, mWhy, mbh, mby),
       ).zipped.foreach {
         case (param, dparam, mem) =>
           mem += dparam * dparam

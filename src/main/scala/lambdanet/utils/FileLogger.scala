@@ -47,7 +47,7 @@ class EventLogger(
     file: Path,
     printToConsole: Boolean,
     overrideMode: Boolean,
-    configs: Seq[(String, PlotConfig)]
+    configs: Seq[(String, PlotConfig)],
 ) {
   if (exists(file) && overrideMode) {
     rm(file)
@@ -60,7 +60,7 @@ class EventLogger(
         case (k, v) =>
           s""""$k"->${v.options.mkString("{", ",", "}")}"""
       }
-      .mkString("{", ",", "}")
+      .mkString("{", ",", "}"),
   )
 
   val names: Set[String] = configs.toMap.keySet
@@ -71,13 +71,15 @@ class EventLogger(
 
   def log(event: Event): Unit = {
     import event._
-    fLogger.println(s"""{"$name", $iteration, ${TensorExtension.mamFormat(value)}}""")
+    fLogger.println(
+      s"""{"$name", $iteration, ${TensorExtension.mamFormat(value)}}""",
+    )
     if (printToConsole) {
       println(s"[$iteration]$name: $value")
     }
     if (!names.contains(name)) {
       System.err.println(
-        s"Unregistered event name: $name. You should register it in EventLogger.configs."
+        s"Unregistered event name: $name. You should register it in EventLogger.configs.",
       )
     }
   }

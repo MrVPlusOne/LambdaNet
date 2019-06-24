@@ -1,22 +1,10 @@
-package funcdiff
+package lambdanet
 
 import ammonite.ops._
-import lambdanet.{PredicateGraphWithCtx, ProjectPath}
-import lambdanet.translation.ImportsResolution.{
-  ErrorHandler,
-  ModuleExports,
-  PathMapping,
-  SourceFileMissingError
-}
-import lambdanet.translation.{
-  IRTranslation,
-  ImportsResolution,
-  PAnnot,
-  PLangTranslation,
-  PredicateGraphTranslation,
-  QLangTranslation
-}
+import funcdiff.SimpleMath
+import lambdanet.translation.ImportsResolution.{ErrorHandler, ModuleExports}
 import lambdanet.translation.PredicateGraph.{PNode, PNodeAllocator}
+import lambdanet.translation._
 import lambdanet.utils.ProgramParsing
 import lambdanet.utils.ProgramParsing.GProject
 
@@ -25,7 +13,7 @@ case class LibDefs(
     baseCtx: ModuleExports,
     nodeMapping: Map[PNode, PAnnot],
     libAllocator: PNodeAllocator,
-    libExports: Map[ProjectPath, ModuleExports]
+    libExports: Map[ProjectPath, ModuleExports],
 )
 
 object PrepareRepos {
@@ -59,7 +47,7 @@ object PrepareRepos {
       defaultPublicMode = true,
       errorHandler = handler,
       devDependencies,
-      maxIterations = 5
+      maxIterations = 5,
     )
 
     val namedExports = subProjects.map {
@@ -69,11 +57,11 @@ object PrepareRepos {
           exports.getOrElse(
             path / "index", {
               Console.err.println(
-                s"Couldn't find Exports located at $path for $name, ignore this named project."
+                s"Couldn't find Exports located at $path for $name, ignore this named project.",
               )
               ModuleExports.empty
-            }
-          )
+            },
+          ),
         )
     }
     handler.warnErrors()
@@ -112,7 +100,7 @@ object PrepareRepos {
           allocator,
           p.pathMapping,
           p.devDependencies,
-          errorHandler
+          errorHandler,
         )
         .map(irTranslator.fromQModule)
       val graph = PredicateGraphTranslation.fromIRModules(irModules)
@@ -177,7 +165,7 @@ object PrepareRepos {
               s"$n,${data.mkString(",")}"
           }
           .mkString("\n")
-      }
+      },
     )
   }
 

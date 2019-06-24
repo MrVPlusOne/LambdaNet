@@ -8,7 +8,7 @@ import lambdanet.translation.OldPredicateGraph._
 
 case class OldPredicateGraph(
     nodes: Vector[IRType],
-    predicates: Seq[TyVarPredicate]
+    predicates: Seq[TyVarPredicate],
 )
 
 /** Encodes the relationships between different type variables */
@@ -24,7 +24,7 @@ object OldPredicateGraph {
       path: ProjectPath,
       predicates: Vector[TyVarPredicate],
       newTypes: Map[IRType, TypeName],
-      typeLabels: Map[IRType, TypeLabel]
+      typeLabels: Map[IRType, TypeLabel],
   ) {
 
     def display(srcOpt: Option[IRModule] = None): String = {
@@ -123,7 +123,7 @@ object OldPredicateGraph {
       correctNodes: Seq[IRType],
       wrongNodes: Seq[IRType],
       predicates: Seq[TyVarPredicate],
-      typeHoleMap: Map[IRType, GTHole]
+      typeHoleMap: Map[IRType, GTHole],
   ): LabeledGraph = {
     def typeInfo(t: OldIR.IRType): String = {
       val holeInfo = typeHoleMap.get(t).map(h => s";Hole: ${h}").getOrElse("")
@@ -141,7 +141,7 @@ object OldPredicateGraph {
     def newPredicate(
         shortName: String,
         fullName: String,
-        connections: Seq[(IRType, String)]
+        connections: Seq[(IRType, String)],
     ): Unit = {
       val n = newNode()
       graph.addNode(n, shortName, wrapInQuotes(fullName), "Blue")
@@ -152,10 +152,10 @@ object OldPredicateGraph {
     }
 
     correctNodes.foreach(n => {
-      graph.addNode(n, n.toString, typeInfo(n), "Green")
+      graph.addNode(n, n.toString, typeInfo(n), "Green"),
     })
     wrongNodes.foreach(n => {
-      graph.addNode(n, n.toString, typeInfo(n), "Red")
+      graph.addNode(n, n.toString, typeInfo(n), "Red"),
     })
 
     predicates.foreach {
@@ -175,7 +175,7 @@ object OldPredicateGraph {
         newPredicate(
           "extends",
           "Extends",
-          Seq(child -> "child", parent -> "parent")
+          Seq(child -> "child", parent -> "parent"),
         )
       case DefineRel(v, expr) =>
         val (short, long, connections) = expr match {

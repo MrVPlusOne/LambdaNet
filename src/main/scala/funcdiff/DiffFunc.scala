@@ -147,7 +147,8 @@ object DiffFunc {
   }
 
   case class LeakyRelu(x1: CompNode, slope: Double) extends UnaryFunc {
-    val value: Tensor = ns.maximum(x1.value, 0.0) + ns.minimum(x1.value, 0.0) * slope
+    val value
+        : Tensor = ns.maximum(x1.value, 0.0) + ns.minimum(x1.value, 0.0) * slope
 
     def backprop1(grad: Gradient): Gradient = {
       grad * ((x1.value > 0) + (x1.value < 0) * slope)
@@ -158,8 +159,10 @@ object DiffFunc {
 
   case class Slice(x1: CompNode, ranges: Seq[NumscaRange]) extends UnaryFunc {
     require(
-      x1.shape.sizes.zip(ranges).forall { case (s, r) => r.to.forall { _ <= s } },
-      s"slice out of range. x1 shape: ${x1.shape}, ranges: ${showRanges(ranges)}"
+      x1.shape.sizes.zip(ranges).forall {
+        case (s, r) => r.to.forall { _ <= s }
+      },
+      s"slice out of range. x1 shape: ${x1.shape}, ranges: ${showRanges(ranges)}",
     )
     val value = x1.value.apply(ranges: _*)
 
@@ -376,7 +379,7 @@ object DiffFunc {
       extends UnaryFunc {
     require(
       targets.shape == logits.shape,
-      s"Targets shape (${targets.shape}) is different from logits (${logits.shape})."
+      s"Targets shape (${targets.shape}) is different from logits (${logits.shape}).",
     )
     require(logits.shape.rank == 2, "Logits should be of rank 2.")
 

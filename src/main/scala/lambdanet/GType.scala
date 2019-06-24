@@ -48,7 +48,7 @@ sealed trait GType extends GTMark {
       case TyVar(symbol) => symbol.name
       case FuncType(from, to) =>
         wrap(0)(
-          from.map(_.pPrint(1)).mkString("(", ",", ")") + "->" + to.pPrint(0)
+          from.map(_.pPrint(1)).mkString("(", ",", ")") + "->" + to.pPrint(0),
         )
       case ObjectType(fields) =>
         fields
@@ -85,7 +85,7 @@ sealed trait GType extends GTMark {
         val a2 = from2 ++ Vector.fill(maxLen - from2.length)(AnyType)
         FuncType(
           a1.zip(a2).map { case (a, b) => a.unionS(b) },
-          to1.intersectS(to2)
+          to1.intersectS(to2),
         )
       case (ObjectType(fields1), ObjectType(fields2)) =>
         implicit val m: Monoid[GType] = GType.intersectMonoid
@@ -135,7 +135,7 @@ case class ObjectType(fields: Map[Symbol, GType]) extends CompoundType {
       val inter = fields.keySet.intersect(that.fields.keySet)
       assert(
         inter.isEmpty,
-        s"Trying to merge objects with common fields: $inter. object1: $this, object2: $that"
+        s"Trying to merge objects with common fields: $inter. object1: $this, object2: $that",
       )
       ObjectType(fields ++ that.fields)
     }
@@ -153,7 +153,7 @@ case class ObjectType(fields: Map[Symbol, GType]) extends CompoundType {
 case class TypeContext(
     baseTypes: Set[Symbol],
     typeUnfold: Map[Symbol, CompoundType],
-    subRel: Set[(GType, GType)]
+    subRel: Set[(GType, GType)],
 ) {
 
   def isSubtype(child: GType, parent: GType): Boolean = {
@@ -169,7 +169,7 @@ case class TypeContext(
   def newTypeVar(name: Symbol, objectType: CompoundType): TypeContext = {
     if (typeUnfold.contains(name)) {
       println(
-        s"warning: Redefine type var: ($name, $objectType), old value: ${typeUnfold(name)}"
+        s"warning: Redefine type var: ($name, $objectType), old value: ${typeUnfold(name)}",
       )
     }
     copy(typeUnfold = typeUnfold.updated(name, objectType))
@@ -206,12 +206,12 @@ object GType {
   def checkSubtype(
       child: GType,
       parent: GType,
-      context: TypeContext
+      context: TypeContext,
   ): Option[TypeContext] = {
     import context._
 
     if (child == AnyType || parent == AnyType || subRel.contains(
-          child -> parent
+          child -> parent,
         ))
       return Some(context)
 
@@ -281,14 +281,14 @@ object GType {
   val simpleGroundGen: Gen[GroundType] = {
     Gen.frequency(
       1 -> Gen.const(AnyType),
-      3 -> Gen.oneOf(simpleBaseTypes).map(API.symbol2TyVar)
+      3 -> Gen.oneOf(simpleBaseTypes).map(API.symbol2TyVar),
     )
   }
 
   val simpleNameGen: Gen[Symbol] = {
     Gen.oneOf(
       Gen.oneOf('f, 'g, 'h),
-      shortSymbolGen
+      shortSymbolGen,
     )
   }
 
@@ -340,20 +340,20 @@ object GType {
     if (size <= 1) {
       Gen.frequency(
         5 -> groundGen,
-        1 -> Gen.const(API.obj())
+        1 -> Gen.const(API.obj()),
       )
     } else if (size <= 10)
       Gen.frequency(
         1 -> groundGen,
         1 -> tyVarGen,
         3 -> funcGen(size),
-        3 -> objGen(size)
+        3 -> objGen(size),
       )
     else {
       Gen.frequency(
         4 -> funcGen(size),
         5 -> objGen(size),
-        1 -> tyVarGen
+        1 -> tyVarGen,
       )
     }
   }
@@ -361,14 +361,14 @@ object GType {
   case class GTypeGenParams(
       groundGen: Gen[GroundType],
       fNameGen: Gen[Symbol],
-      tyVarGen: Gen[TyVar]
+      tyVarGen: Gen[TyVar],
   )
 
   val abcSymbols = List('A, 'B, 'C)
 
   def contextGen(
       tyVarNum: Int,
-      objectGen: Gen[ObjectType]
+      objectGen: Gen[ObjectType],
   ): Gen[TypeContext] = {
     for (tys <- Gen.listOfN(tyVarNum, objectGen);
          map = abcSymbols.zip(tys).toMap)

@@ -8,15 +8,15 @@ object ProcessAngular {
       name = dir.last
     } {
       val file = dir / s"$name.d.ts"
-      if(exists(file)){
+      if (exists(file)) {
         val target = dir / "index.d.ts"
         assert(!exists(target))
         mv(file, target)
         val data =
           s"""
-            |{
-            |  "name": "@angular/$name"
-            |}
+             |{
+             |  "name": "@angular/$name"
+             |}
           """.stripMargin
         write.over(dir / "package.json", data)
       }
@@ -24,7 +24,9 @@ object ProcessAngular {
   }
 
   def main(args: Array[String]): Unit = {
-    process(Path("/Users/weijiayi/Programming/lambda-repos/declarations/angular"))
+    process(
+      Path("/Users/weijiayi/Programming/lambda-repos/declarations/angular"),
+    )
   }
 
 }

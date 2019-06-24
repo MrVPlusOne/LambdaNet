@@ -30,7 +30,6 @@ libraryDependencies ++= Seq(
 )
 
 addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.0")
-addSbtPlugin("org.scalameta" % "sbt-scalafmt" % "2.0.0")
 
 //val circeVersion = "0.10.0"
 //libraryDependencies ++= Seq(
@@ -38,3 +37,12 @@ addSbtPlugin("org.scalameta" % "sbt-scalafmt" % "2.0.0")
 //  "io.circe" %% "circe-generic",
 //  "io.circe" %% "circe-parser"
 //).map(_ % circeVersion)
+
+// My tasks
+
+
+TaskKey[Unit]("train") := 
+  (runMain in Compile).toTask(" lambdanet.TrainingLoop").value
+
+TaskKey[Unit]("prepareRepos") :=
+  (runMain in Compile).toTask(" lambdanet.PrepareRepos").value

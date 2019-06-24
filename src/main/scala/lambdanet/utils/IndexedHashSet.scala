@@ -20,5 +20,6 @@ class IndexedHashSet[X](var elements: Vector[X]) {
 }
 
 object IndexedHashSet {
-  def apply[X](elements: X*): IndexedHashSet[X] = new IndexedHashSet(elements.toVector)
+  def apply[X](elements: X*): IndexedHashSet[X] =
+    new IndexedHashSet(elements.toVector)
 }

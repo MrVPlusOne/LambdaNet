@@ -1,2 +1,3 @@
 addSbtPlugin("org.xerial.sbt" % "sbt-sonatype" % "2.0")
-addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.0")
+addSbtPlugin("org.scalameta" % "sbt-scalafmt" % "2.0.0")
+

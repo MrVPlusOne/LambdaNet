@@ -98,13 +98,13 @@ class GradientScalarCheck extends TestUtils {
     val z = acc(y)
     val gradients = CompNode.backprop(
       List(z),
-      List(DenseGradient(Tensor(0.1, 1.0, 0.0001).reshape(3, 1)))
+      List(DenseGradient(Tensor(0.1, 1.0, 0.0001).reshape(3, 1))),
     )
     assert(
       ns.arrayEqual(
         gradients(x).toTensor(),
-        Tensor(6.4, 64, 0.0064).reshape(3, 1)
-      )
+        Tensor(6.4, 64, 0.0064).reshape(3, 1),
+      ),
     )
   }
 }
@@ -147,7 +147,7 @@ class GradientMatrixTest extends TestUtils {
     (x, y) => total(IS(x, y)),
     (x, y) => gruModule(gruModule(x, y), y),
     gateLike,
-    sharedWeights
+    sharedWeights,
   )
 
   "Binary broadcasting operators" should "pass numerical gradient checks" in {
@@ -218,12 +218,12 @@ class GradientMatrixTest extends TestUtils {
       "x => sqrt(abs(x) + 0.1)" -> (x => sqrt(abs(x) + 0.1)),
       "x => total(IS(x,x,x,x))" -> (x => total(IS(x, x, x, x))),
       "x => concatN(IS(x,x,x,x), axis = 0)" -> (
-          x => concatN(axis = 0)(IS(x, x, x, x))
+          x => concatN(axis = 0)(IS(x, x, x, x)),
       ),
       "x => concatN(IS(x,x,x,x), axis = 1)" -> (
-          x => concatN(axis = 1)(IS(x, x, x, x))
+          x => concatN(axis = 1)(IS(x, x, x, x)),
       ),
-      "crossEntropyOnSoftmax(x, t)" -> (x => crossEntropyOnSoftmax(x, t))
+      "crossEntropyOnSoftmax(x, t)" -> (x => crossEntropyOnSoftmax(x, t)),
     )
   }
 
@@ -360,7 +360,7 @@ class GradientMatrixTest extends TestUtils {
 
     implicit val ctx = ExecutionContext.global
     val (g2, t2) = SimpleMath.measureTime(
-      Await.result(z.backpropParallel.map(_.apply(x)), 10 seconds)
+      Await.result(z.backpropParallel.map(_.apply(x)), 10 seconds),
     )
     println("T2 = %e".format(t2.toDouble))
 

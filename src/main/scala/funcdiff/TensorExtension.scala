@@ -51,7 +51,7 @@ object TensorExtension {
   /** calculates which axes are broadcasted when these two shapes are broadcasted to make equal */
   def broadcastAxesWhenMerge(
       shape1: Shape,
-      shape2: Shape
+      shape2: Shape,
   ): (Seq[Int], Seq[Int]) = {
     require(shape1.rank == shape2.rank)
     var axes1, axes2 = List[Int]()
@@ -61,13 +61,13 @@ object TensorExtension {
       if (l1 < l2) {
         assert(
           l1 == 1,
-          s"shapes along axis $i are not compatible! l1 = $l1, l2 = $l2"
+          s"shapes along axis $i are not compatible! l1 = $l1, l2 = $l2",
         )
         axes1 = i :: axes1
       } else if (l1 > l2) {
         assert(
           l2 == 1,
-          s"shapes along axis $i are not compatible! l1 = $l1, l2 = $l2"
+          s"shapes along axis $i are not compatible! l1 = $l1, l2 = $l2",
         )
         axes2 = i :: axes2
       }
@@ -77,7 +77,7 @@ object TensorExtension {
 
   def shapeConsistentWithRanges(
       shape: Shape,
-      ranges: Seq[NumscaRange]
+      ranges: Seq[NumscaRange],
   ): Boolean = {
     shape.ints.zip(ranges).forall {
       case (s, range) =>
@@ -117,7 +117,7 @@ object TensorExtension {
       require(axis >= 0 && axis < data.shape.rank)
       require(
         splitAt > 0 && splitAt < data.shape(axis),
-        s"split at $splitAt along axis $axis would create empty matrix from $data"
+        s"split at $splitAt along axis $axis would create empty matrix from $data",
       )
       val left = data(data.shape.sizes.indices.map { dim =>
         if (dim == axis) 0 :> splitAt
@@ -136,19 +136,19 @@ object TensorExtension {
       if (checkNaN) {
         require(
           data.data.forall(x => math.abs(x) >= tolerance),
-          s"Tensor contains zero element: $data"
+          s"Tensor contains zero element: $data",
         )
       }
     }
 
     def requirePositive(
         info: String = "",
-        tolerance: Double = zeroTolerance
+        tolerance: Double = zeroTolerance,
     ): Unit = {
       if (checkNaN) {
         require(
           ns.sum(data > tolerance) == data.shape.sizes.product,
-          s"Tensor contains negative element: $data. $info"
+          s"Tensor contains negative element: $data. $info",
         )
       }
     }

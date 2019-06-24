@@ -5,13 +5,14 @@ object ImportStmt {
   case class ImportSingle(
       oldName: Symbol,
       path: ReferencePath,
-      newName: Symbol
+      newName: Symbol,
   ) extends ImportStmt
 
   case class ImportDefault(path: ReferencePath, newName: Symbol)
       extends ImportStmt
 
-  case class ImportModule(path: ReferencePath, newName: Symbol) extends ImportStmt
+  case class ImportModule(path: ReferencePath, newName: Symbol)
+      extends ImportStmt
 
 }
 
@@ -27,7 +28,7 @@ object ExportStmt {
   case class ExportSingle(
       oldName: Symbol,
       newName: Symbol,
-      from: Option[ReferencePath]
+      from: Option[ReferencePath],
   ) extends ExportStmt
 
   //  case class ExportTypeAlias(name: Symbol, tVars: Vector[Symbol], `type`: GType)

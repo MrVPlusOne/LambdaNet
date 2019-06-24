@@ -38,7 +38,7 @@ object TrainingLoop {
       dimMessage: Int,
       iterationNum: Int,
       optimizer: Optimizer,
-      pc: ParamCollection
+      pc: ParamCollection,
   )
 
   case class Datum(userAnnotations: Map[PNode, PAnnot], predictor: Predictor)
@@ -46,12 +46,12 @@ object TrainingLoop {
   case class DataSet(
       trainSet: Vector[Datum],
       testSet: Vector[Datum],
-      libTypes: Set[PType]
+      libTypes: Set[PType],
   )
 
   case class trainOnProjects(
       dataSet: DataSet,
-      trainingState: TrainingState
+      trainingState: TrainingState,
   ) {
     import TensorExtension.oneHot
     import trainingState._
@@ -70,7 +70,7 @@ object TrainingLoop {
       def analyzeLogits(
           logits: CompNode,
           predSpace: PredictionSpace,
-          groundTruths: Vector[PType]
+          groundTruths: Vector[PType],
       ): Double = {
         val predictions = numsca
           .argmax(logits.value, axis = 1)
@@ -89,7 +89,7 @@ object TrainingLoop {
         val predSpace = PredictionSpace(
           libTypes ++ predictor.projectNodes.collect {
             case n if n.isType => PTyVar(n)
-          }
+          },
         )
 
         val logits = predictor
@@ -102,12 +102,12 @@ object TrainingLoop {
         val loss = predictionLoss(
           logits,
           predSpace,
-          groundTruths
+          groundTruths,
         )
         optimizer.minimize(
           loss,
           pc.allParams, //todo: consider only including the involved
-          backPropInParallel = Some(parallelCtx -> Timeouts.optimizationTimeout)
+          backPropInParallel = Some(parallelCtx -> Timeouts.optimizationTimeout),
         )
       }
     }
@@ -115,11 +115,11 @@ object TrainingLoop {
     def predictionLoss(
         logits: CompNode,
         predSpace: PredictionSpace,
-        groundTruths: Vector[PType]
+        groundTruths: Vector[PType],
     ): CompNode = {
       val targets = groundTruths.map(predSpace.indexOfType)
       val loss = mean(
-        crossEntropyOnSoftmax(logits, oneHot(targets, predSpace.maxIndex))
+        crossEntropyOnSoftmax(logits, oneHot(targets, predSpace.maxIndex)),
       )
       if (loss.value.squeeze() > 20) {
         warn(s"Abnormally large loss: ${loss.value}, logits: \n${logits.value}")

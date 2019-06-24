@@ -50,27 +50,27 @@ class GTypeTest extends WordSpec with MyTest {
             point -> obj('x -> 'int, 'moveX -> (List('int) -: point)),
             'PointAlias -> obj(
               'x -> 'int,
-              'moveX -> (List('int) -: 'PointAlias)
+              'moveX -> (List('int) -: 'PointAlias),
             ),
             point2D -> obj(
               'x -> 'int,
               'moveX -> (List('int) -: point2D),
               'y -> 'int,
-              'moveY -> (List('int) -: point2D)
+              'moveY -> (List('int) -: point2D),
             ),
             numArray -> obj(
               'length -> 'int,
               'slice -> (List('int, 'int) -: numArray),
               'access -> (List('int) -: 'number),
-              'push -> (List('number) -: numArray)
+              'push -> (List('number) -: numArray),
             ),
             'Comparator -> obj(
-              'equal -> (List(any, any) -: boolType)
-            )
+              'equal -> (List(any, any) -: boolType),
+            ),
           ),
           subRel = Set(
-            ('int: GType) -> 'number
-          )
+            ('int: GType) -> 'number,
+          ),
         )
 
         val exprContext: ExprContext = {
@@ -83,7 +83,7 @@ class GTypeTest extends WordSpec with MyTest {
             'times -> (List('int, 'int) -: 'int),
             'divide -> (List('number, 'number) -: 'number),
             'floor -> (List('number) -: 'int),
-            'emptyArray -> numArray
+            'emptyArray -> numArray,
           )
 
           ExprContext(varAssign, typeContext)

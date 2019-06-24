@@ -9,7 +9,7 @@ import scala.collection.{mutable}
 
 case class PredicateGraph(
     nodes: Set[PNode],
-    predicates: Set[TyPredicate]
+    predicates: Set[TyPredicate],
 )
 
 object PredicateGraph {
@@ -19,7 +19,7 @@ object PredicateGraph {
       protected val id: Int,
       val nameOpt: Option[Symbol],
       val isType: Boolean,
-      val fromLib: Boolean
+      val fromLib: Boolean,
   ) extends PExpr
       with Serializable {
     def isTerm: Boolean = !isType
@@ -56,7 +56,7 @@ object PredicateGraph {
 
     def newNode(
         nameOpt: Option[Symbol],
-        isType: Boolean
+        isType: Boolean,
     ): PNode = {
       useNewId(id => new PNode(id, nameOpt, isType, forLib))
     }
@@ -160,7 +160,7 @@ object PredicateGraphTranslation {
   }
 
   def fromIRModules(
-      modules: Vector[IRModule]
+      modules: Vector[IRModule],
   ): PredicateGraph = {
     val predicates = mutable.Set[TyPredicate]()
 
@@ -217,7 +217,7 @@ object PredicateGraphTranslation {
             encodeStmt(f.body)
           case c: ClassDef =>
             c.superType.foreach(
-              tv => add(InheritanceRel(c.classNode, tv.node))
+              tv => add(InheritanceRel(c.classNode, tv.node)),
             )
             add(DefineRel(c.classNode, c.pType))
             c.funcDefs.values.foreach(encodeStmt)
@@ -235,7 +235,7 @@ object PredicateGraphTranslation {
 
     PredicateGraph(
       allNodes,
-      predSet
+      predSet,
     )
   }
 

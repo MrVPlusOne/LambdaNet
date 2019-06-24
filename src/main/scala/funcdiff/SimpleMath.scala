@@ -6,7 +6,7 @@ import java.io.{
   FileOutputStream,
   ObjectInputStream,
   ObjectOutputStream,
-  Serializable
+  Serializable,
 }
 
 import lambdanet.translation.OldIR.IRType
@@ -33,7 +33,7 @@ object SimpleMath {
       }
 
       def compose(that: Map[K, V])(
-          implicit subRule: SubstituteRule[K, V]
+          implicit subRule: SubstituteRule[K, V],
       ): Map[K, V] = {
         that ++ this.mapValuesNow(v => subRule.substitute(v, that))
       }
@@ -42,7 +42,9 @@ object SimpleMath {
         * Assuming the two map has the same set of keys,
         * combines their values correspondingly.
         */
-      def elementwiseCombine[V2, R](that: Map[K, V2])(f: (V, V2) => R): Map[K, R] = {
+      def elementwiseCombine[V2, R](
+          that: Map[K, V2],
+      )(f: (V, V2) => R): Map[K, R] = {
         map.keys.map { k =>
           k -> f(map(k), that(k))
         }.toMap
@@ -136,8 +138,12 @@ object SimpleMath {
 
   def safeAbs(x: Int): Int = math.max(0, if (x < 0) -x else x)
 
-  def expChoppedGaussian(chopMargin: (Double, Double), base: Double, powerE: Double)(
-      random: Random
+  def expChoppedGaussian(
+      chopMargin: (Double, Double),
+      base: Double,
+      powerE: Double,
+  )(
+      random: Random,
   ): Double = {
     val x = random.nextGaussian()
     if (x < chopMargin._1 || x > chopMargin._2) {
@@ -167,7 +173,7 @@ object SimpleMath {
   }
 
   def aggressiveInterpolate(aggressiveness: Double, from: Double, to: Double)(
-      x: Double
+      x: Double,
   ): Real = {
     linearInterpolate(from, to)(aggressiveSigmoid(aggressiveness)(x))
   }
@@ -176,7 +182,9 @@ object SimpleMath {
     (to - from) * x + from
   }
 
-  def expInterpolate(from: Double, to: Double, base: Double)(x: Double): Double = {
+  def expInterpolate(from: Double, to: Double, base: Double)(
+      x: Double,
+  ): Double = {
     val ratio = to / from
     val l = math.log(ratio) / math.log(base)
     from * math.pow(base, linearInterpolate(0, l)(x))
@@ -190,7 +198,7 @@ object SimpleMath {
     import parallel._
 
     val taskSupport = new ForkJoinTaskSupport(
-      new java.util.concurrent.ForkJoinPool(threadNum)
+      new java.util.concurrent.ForkJoinPool(threadNum),
     )
 
     if (threadNum > 1) {
@@ -202,7 +210,11 @@ object SimpleMath {
     }
   }
 
-  def threadSafeGetOrElseUpdate[K, V](map: mutable.Map[K, V], k: K, default: => V): V = {
+  def threadSafeGetOrElseUpdate[K, V](
+      map: mutable.Map[K, V],
+      k: K,
+      default: => V,
+  ): V = {
     map.get(k) match {
       case Some(v) => v
       case None =>
@@ -221,7 +233,7 @@ object SimpleMath {
     import scala.collection.parallel
     import parallel._
     val taskSupport = new ForkJoinTaskSupport(
-      new java.util.concurrent.ForkJoinPool(threadNum)
+      new java.util.concurrent.ForkJoinPool(threadNum),
     )
     def parExecute(seq: Seq[A])(f: A => B): IS[B] = {
       if (threadNum > 1) {
@@ -236,7 +248,7 @@ object SimpleMath {
   }
 
   def parallelMapWithResource[A, B, R](
-      threadNum: Int
+      threadNum: Int,
   )(xs: Seq[A], resources: IS[R])(f: (A, R) => B): IS[B] = {
     require(threadNum == resources.length)
     import collection.mutable
@@ -298,7 +310,10 @@ object SimpleMath {
     }
   }
 
-  def maxwellDistribution(xPoints: IS[Double], temperature: Double): IS[Double] = {
+  def maxwellDistribution(
+      xPoints: IS[Double],
+      temperature: Double,
+  ): IS[Double] = {
     require(temperature > 0)
     normalizeDistribution(xPoints.map { x =>
       square(x) * math.exp(-x * x / temperature)
@@ -324,13 +339,16 @@ object SimpleMath {
       val countY = mutable.HashMap(yDomain.map(x => x -> 0): _*)
       frequencies.foreach {
         case ((x, y), n) =>
-          assert(n > 0, s"n($x, $y) = 0, require n > 0. Please filter out empty pairs")
+          assert(
+            n > 0,
+            s"n($x, $y) = 0, require n > 0. Please filter out empty pairs",
+          )
           countX(x) += n
           countY(y) += n
       }
       (
         countX.toMap.mapValuesNow(_.toDouble / totalCount),
-        countY.toMap.mapValuesNow(_.toDouble / totalCount)
+        countY.toMap.mapValuesNow(_.toDouble / totalCount),
       )
     }
 
@@ -347,7 +365,11 @@ object SimpleMath {
     data.scanLeft(Double.MinValue)(math.max).tail
   }
 
-  def randomSelectFrom[A](values: IS[A], maxPoints: Int, random: Random): IS[A] = {
+  def randomSelectFrom[A](
+      values: IS[A],
+      maxPoints: Int,
+      random: Random,
+  ): IS[A] = {
     if (values.length <= maxPoints) {
       values
     } else {
@@ -355,13 +377,16 @@ object SimpleMath {
         var dataPointsLeft = maxPoints
         val filtered = values.indices.filter { i =>
           val keep =
-            SimpleMath.randomGuess(random)(dataPointsLeft.toDouble / (values.length - i))
+            SimpleMath.randomGuess(random)(
+              dataPointsLeft.toDouble / (values.length - i),
+            )
           if (keep) {
             dataPointsLeft -= 1
           }
           keep
         }
-        if (filtered.last != (values.length - 1)) filtered :+ (values.length - 1)
+        if (filtered.last != (values.length - 1))
+          filtered :+ (values.length - 1)
         else filtered
       }
       xs.map(values.apply)
@@ -369,10 +394,15 @@ object SimpleMath {
   }
 
   /** In statistics, the coefficient of determination, denoted R2 or r2 and pronounced "R squared", is the proportion of the variance in the dependent variable that is predictable from the independent variable(s) */
-  def rSquared(ys: IS[Double], predictions: IS[Double], weights: IS[Double]): Double = {
+  def rSquared(
+      ys: IS[Double],
+      predictions: IS[Double],
+      weights: IS[Double],
+  ): Double = {
     val n = ys.length
     val mean = (0 until n).map(i => ys(i) * weights(i)).sum / n
-    val resSquared = (0 until n).map(i => square(ys(i) - predictions(i)) * weights(i)).sum
+    val resSquared =
+      (0 until n).map(i => square(ys(i) - predictions(i)) * weights(i)).sum
     val variance = (0 until n).map(i => square(ys(i) - mean) * weights(i)).sum
     1 - resSquared / variance
   }
@@ -395,7 +425,7 @@ object SimpleMath {
   }
 
   def mapSetZipWith[K, A, B, C](ms1: Map[K, Set[A]], ms2: Map[K, Set[B]])(
-      f: (Set[A], Set[B]) => Set[C]
+      f: (Set[A], Set[B]) => Set[C],
   ): Map[K, Set[C]] = {
     val keys = ms1.keySet ++ ms2.keySet
     keys.map { k =>
@@ -469,7 +499,7 @@ object SimpleMath {
 
   /** Print the error message if there is an exception or error when executing the computation */
   def withErrorMessage[T](msg: => String)(
-      computation: => T
+      computation: => T,
   ): T = {
     try {
       computation
@@ -489,8 +519,12 @@ object SimpleMath {
   }
 
   import scala.concurrent._
-  def parallelReduce[T](xs: Array[T], m: Monoid[T], sequentialThreshold: Int = 2)(
-      implicit ctx: ExecutionContext
+  def parallelReduce[T](
+      xs: Array[T],
+      m: Monoid[T],
+      sequentialThreshold: Int = 2,
+  )(
+      implicit ctx: ExecutionContext,
   ): Future[T] = {
     def rec(range: Range): Future[T] = {
       val span = range.length
@@ -543,7 +577,8 @@ object SimpleMath {
       val edgeList = edges
         .map {
           case Edge(from, to, info) =>
-            if (info.isEmpty) s"$from$arrow$to" else s"""Labeled[$from$arrow$to, $info]"""
+            if (info.isEmpty) s"$from$arrow$to"
+            else s"""Labeled[$from$arrow$to, $info]"""
         }
         .mkString("{", ",", "}")
 
@@ -555,11 +590,12 @@ object SimpleMath {
   }
 
   def main(args: Array[String]): Unit = {
-    val r = Await.result(parallelReduce((0 until 10000).toArray, new Monoid[Int] {
-      def zero: Int = 0
+    val r =
+      Await.result(parallelReduce((0 until 10000).toArray, new Monoid[Int] {
+        def zero: Int = 0
 
-      def op(x1: Int, x2: Int): Int = x1 + x2
-    })(ExecutionContext.global), duration.Duration.Inf)
+        def op(x1: Int, x2: Int): Int = x1 + x2
+      })(ExecutionContext.global), duration.Duration.Inf)
     println { r }
   }
 

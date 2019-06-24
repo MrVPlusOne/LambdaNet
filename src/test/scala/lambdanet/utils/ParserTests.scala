@@ -8,7 +8,13 @@ import ImportStmt._
 import funcdiff.SimpleMath
 import lambdanet.translation.ImportsResolution.{ErrorHandler, PathMapping}
 import lambdanet.translation.PredicateGraph.PNodeAllocator
-import lambdanet.translation.{IRTranslation, ImportsResolution, OldPredicateGraphConstruction, PredicateGraphTranslation, QLangTranslation}
+import lambdanet.translation.{
+  IRTranslation,
+  ImportsResolution,
+  OldPredicateGraphConstruction,
+  PredicateGraphTranslation,
+  QLangTranslation,
+}
 import lambdanet.utils.ProgramParsing.ImportPattern
 
 class ParserTests extends WordSpec with MyTest {
@@ -38,7 +44,7 @@ class ParserTests extends WordSpec with MyTest {
 
     val modules = ProgramParsing.parseGModulesFromFiles(
       files,
-      projectRoot
+      projectRoot,
     )
     modules.foreach { module =>
       println(s"=== module: '${module.moduleName}' ===")
@@ -136,7 +142,7 @@ class ParserTests extends WordSpec with MyTest {
         """.stripMargin,
         "let inc = (x: number) => {return x + 1;};",
         "let inc = x => x+1;",
-        "let f = (x) => (y) => x + y;"
+        "let f = (x) => (y) => x + y;",
 //        """"switch(i){
 //          |  case 1:
 //          |    print(i); break;
@@ -160,7 +166,7 @@ class ParserTests extends WordSpec with MyTest {
     def test(text: String, target: Vector[ImportStmt]): Unit = {
       assert(
         ImportPattern.parseImports(text) === target,
-        s"parsing failed for '$text'"
+        s"parsing failed for '$text'",
       )
     }
 
@@ -168,19 +174,19 @@ class ParserTests extends WordSpec with MyTest {
 
     test(
       """import A1 from "./ZipCodeValidator";""",
-      Vector(ImportDefault(relPath("./ZipCodeValidator"), 'A1))
+      Vector(ImportDefault(relPath("./ZipCodeValidator"), 'A1)),
     )
     test(
       """import * as pkg from "./ZipCodeValidator";""",
-      Vector(ImportModule(relPath("./ZipCodeValidator"), 'pkg))
+      Vector(ImportModule(relPath("./ZipCodeValidator"), 'pkg)),
     )
     test(
       """import {A,
         |B as B1} from "./ZipCodeValidator";""".stripMargin,
       Vector(
         ImportSingle('A, relPath("./ZipCodeValidator"), 'A),
-        ImportSingle('B, relPath("./ZipCodeValidator"), 'B1)
-      )
+        ImportSingle('B, relPath("./ZipCodeValidator"), 'B1),
+      ),
     )
     test(
       """import {
@@ -189,12 +195,12 @@ class ParserTests extends WordSpec with MyTest {
         |} from "./ZipCodeValidator";""".stripMargin,
       Vector(
         ImportSingle('A, relPath("./ZipCodeValidator"), 'A),
-        ImportSingle('B, relPath("./ZipCodeValidator"), 'B)
-      )
+        ImportSingle('B, relPath("./ZipCodeValidator"), 'B),
+      ),
     )
     test(
       """import {foo as fool} from "./file1";""",
-      Vector(ImportSingle('foo, relPath("./file1"), 'fool))
+      Vector(ImportSingle('foo, relPath("./file1"), 'fool)),
     )
     test("""import "./my-module.js";""", Vector())
 
@@ -218,7 +224,7 @@ class ParserTests extends WordSpec with MyTest {
     val parser = ProgramParsing
     val modules = parser.parseGModulesFromFiles(
       sources,
-      root
+      root,
     )
 
 //    QLangTranslation.fromProject(modules, )
@@ -231,12 +237,12 @@ class ParserTests extends WordSpec with MyTest {
 
   "playground" in {
     val root = pwd / RelPath(
-      "data/train/TypeScript-Algorithms-and-Data-Structures-master/ts"
+      "data/train/TypeScript-Algorithms-and-Data-Structures-master/ts",
     )
     ProgramParsing
       .parseGModulesFromFiles(
         Seq(RelPath("Graph/DirectedAdjacencyMatrixGraph.ts")),
-        root
+        root,
       )
       .foreach(println)
   }

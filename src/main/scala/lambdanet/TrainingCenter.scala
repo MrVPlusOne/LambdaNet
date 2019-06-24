@@ -18,7 +18,12 @@ import lambdanet.utils.{EventLogger, ReportFinish}
 
 import scala.collection.mutable
 import scala.collection.parallel.ForkJoinTaskSupport
-import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutorService, Future}
+import scala.concurrent.{
+  Await,
+  ExecutionContext,
+  ExecutionContextExecutorService,
+  Future,
+}
 import scala.util.Random
 
 /**
@@ -48,7 +53,7 @@ object TrainingCenter {
       dimMessage: Int,
       layerFactory: LayerFactory,
       optimizer: Optimizer,
-      iterationNum: Int
+      iterationNum: Int,
   ) {
     def saveToFile(file: Path): Unit = {
       val toSave =
@@ -57,7 +62,7 @@ object TrainingCenter {
           "dimMessage" -> dimMessage,
           "pcData" -> layerFactory.paramCollection.toSerializable,
           "optimizer" -> optimizer,
-          "iterationNum" -> iterationNum
+          "iterationNum" -> iterationNum,
         )
       SimpleMath.saveObjectToFile(file.toIO)(toSave)
     }
@@ -86,13 +91,14 @@ object TrainingCenter {
 
       val factory = LayerFactory(
         SymbolPath.empty / 'TypingNet,
-        ParamCollection.fromSerializable(pcData)
+        ParamCollection.fromSerializable(pcData),
       )
       TrainingState(step, dimMessage, factory, optimizer, iterationNum)
     }
   }
 
   def main(args: Array[String]): Unit = {
+
     /** Remember to use these VM options to increase memory limits.
       * VM Options: -Xms2G -Xmx8G -Dorg.bytedeco.javacpp.maxbytes=18G -Dorg.bytedeco.javacpp.maxphysicalbytes=27G */
     println(s"Using threads: $numOfThreads")
@@ -127,14 +133,14 @@ object TrainingCenter {
             LayerFactory(SymbolPath.empty / 'TypingNet, ParamCollection()),
           dimMessage = 64,
           optimizer = Optimizers.Adam(learningRate = 4e-4),
-          iterationNum = iterationNum
-        )
+          iterationNum = iterationNum,
+        ),
       )
 
     trainOnModules(
       trainParsed,
       testParsed,
-      trainingState
+      trainingState,
     )
   }
 
@@ -148,7 +154,7 @@ object TrainingCenter {
       libraryFields: Vector[Symbol],
       libraryTypes: Vector[GType],
       factory: LayerFactory,
-      dimMessage: Int = 64
+      dimMessage: Int = 64,
   ) {
 
     val typeLabels = predModules.flatMap(m => m.typeLabels)
@@ -163,7 +169,7 @@ object TrainingCenter {
 
     val decodingCtx = DecodingCtx(
       Vector(TyVar(GraphEmbedding.unknownTypeSymbol)) ++ libraryTypes,
-      newTypes.toVector
+      newTypes.toVector,
     )
 
     val graph = OldPredicateGraph(allNodes, predicates)
@@ -208,7 +214,7 @@ object TrainingCenter {
         extendedTypeMap,
         labelEncoding,
         fieldKnowledge,
-        varKnowledge
+        varKnowledge,
       )
 
       Await.result(
@@ -218,14 +224,14 @@ object TrainingCenter {
             embedCtx,
             factory,
             dimMessage,
-            Some(taskSupport)
+            Some(taskSupport),
           ).encodeAndDecode(
             iterations = iterationNum,
             decodingCtx,
-            typeLabels.map(_._1)
-          )
+            typeLabels.map(_._1),
+          ),
         )(parallelCtx),
-        Timeouts.encodeDecodeTimeout
+        Timeouts.encodeDecodeTimeout,
       )
     }
 
@@ -234,7 +240,7 @@ object TrainingCenter {
   def trainOnModules(
       trainingProjects: IS[ParsedProject],
       testingModules: IS[ParsedProject],
-      trainingState: TrainingState
+      trainingState: TrainingState,
   ): Unit = {
 
     val (machineName, emailService) = ReportFinish.readEmailInfo()
@@ -263,7 +269,7 @@ object TrainingCenter {
       import cats.instances.all._
 
       val totalFreq = Monoid[Map[GType, Int]].combineAll(
-        trainingProjects.map(_.libUsages.libTypeFreq)
+        trainingProjects.map(_.libUsages.libTypeFreq),
       )
       val all = totalFreq.toVector.sortBy(_._2).reverse
       println("Total number of lib types: " + all.length)
@@ -272,7 +278,7 @@ object TrainingCenter {
       val numOfTypes = 100
       val ratio = freqs.take(numOfTypes).sum.toDouble / freqs.sum
       println(
-        s"Take at most the first $numOfTypes types, results in %${ratio * 100} coverage."
+        s"Take at most the first $numOfTypes types, results in %${ratio * 100} coverage.",
       )
       val taken = all.take(numOfTypes).map(_._1)
       println(s"Types taken: $taken")
@@ -291,7 +297,7 @@ object TrainingCenter {
         libraryFields,
         libraryTypes,
         factory,
-        dimMessage
+        dimMessage,
       )
     }
 
@@ -304,7 +310,7 @@ object TrainingCenter {
         libraryFields,
         libraryTypes,
         factory,
-        dimMessage
+        dimMessage,
       )
     }
 
@@ -334,14 +340,14 @@ object TrainingCenter {
 //          "embedding-max-length" -> PlotConfig("ImageSize->Medium"),
           "iteration-time" -> PlotConfig(
             "ImageSize->Medium",
-            """AxesLabel->{"step","ms"}"""
+            """AxesLabel->{"step","ms"}""",
           ),
           "loss" -> PlotConfig("ImageSize->Large"),
           "accuracy" -> PlotConfig("ImageSize->Medium"),
           "test-accuracy" -> PlotConfig("ImageSize->Medium"),
           "test-lib-accuracy" -> PlotConfig("ImageSize->Small"),
-          "test-proj-accuracy" -> PlotConfig("ImageSize->Small")
-        )
+          "test-proj-accuracy" -> PlotConfig("ImageSize->Small"),
+        ),
       )
     }
 
@@ -398,14 +404,14 @@ object TrainingCenter {
           typeLabels,
           logits.value,
           decodingCtx,
-          printResults = None
+          printResults = None,
         )
         eventLogger.log("accuracy", step, Tensor(accuracy.totalAccuracy))
 
         println("annotated places number: " + typeLabels.length)
         val targets = typeLabels.map(p => decodingCtx.indexOfType(p._2))
         val loss = mean(
-          crossEntropyOnSoftmax(logits, oneHot(targets, decodingCtx.maxIndex))
+          crossEntropyOnSoftmax(logits, oneHot(targets, decodingCtx.maxIndex)),
         )
 
         if (loss.value.squeeze() > 20) {
@@ -423,14 +429,14 @@ object TrainingCenter {
             loss,
             trainBuilder.factory.paramCollection.allParams,
             backPropInParallel =
-              Some(parallelCtx -> Timeouts.optimizationTimeout)
+              Some(parallelCtx -> Timeouts.optimizationTimeout),
           )
         }
 
         eventLogger.log(
           "iteration-time",
           step,
-          Tensor(System.currentTimeMillis() - startTime)
+          Tensor(System.currentTimeMillis() - startTime),
         )
       }
 
@@ -446,7 +452,7 @@ object TrainingCenter {
             testLogits.value,
             testBuilder.decodingCtx,
             printLabelwiseAccuracy = true,
-            printResults = Some(printNum)
+            printResults = Some(printNum),
           )
           testAcc
         }
@@ -466,7 +472,7 @@ object TrainingCenter {
         val errorName = if (isTimeout) "timeout" else "stopped"
         emailService.sendMail(emailService.userEmail)(
           s"TypingNet: $errorName on $machineName at step $step",
-          s"Details:\n" + ex.getMessage
+          s"Details:\n" + ex.getMessage,
         )
         if (isTimeout && Timeouts.restartOnTimeout) {
           println("Timeout... training restarted (skip one training step)...")
@@ -478,7 +484,7 @@ object TrainingCenter {
 
     emailService.sendMail(emailService.userEmail)(
       s"TypingNet: Training finished on $machineName!",
-      "Training finished!"
+      "Training finished!",
     )
 
     saveTraining(maxTrainingSteps, "finished")
@@ -492,7 +498,7 @@ object TrainingCenter {
       val savePath = saveDir / "trainingState.serialized"
       TrainingState(step, dimMessage, factory, optimizer, iterationNum)
         .saveToFile(
-          savePath
+          savePath,
         )
       println("Training state saved into: " + saveDir)
     }
@@ -511,7 +517,7 @@ object TrainingCenter {
       totalAccuracy: Double,
       projectTypeAccuracy: Double,
       libraryTypeAccuracy: Double,
-      outOfScopeTypeAccuracy: Double
+      outOfScopeTypeAccuracy: Double,
   )
 
   def analyzeResults(
@@ -519,7 +525,7 @@ object TrainingCenter {
       logits: Tensor,
       ctx: DecodingCtx,
       printLabelwiseAccuracy: Boolean = false,
-      printResults: Option[Int] = Some(100)
+      printResults: Option[Int] = Some(100),
   ): AccuracyStats = {
     type Prediction = Int
     val predictions = numsca.argmax(logits, axis = 1)

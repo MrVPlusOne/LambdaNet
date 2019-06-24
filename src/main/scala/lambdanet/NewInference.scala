@@ -10,11 +10,10 @@ object NewInference {
   import scala.collection.parallel.ForkJoinTaskSupport
   import cats.data.Chain
 
-
   case class Predictor(
       graph: PredicateGraph,
       predictionSpace: PredictionSpace,
-      taskSupport: Option[ForkJoinTaskSupport]
+      taskSupport: Option[ForkJoinTaskSupport],
   ) {
 
     case class run(layerFactory: LayerFactory, dimMessage: Int) {
@@ -29,14 +28,14 @@ object NewInference {
           val libEmbeddings = libTypeEmbeddingMap()
           val embeddings =
             Vector.iterate(initEmbedding, iterations + 1)(
-              updateEmbedding(libTypeEmbeddingMap())
+              updateEmbedding(libTypeEmbeddingMap()),
             )
           decode(embeddings.last)
         }
 
         private def similarity(
             inputMatrix: CompNode,
-            candidateMatrix: CompNode
+            candidateMatrix: CompNode,
         ) = {
           inputMatrix.dot(candidateMatrix.t) / dimMessage
         }
@@ -62,10 +61,10 @@ object NewInference {
       type Message = CompNode
 
       def updateEmbedding(
-          encodeLibType: PType => CompNode
+          encodeLibType: PType => CompNode,
       )(embedding: Embedding): Embedding = {
         def featureMessages(
-            embedding: Embedding
+            embedding: Embedding,
         ): Map[ProjNode, Chain[Message]] = { ??? }
 
         val messages: Map[ProjNode, Chain[Message]] =
@@ -74,9 +73,14 @@ object NewInference {
         replace(embedding, merged)
       }
 
-      def replace(embedding: Embedding, merged: Map[ProjNode, Message]): Embedding = ???
+      def replace(
+          embedding: Embedding,
+          merged: Map[ProjNode, Message],
+      ): Embedding = ???
 
-      def mergeMessages(messages: Map[ProjNode, Chain[Message]]): Map[ProjNode, Message] = ???
+      def mergeMessages(
+          messages: Map[ProjNode, Chain[Message]],
+      ): Map[ProjNode, Message] = ???
 
       private def libTypeEmbeddingMap() = ???
     }

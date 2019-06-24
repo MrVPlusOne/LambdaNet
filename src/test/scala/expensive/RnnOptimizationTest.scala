@@ -39,7 +39,7 @@ class RnnOptimizationTest extends TestUtils {
         val error = sum(
           total(states.zip(targets).map {
             case ((h, _), t) => square(h - t): CompNode
-          })
+          }),
         )
         //      val outputs = states.map{x => x ~> factory.linear('GruOutput, 1) }
 
@@ -155,7 +155,7 @@ class RnnOptimizationTest extends TestUtils {
       val outputs = factory.bidirectionalGru(
         'TestBiGRU,
         Shape.make(1, nState),
-        combiner = (l, r) => factory.linear('Output, 1)(l.concat(r, axis = 1))
+        combiner = (l, r) => factory.linear('Output, 1)(l.concat(r, axis = 1)),
       )(inputs)
 
       val error = sum(total(outputs.zip(targets).map {

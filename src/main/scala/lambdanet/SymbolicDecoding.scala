@@ -11,7 +11,7 @@ object SymbolicDecoding {
   case class InferEnv(
       typeAssign: Map[IRType, TypeLabel],
       dependentVars: Map[IRType, TypeExpr],
-      constraints: Map[IRType, Set[TypingConstraint]]
+      constraints: Map[IRType, Set[TypingConstraint]],
   ) {
     @throws[TypeAssignInvalidException]
     def varChanged(dv: DecisionVar): InferEnv = {
@@ -33,7 +33,7 @@ object SymbolicDecoding {
     def assignDecisionVar(dv: DecisionVar, label: TypeLabel): InferEnv = {
       require(
         !dependentVars.contains(dv),
-        s"$dv shouldn't be a dependent variable."
+        s"$dv shouldn't be a dependent variable.",
       )
       val newEnv = copy(typeAssign = typeAssign.updated(dv, label))
       label match {

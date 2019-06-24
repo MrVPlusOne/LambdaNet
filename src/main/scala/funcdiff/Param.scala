@@ -13,7 +13,10 @@ object ParameterAttribute {
 }
 
 @SerialVersionUID(0)
-class Param(var node: ParamNode, val attributes: Set[ParameterAttribute] = Set()) {
+class Param(
+    var node: ParamNode,
+    val attributes: Set[ParameterAttribute] = Set(),
+) {
   def path: SymbolPath = node.path
 
   override def toString: String = {
@@ -41,7 +44,7 @@ object ParamCollection {
   @SerialVersionUID(0)
   case class SerializableFormat(
       parameterData: List[(SymbolPath, Map[String, Serializable])],
-      constantData: List[(SymbolPath, (Shape, Array[Real]))]
+      constantData: List[(SymbolPath, (Shape, Array[Real]))],
   )
 
   def fromSerializable(data: SerializableFormat): ParamCollection = {
@@ -52,7 +55,8 @@ object ParamCollection {
       case (path, param) =>
         val shape = param("shape").asInstanceOf[Shape]
         val data = param("data").asInstanceOf[Array[Double]]
-        val attributes = param("attributes").asInstanceOf[List[ParameterAttribute]].toSet
+        val attributes =
+          param("attributes").asInstanceOf[List[ParameterAttribute]].toSet
         val p1 = param("path").asInstanceOf[SymbolPath]
         assert(p1 == path, s"path: $path, restored: $p1")
 
@@ -94,13 +98,19 @@ case class ParamCollection() {
   private val _paramMap = concurrent.TrieMap[SymbolPath, Param]()
   private val _constMap = concurrent.TrieMap[SymbolPath, Tensor]()
 
-  def getParam(path: SymbolPath, attributes: => Set[ParameterAttribute] = Set())(
-      init: => Tensor
+  def getParam(
+      path: SymbolPath,
+      attributes: => Set[ParameterAttribute] = Set(),
+  )(
+      init: => Tensor,
   ): Param =
-    _paramMap.getOrElseUpdate(path, new Param(new ParamNode(init, path), attributes))
+    _paramMap.getOrElseUpdate(
+      path,
+      new Param(new ParamNode(init, path), attributes),
+    )
 
   def getVar(path: SymbolPath, attributes: => Set[ParameterAttribute] = Set())(
-      init: => Tensor
+      init: => Tensor,
   ): ParamNode = {
     val p = getParam(path, attributes)(init)
     p.node
@@ -125,15 +135,15 @@ case class ParamCollection() {
           "shape" -> node.shape,
           "data" -> node.value.data,
           "attributes" -> param.attributes.toList,
-          "path" -> param.path
+          "path" -> param.path,
         )
         paramData
       }.toList
 
-    val constantData: List[(SymbolPath, (Shape, Array[Real]))] = constMap.mapValuesNow {
-      t =>
+    val constantData: List[(SymbolPath, (Shape, Array[Real]))] =
+      constMap.mapValuesNow { t =>
         (t.shape, t.data)
-    }.toList
+      }.toList
 
     ParamCollection.SerializableFormat(parameterData, constantData)
   }

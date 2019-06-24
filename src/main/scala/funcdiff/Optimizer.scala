@@ -22,7 +22,7 @@ trait Optimizer extends Serializable {
       params: Seq[Param],
       weightDecay: Option[Double] = None,
       gradientTransform: Gradient => Gradient = identity,
-      backPropInParallel: Option[(ExecutionContext, Duration)] = None
+      backPropInParallel: Option[(ExecutionContext, Duration)] = None,
   ): Unit = {
 
     if (warnEmptyUpdates && params.isEmpty) {
@@ -69,14 +69,14 @@ trait Optimizer extends Serializable {
       params: Seq[Param],
       weightDecay: Option[Double] = None,
       gradientTransform: Gradient => Gradient = identity,
-      backPropInParallel: Option[(ExecutionContext, Duration)] = None
+      backPropInParallel: Option[(ExecutionContext, Duration)] = None,
   ): Unit = {
     maximize(
       -objective,
       params,
       weightDecay,
       gradientTransform,
-      backPropInParallel
+      backPropInParallel,
     )
   }
 }
@@ -102,14 +102,14 @@ object Optimizers {
       beta1: Double = 0.9,
       beta2: Double = 0.999,
       epsilon: Double = 1e-8,
-      momenta: mutable.HashMap[SymbolPath, Momentum] = mutable.HashMap()
+      momenta: mutable.HashMap[SymbolPath, Momentum] = mutable.HashMap(),
   ) extends Optimizer {
 
     def parameterChangeAmount(p: Param, g: Gradient): Gradient = {
       val mem @ Momentum(m, v, _) =
         momenta.getOrElse(
           p.path,
-          Momentum(ns.zeros(g.shape), ns.zeros(g.shape))
+          Momentum(ns.zeros(g.shape), ns.zeros(g.shape)),
         )
       momenta(p.path) = mem
       mem.t += 1

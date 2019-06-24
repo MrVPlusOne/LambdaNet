@@ -30,7 +30,7 @@ trait TestUtils extends FlatSpec with Matchers with LazyLogging {
       f: Tensor => Tensor,
       x: Tensor,
       df: Tensor,
-      h: Double = 1e-5
+      h: Double = 1e-5,
   ): Tensor = {
     val grad = ns.zeros(x.shape)
 
@@ -61,7 +61,7 @@ trait TestUtils extends FlatSpec with Matchers with LazyLogging {
   def evalNumericalGradient(
       f: (Tensor) => Double,
       x: Tensor,
-      h: Double = 0.00001
+      h: Double = 0.00001,
   ): Tensor = {
     val grad = ns.zeros(x.shape)
     val it = ns.nditer(x)
@@ -89,7 +89,7 @@ trait TestUtils extends FlatSpec with Matchers with LazyLogging {
   def nOpGradientCheck(
       f: Seq[CompNode] => CompNode,
       x: IS[CompNode],
-      name: String
+      name: String,
   ): Unit = {
 
     val out = f(x)
@@ -113,7 +113,7 @@ trait TestUtils extends FlatSpec with Matchers with LazyLogging {
       val t = ns.rand(s)
       assert(
         relError((dOut * t).toTensor(), dOut.toTensor() * t) < 1e-5,
-        s"gradient $dOut failed to passed consistency test"
+        s"gradient $dOut failed to passed consistency test",
       )
 
       println(s"[$testName]: dOut = $dOut")
@@ -139,12 +139,12 @@ trait TestUtils extends FlatSpec with Matchers with LazyLogging {
               println(s"[$testName]: Difference: ${calcTensor - numerical}")
               assert(
                 diError < 1e-5,
-                s"\n[$testName]: $out failed to pass numerical gradient check"
+                s"\n[$testName]: $out failed to pass numerical gradient check",
               )
             case None =>
               assert(
                 numerical.data.forall(x => math.abs(x) < 1e-5),
-                s"*** $out failed to pass numerical gradient check. The gradient is expected to be zero."
+                s"*** $out failed to pass numerical gradient check. The gradient is expected to be zero.",
               )
           }
       }
@@ -154,7 +154,7 @@ trait TestUtils extends FlatSpec with Matchers with LazyLogging {
   def layerGradCheck(
       f: ParamCollection => CompNode,
       pc: ParamCollection,
-      name: String
+      name: String,
   ): Unit = {
 
     val out = f(pc)
@@ -180,12 +180,12 @@ trait TestUtils extends FlatSpec with Matchers with LazyLogging {
           println(s"Difference: ${calcTensor - numerical}")
           assert(
             diError < 1e-5,
-            s"*** $out failed to pass numerical gradient check"
+            s"*** $out failed to pass numerical gradient check",
           )
         case None =>
           assert(
             numerical.data.forall(x => math.abs(x) < 1e-5),
-            s"*** $out failed to pass numerical gradient check. The gradient is expected to be zero."
+            s"*** $out failed to pass numerical gradient check. The gradient is expected to be zero.",
           )
       }
     }

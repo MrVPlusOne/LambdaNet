@@ -32,7 +32,7 @@ object TrainingProjects {
     //training
     "data/train/typehtml-master/src",
     "data/train/mojiito-master/packages",
-    "data/train/algorithms-train"
+    "data/train/algorithms-train",
   ).map(p => pwd / RelPath(p))
 
   val allProjects: Vector[GProject] = {
@@ -64,8 +64,8 @@ object TrainingProjects {
 //          }
 //        }
 //      }
-      ???,
-      "data/train/algorithms-train" -> defaultMapping
+        ???,
+      "data/train/algorithms-train" -> defaultMapping,
     )
 
     roots.map {
@@ -79,8 +79,7 @@ object TrainingProjects {
     projectRoots.map(r => {
       fromRootDirectory(
         r,
-        pathMapping =
-//          new PathMapping {
+        pathMapping = //          new PathMapping {
 //          def map(
 //              currentPath: ProjectPath,
 //              pathToResolve: ProjectPath
@@ -100,8 +99,8 @@ object TrainingProjects {
 //            }
 //          }
 //        }
-        ???
-      )
+          ???,
+      ),
     })
   }
 }
