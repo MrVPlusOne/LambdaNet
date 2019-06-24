@@ -198,6 +198,7 @@ object QLangTranslation {
         val gm = modules.find(_.path == m.path).get
         s"GModule source code:\n ${gm.prettyPrint}"
       } {
+          //todo: move ctx computation upward
         fromPModule(m, baseCtx |+| dExports |+| exports(m.path))
       }
     }

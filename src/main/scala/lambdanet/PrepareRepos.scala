@@ -2,12 +2,21 @@ package lambdanet
 
 import ammonite.ops._
 import funcdiff.SimpleMath
-import lambdanet.translation.ImportsResolution.{ErrorHandler, ModuleExports}
+import lambdanet.translation.ImportsResolution.{
+  ErrorHandler,
+  ModuleExports,
+}
+import lambdanet.translation.{
+  IRTranslation,
+  ImportsResolution,
+  PAnnot,
+  PLangTranslation,
+  PredicateGraphTranslation,
+  QLangTranslation,
+}
 import lambdanet.translation.PredicateGraph.{PNode, PNodeAllocator}
-import lambdanet.translation._
 import lambdanet.utils.ProgramParsing
 import lambdanet.utils.ProgramParsing.GProject
-
 @SerialVersionUID(2)
 case class LibDefs(
     baseCtx: ModuleExports,
@@ -19,6 +28,8 @@ case class LibDefs(
 object PrepareRepos {
 
   def parseLibDefs() = {
+    import cats.implicits._
+
     val declarationsDir = pwd / up / "lambda-repos" / "declarations"
 
     println("parsing default module...")
@@ -27,7 +38,7 @@ object PrepareRepos {
     println("default module parsed")
 
     println("parsing library modules...")
-    val GProject(_, modules, pathMapping, subProjects, devDependencies) =
+    val GProject(_, modules, mapping, subProjects, devDependencies) =
       ProgramParsing
         .parseGProjectFromRoot(declarationsDir, declarationFileMod = true)
 
@@ -39,16 +50,28 @@ object PrepareRepos {
     val handler =
       ErrorHandler(ErrorHandler.StoreError, ErrorHandler.StoreError)
 
+    val resolved1 = baseCtx.publicNamespaces.map {
+      case (k, m) => (k: RelPath) -> m
+    }
     val exports = ImportsResolution.resolveExports(
       pModules,
       baseCtx,
-      Map(),
-      pathMapping,
+      resolved1,
+      mapping,
       defaultPublicMode = true,
       errorHandler = handler,
       devDependencies,
       maxIterations = 5,
     )
+
+    val baseCtx1 = baseCtx
+    // todo: check if need to handle public modules (also the missing lodash)
+//    val publicNamespaces = exports.values.flatMap {
+//      _.publicNamespaces.map {
+//        case (k, m) => k -> NameDef.namespaceDef(m)
+//      }
+//    }.toMap
+//    val baseCtx1 = baseCtx |+| ModuleExports(publicSymbols = publicNamespaces)
 
     val namedExports = subProjects.map {
       case (name, path) =>
@@ -66,13 +89,16 @@ object PrepareRepos {
     }
     handler.warnErrors()
     val libExports = exports ++ namedExports
+
     val qModules =
-      pModules.map(m => QLangTranslation.fromPModule(m, exports(m.path)))
+      pModules.map { m =>
+        QLangTranslation.fromPModule(m, baseCtx1 |+| exports(m.path))
+      }
 
     val nodeMapping = defaultMapping ++ qModules.flatMap(_.mapping)
 
     println("Declaration files parsed.")
-    LibDefs(baseCtx, nodeMapping, libAllocator, libExports)
+    LibDefs(baseCtx1, nodeMapping, libAllocator, libExports)
   }
 
   def prepareProject(libDefs: LibDefs, root: Path) =
