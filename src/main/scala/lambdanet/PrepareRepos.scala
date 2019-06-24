@@ -27,7 +27,7 @@ object PrepareRepos {
     println("default module parsed")
 
     println("parsing library modules...")
-    val GProject(_, modules, mapping, subProjects, devDependencies) =
+    val GProject(_, modules, pathMapping, subProjects, devDependencies) =
       ProgramParsing
         .parseGProjectFromRoot(declarationsDir, declarationFileMod = true)
 
@@ -43,7 +43,7 @@ object PrepareRepos {
       pModules,
       baseCtx,
       Map(),
-      mapping,
+      pathMapping,
       defaultPublicMode = true,
       errorHandler = handler,
       devDependencies,
@@ -72,7 +72,7 @@ object PrepareRepos {
     val nodeMapping = defaultMapping ++ qModules.flatMap(_.mapping)
 
     println("Declaration files parsed.")
-    LibDefs(baseCtx, defaultMapping, libAllocator, libExports)
+    LibDefs(baseCtx, nodeMapping, libAllocator, libExports)
   }
 
   def prepareProject(libDefs: LibDefs, root: Path) =
