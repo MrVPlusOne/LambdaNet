@@ -91,9 +91,6 @@ class NeuralInference(
       }
 
       def sendMessages(predicate: TyPredicate): Unit = predicate match {
-        case HasLibType(v, ty) =>
-          ???
-          messages(v) += messageModel('HasLibType, encodeLibType(ty))
         case SubtypeRel(sub, sup) =>
           messageMutually(sub, sup, 'SubtypeRel)
         case AssignRel(lhs, rhs) =>

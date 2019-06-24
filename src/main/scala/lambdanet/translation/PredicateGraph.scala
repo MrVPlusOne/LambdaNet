@@ -45,6 +45,8 @@ object PredicateGraph {
     }
 
     def allNodes: Set[PNode] = Set(this)
+
+    val symbol: Symbol = Symbol(id.toString)
   }
 
   @SerialVersionUID(1)
@@ -90,10 +92,6 @@ object PredicateGraph {
 
   }
 
-  case class HasLibType(v: PNode, ty: PType) extends TyPredicate {
-    val allNodes: Set[PNode] = Set(v)
-    assert(ty.madeFromLibTypes)
-  }
 
   case class SubtypeRel(sub: PNode, sup: PNode) extends TyPredicate {
     val allNodes: Set[PNode] = Set(sub, sup)

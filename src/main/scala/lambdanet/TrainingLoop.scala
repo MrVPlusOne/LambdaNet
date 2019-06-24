@@ -93,8 +93,7 @@ object TrainingLoop {
         )
 
         val logits = predictor
-          .run(layerFactory, dimMessage)
-          .run(nodesToPredict, iterationNum)
+          .run(dimMessage, layerFactory, nodesToPredict, iterationNum)
           .result
 
         val groundTruths = nodesToPredict.map(userAnnotations(_).get)
