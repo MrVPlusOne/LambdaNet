@@ -399,7 +399,7 @@ case class GraphEmbedding(
     val logits = for (head <- par(0 until attentionHeads)) yield {
       val shrinkFactor = 2
       def mlp(rows: IS[CompNode], layerName: String, layers: Int): CompNode = {
-        var input = concatN(rows, axis = 0)
+        var input = concatN(axis = 0)(rows)
         var dim = dimMessage
         for (i <- 0 until layers) {
           dim /= shrinkFactor

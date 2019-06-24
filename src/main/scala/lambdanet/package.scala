@@ -113,8 +113,13 @@ package object lambdanet {
     }
   }
 
-  implicit class PipeSyntax[A](x: A) {
+  implicit class ChainingSyntax[A](x: A) {
     def pipe[B](f: A => B): B = f(x)
+
+    def tap(f: A => Unit): A = {
+      f(x)
+      x
+    }
   }
 
   def tryEach[A, B](x1: A, x2: A)(f: A => Option[B]): Option[B] = {

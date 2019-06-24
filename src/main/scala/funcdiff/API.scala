@@ -58,7 +58,7 @@ trait APITrait {
 
   def total(xs: IS[CompNode]): CompNode = funcNode(Total(xs))
 
-  def concatN(xs: IS[CompNode], axis: Int): CompNode =
+  def concatN(axis: Int)(xs: IS[CompNode]): CompNode =
     funcNode(ConcatN(xs, axis))
 
   def crossEntropy(prediction: CompNode, targets: Tensor): CompNode =
@@ -156,7 +156,7 @@ trait APITrait {
 
     def repeat(number: Int, axis: Int): CompNode = {
       if (number == 1) x1
-      else concatN(Vector.fill(number)(x1), axis)
+      else concatN(axis)(Vector.fill(number)(x1))
     }
   }
 

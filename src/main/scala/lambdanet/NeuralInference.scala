@@ -3,7 +3,6 @@ package lambdanet
 import botkop.numsca
 import botkop.numsca.Tensor
 import funcdiff._
-import lambdanet.NeuralInference.VarEmbedding
 import lambdanet.translation.ImportsResolution.NameDef
 import lambdanet.translation.{PAnnot, PredicateGraph}
 import lambdanet.translation.PredicateGraph._
@@ -12,8 +11,6 @@ import scala.collection.{GenSeq, mutable}
 import scala.collection.parallel.ForkJoinTaskSupport
 
 object NeuralInference {
-  case class VarEmbedding(nodeMap: Map[PNode, CompNode])
-
 }
 
 case class PredictionSpace(allTypes: Set[PType]) {
@@ -34,21 +31,17 @@ case class PredictionSpace(allTypes: Set[PType]) {
 }
 
 class NeuralInference(
-    pc: ParamCollection,
+    graph: PredicateGraphWithCtx,
+    layerFactory: LayerFactory,
     dimMessage: Int,
     taskSupport: Option[ForkJoinTaskSupport]
 ) {
-  private val layerFactory = LayerFactory(
-    SymbolPath.empty / 'NeuralEmbedding,
-    pc
-  )
   import layerFactory._
 
   require(dimMessage % 2 == 0, "dimMessage should be even")
 
   /** returns a matrix of shape [ nodes number, prediction space ] */
   def predictTypes(
-      graph: PredicateGraphWithCtx,
       nodesToPredict: Vector[PNode],
       predictionSpace: PredictionSpace,
       iterations: Int
@@ -68,6 +61,8 @@ class NeuralInference(
       val input = objEmbed.concat(labelMap(fieldLabel), axis = 1)
       messageModel(name, singleLayer(name / 'compress, input))
     }
+
+    case class VarEmbedding(nodeMap: Map[PNode, CompNode])
 
     def iterate(embedding: VarEmbedding): VarEmbedding = {
       case class MessageChannel(node: PNode) {
@@ -252,26 +247,23 @@ class NeuralInference(
 
     def decode(embedding: VarEmbedding): CompNode = {
       val candidates =
-        concatN(
-          par(predictionSpace.typeVector)
+        concatN(axis = 0)(par(predictionSpace.typeVector)
             .map(encodePType)
-            .toVector,
-          axis = 0
-        )
+            .toVector)
       val inputs =
-        concatN(nodesToPredict.map { embedding.nodeMap }, axis = 0)
+        concatN(axis = 0)(nodesToPredict.map { embedding.nodeMap })
 
       similarity(inputs, candidates)
     }
 
     val nodeInitVec: CompNode =
       getVar('nodeInitVec)(TensorExtension.randomUnitVec(dimMessage))
-    val init = VarEmbedding(
+    val embedding0 = VarEmbedding(
       graph.projectNodes
         .map(n => n -> nodeInitVec)
         .toMap
     )
-    val embeddings = Vector.iterate(init, iterations + 1)(iterate)
+    val embeddings = Vector.iterate(embedding0, iterations + 1)(iterate)
 
     decode(embeddings.last)
   }
