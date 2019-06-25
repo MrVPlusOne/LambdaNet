@@ -42,7 +42,7 @@ addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.0")
 
 
 TaskKey[Unit]("train") := 
-  (runMain in Compile).toTask(" lambdanet.TrainingLoop").value
+  (runMain in Compile).toTask(" lambdanet.train.TrainingLoop").value
 
 TaskKey[Unit]("prepareRepos") :=
   (runMain in Compile).toTask(" lambdanet.PrepareRepos").value
