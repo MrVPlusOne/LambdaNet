@@ -464,14 +464,17 @@ object SimpleMath {
     (r, long.toDouble / 1e6)
   }
 
-  def prettyPrintTime(inNano: Long): String = {
+  //noinspection ScalaMalformedFormatString
+  def prettyPrintTime(inNano: Long, digits: Int = 3): String = {
+    val hour = 1e9 * 3600
     val (amount, unit) =
-      if (inNano > 1e9) (inNano / 1e9, "s")
+      if (inNano > hour) (inNano / hour, "h")
+      else if (inNano > 1e9) (inNano / 1e9, "s")
       else if (inNano > 1e6) (inNano / 1e6, "ms")
       else if (inNano > 1e3) (inNano / 1e3, "µs")
       else (inNano.toDouble, "ns")
 
-    "%.3f".format(amount) + unit
+    s"%.${digits}f".format(amount) + unit
   }
 
   class TimeLogger() {

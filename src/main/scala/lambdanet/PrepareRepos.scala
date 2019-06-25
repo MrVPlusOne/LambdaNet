@@ -2,15 +2,13 @@ package lambdanet
 
 import ammonite.ops._
 import funcdiff.SimpleMath
-import lambdanet.translation.ImportsResolution.{
-  ErrorHandler,
-  ModuleExports,
-}
+import lambdanet.translation.ImportsResolution.{ErrorHandler, ModuleExports}
 import lambdanet.translation.{
   IRTranslation,
   ImportsResolution,
   PAnnot,
   PLangTranslation,
+  PredicateGraph,
   PredicateGraphTranslation,
   QLangTranslation,
 }
@@ -27,7 +25,78 @@ case class LibDefs(
 
 object PrepareRepos {
 
-  def parseLibDefs() = {
+  def main(args: Array[String]): Unit = {
+    announced("PrepareRepos") {
+      Thread.sleep(1000)
+    }
+    val parsed = parsePredGraphs()
+    val stats = repoStatistics(parsed)
+    println(stats.headers zip stats.average)
+  }
+
+  def parsePredGraphs(): Seq[(ProjectPath, PredicateGraph)] = {
+
+    /** set to true to load declarations from the serialization file */
+    val loadFromFile = false
+
+    val libDefsFile = pwd / up / "lambda-repos" / "libDefs.serialized"
+
+    val libDefs = if (loadFromFile) {
+      println(s"loading library definitions from $libDefsFile...")
+      val read = SimpleMath.readObjectFromFile[LibDefs](libDefsFile.toIO)
+      println(s"library definitions loaded.")
+      read
+    } else {
+      val defs = parseLibDefs()
+      SimpleMath.saveObjectToFile(libDefsFile.toIO)(defs)
+      println(s"library definitions saved to $libDefsFile")
+      defs
+    }
+
+    val projectsDir = pwd / up / "lambda-repos" / "projects"
+
+    lambdanet.shouldWarn = false
+
+    (ls ! projectsDir).par.collect {
+      case f if f.isDir =>
+        val (path, g) = prepareProject(libDefs, f)
+        (path.relativeTo(projectsDir), g)
+    }.seq
+  }
+
+  case class RepoStats(
+      average: Vector[Double],
+      data: Map[ProjectPath, Vector[Int]],
+  ) {
+    val libNodes = 1
+    val projNodes = 2
+    val predicates = 3
+
+    val headers: Vector[String] =
+      Vector("libNodes", "projNodes", "predicates")
+  }
+
+  def repoStatistics(results: Seq[(ProjectPath, PredicateGraph)]): RepoStats = {
+    val rows = results
+      .map {
+        case (path, graph) =>
+          val nLib = graph.nodes.count(_.fromLib)
+          val nProj = graph.nodes.count(!_.fromLib)
+          val nPred = graph.predicates.size
+          path -> Vector(nLib, nProj, nPred)
+      }
+      .sortBy(_._2.last)
+
+    val (paths, vec) = rows.unzip
+    val average = vec
+      .reduce(_.zip(_).map { case (x, y) => x + y })
+      .map(_.toDouble / paths.length)
+
+    val data = rows.toMap
+    RepoStats(average, data)
+  }
+
+  def parseLibDefs(): LibDefs = {
     import cats.implicits._
 
     val declarationsDir = pwd / up / "lambda-repos" / "declarations"
@@ -101,7 +170,7 @@ object PrepareRepos {
     LibDefs(baseCtx1, nodeMapping, libAllocator, libExports)
   }
 
-  def prepareProject(libDefs: LibDefs, root: Path) =
+  private def prepareProject(libDefs: LibDefs, root: Path) =
     SimpleMath.withErrorMessage(s"In project: $root") {
       import libDefs._
 
@@ -132,67 +201,8 @@ object PrepareRepos {
       val graph = PredicateGraphTranslation.fromIRModules(irModules)
       errorHandler.warnErrors()
       println(s"Project parsed: '$root'")
-      PredicateGraphWithCtx.fromGraph(graph, nodeMapping)
 
       (root, graph)
     }
-
-  def main(args: Array[String]): Unit = {
-
-    /** set to true to load declarations from the serialization file */
-    val loadFromFile = false
-
-    val libDefsFile = pwd / up / "lambda-repos" / "libDefs.serialized"
-
-    val libDefs = if (loadFromFile) {
-      println(s"loading library definitions from $libDefsFile...")
-      val read = SimpleMath.readObjectFromFile[LibDefs](libDefsFile.toIO)
-      println(s"library definitions loaded.")
-      read
-    } else {
-      val defs = parseLibDefs()
-      SimpleMath.saveObjectToFile(libDefsFile.toIO)(defs)
-      println(s"library definitions saved to $libDefsFile")
-      defs
-    }
-
-    val projectsDir = pwd / up / "lambda-repos" / "projects"
-
-    lambdanet.shouldWarn = false
-
-    val results =
-      (ls ! projectsDir).par.collect {
-        case f if f.isDir => prepareProject(libDefs, f)
-      }.seq
-
-    val stats = results
-      .map {
-        case (path, graph) =>
-          val projectName = path.relativeTo(projectsDir)
-          val nLib = graph.nodes.count(_.fromLib)
-          val nProj = graph.nodes.count(!_.fromLib)
-          val nPred = graph.predicates.size
-          projectName.toString() -> Seq(nLib, nProj, nPred)
-      }
-      .sortBy(_._2.last)
-
-    val (paths, vec) = stats.unzip
-    val average = vec
-      .reduce(_.zip(_).map { case (x, y) => x + y })
-      .map(_.toDouble / paths.length)
-
-    write.over(
-      pwd / "parsedStatistics.csv", {
-        val head = ("name", Seq("libNodes", "projNodes", "predicates"))
-        val avgRow = ("average", average)
-        (head +: avgRow +: stats)
-          .map {
-            case (n, data) =>
-              s"$n,${data.mkString(",")}"
-          }
-          .mkString("\n")
-      },
-    )
-  }
 
 }

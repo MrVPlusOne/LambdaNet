@@ -25,16 +25,16 @@ object TrainingLoop {
     run(
       maxTrainingSteps = 1000,
       numOfThreads = Runtime.getRuntime.availableProcessors(),
-    ).result
+    ).result()
   }
 
   case class run(
       maxTrainingSteps: Int,
       numOfThreads: Int,
   ) {
-    def result: Unit = {
+    def result(): Unit = {
       val trainingState = loadTrainingState()
-      val dataSet = loadDataSet()
+      val dataSet = loadDataSet(???)
       trainOnProjects(dataSet, trainingState)
     }
 
@@ -120,7 +120,7 @@ object TrainingLoop {
       }
 
       def testStep(step: Int): Unit =
-        if (step % 10 == 0) announce("test") {
+        if (step % 10 == 0) announced("test") {
           putStrLn("Test not implemented yet...")
         }
     }
@@ -195,7 +195,7 @@ object TrainingLoop {
 
     loadFromFile
       .map { p =>
-        announce("Loading training from file: " + p) {
+        announced("Loading training from file: " + p) {
           TrainingState.fromFile(p)
         }
       }
@@ -210,15 +210,19 @@ object TrainingLoop {
       )
   }
 
-  private def loadDataSet(): DataSet = {
-    ???
+  private def loadDataSet(loadFromFile: Boolean): DataSet = {
+    import PrepareRepos._
+
+    if (loadFromFile){
+      ???
+    }else {
+      parsePredGraphs()
+    }
+
+
+      ???
   }
 
   def putStrLn(text: String): Unit =
     println(text)
-
-  def announce[A](actionName: String)(action: => A): A = {
-    putStrLn(s"$actionName started...")
-    action.tap(_ => putStrLn(s"$actionName finished..."))
-  }
 }

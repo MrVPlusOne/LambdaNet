@@ -132,4 +132,18 @@ package object lambdanet extends SimpleMath.ExtensionsTrait {
     if (shouldWarn)
       Console.err.println("[warn] " + str)
   }
+
+  def announced[A](actionName: String)(action: => A): A = {
+    import io.AnsiColor._
+    import SimpleMath.prettyPrintTime
+
+
+    println(s"$BLUE[announce] $actionName started...$RESET")
+    val startTime = System.nanoTime()
+    action.tap { _ =>
+       val took = prettyPrintTime(System.nanoTime() - startTime)
+      println(s"$BLUE[announce] $actionName finished (took $took)...$RESET")
+    }
+  }
+
 }
