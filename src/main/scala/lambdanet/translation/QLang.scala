@@ -20,7 +20,6 @@ import lambdanet.translation.ImportsResolution.{
   PathMapping,
 }
 import lambdanet.translation.PLang.PModule
-import funcdiff.SimpleMath.Extensions._
 import lambdanet.Surface.{GModule, GStmt}
 import lambdanet.utils.ProgramParsing
 import lambdanet._

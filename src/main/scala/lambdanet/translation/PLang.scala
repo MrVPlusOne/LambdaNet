@@ -16,7 +16,6 @@ import lambdanet.{
   Surface,
 }
 import lambdanet.Surface.{GExpr, GModule}
-import funcdiff.SimpleMath.Extensions._
 import lambdanet.translation.PLang._
 import lambdanet.translation.PredicateGraph.{PNode, PNodeAllocator}
 

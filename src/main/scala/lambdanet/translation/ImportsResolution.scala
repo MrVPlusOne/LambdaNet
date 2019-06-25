@@ -6,7 +6,6 @@ import funcdiff.SimpleMath
 import lambdanet.{ExportLevel, ImportStmt, ProjectPath, ReferencePath}
 import lambdanet.translation.PLang._
 import lambdanet.translation.PredicateGraph.{PNode, PNodeAllocator}
-import funcdiff.SimpleMath.Extensions._
 import lambdanet._
 import lambdanet.ExportStmt._
 import lambdanet.ImportStmt._

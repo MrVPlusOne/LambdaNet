@@ -6,7 +6,6 @@ import lambdanet._
 import lambdanet.utils.Js._
 import lambdanet.Surface._
 import lambdanet.translation.OldIRTranslation
-import SimpleMath.Extensions._
 import fastparse.Parsed
 import lambdanet.translation.ImportsResolution.PathMapping
 import lambdanet.translation.groupInBlockSurface
@@ -118,7 +117,7 @@ object ProgramParsing {
         }
 
         val linkTarget =
-          if (ls(f / up).any(isIndexFile)) f / up
+          if (ls(f / up).toVector.any(isIndexFile)) f / up
           else f / up / "src"
         name -> linkTarget.relativeTo(root)
       }).toMap
@@ -816,10 +815,7 @@ object ProgramParsing {
 
       def exportFromOther[_: P]: P[Creator] = {
         P("*").map(
-          _ =>
-            p => {
-              Vector(ExportOtherModule(p.get)),
-            },
+          _ => p => Vector(ExportOtherModule(p.get)),
         )
       }
 

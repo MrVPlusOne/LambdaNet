@@ -1,7 +1,6 @@
 package lambdanet.translation
 
 import funcdiff.SimpleMath
-import funcdiff.SimpleMath.Extensions._
 import lambdanet.Surface.{GExpr, GModule, GStmt}
 import lambdanet.translation.OldIR._
 import lambdanet.translation.OldIRTranslation._

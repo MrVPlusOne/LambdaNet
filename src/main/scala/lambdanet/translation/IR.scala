@@ -11,7 +11,6 @@ import lambdanet.translation.PredicateGraph.{
 }
 import IR._
 import lambdanet.translation.QLang.{QExpr, QModule, QStmt}
-import funcdiff.SimpleMath.Extensions._
 
 import scala.collection.mutable
 

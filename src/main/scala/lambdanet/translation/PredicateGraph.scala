@@ -90,7 +90,8 @@ object PredicateGraph {
     val madeFromLibTypes: Boolean =
       args.forall(_.madeFromLibTypes) && to.madeFromLibTypes
 
-    lazy val allLabels: Set[Symbol] = to.allLabels ++ args.toSet.flatMap(_.allLabels)
+    lazy val allLabels: Set[Symbol] =
+      to.allLabels ++ args.toSet.flatMap((x: PType) => x.allLabels)
 
   }
 
@@ -98,7 +99,7 @@ object PredicateGraph {
     val madeFromLibTypes: Boolean = fields.forall(_._2.madeFromLibTypes)
 
     lazy val allLabels: Set[Symbol] = {
-      fields.keySet ++ fields.values.toSet.flatMap(_.allLabels)
+      fields.keySet ++ fields.values.toSet.flatMap((x: PType) => x.allLabels)
     }
   }
 
@@ -106,7 +107,6 @@ object PredicateGraph {
     def allNodes: Set[PNode]
 
   }
-
 
   case class SubtypeRel(sub: PNode, sup: PNode) extends TyPredicate {
     val allNodes: Set[PNode] = Set(sub, sup)

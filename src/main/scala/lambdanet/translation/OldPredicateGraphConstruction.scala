@@ -2,7 +2,6 @@ package lambdanet.translation
 
 import ammonite.ops._
 import funcdiff.SimpleMath
-import funcdiff.SimpleMath.Extensions._
 import lambdanet.ExportStmt._
 import lambdanet.ImportStmt._
 import lambdanet.Surface.{GModule, GStmt}

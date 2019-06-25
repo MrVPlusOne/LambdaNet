@@ -192,7 +192,7 @@ class NeuralInference(
               )
               import graph.fieldDefs
               if (fieldDefs.contains(label)) {
-                messages(v) += {
+                 messages(v) += {
                   val att =
                     attentionLayer('FieldAccess / 'defs, transformKey = true)(
                       embed(objType),

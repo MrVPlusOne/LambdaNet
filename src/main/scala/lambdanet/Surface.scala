@@ -3,7 +3,6 @@ package lambdanet
 import lambdanet.GType.{AccessError, ApplyError, GTypeAPI, TypeCheckError}
 import scala.language.implicitConversions
 import lambdanet.translation.{IRTranslation, PLangTranslation}
-import funcdiff.SimpleMath.Extensions._
 
 /** The surface language DSLs */
 object Surface {

@@ -38,6 +38,7 @@ object NewInference {
         iterations: Int,
     ) {
       import layerFactory._
+      import architecture.randomVec
 
       def result: CompNode = {
         val libSignatureEmbeddings = {
@@ -67,6 +68,8 @@ object NewInference {
         decode(embeddings, allSignatureEmbeddings)
       }
 
+      val architecture = NNArchitecture(dimMessage, layerFactory)
+
       private def updateEmbedding(
           encodeSignature: PType => CompNode,
       )(embedding: Embedding): Embedding = {
@@ -76,7 +79,12 @@ object NewInference {
           .pipe(parallelize)
           .map {
             case (kind, messageModels) =>
-              architecture.calculateMessages(kind, messageModels, embedding)
+              architecture.calculateMessages(
+                kind,
+                messageModels,
+                embedding,
+                encodeLabel,
+              )
           }
           .fold(Map())(_ |+| _)
 
@@ -102,8 +110,6 @@ object NewInference {
         similarity(inputs, candidates)
       }
 
-      val architecture = NNArchitecture(dimMessage, layerFactory)
-
       private def similarity(
           inputMatrix: CompNode,
           candidateMatrix: CompNode,
@@ -117,8 +123,6 @@ object NewInference {
           leafEmbedding: PNode => CompNode,
           signatures: Set[PType],
       ): Map[PType, CompNode] = {
-        //todo: parallelize this
-
         import collection.mutable
 
         val vecForAny = getVar('anyType) { randomVec() }
@@ -130,7 +134,7 @@ object NewInference {
             case PFuncType(args, to) =>
               val args1 = args.map(embedSignature)
               val to1 = embedSignature(to)
-              architecture.encodeFunc(args1, to1)
+              architecture.encodeFunction(args1, to1)
             case PObjectType(fields) =>
               val fields1 = fields.toVector.map {
                 case (label, ty) =>
@@ -138,21 +142,18 @@ object NewInference {
               }
               architecture.encodeObject(fields1)
           }
-          signatureEmbeddings(sig) = r
+          signatureEmbeddings.synchronized {
+            signatureEmbeddings(sig) = r
+          }
           r
         }
 
-        signatures.foreach(embedSignature)
+        parallelize(signatures.toSeq).foreach(embedSignature)
         signatureEmbeddings.toMap
       }
 
-      private val normalizeFactor = 0.1 / math.sqrt(dimMessage)
-      private def randomVec(): Tensor = {
-        numsca.randn(1, dimMessage) * normalizeFactor
-      }
-
       private val encodeLabel =
-        allLabels.map{ k =>
+        allLabels.map { k =>
           k -> const(randomUnitVec(dimMessage))
         }.toMap
 
@@ -164,10 +165,11 @@ object NewInference {
     val allLabels: Set[Symbol] = {
       val pTypeLabels =
         (allLibSignatures ++ predictionSpace.allTypes)
-        .flatMap(_.allLabels)
+          .flatMap(_.allLabels)
       val predicateLabels =
-        graph.predicates.flatMap{
+        graph.predicates.flatMap {
           case DefineRel(_, expr) => expr.allLabels
+          case _ => Set[Symbol]()
         }
       pTypeLabels ++ predicateLabels
     }
@@ -178,13 +180,48 @@ object NewInference {
       import MessageModel._
       import MessageKind._
 
+      def mutual(name: String, p1: PNode, p2: PNode): BatchedMsgModels =
+        Map(KindSingle(name) -> Vector(Binary(p1, p2)))
+
       def toBatched(pred: TyPredicate): BatchedMsgModels = pred match {
-        case SubtypeRel(sub, sup) =>
-          Map(KindMutual("subtype") -> Vector(Mutual(sub, sup)))
-        case AssignRel(lhs, rhs) =>
-          Map(KindMutual("assign") -> Vector(Mutual(lhs, rhs)))
         case UsedAsBool(n) =>
           Map(KindSingle("usedAsBool") -> Vector(Single(n)))
+        case SubtypeRel(sub, sup) =>
+          mutual("subtypeRel", sub, sup)
+        case AssignRel(lhs, rhs) =>
+          mutual("assignRel", lhs, rhs)
+        case InheritanceRel(child, parent) =>
+          mutual("inheritanceRel", child, parent)
+        case DefineRel(defined, expr) =>
+          expr match {
+            case n: PNode =>
+              mutual("defineEqual", defined, n)
+            case PFunc(args, to) =>
+              val nodes = to +: args
+              val msgs = nodes.zipWithIndex.map {
+                case (a, i) => Labeled(defined, a, Label.Position(i - 1))
+              }
+              Map(KindLabeled("defineFunc", LabelType.Position) -> msgs)
+            case PCall(f, args) =>
+              // todo: reason about generics
+              val fArgMsgs = args.zipWithIndex.map {
+                case (a, i) => Labeled(f, a, Label.Position(i))
+              }
+              val fDefinedMsg = Vector(Labeled(f, defined, Label.Position(-1)))
+              Map(
+                KindLabeled("defineCall1", LabelType.Position) -> fArgMsgs,
+                KindLabeled("defineCall2", LabelType.Position) -> fDefinedMsg,
+              )
+            //todo: use usage information
+            case PObject(fields) =>
+              val msgs = fields.toVector.map {
+                case (l, v) => Labeled(defined, v, Label.Field(l))
+              }
+              Map(KindLabeled("defineObject", LabelType.Field) -> msgs)
+            case PAccess(obj, l) =>
+              val msg = Vector(Labeled(defined, obj, Label.Field(l)))
+              Map(KindLabeled("defineAccess", LabelType.Field) -> msg)
+          }
       }
 
       graph.predicates.par
@@ -208,26 +245,50 @@ object NewInference {
 
   sealed trait MessageKind
   private object MessageKind {
+
     case class KindSingle(name: String) extends MessageKind
-    case class KindMutual(name: String) extends MessageKind
+
+    case class KindBinary(name: String) extends MessageKind
+
+    case class KindLabeled(name: String, labelType: LabelType.Value)
+        extends MessageKind
+
+    object LabelType extends Enumeration {
+      val Position, Field = Value
+    }
   }
 
   sealed abstract class MessageModel
 
   private object MessageModel {
+
     case class Single(n: PNode) extends MessageModel
 
-    case class Mutual(n1: PNode, n2: PNode) extends MessageModel
+    case class Binary(n1: PNode, n2: PNode) extends MessageModel
+
+    case class Labeled(n1: PNode, n2: PNode, label: Label) extends MessageModel
+
+    sealed trait Label
+    object Label {
+      case class Position(get: Int) extends Label
+      case class Field(get: Symbol) extends Label
+    }
   }
 
   case class NNArchitecture(dimMessage: Int, layerFactory: LayerFactory) {
 
     import layerFactory._
 
+    private val normalizeFactor = 0.1 / math.sqrt(dimMessage)
+    def randomVec(): Tensor = {
+      numsca.randn(1, dimMessage) * normalizeFactor
+    }
+
     def calculateMessages(
         kind: MessageKind,
         models: Vector[MessageModel],
-        embedding: PNode => CompNode,
+        encodeNode: PNode => CompNode,
+        encodeLabel: Symbol => CompNode,
     ): Map[ProjNode, Chain[Message]] = {
       import MessageKind._
       import MessageModel._
@@ -237,28 +298,64 @@ object NewInference {
         case KindSingle(name) =>
           val paired = models
             .asInstanceOf[Vector[Single]]
-            .map(s => s.n -> embedding(s.n))
+            .map(s => s.n -> encodeNode(s.n))
           verticalBatching(paired, singleLayer(name, _))
-        case KindMutual(name) =>
+        case KindBinary(name) =>
           val (n1s, n2s, inputs) = models
-            .asInstanceOf[Vector[Mutual]]
+            .asInstanceOf[Vector[Binary]]
             .map { s =>
-              val merged = embedding(s.n1).concat(embedding(s.n2), axis = 1)
+              val merged = encodeNode(s.n1).concat(encodeNode(s.n2), axis = 1)
               (s.n1, s.n2, merged)
             }
             .unzip3
-          verticalBatching(n1s.zip(inputs), singleLayer(name, _)) |+|
-            verticalBatching(n2s.zip(inputs), singleLayer(name, _))
+          verticalBatching(n1s.zip(inputs), singleLayer(name / 'left, _)) |+|
+            verticalBatching(n2s.zip(inputs), singleLayer(name / 'right, _))
+        case KindLabeled(name, labelType) =>
+          val (n1s, n2s, inputs) = models
+            .asInstanceOf[Vector[Labeled]]
+            .map {
+              case Labeled(n1, n2, label) =>
+                val lEmbed = labelType match {
+                  case LabelType.Field =>
+                    val l = label.asInstanceOf[Label.Field].get
+                    encodeLabel(l)
+                  case LabelType.Position =>
+                    val pos = label.asInstanceOf[Label.Position].get
+                    encodePosition(pos)
+                }
+                val input = concatN(axis = 1)(
+                  Vector(encodeNode(n1), encodeNode(n2), lEmbed),
+                )
+                (n1, n2, input)
+            }
+            .unzip3
+          verticalBatching(n1s.zip(inputs), singleLayer(name / 'left, _)) |+|
+            verticalBatching(n2s.zip(inputs), singleLayer(name / 'right, _))
       }
       // should filter out (or avoid computing) all messages for lib nodes
       assert(result.keySet.forall(!_.fromLib))
       result
     }
 
-    def encodeFunc(args: Vector[CompNode], to: CompNode): CompNode = ???
+    def encodeFunction(args: Vector[CompNode], to: CompNode): CompNode = {
+      (to +: args).zipWithIndex
+        .map {
+          case (a, i) =>
+            a.concat(encodePosition(i), axis = 1)
+        }
+        .pipe(concatN(axis = 0))
+        .pipe(singleLayer('encodeFunction, _))
+        .pipe(sum(_, axis = 0))
+    }
 
-    def encodeObject(elements: Vector[(LabelVector, CompNode)]): CompNode = ???
-
+    def encodeObject(elements: Vector[(LabelVector, CompNode)]): CompNode = {
+      elements.map {
+        case (v1, v2) => v1.concat(v2, axis = 1)
+      }
+        .pipe(concatN(axis = 0))
+        .pipe(singleLayer('encodeObject, _))
+        .pipe(sum(_, axis = 0))
+    }
 
     def mergeMessages(
         messages: Map[ProjNode, Chain[Message]],
@@ -315,6 +412,26 @@ object NewInference {
 
     private def singleLayer(path: SymbolPath, input: CompNode): CompNode = {
       linear(path / 'linear, dimMessage)(input) ~> relu
+    }
+
+    private val encodePosition = {
+      def encodePosition(pos: Int): CompNode = {
+        assert(pos >= -1)
+        if (pos == -1) {
+          getVar('position / 'head) { randomVec() }
+        } else {
+          getConst('position / Symbol(pos.toString)) {
+            val phases = (0 until dimMessage / 2).map { dim =>
+              pos / math.pow(1000, 2.0 * dim / dimMessage)
+            }
+            numsca
+              .Tensor(phases.map(math.sin) ++ phases.map(math.cos): _*)
+              .reshape(1, -1)
+          }
+        }
+      }
+      val maxFunctionArity = 50
+      (-1 to maxFunctionArity).map(i => i -> encodePosition(i)).toMap
     }
 
   }
