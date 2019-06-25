@@ -75,6 +75,8 @@ object NewInference {
       )(embedding: Embedding): Embedding = {
         import cats.implicits._
 
+        val encodeFixedTypes: Map[PType, CompNode] = ???
+
         val messages = batchedMsgModels.toSeq
           .pipe(parallelize)
           .map {
@@ -84,6 +86,7 @@ object NewInference {
                 messageModels,
                 embedding,
                 encodeLabel,
+                encodeFixedTypes,
               )
           }
           .fold(Map())(_ |+| _)
@@ -169,7 +172,7 @@ object NewInference {
       val predicateLabels =
         graph.predicates.flatMap {
           case DefineRel(_, expr) => expr.allLabels
-          case _ => Set[Symbol]()
+          case _                  => Set[Symbol]()
         }
       pTypeLabels ++ predicateLabels
     }
@@ -186,6 +189,8 @@ object NewInference {
       def toBatched(pred: TyPredicate): BatchedMsgModels = pred match {
         case UsedAsBool(n) =>
           Map(KindSingle("usedAsBool") -> Vector(Single(n)))
+        case FixedToType(n, ty) =>
+          Map(KindWithType("fixedToType") -> Vector(WithType(n, ty)))
         case SubtypeRel(sub, sup) =>
           mutual("subtypeRel", sub, sup)
         case AssignRel(lhs, rhs) =>
@@ -248,6 +253,8 @@ object NewInference {
 
     case class KindSingle(name: String) extends MessageKind
 
+    case class KindWithType(name: String) extends MessageKind
+
     case class KindBinary(name: String) extends MessageKind
 
     case class KindLabeled(name: String, labelType: LabelType.Value)
@@ -265,6 +272,8 @@ object NewInference {
     case class Single(n: PNode) extends MessageModel
 
     case class Binary(n1: PNode, n2: PNode) extends MessageModel
+
+    case class WithType(n: PNode, ty: PType) extends MessageModel
 
     case class Labeled(n1: PNode, n2: PNode, label: Label) extends MessageModel
 
@@ -289,6 +298,7 @@ object NewInference {
         models: Vector[MessageModel],
         encodeNode: PNode => CompNode,
         encodeLabel: Symbol => CompNode,
+        encodeFixedType: PType => CompNode,
     ): Map[ProjNode, Chain[Message]] = {
       import MessageKind._
       import MessageModel._
@@ -331,8 +341,18 @@ object NewInference {
             .unzip3
           verticalBatching(n1s.zip(inputs), singleLayer(name / 'left, _)) |+|
             verticalBatching(n2s.zip(inputs), singleLayer(name / 'right, _))
+        case KindWithType(name) =>
+          // limitation: information flows in only one direction
+          val inputs = models
+            .asInstanceOf[Vector[WithType]]
+            .map {
+              case WithType(n, ty) =>
+                n -> encodeFixedType(ty)
+            }
+          verticalBatching(inputs, singleLayer(name, _))
       }
-      // should filter out (or avoid computing) all messages for lib nodes
+
+      // should have filtered out (or avoided computing) all messages for lib nodes
       assert(result.keySet.forall(!_.fromLib))
       result
     }
@@ -349,9 +369,10 @@ object NewInference {
     }
 
     def encodeObject(elements: Vector[(LabelVector, CompNode)]): CompNode = {
-      elements.map {
-        case (v1, v2) => v1.concat(v2, axis = 1)
-      }
+      elements
+        .map {
+          case (v1, v2) => v1.concat(v2, axis = 1)
+        }
         .pipe(concatN(axis = 0))
         .pipe(singleLayer('encodeObject, _))
         .pipe(sum(_, axis = 0))

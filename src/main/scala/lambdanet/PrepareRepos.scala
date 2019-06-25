@@ -3,16 +3,8 @@ package lambdanet
 import ammonite.ops._
 import funcdiff.SimpleMath
 import lambdanet.translation.ImportsResolution.{ErrorHandler, ModuleExports}
-import lambdanet.translation.{
-  IRTranslation,
-  ImportsResolution,
-  PAnnot,
-  PLangTranslation,
-  PredicateGraph,
-  PredicateGraphTranslation,
-  QLangTranslation,
-}
-import lambdanet.translation.PredicateGraph.{PNode, PNodeAllocator}
+import lambdanet.translation.{IRTranslation, ImportsResolution, PAnnot, PLangTranslation, PredicateGraph, PredicateGraphTranslation, QLangTranslation}
+import lambdanet.translation.PredicateGraph.{PNode, PNodeAllocator, PType}
 import lambdanet.utils.ProgramParsing
 import lambdanet.utils.ProgramParsing.GProject
 @SerialVersionUID(2)
@@ -25,16 +17,25 @@ case class LibDefs(
 
 object PrepareRepos {
 
+  val dataSetPath: Path = pwd / "results" / "predicateGraphs.serialized"
+
   def main(args: Array[String]): Unit = {
-    announced("PrepareRepos") {
-      Thread.sleep(1000)
+    val parsed = announced("parsePredGraphs")(parsePredGraphs())
+    val stats = repoStatistics(parsed.graphs)
+    println(result(stats.headers.zip(stats.average).toString()))
+
+    announced(s"save data set to file: $dataSetPath") {
+      SimpleMath.saveObjectToFile(dataSetPath.toIO)(parsed)
     }
-    val parsed = parsePredGraphs()
-    val stats = repoStatistics(parsed)
-    println(stats.headers zip stats.average)
   }
 
-  def parsePredGraphs(): Seq[(ProjectPath, PredicateGraph)] = {
+  @SerialVersionUID(0)
+  case class ParsedRepos(
+      libDefs: LibDefs,
+      graphs: Vector[(ProjectPath, PredicateGraph, List[(PNode, PType)])],
+  )
+
+  def parsePredGraphs(): ParsedRepos = {
 
     /** set to true to load declarations from the serialization file */
     val loadFromFile = false
@@ -57,11 +58,15 @@ object PrepareRepos {
 
     lambdanet.shouldWarn = false
 
-    (ls ! projectsDir).par.collect {
-      case f if f.isDir =>
-        val (path, g) = prepareProject(libDefs, f)
-        (path.relativeTo(projectsDir), g)
-    }.seq
+    val graphs = (ls ! projectsDir).par
+      .collect {
+        case f if f.isDir =>
+          val p = prepareProject(libDefs, f).copy()
+          p.copy(_1 = p._1.relativeTo(projectsDir))
+      }
+      .seq
+      .toVector
+    ParsedRepos(libDefs, graphs)
   }
 
   case class RepoStats(
@@ -70,20 +75,24 @@ object PrepareRepos {
   ) {
     val libNodes = 1
     val projNodes = 2
-    val predicates = 3
+    val annotations = 3
+    val predicates = 4
 
     val headers: Vector[String] =
-      Vector("libNodes", "projNodes", "predicates")
+      Vector("libNodes", "projNodes", "annotations", "predicates")
   }
 
-  def repoStatistics(results: Seq[(ProjectPath, PredicateGraph)]): RepoStats = {
+  def repoStatistics(
+      results: Seq[(ProjectPath, PredicateGraph, List[(PNode, PType)])],
+  ): RepoStats = {
     val rows = results
       .map {
-        case (path, graph) =>
+        case (path, graph, annots) =>
           val nLib = graph.nodes.count(_.fromLib)
           val nProj = graph.nodes.count(!_.fromLib)
           val nPred = graph.predicates.size
-          path -> Vector(nLib, nProj, nPred)
+          val annotations = annots.length
+          path -> Vector(nLib, nProj, annotations, nPred)
       }
       .sortBy(_._2.last)
 
@@ -198,11 +207,16 @@ object PrepareRepos {
           errorHandler,
         )
         .map(irTranslator.fromQModule)
-      val graph = PredicateGraphTranslation.fromIRModules(irModules)
+      val allAnnots = irModules.flatMap(_.mapping).toMap
+      val fixedAnnots = allAnnots.collect { case (n, Annot.Fixed(t)) => n -> t }
+      val userAnnots = allAnnots.collect { case (n, Annot.User(t))   => n -> t }
+
+      val graph = PredicateGraphTranslation.fromIRModules(fixedAnnots, irModules)
+
       errorHandler.warnErrors()
       println(s"Project parsed: '$root'")
 
-      (root, graph)
+      (root, graph, userAnnots.toList)
     }
 
 }

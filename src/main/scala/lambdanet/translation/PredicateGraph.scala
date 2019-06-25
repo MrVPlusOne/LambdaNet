@@ -5,12 +5,17 @@ import PredicateGraph._
 import funcdiff.SimpleMath
 import lambdanet.translation.ImportsResolution.NameDef
 
+import scala.collection.immutable.HashSet
 import scala.collection.{GenTraversableOnce, mutable}
 
-case class PredicateGraph(
-    nodes: Set[PNode],
-    predicates: Set[TyPredicate],
-)
+@SerialVersionUID(2)
+class PredicateGraph(
+    nodes0: Set[PNode],
+    predicates0: Set[TyPredicate],
+) extends Serializable {
+  val nodes: HashSet[PNode] = HashSet(nodes0.toSeq : _*)
+  val predicates: HashSet[TyPredicate] = HashSet(predicates0.toSeq :_*)
+}
 
 object PredicateGraph {
 
@@ -103,9 +108,13 @@ object PredicateGraph {
     }
   }
 
+  @SerialVersionUID(0)
   sealed trait TyPredicate {
     def allNodes: Set[PNode]
+  }
 
+  case class FixedToType(n: PNode, ty: PType) extends TyPredicate {
+    val allNodes: Set[PNode] = Set(n)
   }
 
   case class SubtypeRel(sub: PNode, sup: PNode) extends TyPredicate {
@@ -138,6 +147,7 @@ object PredicateGraph {
     *   | n.l
     */
   // @formatter:on
+  @SerialVersionUID(0)
   sealed trait PExpr {
     def allNodes: Set[PNode]
 
@@ -183,6 +193,7 @@ object PredicateGraphTranslation {
   }
 
   def fromIRModules(
+      fixedAnnotations: Map[PNode, PType],
       modules: Vector[IRModule],
   ): PredicateGraph = {
     val predicates = mutable.Set[TyPredicate]()
@@ -249,6 +260,10 @@ object PredicateGraphTranslation {
 
     modules.foreach(_.stmts.foreach(encodeStmt))
 
+    fixedAnnotations.foreach{ case (n, t) =>
+      add(FixedToType(n, t))
+    }
+
     val totalMapping = modules.foldLeft(Map[PNode, PAnnot]())(_ ++ _.mapping)
     val libInMapping = totalMapping.filter(_._1.fromLib)
     assert(libInMapping.isEmpty, s"lib node in totalMapping: $libInMapping")
@@ -256,7 +271,7 @@ object PredicateGraphTranslation {
     val predSet = predicates.toSet
     val allNodes = totalMapping.keySet ++ predSet.flatMap(_.allNodes)
 
-    PredicateGraph(
+    new PredicateGraph(
       allNodes,
       predSet,
     )

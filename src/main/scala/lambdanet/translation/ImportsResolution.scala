@@ -214,7 +214,7 @@ object ImportsResolution {
   trait ErrorHandler {
     def warnErrors(): Unit = {
       errors.foreach { e =>
-        warn(s"translation error: $e")
+        printWarning(s"translation error: $e")
       }
     }
 
@@ -387,7 +387,7 @@ object ImportsResolution {
             if (ref.isRelative) {
               val p1 = pathMapping.alias(thisPath / ops.up / ref.path)
               if (p1.ups > 0) {
-                lambdanet.warn(
+                lambdanet.printWarning(
                   s"Import from outside of the project using relative " +
                     s"path: ${ref.path}, treated as unknowns.",
                 )

@@ -128,21 +128,26 @@ package object lambdanet extends SimpleMath.ExtensionsTrait {
   }
 
   var shouldWarn = true
-  def warn(str: String): Unit = {
+  def printWarning(str: String): Unit = {
     if (shouldWarn)
-      Console.err.println("[warn] " + str)
+      Console.err.println(warn("[warn] " + str))
   }
 
+  import Console.{RED, BLUE, GREEN, RESET}
+  def warn(s: String)= s"$RED$s$RESET"
+
+  def info(s: String) = s"$BLUE$s$RESET"
+
+  def result(s: String) = s"$GREEN$s$RESET"
+
   def announced[A](actionName: String)(action: => A): A = {
-    import io.AnsiColor._
     import SimpleMath.prettyPrintTime
 
-
-    println(s"$BLUE[announce] $actionName started...$RESET")
+    println(info(s"[start] $actionName started..."))
     val startTime = System.nanoTime()
     action.tap { _ =>
-       val took = prettyPrintTime(System.nanoTime() - startTime)
-      println(s"$BLUE[announce] $actionName finished (took $took)...$RESET")
+       val took = prettyPrintTime(System.nanoTime() - startTime,2)
+      println(info(s"[finish] $actionName finished. (took $took)"))
     }
   }
 

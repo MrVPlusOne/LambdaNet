@@ -41,9 +41,12 @@ addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.0")
 
 // My tasks
 
-
-TaskKey[Unit]("train") := 
+val train = taskKey[Unit]("start training")
+train := 
   (runMain in Compile).toTask(" lambdanet.train.TrainingLoop").value
 
-TaskKey[Unit]("prepareRepos") :=
+val prepareRepos = taskKey[Unit]("parse and prepare data for training and evaluation")
+prepareRepos :=
   (runMain in Compile).toTask(" lambdanet.PrepareRepos").value
+
+TaskKey[Unit]("prepareAndTrain") := Def.sequential(prepareRepos, train).value

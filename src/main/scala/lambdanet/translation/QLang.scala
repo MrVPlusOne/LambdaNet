@@ -133,8 +133,10 @@ object QLangTranslation {
       .values
       .head
     val qModule = fromPModule(pModule, exports)
+    val unknownNode = PredictionSpace.unknownType.node
+    val mapping = qModule.mapping.updated(unknownNode, Annot.Missing)
 
-    (exports, libAllocator, qModule.mapping)
+    (exports, libAllocator, mapping)
   }
 
   def fromProject(
@@ -242,7 +244,7 @@ object QLangTranslation {
             expr match {
               case Surface.Var(s) =>
                 val nd = ctx.internalSymbols.getOrElse(s, {
-                  warn(
+                  printWarning(
                     s"Unable to resolve var: ${s.name}",
                   )
                   NameDef.unknownDef
@@ -255,7 +257,7 @@ object QLangTranslation {
                   case Left(ex) =>
                     val nd = ex.internalSymbols.getOrElse(l, {
                       if (l != 'prototype) {
-                        warn(s"Unable to resolve namespace access: $a")
+                        printWarning(s"Unable to resolve namespace access: $a")
                       }
                       return Right(Var(NameDef.unknownDef.term.get))
 
@@ -464,7 +466,7 @@ object QLangTranslation {
         case AnyType => PAny
         case TyVar(n) =>
           def cantResolve() = {
-            warn(s"Unable to resolve type: ${n.name}")
+            printWarning(s"Unable to resolve type: ${n.name}")
             NameDef.unknownDef
           }
 

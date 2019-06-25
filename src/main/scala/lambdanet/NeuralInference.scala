@@ -12,23 +12,6 @@ import scala.collection.parallel.ForkJoinTaskSupport
 
 object NeuralInference {}
 
-case class PredictionSpace(allTypes: Set[PType]) {
-  val unknownType = PTyVar(NameDef.unknownDef.ty.get)
-
-  val typeVector: Vector[PType] = allTypes.toVector
-  val maxIndex: Int = typeVector.length
-
-  private val indexMap: Map[PType, Int] = {
-    typeVector.zipWithIndex.toMap
-  }
-  require(indexMap.contains(unknownType))
-
-  def indexOfType(ty: PType): Int = {
-    indexMap.getOrElse(ty, indexMap(unknownType))
-  }
-
-}
-
 class NeuralInference(
     graph: PredicateGraphWithCtx,
     layerFactory: LayerFactory,
@@ -91,12 +74,14 @@ class NeuralInference(
       }
 
       def sendMessages(predicate: TyPredicate): Unit = predicate match {
+        case UsedAsBool(n) =>
+          messages(n) += messageModel('UsedAsBool, embed(n))
+        case FixedToType(n, ty) =>
+          ???
         case SubtypeRel(sub, sup) =>
           messageMutually(sub, sup, 'SubtypeRel)
         case AssignRel(lhs, rhs) =>
           messageMutually(lhs, rhs, 'AssignRel)
-        case UsedAsBool(n) =>
-          messages(n) += messageModel('UsedAsBool, embed(n))
         case InheritanceRel(child, parent) =>
           messageMutually(child, parent, 'InheritanceRel)
         case DefineRel(v, expr) =>
