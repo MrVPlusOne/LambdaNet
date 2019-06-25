@@ -5,7 +5,7 @@ import funcdiff.SimpleMath
 import lambdanet.translation.ImportsResolution.{ErrorHandler, ModuleExports}
 import lambdanet.translation.{IRTranslation, ImportsResolution, PAnnot, PLangTranslation, PredicateGraph, PredicateGraphTranslation, QLangTranslation}
 import lambdanet.translation.PredicateGraph.{PNode, PNodeAllocator, PType}
-import lambdanet.utils.ProgramParsing
+import lambdanet.utils.{ProgramParsing, Serialization}
 import lambdanet.utils.ProgramParsing.GProject
 @SerialVersionUID(2)
 case class LibDefs(
@@ -24,9 +24,23 @@ object PrepareRepos {
     val stats = repoStatistics(parsed.graphs)
     println(result(stats.headers.zip(stats.average).toString()))
 
-    announced(s"save data set to file: $dataSetPath") {
-      SimpleMath.saveObjectToFile(dataSetPath.toIO)(parsed)
-    }
+    //todo: implement serialization
+//    import boopickle.Default._
+//
+//    implicit val pNodePickler = transformPickler(PNode.fromTuple)(PNode.toTuple)
+//    implicit val symbolPickler = transformPickler(Symbol.apply)(_.name)
+//
+//    announced(s"save data set to file: $dataSetPath") {
+//      val bytes = Pickle.intoBytes(parsed)
+//      Serialization.writeByteBuffer(dataSetPath.toIO)(bytes)
+//    }
+//
+//    announced("read"){
+//      val newBytes = Serialization.readByteBuffer(dataSetPath.toIO)
+//      val got = Unpickle.apply[ParsedRepos].fromBytes(newBytes)
+//
+//      println(got)
+//    }
   }
 
   @SerialVersionUID(0)
@@ -38,7 +52,7 @@ object PrepareRepos {
   def parsePredGraphs(): ParsedRepos = {
 
     /** set to true to load declarations from the serialization file */
-    val loadFromFile = false
+    val loadFromFile = true
 
     val libDefsFile = pwd / up / "lambda-repos" / "libDefs.serialized"
 

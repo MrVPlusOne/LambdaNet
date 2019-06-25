@@ -28,6 +28,7 @@ libraryDependencies ++= Seq(
   "org.typelevel" %% "cats-core" % "2.0.0-M3",
   "org.typelevel" %% "cats-effect" % "2.0.0-M3",
   "com.github.nscala-time" %% "nscala-time" % "2.22.0",
+  "io.suzaku" %% "boopickle" % "1.3.1"
 )
 
 addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.0")

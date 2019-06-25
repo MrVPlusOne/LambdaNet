@@ -151,9 +151,10 @@ object TrainingLoop {
       import PrepareRepos._
 
       val ParsedRepos(libDefs, projects) =
-        announced(s"read data set from file: $dataSetPath") {
-          SimpleMath.readObjectFromFile[ParsedRepos](dataSetPath.toIO)
-        }
+        announced("parsePredGraphs")(parsePredGraphs())
+//        announced(s"read data set from file: $dataSetPath") {
+//          SimpleMath.readObjectFromFile[ParsedRepos](dataSetPath.toIO)
+//        }
 
       def libNodeType(n: PNode) =
         libDefs

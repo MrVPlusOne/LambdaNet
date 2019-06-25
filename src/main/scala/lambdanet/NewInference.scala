@@ -75,7 +75,16 @@ object NewInference {
       )(embedding: Embedding): Embedding = {
         import cats.implicits._
 
-        val encodeFixedTypes: Map[PType, CompNode] = ???
+        val encodeFixedTypes: Map[PType, CompNode] = {
+          def encodeLeaf(n: PNode) =
+            embedding.getOrElse(n, getVar('libTypeEmbedding / n.symbol) {
+              randomVec()
+            })
+          signatureEmbeddingMap(encodeLeaf, allFixedTypes)
+        }
+
+        def encodeNode(n: PNode): CompNode =
+          embedding.getOrElse(n, encodeSignature(libNodeType(n)))
 
         val messages = batchedMsgModels.toSeq
           .pipe(parallelize)
@@ -84,7 +93,7 @@ object NewInference {
               architecture.calculateMessages(
                 kind,
                 messageModels,
-                embedding,
+                encodeNode,
                 encodeLabel,
                 encodeFixedTypes,
               )
@@ -165,9 +174,13 @@ object NewInference {
     val projectNodes: Set[ProjNode] = graph.nodes.filterNot(_.fromLib)
     val libraryNodes: Set[LibNode] = graph.nodes.filter(_.fromLib)
     val allLibSignatures: Set[PType] = libraryNodes.map(libNodeType)
+    val allFixedTypes: Set[PType] = graph.predicates.flatMap {
+      case FixedToType(_, ty) => Set(ty)
+      case _                  => Set[PType]()
+    }
     val allLabels: Set[Symbol] = {
       val pTypeLabels =
-        (allLibSignatures ++ predictionSpace.allTypes)
+        (allLibSignatures ++ predictionSpace.allTypes ++ allFixedTypes)
           .flatMap(_.allLabels)
       val predicateLabels =
         graph.predicates.flatMap {
@@ -232,6 +245,7 @@ object NewInference {
       graph.predicates.par
         .map(toBatched)
         .fold[BatchedMsgModels](Map())(_ |+| _)
+        .mapValuesNow(_.filterNot(_.allNodesFromLib))
     }
 
     private def parallelize[T](xs: Seq[T]): GenSeq[T] = {
@@ -265,7 +279,17 @@ object NewInference {
     }
   }
 
-  sealed abstract class MessageModel
+  sealed abstract class MessageModel {
+    import MessageModel._
+
+    /** If this is true, then this message model can be discarded */
+    def allNodesFromLib: Boolean = this match {
+      case Single(n)          => n.fromLib
+      case Binary(n1, n2)     => n1.fromLib && n2.fromLib
+      case WithType(n, _)     => n.fromLib
+      case Labeled(n1, n2, _) => n1.fromLib && n2.fromLib
+    }
+  }
 
   private object MessageModel {
 
@@ -304,7 +328,7 @@ object NewInference {
       import MessageModel._
       import cats.implicits._
 
-      val result = kind match {
+      val result0 = kind match {
         case KindSingle(name) =>
           val paired = models
             .asInstanceOf[Vector[Single]]
@@ -352,9 +376,8 @@ object NewInference {
           verticalBatching(inputs, singleLayer(name, _))
       }
 
-      // should have filtered out (or avoided computing) all messages for lib nodes
-      assert(result.keySet.forall(!_.fromLib))
-      result
+      // filter out all messages for lib nodes
+      result0.filterNot(_._1.fromLib)
     }
 
     def encodeFunction(args: Vector[CompNode], to: CompNode): CompNode = {
@@ -369,13 +392,17 @@ object NewInference {
     }
 
     def encodeObject(elements: Vector[(LabelVector, CompNode)]): CompNode = {
-      elements
-        .map {
-          case (v1, v2) => v1.concat(v2, axis = 1)
-        }
-        .pipe(concatN(axis = 0))
-        .pipe(singleLayer('encodeObject, _))
-        .pipe(sum(_, axis = 0))
+      if (elements.isEmpty) {
+        getVar('emptyObject) { randomVec() }
+      } else {
+        elements
+          .map {
+            case (v1, v2) => v1.concat(v2, axis = 1)
+          }
+          .pipe(concatN(axis = 0))
+          .pipe(singleLayer('encodeObject, _))
+          .pipe(sum(_, axis = 0))
+      }
     }
 
     def mergeMessages(

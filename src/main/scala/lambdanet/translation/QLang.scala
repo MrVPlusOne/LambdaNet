@@ -133,8 +133,10 @@ object QLangTranslation {
       .values
       .head
     val qModule = fromPModule(pModule, exports)
-    val unknownNode = PredictionSpace.unknownType.node
-    val mapping = qModule.mapping.updated(unknownNode, Annot.Missing)
+    val unknownTerm = NameDef.unknownDef.term.get
+    val unknownType = NameDef.unknownDef.ty.get
+    val mapping = qModule.mapping ++
+      Map(unknownTerm -> Annot.Missing, unknownType -> Annot.Missing)
 
     (exports, libAllocator, mapping)
   }
@@ -199,7 +201,7 @@ object QLangTranslation {
         val gm = modules.find(_.path == m.path).get
         s"GModule source code:\n ${gm.prettyPrint}"
       } {
-          //todo: move ctx computation upward
+        //todo: move ctx computation upward
         fromPModule(m, baseCtx |+| dExports |+| exports(m.path))
       }
     }
@@ -285,7 +287,9 @@ object QLangTranslation {
                 Right(
                   ObjLiteral(
                     fields
-                      .mapValuesNow(p => asTerm(rec(p, canBeNamespace = false))),
+                      .mapValuesNow(
+                        p => asTerm(rec(p, canBeNamespace = false)),
+                      ),
                   ),
                 )
               case Surface.IfExpr(cond, e1, e2) =>

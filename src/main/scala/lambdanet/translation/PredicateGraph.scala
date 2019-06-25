@@ -5,19 +5,22 @@ import PredicateGraph._
 import funcdiff.SimpleMath
 import lambdanet.translation.ImportsResolution.NameDef
 
-import scala.collection.immutable.HashSet
 import scala.collection.{GenTraversableOnce, mutable}
 
-@SerialVersionUID(2)
-class PredicateGraph(
-    nodes0: Set[PNode],
-    predicates0: Set[TyPredicate],
-) extends Serializable {
-  val nodes: HashSet[PNode] = HashSet(nodes0.toSeq : _*)
-  val predicates: HashSet[TyPredicate] = HashSet(predicates0.toSeq :_*)
-}
+@SerialVersionUID(1)
+case class PredicateGraph(
+    nodes: Set[PNode],
+    predicates: Set[TyPredicate],
+)
 
 object PredicateGraph {
+
+  object PNode{
+    def toTuple(n: PNode): (Int, Option[Symbol], Boolean, Boolean) =
+      (n.id, n.nameOpt, n.isType, n.fromLib)
+    def fromTuple(t: (Int, Option[Symbol], Boolean, Boolean)): PNode =
+      new PNode(t._1, t._2, t._3, t._4)
+  }
 
   @SerialVersionUID(1)
   class PNode(
@@ -29,14 +32,10 @@ object PredicateGraph {
       with Serializable {
     def isTerm: Boolean = !isType
 
-    def showDetails: String = {
-      val parts = nameOpt.map(n => s"{${n.name}}").toList
-      s"𝒯$id${parts.mkString}"
-    }
-
     override def toString: String = {
       val namePart = nameOpt.map(n => s"{${n.name}}").getOrElse("")
-      s"𝒯$id$namePart"
+      val tyPart = if(isType) "[ty]" else ""
+      s"𝒯$tyPart$id$namePart"
     }
 
     override def equals(obj: Any): Boolean = obj match {
