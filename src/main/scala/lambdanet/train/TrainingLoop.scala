@@ -3,29 +3,17 @@ package lambdanet.train
 import lambdanet._
 import java.util.concurrent.ForkJoinPool
 
-import ammonite.ops.Path
+import ammonite.ops.{Path, RelPath}
 import botkop.numsca
-import funcdiff.{
-  CompNode,
-  LayerFactory,
-  Optimizer,
-  Optimizers,
-  ParamCollection,
-  SimpleMath,
-  SymbolPath,
-  TensorExtension,
-  crossEntropyOnSoftmax,
-  mean,
-}
+import funcdiff.{CompNode, LayerFactory, Optimizer, Optimizers, ParamCollection, SimpleMath, SymbolPath, TensorExtension, crossEntropyOnSoftmax, mean}
 import lambdanet.NewInference.Predictor
 import lambdanet.TrainingCenter.Timeouts
-import lambdanet.translation.PredicateGraph.{PNode, PTyVar, PType}
+import lambdanet.translation.PredicateGraph._
 import lambdanet.{PredicateGraphWithCtx, PredictionSpace, printWarning}
 
 import scala.collection.parallel.ForkJoinTaskSupport
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutorService}
 import scala.util.Random
-import Console.{GREEN, RESET}
 
 object TrainingLoop {
 
@@ -67,59 +55,84 @@ object TrainingLoop {
         }
 
       def trainStep(step: Int): Unit = announced(s"trainStep $step") {
-        def analyzeLogits(
-            logits: CompNode,
-            predSpace: PredictionSpace,
-            groundTruths: Vector[PType],
-        ): Double = {
-          val predictions = numsca
-            .argmax(logits.value, axis = 1)
-            .data
-            .map(_.toInt)
-            .toVector
-          val target = groundTruths.map(predSpace.indexOfType)
-          val numCorrect =
-            predictions.zip(target).count { case (x, y) => x == y }
-          numCorrect.toDouble / target.length
-        }
-
         trainSet.foreach { datum =>
           import datum._
+          announced(s"train on $datum") {
 
-          val nodesToPredict = userAnnotations.keys.toVector
-          val predSpace = PredictionSpace(
-            libTypes ++ predictor.projectNodes.collect {
-              case n if n.isType => PTyVar(n)
-            },
-          )
+            val (_, loss, accuracy) = forward(datum)
+            println(resultStr(s"accuracy for $projectName: $accuracy"))
 
-          val logits = announced("run predictor") {
-            predictor
-              .run(dimMessage, layerFactory, nodesToPredict, iterationNum)
-              .result
-          }
-
-          val groundTruths = nodesToPredict.map(userAnnotations)
-          val accuracy = announced("compute training accuracy") {
-            analyzeLogits(logits, predSpace, groundTruths)
-          }
-
-          println(s"${GREEN}accuracy for $projectName: $accuracy$RESET")
-
-          val loss = predictionLoss(logits, predSpace, groundTruths)
-
-          announced("optimization") {
-            optimizer.minimize(
-              loss,
-              pc.allParams, //todo: consider only including the involved
-              backPropInParallel =
-                Some(parallelCtx -> Timeouts.optimizationTimeout),
-            )
+            announced("optimization") {
+              optimizer.minimize(
+                loss,
+                pc.allParams, //todo: consider only including the involved
+                backPropInParallel =
+                  Some(parallelCtx -> Timeouts.optimizationTimeout),
+              )
+            }
           }
         }
       }
 
-      def predictionLoss(
+      def testStep(step: Int): Unit =
+        if (step % 5 == 0) announced("test on dev set") {
+          val (losses, accuracies) = testSet.map { datum =>
+            import datum._
+            announced(s"test on $datum") {
+              val (_, loss, accuracy) = forward(datum)
+              println(resultStr(s"accuracy for $projectName: $accuracy"))
+              loss.value.squeeze() -> accuracy
+            }
+          }.unzip
+          // todo: compute weighted average loss and accuracy
+        }
+
+      type Logits = CompNode
+      type Loss = CompNode
+      type Accuracy = Double
+      private def forward(datum: Datum): (Logits, Loss, Accuracy) = {
+        import datum._
+
+        val nodesToPredict = userAnnotations.keys.toVector
+        val predSpace = PredictionSpace(
+          libTypes ++ predictor.projectNodes.collect {
+            case ProjNode(n) if n.isType => PTyVar(n)
+          },
+        )
+
+        val logits = announced("run predictor") {
+          predictor
+            .run(dimMessage, layerFactory, nodesToPredict, iterationNum)
+            .result
+        }
+
+        val groundTruths = nodesToPredict.map(userAnnotations)
+        val accuracy = announced("compute training accuracy") {
+          analyzeLogits(logits, predSpace, groundTruths)
+        }
+
+        val loss = predictionLoss(logits, predSpace, groundTruths)
+
+        (logits, loss, accuracy)
+      }
+
+      private def analyzeLogits(
+          logits: CompNode,
+          predSpace: PredictionSpace,
+          groundTruths: Vector[PType],
+      ): Double = {
+        val predictions = numsca
+          .argmax(logits.value, axis = 1)
+          .data
+          .map(_.toInt)
+          .toVector
+        val target = groundTruths.map(predSpace.indexOfType)
+        val numCorrect =
+          predictions.zip(target).count { case (x, y) => x == y }
+        numCorrect.toDouble / target.length
+      }
+
+      private def predictionLoss(
           logits: CompNode,
           predSpace: PredictionSpace,
           groundTruths: Vector[PType],
@@ -135,11 +148,6 @@ object TrainingLoop {
         }
         loss
       }
-
-      def testStep(step: Int): Unit =
-        if (step % 10 == 0) announced("test") {
-          println("Test not implemented yet...")
-        }
     }
 
     val forkJoinPool = new ForkJoinPool(numOfThreads)
@@ -151,14 +159,14 @@ object TrainingLoop {
       import PrepareRepos._
 
       val ParsedRepos(libDefs, projects) =
-        announced("parsePredGraphs")(parsePredGraphs())
+        announced("parsePredGraphs")(parseRepos())
 //        announced(s"read data set from file: $dataSetPath") {
 //          SimpleMath.readObjectFromFile[ParsedRepos](dataSetPath.toIO)
 //        }
 
-      def libNodeType(n: PNode) =
+      def libNodeType(n: LibNode) =
         libDefs
-          .nodeMapping(n)
+          .nodeMapping(n.n)
           .typeOpt
           .getOrElse(PredictionSpace.unknownType)
 
@@ -183,7 +191,7 @@ object TrainingLoop {
         }
 
       val totalNum = data.length
-      val trainSetNum = (totalNum * 0.8).toInt
+      val trainSetNum = totalNum - (totalNum * 0.2).toInt
       DataSet(data.take(trainSetNum), data.drop(trainSetNum), libraryTypes)
     }
 
@@ -239,9 +247,14 @@ object TrainingLoop {
 
   case class Datum(
       projectName: ProjectPath,
-      userAnnotations: Map[PNode, PType],
+      userAnnotations: Map[ProjNode, PType],
       predictor: Predictor,
-  )
+  ){
+    override def toString: String = {
+      s"{name: $projectName, annotations: ${userAnnotations.size}, " +
+        s"predicates: ${predictor.graph.predicates.size}"
+    }
+  }
 
   case class DataSet(
       trainSet: Vector[Datum],

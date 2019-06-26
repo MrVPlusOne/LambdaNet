@@ -4,7 +4,7 @@ import ammonite.ops._
 import funcdiff.SimpleMath
 import lambdanet.translation.ImportsResolution.{ErrorHandler, ModuleExports}
 import lambdanet.translation.{IRTranslation, ImportsResolution, PAnnot, PLangTranslation, PredicateGraph, PredicateGraphTranslation, QLangTranslation}
-import lambdanet.translation.PredicateGraph.{PNode, PNodeAllocator, PType}
+import lambdanet.translation.PredicateGraph.{PNode, PNodeAllocator, PType, ProjNode}
 import lambdanet.utils.{ProgramParsing, Serialization}
 import lambdanet.utils.ProgramParsing.GProject
 @SerialVersionUID(2)
@@ -20,9 +20,9 @@ object PrepareRepos {
   val dataSetPath: Path = pwd / "results" / "predicateGraphs.serialized"
 
   def main(args: Array[String]): Unit = {
-    val parsed = announced("parsePredGraphs")(parsePredGraphs())
+    val parsed = announced("parsePredGraphs")(parseRepos())
     val stats = repoStatistics(parsed.graphs)
-    println(result(stats.headers.zip(stats.average).toString()))
+    println(resultStr(stats.headers.zip(stats.average).toString()))
 
     //todo: implement serialization
 //    import boopickle.Default._
@@ -46,13 +46,18 @@ object PrepareRepos {
   @SerialVersionUID(0)
   case class ParsedRepos(
       libDefs: LibDefs,
-      graphs: Vector[(ProjectPath, PredicateGraph, List[(PNode, PType)])],
+      graphs: Vector[(ProjectPath, PredicateGraph, List[(ProjNode, PType)])],
   )
 
-  def parsePredGraphs(): ParsedRepos = {
+  def parseRepos(): ParsedRepos = {
+
+    /** Only projects for which this predicate returns true will be parsed */
+    def filter(path: Path): Boolean = {
+      path.last == "typestack"
+    }
 
     /** set to true to load declarations from the serialization file */
-    val loadFromFile = true
+    val loadFromFile = false
 
     val libDefsFile = pwd / up / "lambda-repos" / "libDefs.serialized"
 
@@ -74,7 +79,7 @@ object PrepareRepos {
 
     val graphs = (ls ! projectsDir).par
       .collect {
-        case f if f.isDir =>
+        case f if f.isDir && filter(f) =>
           val p = prepareProject(libDefs, f).copy()
           p.copy(_1 = p._1.relativeTo(projectsDir))
       }
@@ -97,7 +102,7 @@ object PrepareRepos {
   }
 
   def repoStatistics(
-      results: Seq[(ProjectPath, PredicateGraph, List[(PNode, PType)])],
+      results: Seq[(ProjectPath, PredicateGraph, List[(ProjNode, PType)])],
   ): RepoStats = {
     val rows = results
       .map {
@@ -223,9 +228,12 @@ object PrepareRepos {
         .map(irTranslator.fromQModule)
       val allAnnots = irModules.flatMap(_.mapping).toMap
       val fixedAnnots = allAnnots.collect { case (n, Annot.Fixed(t)) => n -> t }
-      val userAnnots = allAnnots.collect { case (n, Annot.User(t))   => n -> t }
+      val userAnnots = allAnnots.collect {
+        case (n, Annot.User(t)) => ProjNode(n) -> t
+      }
 
-      val graph = PredicateGraphTranslation.fromIRModules(fixedAnnots, irModules)
+      val graph =
+        PredicateGraphTranslation.fromIRModules(fixedAnnots, irModules)
 
       errorHandler.warnErrors()
       println(s"Project parsed: '$root'")

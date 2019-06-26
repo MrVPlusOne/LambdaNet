@@ -103,8 +103,6 @@ object ImportsResolution {
         None,
       )
     }
-
-    // fixme: handle type mapping
     val unknownDef: NameDef = {
       val libAllocator = new PNodeAllocator(forLib = true)
       libAllocator.unknownDef

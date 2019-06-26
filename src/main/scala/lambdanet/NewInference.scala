@@ -2,6 +2,8 @@ package lambdanet
 
 import botkop.numsca
 import botkop.numsca.Tensor
+import lambdanet.translation.ImportsResolution.NameDef
+import lambdanet.translation.ImportsResolution.NameDef.unknownDef
 
 import scala.language.implicitConversions
 
@@ -15,10 +17,6 @@ object NewInference {
   import scala.collection.parallel.ForkJoinTaskSupport
   import cats.data.Chain
 
-  type ProjNode = PNode
-  type LibNode = PNode
-  type LibTypeNode = PNode
-  type LibTermNode = PNode
 
   /** [[Predictor]] pre-computes a neural network sketch for the
     * given [[PredicateGraph]] and can be reused across multiple
@@ -34,7 +32,7 @@ object NewInference {
     case class run(
         dimMessage: Int,
         layerFactory: LayerFactory,
-        nodesToPredict: Vector[PNode],
+        nodesToPredict: Vector[ProjNode],
         iterations: Int,
     ) {
       import layerFactory._
@@ -52,7 +50,7 @@ object NewInference {
           projectNodes.map(_ -> vec).toMap
         }
 
-        val embeddings = Vector
+        val embedding = Vector
           .iterate(initEmbedding, iterations + 1)(
             updateEmbedding(libSignatureEmbeddings),
           )
@@ -60,12 +58,12 @@ object NewInference {
 
         val allSignatureEmbeddings = {
           def encodeLeaf(n: PNode) =
-            embeddings.getOrElse(n, {
-              getVar('libTypeEmbedding / n.symbol) { randomVec() }
-            })
+            if (n.fromProject) embedding(ProjNode(n))
+            else getVar('libTypeEmbedding / n.symbol) { randomVec() }
+
           signatureEmbeddingMap(encodeLeaf, predictionSpace.allTypes)
         }
-        decode(embeddings, allSignatureEmbeddings)
+        decode(embedding, allSignatureEmbeddings)
       }
 
       val architecture = NNArchitecture(dimMessage, layerFactory)
@@ -77,14 +75,14 @@ object NewInference {
 
         val encodeFixedTypes: Map[PType, CompNode] = {
           def encodeLeaf(n: PNode) =
-            embedding.getOrElse(n, getVar('libTypeEmbedding / n.symbol) {
-              randomVec()
-            })
+            if (n.fromProject) embedding(ProjNode(n))
+            else getVar('libTypeEmbedding / n.symbol) { randomVec() }
           signatureEmbeddingMap(encodeLeaf, allFixedTypes)
         }
 
         def encodeNode(n: PNode): CompNode =
-          embedding.getOrElse(n, encodeSignature(libNodeType(n)))
+          if (n.fromProject) embedding(ProjNode(n))
+          else encodeSignature(libNodeType(LibNode(n)))
 
         val messages = batchedMsgModels.toSeq
           .pipe(parallelize)
@@ -171,8 +169,10 @@ object NewInference {
 
     }
 
-    val projectNodes: Set[ProjNode] = graph.nodes.filterNot(_.fromLib)
-    val libraryNodes: Set[LibNode] = graph.nodes.filter(_.fromLib)
+    val projectNodes: Set[ProjNode] =
+      graph.nodes.filter(_.fromProject).map(ProjNode)
+    val libraryNodes: Set[LibNode] =
+      graph.nodes.filter(_.fromLib).map(LibNode) ++ unknownNodes
     val allLibSignatures: Set[PType] = libraryNodes.map(libNodeType)
     val allFixedTypes: Set[PType] = graph.predicates.flatMap {
       case FixedToType(_, ty) => Set(ty)
@@ -197,7 +197,7 @@ object NewInference {
       import MessageKind._
 
       def mutual(name: String, p1: PNode, p2: PNode): BatchedMsgModels =
-        Map(KindSingle(name) -> Vector(Binary(p1, p2)))
+        Map(KindBinary(name) -> Vector(Binary(p1, p2)))
 
       def toBatched(pred: TyPredicate): BatchedMsgModels = pred match {
         case UsedAsBool(n) =>
@@ -377,7 +377,9 @@ object NewInference {
       }
 
       // filter out all messages for lib nodes
-      result0.filterNot(_._1.fromLib)
+      result0.collect {
+        case (k, v) if k.fromProject => ProjNode(k) -> v
+      }
     }
 
     def encodeFunction(args: Vector[CompNode], to: CompNode): CompNode = {
@@ -407,7 +409,7 @@ object NewInference {
 
     def mergeMessages(
         messages: Map[ProjNode, Chain[Message]],
-        embedding: PNode => CompNode,
+        embedding: ProjNode => CompNode,
     ): Map[ProjNode, Message] = {
       messages.map {
         case (n, ms) =>
@@ -429,11 +431,11 @@ object NewInference {
 
       val inputs = embedding.toVector.map {
         case (k, v) =>
-          k -> v.concat(messages(k), axis = 1)
+          k -> v.concat(messages.getOrElse(k, emptyMessage), axis = 1)
       }
       verticalBatching(inputs, stacked => {
         val old = stacked.slice(:>, 0 :> dimMessage)
-        val msg = stacked.slice(dimMessage :> 2 * dimMessage)
+        val msg = stacked.slice(:>, dimMessage :> 2 * dimMessage)
         gru('updateEmbedding)(old, msg)
       }).mapValuesNow { chain =>
         val Vector(x) = chain.toVector
@@ -441,11 +443,13 @@ object NewInference {
       }
     }
 
+    private val emptyMessage = getVar('emptyMessage) { randomVec() }
+
     /** stack inputs vertically (axis=0) for batching */
-    private def verticalBatching(
-        inputs: Vector[(PNode, CompNode)],
+    private def verticalBatching[K](
+        inputs: Vector[(K, CompNode)],
         transformation: CompNode => CompNode,
-    ): Map[PNode, Chain[CompNode]] = {
+    ): Map[K, Chain[CompNode]] = {
       import numsca.:>
       import cats.implicits._
 
@@ -483,6 +487,8 @@ object NewInference {
     }
 
   }
+
+  val unknownNodes: Set[LibNode] = Set(LibNode(unknownDef.term.get), LibNode(unknownDef.ty.get))
 
   private implicit def toPath(str: String): SymbolPath = {
     SymbolPath.empty / Symbol(str)

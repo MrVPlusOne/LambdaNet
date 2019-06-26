@@ -32,6 +32,8 @@ object PredicateGraph {
       with Serializable {
     def isTerm: Boolean = !isType
 
+    def fromProject: Boolean = !fromLib
+
     override def toString: String = {
       val namePart = nameOpt.map(n => s"{${n.name}}").getOrElse("")
       val tyPart = if(isType) "[ty]" else ""
@@ -70,16 +72,33 @@ object PredicateGraph {
     }
   }
 
+  case class ProjNode(n: PNode) {
+    assert(n.fromProject, s"$n should be project node")
+  }
+  case class LibNode(n: PNode) {
+    assert(n.fromLib, s"$n should be library node")
+  }
+  case class LibTermNode(n: LibNode) {
+    assert(n.n.isTerm, s"$n should be LibTermNode")
+  }
+  case class LibTypeNode(n: LibNode) {
+    assert(n.n.isType, s"$n should be LibTypeNode")
+  }
+
   sealed trait PType {
     val madeFromLibTypes: Boolean
 
     def allLabels: Set[Symbol]
+
+    def allNodes: Set[PNode]
   }
 
   case object PAny extends PType {
     val madeFromLibTypes = true
 
     val allLabels: Set[Symbol] = Set()
+
+    val allNodes: Set[PNode] = Set()
   }
 
   case class PTyVar(node: PNode) extends PType {
@@ -88,23 +107,28 @@ object PredicateGraph {
     val madeFromLibTypes: Boolean = node.fromLib
 
     def allLabels: Set[Symbol] = Set()
+
+    def allNodes: Set[PNode] = Set(node)
   }
 
   case class PFuncType(args: Vector[PType], to: PType) extends PType {
     val madeFromLibTypes: Boolean =
       args.forall(_.madeFromLibTypes) && to.madeFromLibTypes
 
-    lazy val allLabels: Set[Symbol] =
-      to.allLabels ++ args.toSet.flatMap((x: PType) => x.allLabels)
+    def allLabels: Set[Symbol] =
+      to.allLabels ++ args.toSet.flatMap((_: PType).allLabels)
 
+    def allNodes: Set[PNode] = to.allNodes ++ args.flatMap((_: PType).allNodes)
   }
 
   case class PObjectType(fields: Map[Symbol, PType]) extends PType {
     val madeFromLibTypes: Boolean = fields.forall(_._2.madeFromLibTypes)
 
-    lazy val allLabels: Set[Symbol] = {
+    def allLabels: Set[Symbol] = {
       fields.keySet ++ fields.values.toSet.flatMap((x: PType) => x.allLabels)
     }
+
+    def allNodes: Set[PNode] = fields.values.toSet.flatMap((_: PType).allNodes)
   }
 
   @SerialVersionUID(0)
@@ -113,7 +137,7 @@ object PredicateGraph {
   }
 
   case class FixedToType(n: PNode, ty: PType) extends TyPredicate {
-    val allNodes: Set[PNode] = Set(n)
+    val allNodes: Set[PNode] = Set(n) ++ ty.allNodes
   }
 
   case class SubtypeRel(sub: PNode, sup: PNode) extends TyPredicate {
@@ -270,7 +294,7 @@ object PredicateGraphTranslation {
     val predSet = predicates.toSet
     val allNodes = totalMapping.keySet ++ predSet.flatMap(_.allNodes)
 
-    new PredicateGraph(
+    PredicateGraph(
       allNodes,
       predSet,
     )
