@@ -3,12 +3,27 @@ package lambdanet.train
 import lambdanet._
 import java.util.concurrent.ForkJoinPool
 
-import ammonite.ops.{Path, RelPath}
+import ammonite.ops.{Path}
 import botkop.numsca
-import funcdiff.{CompNode, DebugTime, LayerFactory, Optimizer, Optimizers, ParamCollection, SimpleMath, SymbolPath, TensorExtension, crossEntropyOnSoftmax, mean}
+import botkop.numsca.Tensor
+import funcdiff.{
+  CompNode,
+  DebugTime,
+  LayerFactory,
+  Optimizer,
+  Optimizers,
+  ParamCollection,
+  SimpleMath,
+  SymbolPath,
+  TensorExtension,
+  crossEntropyOnSoftmax,
+  mean,
+}
 import lambdanet.NewInference.Predictor
 import lambdanet.TrainingCenter.Timeouts
 import lambdanet.translation.PredicateGraph._
+import lambdanet.utils.EventLogger
+import lambdanet.utils.EventLogger.PlotConfig
 import lambdanet.{PredicateGraphWithCtx, PredictionSpace, printWarning}
 
 import scala.collection.parallel.ForkJoinTaskSupport
@@ -37,6 +52,7 @@ object TrainingLoop {
       trainOnProjects(dataSet, trainingState)
     }
 
+    //noinspection TypeAnnotation
     case class trainOnProjects(
         dataSet: DataSet,
         trainingState: TrainingState,
@@ -45,55 +61,63 @@ object TrainingLoop {
       import dataSet._
       import trainingState._
 
+      val logger: EventLogger = mkEventLogger()
       val layerFactory =
         new LayerFactory(SymbolPath.empty / Symbol("TrainingLoop"), pc)
 
       (trainingState.step + 1 to maxTrainingSteps)
-        .foreach { step =>
-          trainStep(step)
-          testStep(step)
-        }
-
-      def trainStep(step: Int): Unit = announced(s"trainStep $step") {
-        trainSet.foreach { datum =>
-          announced(s"train on $datum") {
-
-            val (_, loss, accuracy) = forward(datum)
-
-            println{DebugTime.show}
-
-            println(resultStr(s"loss: ${loss.value.squeeze()}"))
-            println(resultStr(s"accuracy: $accuracy"))
-
-            announced("optimization") {
-              optimizer.minimize(
-                loss,
-                pc.allParams, //todo: consider only including the involved
-                backPropInParallel =
-                  Some(parallelCtx -> Timeouts.optimizationTimeout),
-              )
-            }
+        .foreach { epoch =>
+          announced(s"epoch $epoch") {
+            trainStep(epoch)
+            testStep(epoch)
           }
         }
+
+      val stepsPerEpoch = trainSet.length max testSet.length
+
+      def trainStep(epoch: Int): Unit = {
+        trainSet.zipWithIndex.foreach {
+          case (datum, i) =>
+            announced(s"train on $datum") {
+              val (loss, (libAcc, projAcc)) = forward(datum)
+
+              val step = epoch * stepsPerEpoch + i
+              logger.log("loss", step, loss.value)
+              logger.log("libAcc", step, Tensor(libAcc))
+              logger.log("projAcc", step, Tensor(projAcc))
+
+              announced("optimization") {
+                optimizer.minimize(
+                  loss,
+                  pc.allParams, //todo: consider only including the involved
+                  backPropInParallel =
+                    Some(parallelCtx -> Timeouts.optimizationTimeout),
+                )
+              }
+            }
+        }
+        println(DebugTime.show)
       }
 
-      def testStep(step: Int): Unit =
+      def testStep(epoch: Int): Unit =
         if (step % 5 == 0) announced("test on dev set") {
-          val (losses, accuracies) = testSet.map { datum =>
-            import datum._
+          val step = epoch * stepsPerEpoch
+          testSet.foreach { datum =>
             announced(s"test on $datum") {
-              val (_, loss, accuracy) = forward(datum)
-              println(resultStr(s"accuracy for $projectName: $accuracy"))
-              loss.value.squeeze() -> accuracy
+              val (loss, (libAcc, projAcc)) = forward(datum)
+              logger.log("loss", step, loss.value)
+              logger.log("libAcc", step, Tensor(libAcc))
+              logger.log("projAcc", step, Tensor(projAcc))
             }
-          }.unzip
+          }
           // todo: compute weighted average loss and accuracy
         }
 
       type Logits = CompNode
       type Loss = CompNode
-      type Accuracy = Double
-      private def forward(datum: Datum): (Logits, Loss, Accuracy) = {
+      type LibAccuracy = Double
+      type ProjAccuracy = Double
+      private def forward(datum: Datum): (Loss, (LibAccuracy, ProjAccuracy)) = {
         import datum._
 
         val nodesToPredict = userAnnotations.keys.toVector
@@ -110,29 +134,46 @@ object TrainingLoop {
         }
 
         val groundTruths = nodesToPredict.map(userAnnotations)
-        val accuracy = announced("compute training accuracy") {
-          analyzeLogits(logits, predSpace, groundTruths)
+        val accuracies = announced("compute training accuracy") {
+          analyzeLogits(
+            logits,
+            predSpace,
+            groundTruths,
+            groundTruths.map(_.madeFromLibTypes),
+          )
         }
 
         val loss = predictionLoss(logits, predSpace, groundTruths)
 
-        (logits, loss, accuracy)
+        (loss, accuracies)
       }
 
       private def analyzeLogits(
           logits: CompNode,
           predSpace: PredictionSpace,
           groundTruths: Vector[PType],
-      ): Double = {
+          isFromLibrary: Vector[Boolean],
+      ): (LibAccuracy, ProjAccuracy) = {
         val predictions = numsca
           .argmax(logits.value, axis = 1)
           .data
           .map(_.toInt)
           .toVector
         val target = groundTruths.map(predSpace.indexOfType)
-        val numCorrect =
-          predictions.zip(target).count { case (x, y) => x == y }
-        numCorrect.toDouble / target.length
+        val zipped = isFromLibrary.zip(predictions.zip(target))
+        val libCorrect = zipped.collect {
+          case (true, (x, y)) if x == y => ()
+        }.length
+        val projCorrect = zipped.collect {
+          case (false, (x, y)) if x == y => ()
+        }.length
+        val numLib = isFromLibrary.count(identity)
+        val numProj = isFromLibrary.count(!_)
+
+        def safeDiv(a: Int, b: Int): Double =
+          if (b == 0) 0.0 else a.toDouble / b
+
+        (safeDiv(libCorrect, numLib), safeDiv(projCorrect, numProj))
       }
 
       private def predictionLoss(
@@ -252,7 +293,7 @@ object TrainingLoop {
       projectName: ProjectPath,
       userAnnotations: Map[ProjNode, PType],
       predictor: Predictor,
-  ){
+  ) {
     override def toString: String = {
       s"{name: $projectName, annotations: ${userAnnotations.size}, " +
         s"predicates: ${predictor.graph.predicates.size}}"
@@ -288,5 +329,27 @@ object TrainingLoop {
           ),
         )
     }
+
+  def mkEventLogger() = {
+    import ammonite.ops._
+    new EventLogger(
+      pwd / "running-result" / "log.txt",
+      printToConsole = true,
+      overrideMode = true,
+      configs = Seq(
+//        "embedding-changes" -> PlotConfig("ImageSize->Medium"),
+        //          "embedding-max-length" -> PlotConfig("ImageSize->Medium"),
+        "loss" -> PlotConfig("ImageSize->Medium"),
+        "libAcc" -> PlotConfig("ImageSize->Medium"),
+        "projAcc" -> PlotConfig("ImageSize->Medium"),
+        "iteration-time" -> PlotConfig(
+          "ImageSize->Small",
+          """AxesLabel->{"step","s"}""",
+        ),
+        "test-libAcc" -> PlotConfig("ImageSize->Medium"),
+        "test-projAcc" -> PlotConfig("ImageSize->Medium"),
+      ),
+    )
+  }
 
 }

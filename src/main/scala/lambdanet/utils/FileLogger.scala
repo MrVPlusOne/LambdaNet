@@ -1,5 +1,6 @@
 package lambdanet.utils
 
+import lambdanet._
 import ammonite.ops._
 import botkop.numsca.Tensor
 import funcdiff.TensorExtension
@@ -75,7 +76,7 @@ class EventLogger(
       s"""{"$name", $iteration, ${TensorExtension.mamFormat(value)}}""",
     )
     if (printToConsole) {
-      println(s"[$iteration]$name: $value")
+      println(resultStr(s"[$iteration]$name: $value"))
     }
     if (!names.contains(name)) {
       System.err.println(
