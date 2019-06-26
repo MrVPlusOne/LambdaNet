@@ -38,7 +38,7 @@ object TrainingCenter {
 
   val iterationNum = 1
 
-  val numOfThreads: Int = Runtime.getRuntime.availableProcessors()
+  val numOfThreads: Int = 1 // todo: Runtime.getRuntime.availableProcessors()
   val forkJoinPool = new ForkJoinPool(numOfThreads)
   val taskSupport: ForkJoinTaskSupport = new ForkJoinTaskSupport(forkJoinPool)
   val parallelCtx: ExecutionContextExecutorService =

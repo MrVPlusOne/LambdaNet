@@ -17,7 +17,6 @@ object NewInference {
   import scala.collection.parallel.ForkJoinTaskSupport
   import cats.data.Chain
 
-
   /** [[Predictor]] pre-computes a neural network sketch for the
     * given [[PredicateGraph]] and can be reused across multiple
     * training steps. The actual forward propagation only happens
@@ -39,10 +38,24 @@ object NewInference {
       import architecture.randomVec
 
       def result: CompNode = {
-        val libSignatureEmbeddings = {
+        val libTypeEmbedding = {
           def encodeLeaf(n: PNode) =
-            getVar('libTypeEmbedding / n.symbol) { randomVec() }
-          signatureEmbeddingMap(encodeLeaf, allLibSignatures)
+            getVar('libType / n.symbol) { randomVec() }
+
+          signatureEmbeddingMap(encodeLeaf, allLibSignatures) ++
+            libraryNodes
+              .filter(_.n.isType)
+              .map(n => PTyVar(n.n) -> encodeLeaf(n.n))
+        }
+        val libTermEmbedding = {
+          libraryNodes
+            .filter(_.n.isTerm)
+            .map { n =>
+              val v1 = getVar("libNode" / n.n.symbol) { randomVec() }
+              val v2 = libTypeEmbedding(libNodeType(n))
+              LibTermNode(n) -> architecture.encodeLibTerm(v1, v2)
+            }
+            .toMap
         }
 
         val initEmbedding: Embedding = {
@@ -50,9 +63,15 @@ object NewInference {
           projectNodes.map(_ -> vec).toMap
         }
 
+        def encodeLibNode(n: LibNode): CompNode = {
+          assert(graph.nodes.contains(n.n))
+          if (n.n.isType) libTypeEmbedding(PTyVar(n.n))
+          else libTermEmbedding(LibTermNode(n))
+        }
+
         val embedding = Vector
           .iterate(initEmbedding, iterations + 1)(
-            updateEmbedding(libSignatureEmbeddings),
+            updateEmbedding(encodeLibNode),
           )
           .last
 
@@ -69,7 +88,7 @@ object NewInference {
       val architecture = NNArchitecture(dimMessage, layerFactory)
 
       private def updateEmbedding(
-          encodeSignature: PType => CompNode,
+          encodeLibNode: LibNode => CompNode,
       )(embedding: Embedding): Embedding = {
         import cats.implicits._
 
@@ -82,7 +101,7 @@ object NewInference {
 
         def encodeNode(n: PNode): CompNode =
           if (n.fromProject) embedding(ProjNode(n))
-          else encodeSignature(libNodeType(LibNode(n)))
+          else encodeLibNode(LibNode(n))
 
         val messages = batchedMsgModels.toSeq
           .pipe(parallelize)
@@ -221,6 +240,8 @@ object NewInference {
               }
               Map(KindLabeled("defineFunc", LabelType.Position) -> msgs)
             case PCall(f, args) =>
+              assert(graph.nodes.contains(f))
+              assert(args.forall(graph.nodes.contains))
               // todo: reason about generics
               val fArgMsgs = args.zipWithIndex.map {
                 case (a, i) => Labeled(f, a, Label.Position(i))
@@ -309,7 +330,6 @@ object NewInference {
   }
 
   case class NNArchitecture(dimMessage: Int, layerFactory: LayerFactory) {
-
     import layerFactory._
 
     private val normalizeFactor = 0.1 / math.sqrt(dimMessage)
@@ -407,6 +427,10 @@ object NewInference {
       }
     }
 
+    def encodeLibTerm(experience: CompNode, signature: CompNode): CompNode = {
+      singleLayer('encodeLibTerm, experience.concat(signature, axis = 1))
+    }
+
     def mergeMessages(
         messages: Map[ProjNode, Chain[Message]],
         embedding: ProjNode => CompNode,
@@ -488,7 +512,8 @@ object NewInference {
 
   }
 
-  val unknownNodes: Set[LibNode] = Set(LibNode(unknownDef.term.get), LibNode(unknownDef.ty.get))
+  val unknownNodes: Set[LibNode] =
+    Set(LibNode(unknownDef.term.get), LibNode(unknownDef.ty.get))
 
   private implicit def toPath(str: String): SymbolPath = {
     SymbolPath.empty / Symbol(str)

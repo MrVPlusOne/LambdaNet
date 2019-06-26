@@ -42,12 +42,12 @@ object PredicateGraph {
 
     override def equals(obj: Any): Boolean = obj match {
       case p: PNode =>
-        (id, isType) == (p.id, p.isType)
+        (id, fromLib) == (p.id, p.fromLib)
       case _ => false
     }
 
     override def hashCode(): Int = {
-      (id, isType).hashCode()
+      (id, fromLib).hashCode()
     }
 
     def allNodes: Set[PNode] = Set(this)

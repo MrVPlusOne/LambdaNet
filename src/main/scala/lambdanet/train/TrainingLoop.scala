@@ -252,7 +252,7 @@ object TrainingLoop {
   ){
     override def toString: String = {
       s"{name: $projectName, annotations: ${userAnnotations.size}, " +
-        s"predicates: ${predictor.graph.predicates.size}"
+        s"predicates: ${predictor.graph.predicates.size}}"
     }
   }
 

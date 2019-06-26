@@ -52,12 +52,10 @@ object PrepareRepos {
   def parseRepos(): ParsedRepos = {
 
     /** Only projects for which this predicate returns true will be parsed */
-    def filter(path: Path): Boolean = {
-      path.last == "typestack"
-    }
+    def filter(path: Path): Boolean = true
 
     /** set to true to load declarations from the serialization file */
-    val loadFromFile = false
+    val loadFromFile = true
 
     val libDefsFile = pwd / up / "lambda-repos" / "libDefs.serialized"
 
