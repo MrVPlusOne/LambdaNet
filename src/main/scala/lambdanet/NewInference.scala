@@ -1,5 +1,7 @@
 package lambdanet
 
+import cats.data.Chain
+
 import scala.language.implicitConversions
 
 object NewInference {
@@ -13,10 +15,9 @@ object NewInference {
   import translation.ImportsResolution.NameDef.unknownDef
   import DebugTime.logTime
 
-  /** [[Predictor]] pre-computes a neural network sketch for the
-    * given [[PredicateGraph]] and can be reused across multiple
-    * training steps. The actual forward propagation only happens
-    * in [[run]]. */
+  /** Pre-computes a (batched) neural network sketch reusable
+    * across multiple training steps for the given [[PredicateGraph]].
+    * The actual forward propagation only happens in [[run]]. */
   case class Predictor(
       graph: PredicateGraph,
       libNodeType: LibNode => PType,
@@ -30,14 +31,15 @@ object NewInference {
         iterations: Int,
     ) {
       import layerFactory._
-      import architecture.randomVec
 
+      val architecture = NNArchitecture(dimMessage, layerFactory)
+      import architecture.{Embedding, randomVec}
+
+      /** returns softmax logits */
       def result: CompNode = {
 
-        val initEmbedding: Embedding = {
-          val vec = getVar('nodeInitVec)(randomUnitVec(dimMessage))
-          projectNodes.map(_ -> vec).toMap
-        }
+        val initEmbedding: Embedding =
+          architecture.initialEmbedding(projectNodes)
 
         val encodeLibNode = logTime("encodeLibNode") {
           computeLibNodeEncoding()
@@ -55,7 +57,7 @@ object NewInference {
           def encodeLeaf(n: PNode) =
             if (n.fromProject) embedding(ProjNode(n))
             else getVar('libTypeEmbedding / n.symbol) { randomVec() }
-
+          // encode all types from the prediction space
           signatureEmbeddingMap(encodeLeaf, predictionSpace.allTypes)
         }
         logTime("decode") {
@@ -63,14 +65,11 @@ object NewInference {
         }
       }
 
-      val architecture = NNArchitecture(dimMessage, layerFactory)
-
       private def computeLibNodeEncoding(): LibNode => CompNode = {
         val libTypeEmbedding = {
+          // todo: better encoding? (like using object label set)
           def encodeLeaf(n: PNode) =
-            getVar('libType / n.symbol) {
-              randomVec()
-            }
+            getVar('libType / n.symbol) { randomVec() }
 
           signatureEmbeddingMap(encodeLeaf, allLibSignatures) ++
             libraryNodes
@@ -81,9 +80,7 @@ object NewInference {
           libraryNodes
             .filter(_.n.isTerm)
             .map { n =>
-              val v1 = getVar('libNode / n.n.symbol) {
-                randomVec()
-              }
+              val v1 = getVar('libNode / n.n.symbol) { randomVec() }
               val v2 = libTypeEmbedding(libNodeType(n))
               LibTermNode(n) -> architecture.encodeLibTerm(v1, v2)
             }
@@ -102,33 +99,34 @@ object NewInference {
       )(embedding: Embedding): Embedding = {
         import cats.implicits._
 
-        val encodeFixedTypes: Map[PType, CompNode] =
-          logTime("encodeFixedTypes") {
-            def encodeLeaf(n: PNode) =
-              if (n.fromProject) embedding(ProjNode(n))
-              else getVar('libTypeEmbedding / n.symbol) { randomVec() }
-            signatureEmbeddingMap(encodeLeaf, allFixedTypes)
-          }
-
-        def encodeNode(n: PNode): CompNode =
-          if (n.fromProject) embedding(ProjNode(n))
-          else encodeLibNode(LibNode(n))
-
-        val messages = logTime("compute messages") {
-          batchedMsgModels.toSeq
-            .pipe(parallelize)
-            .map {
-              case (kind, messageModels) =>
-                architecture.calculateMessages(
-                  kind,
-                  messageModels,
-                  encodeNode,
-                  encodeLabel,
-                  encodeFixedTypes,
-                )
-            }
-            .fold(Map())(_ |+| _)
+        // leaves can be project nodes, which change between iterations
+        val encodeFixedTypes = logTime("encodeFixedTypes") {
+          def encodeLeaf(n: PNode) =
+            if (n.fromProject) embedding(ProjNode(n))
+            else getVar('libTypeEmbedding / n.symbol) { randomVec() }
+          signatureEmbeddingMap(encodeLeaf, allFixedTypes)
         }
+
+        val messages: Map[ProjNode, Chain[Message]] =
+          logTime("compute messages") {
+            def encodeNode(n: PNode): CompNode =
+              if (n.fromProject) embedding(ProjNode(n))
+              else encodeLibNode(LibNode(n))
+
+            batchedMsgModels.toSeq
+              .pipe(parallelize)
+              .map {
+                case (kind, messageModels) =>
+                  architecture.calculateMessages(
+                    kind,
+                    messageModels,
+                    encodeNode,
+                    encodeLabel,
+                    encodeFixedTypes,
+                  )
+              }
+              .fold(Map())(_ |+| _)
+          }
 
         val merged: Map[ProjNode, CompNode] = logTime("merge messages") {
           architecture.mergeMessages(messages, embedding)
@@ -153,8 +151,6 @@ object NewInference {
 
         architecture.similarity(inputs, candidates)
       }
-
-      type Embedding = Map[ProjNode, CompNode]
 
       private def signatureEmbeddingMap(
           leafEmbedding: PNode => CompNode,
@@ -247,25 +243,18 @@ object NewInference {
             case n: PNode =>
               mutual("defineEqual", defined, n)
             case PFunc(args, to) =>
-              val nodes = to +: args
-              val msgs = nodes.zipWithIndex.map {
+              val msgs = (to +: args).zipWithIndex.map {
                 case (a, i) => Labeled(defined, a, Label.Position(i - 1))
               }
               Map(KindLabeled("defineFunc", LabelType.Position) -> msgs)
             case PCall(f, args) =>
-              assert(graph.nodes.contains(f))
-              assert(args.forall(graph.nodes.contains))
               // todo: reason about generics
-              val fArgMsgs = args.zipWithIndex.map {
-                case (a, i) => Labeled(f, a, Label.Position(i))
+              val msgs = (defined +: args).zipWithIndex.map {
+                case (a, i) => Labeled(f, a, Label.Position(i - 1))
               }
-              val fDefinedMsg = Vector(Labeled(f, defined, Label.Position(-1)))
-              Map(
-                KindLabeled("defineCall1", LabelType.Position) -> fArgMsgs,
-                KindLabeled("defineCall2", LabelType.Position) -> fDefinedMsg,
-              )
-            //todo: use usage information
+              Map(KindLabeled("defineCall", LabelType.Position) -> msgs)
             case PObject(fields) =>
+              //todo: use usage information
               val msgs = fields.toVector.map {
                 case (l, v) => Labeled(defined, v, Label.Field(l))
               }

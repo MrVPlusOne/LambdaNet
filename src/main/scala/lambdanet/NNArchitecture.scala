@@ -3,6 +3,7 @@ package lambdanet
 import botkop.numsca
 import botkop.numsca.{:>, Tensor}
 import cats.data.Chain
+import funcdiff.TensorExtension.randomUnitVec
 import funcdiff._
 import lambdanet.NewInference.{LabelVector, Message, MessageKind, MessageModel}
 import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
@@ -10,9 +11,16 @@ import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 case class NNArchitecture(dimMessage: Int, layerFactory: LayerFactory) {
   import layerFactory._
 
+  type Embedding = Map[ProjNode, CompNode]
+
   private val normalizeFactor = 0.1 / math.sqrt(dimMessage)
   def randomVec(): Tensor = {
     numsca.randn(1, dimMessage) * normalizeFactor
+  }
+
+  def initialEmbedding(projectNodes: Set[ProjNode]): Embedding = {
+    val vec = getVar('nodeInitVec)(randomUnitVec(dimMessage))
+    projectNodes.map(_ -> vec).toMap
   }
 
   def similarity(
