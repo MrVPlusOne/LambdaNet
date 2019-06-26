@@ -20,7 +20,6 @@ object NewInference {
   case class Predictor(
       graph: PredicateGraph,
       libNodeType: LibNode => PType,
-      predictionSpace: PredictionSpace,
       taskSupport: Option[ForkJoinTaskSupport],
   ) {
 
@@ -206,9 +205,14 @@ object NewInference {
       case FixedToType(_, ty) => Set(ty)
       case _                  => Set[PType]()
     }
+
+    val projectTypes: Set[PTyVar] =
+      projectNodes.filter(n => n.n.isType).map(n => PTyVar(n.n))
+    val predictionSpace = PredictionSpace(allLibSignatures ++ projectTypes)
+
     val allLabels: Set[Symbol] = {
       val pTypeLabels =
-        (allLibSignatures ++ predictionSpace.allTypes ++ allFixedTypes)
+        (predictionSpace.allTypes ++ allFixedTypes)
           .flatMap(_.allLabels)
       val predicateLabels =
         graph.predicates.flatMap {

@@ -10,7 +10,7 @@ object PredictionSpace{
 
 case class PredictionSpace(allTypes: Set[PType]) {
   val typeVector: Vector[PType] = allTypes.toVector
-  val maxIndex: Int = typeVector.length
+  val size: Int = typeVector.size
 
   private val indexMap: Map[PType, Int] = {
     typeVector.zipWithIndex.toMap

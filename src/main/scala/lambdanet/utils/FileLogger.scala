@@ -50,6 +50,7 @@ class EventLogger(
     overrideMode: Boolean,
     configs: Seq[(String, PlotConfig)],
 ) {
+
   if (exists(file) && overrideMode) {
     rm(file)
   }
@@ -69,6 +70,11 @@ class EventLogger(
   def log(name: String, iteration: Int, value: Tensor): Unit = {
     log(Event(name, iteration, value))
   }
+
+  def logOpt(name: String, iteration: Int, value: Option[Double]) = {
+    value.foreach(v => log(name, iteration, Tensor(v)))
+  }
+
 
   def log(event: Event): Unit = {
     import event._
