@@ -370,7 +370,7 @@ object TrainingCenter {
           trainBuilder.encodeDecode()
         }
 
-        DebugTime.logTime('loggingTime) {
+        DebugTime.logTime("loggingTime") {
           note("loggingTime")
           if (iterationNum > 0) {
             val diffs = embeddings
@@ -423,7 +423,7 @@ object TrainingCenter {
         eventLogger.log("loss", step, loss.value)
 
         note("optimization")
-        DebugTime.logTime('optimization) {
+        DebugTime.logTime("optimization") {
           optimizer.minimize(
             loss,
             trainBuilder.factory.paramCollection.allParams,

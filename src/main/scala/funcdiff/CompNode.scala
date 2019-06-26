@@ -177,7 +177,7 @@ object CompNode {
       case (n, i) => n -> new Counter(i)
     }
 
-    val gradients = DebugTime.logTime('gradsInit) {
+    val gradients = DebugTime.logTime("gradsInit") {
       mutable.HashMap(topologicalSort(nodes, Some(childrenCount)).map { n =>
         n -> new GradientHolder(
           new GradientBuilder(ZeroGradient(n.shape), needCopy = false),

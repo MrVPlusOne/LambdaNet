@@ -5,7 +5,7 @@ import java.util.concurrent.ForkJoinPool
 
 import ammonite.ops.{Path, RelPath}
 import botkop.numsca
-import funcdiff.{CompNode, LayerFactory, Optimizer, Optimizers, ParamCollection, SimpleMath, SymbolPath, TensorExtension, crossEntropyOnSoftmax, mean}
+import funcdiff.{CompNode, DebugTime, LayerFactory, Optimizer, Optimizers, ParamCollection, SimpleMath, SymbolPath, TensorExtension, crossEntropyOnSoftmax, mean}
 import lambdanet.NewInference.Predictor
 import lambdanet.TrainingCenter.Timeouts
 import lambdanet.translation.PredicateGraph._
@@ -56,11 +56,14 @@ object TrainingLoop {
 
       def trainStep(step: Int): Unit = announced(s"trainStep $step") {
         trainSet.foreach { datum =>
-          import datum._
           announced(s"train on $datum") {
 
             val (_, loss, accuracy) = forward(datum)
-            println(resultStr(s"accuracy for $projectName: $accuracy"))
+
+            println{DebugTime.show}
+
+            println(resultStr(s"loss: ${loss.value.squeeze()}"))
+            println(resultStr(s"accuracy: $accuracy"))
 
             announced("optimization") {
               optimizer.minimize(

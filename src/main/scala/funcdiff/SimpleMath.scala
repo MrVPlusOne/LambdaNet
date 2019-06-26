@@ -478,9 +478,9 @@ object SimpleMath {
   }
 
   class TimeLogger() {
-    val stat = mutable.HashMap[Symbol, Long]()
+    val stat = mutable.HashMap[String, Long]()
 
-    def logTime[T](name: Symbol)(e: => T): T = {
+    def logTime[T](name: String)(e: => T): T = {
       val (r, time) = measureTime(e)
       stat synchronized {
         val t0 = stat.getOrElse(name, 0L)
@@ -495,7 +495,7 @@ object SimpleMath {
         .reverse
         .map {
           case (name, time) =>
-            s"${name.name}: ${prettyPrintTime(time)}"
+            s"$name: ${prettyPrintTime(time)}"
         }
         .mkString("\n")
     }
@@ -622,5 +622,12 @@ object SimpleMath {
     } finally {
       ois.close()
     }
+  }
+
+  type Weight = Double
+  def weightedAverage(xs: Seq[(Weight, Double)]): Double = {
+    val top = xs.map{ case (w, x) => w*x}.sum
+    val bot = xs.map(_._1).sum
+    top / bot
   }
 }

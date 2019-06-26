@@ -85,13 +85,13 @@ case class GraphEmbedding(
       decodingCtx: DecodingCtx,
       placesToDecode: IS[IRType],
   ): (CompNode, IS[Embedding]) = {
-    val embeddings = DebugTime.logTime('iterTime) {
+    val embeddings = DebugTime.logTime("iterTime") {
       val stat = EmbeddingStat(graph.nodes.map(_ => 1.0))
       val init = Embedding(graph.nodes.map(n => n -> nodeInitVec).toMap, stat)
       IS.iterate(init, iterations + 1)(iterate)
     }
 
-    val result = DebugTime.logTime('decodingTime) {
+    val result = DebugTime.logTime("decodingTime") {
       decode(decodingCtx, placesToDecode, embeddings.last)
     }
 
