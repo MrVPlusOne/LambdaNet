@@ -122,7 +122,7 @@ case class NNArchitecture(dimMessage: Int, layerFactory: LayerFactory) {
       messages: Map[ProjNode, Chain[Message]],
       embedding: ProjNode => CompNode,
   ): Map[ProjNode, Message] = {
-    messages.map {
+    messages.par.map {
       case (n, ms) =>
         val n1 = embedding(n)
         val values = concatN(axis = 0)(ms.toVector)
@@ -131,7 +131,7 @@ case class NNArchitecture(dimMessage: Int, layerFactory: LayerFactory) {
         //todo: check other kinds of attentions
         val attention = softmax(keys.dot(n1.t).t / dimMessage)
         n -> attention.dot(values)
-    }
+    }.seq
   }
 
   def update(
