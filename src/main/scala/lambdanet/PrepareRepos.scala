@@ -51,8 +51,12 @@ object PrepareRepos {
 
   def parseRepos(): ParsedRepos = {
 
+    var projectsToUse = 5
     /** Only projects for which this predicate returns true will be parsed */
-    def filter(path: Path): Boolean = true
+    def filter(path: Path): Boolean = this synchronized {
+      projectsToUse -= 1
+      projectsToUse >= 0
+    }
 
     /** set to true to load declarations from the serialization file */
     val loadFromFile = true

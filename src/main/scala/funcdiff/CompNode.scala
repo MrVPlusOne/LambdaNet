@@ -10,6 +10,8 @@ import scala.concurrent._
 class CompNode(val func: DiffFunc) {
   def value: Tensor = func.value
 
+  def toDouble: Real = value.squeeze()
+
   def shape: Shape = value.shape
 
   def backprop: Map[CompNode, Gradient] = CompNode.backprop(this)

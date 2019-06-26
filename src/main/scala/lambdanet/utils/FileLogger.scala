@@ -71,6 +71,10 @@ class EventLogger(
     log(Event(name, iteration, value))
   }
 
+  def log(name: String, iteration: Int, value: Double): Unit = {
+    log(Event(name, iteration, Tensor(value)))
+  }
+
   def logOpt(name: String, iteration: Int, value: Option[Double]) = {
     value.foreach(v => log(name, iteration, Tensor(v)))
   }
