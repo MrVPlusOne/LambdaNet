@@ -193,8 +193,10 @@ case class NNArchitecture(dimMessage: Int, layerFactory: LayerFactory) {
         }
       }
     }
-    val maxFunctionArity = 50
-    (-1 to maxFunctionArity).map(i => i -> encodePosition(i)).toMap
+    val maxFunctionArity = 100
+    val map = (-1 to maxFunctionArity).map(i => i -> encodePosition(i)).toMap
+
+    pos: Int => map.getOrElse(pos, encodePosition(pos))
   }
 
 }
