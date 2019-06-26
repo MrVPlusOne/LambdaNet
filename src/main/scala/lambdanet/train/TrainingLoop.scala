@@ -37,13 +37,13 @@ object TrainingLoop {
   def main(args: Array[String]): Unit = {
 
     run(
-      maxTrainingSteps = 1000,
+      maxTrainingEpochs = 100,
       numOfThreads = Runtime.getRuntime.availableProcessors(),
     ).result()
   }
 
   case class run(
-      maxTrainingSteps: Int,
+      maxTrainingEpochs: Int,
       numOfThreads: Int,
   ) {
     def result(): Unit = {
@@ -64,8 +64,9 @@ object TrainingLoop {
       val logger: EventLogger = mkEventLogger()
       val layerFactory =
         new LayerFactory(SymbolPath.empty / Symbol("TrainingLoop"), pc)
+      val stepsPerEpoch = trainSet.length max testSet.length
 
-      (trainingState.step + 1 to maxTrainingSteps)
+      (trainingState.epoch to maxTrainingEpochs)
         .foreach { epoch =>
           announced(s"epoch $epoch") {
             trainStep(epoch)
@@ -73,11 +74,10 @@ object TrainingLoop {
           }
         }
 
-      val stepsPerEpoch = trainSet.length max testSet.length
-
       def trainStep(epoch: Int): Unit = {
         trainSet.zipWithIndex.foreach {
           case (datum, i) =>
+            val startTime = System.nanoTime()
             announced(s"train on $datum") {
               val (loss, (libAcc, projAcc)) = forward(datum)
 
@@ -92,22 +92,26 @@ object TrainingLoop {
                   pc.allParams, //todo: consider only including the involved
                   backPropInParallel =
                     Some(parallelCtx -> Timeouts.optimizationTimeout),
+                  weightDecay = Some(5e-5)
                 )
               }
+
+              val timeInSec = (System.nanoTime() - startTime).toDouble / 1e9
+              logger.log("iter-time", step, Tensor(timeInSec))
             }
         }
         println(DebugTime.show)
       }
 
       def testStep(epoch: Int): Unit =
-        if (step % 5 == 0) announced("test on dev set") {
-          val step = epoch * stepsPerEpoch
-          testSet.foreach { datum =>
+        if (epoch % 5 == 0) announced("test on dev set") {
+          testSet.zipWithIndex.foreach { case (datum, i) =>
+            val step = epoch * stepsPerEpoch + i
             announced(s"test on $datum") {
-              val (loss, (libAcc, projAcc)) = forward(datum)
-              logger.log("loss", step, loss.value)
-              logger.log("libAcc", step, Tensor(libAcc))
-              logger.log("projAcc", step, Tensor(projAcc))
+              val (_, (libAcc, projAcc)) = forward(datum)
+//              logger.log("loss", step, loss.value)
+              logger.log("test-libAcc", step, Tensor(libAcc))
+              logger.log("test-projAcc", step, Tensor(projAcc))
             }
           }
           // todo: compute weighted average loss and accuracy
@@ -245,7 +249,7 @@ object TrainingLoop {
   type TsProject = PredicateGraphWithCtx
 
   case class TrainingState(
-      step: Int,
+      epoch: Int,
       dimMessage: Int,
       iterationNum: Int,
       optimizer: Optimizer,
@@ -254,7 +258,7 @@ object TrainingLoop {
     def saveToFile(file: Path): Unit = {
       val toSave =
         List[(String, Any)](
-          "step" -> step,
+          "epoch" -> epoch,
           "dimMessage" -> dimMessage,
           "iterationNum" -> iterationNum,
           "optimizer" -> optimizer,
@@ -265,7 +269,7 @@ object TrainingLoop {
 
     override def toString: String = {
       s"""TrainingState:
-         |  step: $step
+         |  step: $epoch
          |  dimMessage: $dimMessage
          |  iterationNum: $iterationNum
          |  optimizer: $optimizer,
@@ -306,7 +310,7 @@ object TrainingLoop {
       libTypes: Set[PType],
   )
 
-  val defaultIterationNum = 10
+  val defaultIterationNum = 9
 
   private def loadTrainingState(): TrainingState =
     announced("loadTrainingState") {
@@ -321,9 +325,9 @@ object TrainingLoop {
         }
         .getOrElse(
           TrainingState(
-            step = 0,
+            epoch = 0,
             dimMessage = 64,
-            optimizer = Optimizers.Adam(learningRate = 4e-4),
+            optimizer = Optimizers.Adam(learningRate = 1e-4),
             iterationNum = defaultIterationNum,
             pc = ParamCollection(),
           ),
@@ -342,8 +346,8 @@ object TrainingLoop {
         "loss" -> PlotConfig("ImageSize->Medium"),
         "libAcc" -> PlotConfig("ImageSize->Medium"),
         "projAcc" -> PlotConfig("ImageSize->Medium"),
-        "iteration-time" -> PlotConfig(
-          "ImageSize->Small",
+        "iter-time" -> PlotConfig(
+          "ImageSize->Medium",
           """AxesLabel->{"step","s"}""",
         ),
         "test-libAcc" -> PlotConfig("ImageSize->Medium"),
