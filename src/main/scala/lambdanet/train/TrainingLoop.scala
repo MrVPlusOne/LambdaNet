@@ -80,7 +80,7 @@ object TrainingLoop {
       import dataSet._
       import trainingState._
 
-      def result(): Unit = try {
+      def result(): Unit = {
         (trainingState.epoch + 1 to maxTrainingEpochs)
           .foreach { epoch =>
             announced(s"epoch $epoch") {
@@ -259,7 +259,7 @@ object TrainingLoop {
       @throws[TimeoutException]
       private def limitTime[A](timeLimit: Timeouts.Duration)(f: => A): A = {
         val exec = scala.concurrent.ExecutionContext.global
-        Await(Future(f)(exec), timeLimit)
+        Await.result(Future(f)(exec), timeLimit)
       }
 
       private def saveTraining(step: Int, dirName: String): Unit = {
