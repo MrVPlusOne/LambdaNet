@@ -3,15 +3,7 @@ package lambdanet
 import ammonite.ops._
 import funcdiff.SimpleMath
 import lambdanet.translation.ImportsResolution.{ErrorHandler, ModuleExports}
-import lambdanet.translation.{
-  IRTranslation,
-  ImportsResolution,
-  PAnnot,
-  PLangTranslation,
-  PredicateGraph,
-  PredicateGraphTranslation,
-  QLangTranslation,
-}
+import lambdanet.translation._
 import lambdanet.translation.PredicateGraph.{
   PNode,
   PNodeAllocator,
@@ -63,7 +55,7 @@ object PrepareRepos {
 
   def parseRepos(): ParsedRepos = {
 
-    var projectsToUse = 5
+    var projectsToUse = 2
 
     /** Only projects for which this predicate returns true will be parsed */
     def filter(path: Path): Boolean = this synchronized {

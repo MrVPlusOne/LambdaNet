@@ -27,7 +27,7 @@ object TrainingLoop {
   def main(args: Array[String]): Unit = {
 
     run(
-      maxTrainingEpochs = 100,
+      maxTrainingEpochs = 1000,
       numOfThreads = Runtime.getRuntime.availableProcessors(),
     ).result()
   }
@@ -41,6 +41,29 @@ object TrainingLoop {
       val dataSet = loadDataSet()
       trainOnProjects(dataSet, trainingState).result()
     }
+
+    private def loadTrainingState(): TrainingState =
+      announced("loadTrainingState") {
+        val loadFromFile: Option[Path] =
+          TrainingControl.restoreFromFile(consumeFile = true)
+
+        loadFromFile
+          .map { p =>
+            announced("Loading training from file: " + p) {
+              TrainingState.fromFile(p)
+            }
+          }
+          .getOrElse(
+            TrainingState(
+              epoch = 0,
+              dimMessage = 64,
+              optimizer = Optimizers.Adam(learningRate = 1e-4),
+              iterationNum = 3,
+              pc = ParamCollection(),
+            ),
+          )
+          .tap(println)
+      }
 
     //noinspection TypeAnnotation
     case class trainOnProjects(
@@ -74,7 +97,7 @@ object TrainingLoop {
             val fwd = forward(datum).tap(f => println(resultStr(f.toString)))
             announced("optimization") {
               optimizer.minimize(
-                fwd.loss,
+                scaleLoss(fwd.loss, fwd.size),
                 pc.allParams,
                 backPropInParallel =
                   Some(parallelCtx -> Timeouts.optimizationTimeout),
@@ -135,7 +158,7 @@ object TrainingLoop {
           def empty: ForwardResult = ForwardResult(0, 0, 1, 0, 1)
 
           def combine(x: ForwardResult, y: ForwardResult): ForwardResult = {
-            val loss = (x.loss + y.loss) / 2
+            val loss = (x.loss * x.size + y.loss * y.size) / nonZero(x.size + y.size)
             val libNodes = x.libNodes + y.libNodes
             val libAcc = (x.libAccuracy * x.libNodes + y.libAccuracy * y.libNodes) /
               nonZero(x.libNodes + y.libNodes)
@@ -339,30 +362,6 @@ object TrainingLoop {
       libTypes: Set[PType],
   )
 
-  val defaultIterationNum = 9
-
-  private def loadTrainingState(): TrainingState =
-    announced("loadTrainingState") {
-      val loadFromFile: Option[Path] =
-        TrainingControl.restoreFromFile(consumeFile = true)
-
-      loadFromFile
-        .map { p =>
-          announced("Loading training from file: " + p) {
-            TrainingState.fromFile(p)
-          }
-        }
-        .getOrElse(
-          TrainingState(
-            epoch = 0,
-            dimMessage = 64,
-            optimizer = Optimizers.Adam(learningRate = 1e-4),
-            iterationNum = defaultIterationNum,
-            pc = ParamCollection(),
-          ),
-        )
-        .tap(println)
-    }
 
   def mkEventLogger() = {
     import ammonite.ops._
