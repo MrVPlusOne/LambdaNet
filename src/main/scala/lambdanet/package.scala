@@ -30,6 +30,8 @@ package object lambdanet extends SimpleMath.ExtensionsTrait {
   val defaultSymbol = 'default
   val undefinedSymbol = 'undefined
 
+  val SM = SimpleMath
+
   trait IdEquality {
     protected def id: Int
 
@@ -137,6 +139,10 @@ package object lambdanet extends SimpleMath.ExtensionsTrait {
     println(infoStr(a.toString))
   }
 
+  def printResult(a: Any): Unit ={
+    println(resultStr(a.toString))
+  }
+
   import Console.{RED, BLUE, GREEN, RESET}
   def warnStr(s: String) = s"$RED$s$RESET"
 
@@ -147,11 +153,11 @@ package object lambdanet extends SimpleMath.ExtensionsTrait {
   def announced[A](actionName: String)(action: => A): A = {
     import SimpleMath.prettyPrintTime
 
-    println(infoStr(s"[start] $actionName started..."))
+    println(infoStr(s"  [start] $actionName started..."))
     val startTime = System.nanoTime()
     action.tap { _ =>
       val took = prettyPrintTime(System.nanoTime() - startTime, 2)
-      println(infoStr(s"[finish] $actionName finished. (took $took)"))
+      println(infoStr(s"  [finish] $actionName finished. (took $took)"))
     }
   }
 

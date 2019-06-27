@@ -1,7 +1,7 @@
 package lambdanet.train
 
 import lambdanet._
-import java.util.concurrent.ForkJoinPool
+import java.util.concurrent.{ForkJoinPool, TimeoutException}
 
 import ammonite.ops.Path
 import botkop.numsca
@@ -12,12 +12,18 @@ import funcdiff._
 import lambdanet.NewInference.Predictor
 import lambdanet.TrainingCenter.Timeouts
 import lambdanet.translation.PredicateGraph._
-import lambdanet.utils.EventLogger
+import lambdanet.utils.{EventLogger, ReportFinish}
 import lambdanet.utils.EventLogger.PlotConfig
-import lambdanet.{PredicateGraphWithCtx, PredictionSpace, printWarning}
+import lambdanet.{PredictionSpace, printWarning}
 
 import scala.collection.parallel.ForkJoinTaskSupport
-import scala.concurrent.{ExecutionContext, ExecutionContextExecutorService}
+import scala.concurrent.{
+  Await,
+  ExecutionContext,
+  ExecutionContextExecutorService,
+  Future,
+  TimeoutException,
+}
 import scala.util.Random
 
 object TrainingLoop {
@@ -57,8 +63,8 @@ object TrainingLoop {
             TrainingState(
               epoch = 0,
               dimMessage = 64,
-              optimizer = Optimizers.Adam(learningRate = 1e-4),
-              iterationNum = 3,
+              optimizer = Optimizers.Adam(learningRate = 5e-4),
+              iterationNum = 6,
               pc = ParamCollection(),
             ),
           )
@@ -74,14 +80,48 @@ object TrainingLoop {
       import dataSet._
       import trainingState._
 
-      def result(): Unit = {
-        (trainingState.epoch to maxTrainingEpochs)
+      def result(): Unit = try {
+        (trainingState.epoch + 1 to maxTrainingEpochs)
           .foreach { epoch =>
             announced(s"epoch $epoch") {
-              trainStep(epoch)
-              testStep(epoch)
+              handleExceptions(epoch) {
+                trainStep(epoch)
+                testStep(epoch)
+              }
+
+              if (epoch % 20 == 0) {
+                saveTraining(epoch, s"epoch$epoch")
+              }
             }
           }
+
+        saveTraining(maxTrainingEpochs, "finished")
+        emailService.sendMail(emailService.userEmail)(
+          s"TypingNet: Training finished on $machineName!",
+          "Training finished!",
+        )
+      }
+
+      val (machineName, emailService) = ReportFinish.readEmailInfo()
+      private def handleExceptions(epoch: Int)(f: => Unit): Unit = {
+        try f
+        catch {
+          case ex: Throwable =>
+            val isTimeout = ex.isInstanceOf[TimeoutException]
+            val errorName = if (isTimeout) "timeout" else "stopped"
+            emailService.sendMail(emailService.userEmail)(
+              s"TypingNet: $errorName on $machineName at epoch $epoch",
+              s"Details:\n" + ex.getMessage,
+            )
+            if (isTimeout && Timeouts.restartOnTimeout) {
+              println(
+                "Timeout... training restarted (skip one training epoch)...",
+              )
+            } else {
+              saveTraining(epoch, "error-save")
+              throw ex
+            }
+        }
       }
 
       val logger: EventLogger = mkEventLogger()
@@ -94,15 +134,22 @@ object TrainingLoop {
 
         val stats = trainSet.map { datum =>
           announced(s"train on $datum") {
-            val fwd = forward(datum).tap(f => println(resultStr(f.toString)))
-            announced("optimization") {
-              optimizer.minimize(
-                scaleLoss(fwd.loss, fwd.size),
-                pc.allParams,
-                backPropInParallel =
-                  Some(parallelCtx -> Timeouts.optimizationTimeout),
-//                  weightDecay = Some(5e-5),  todo: use dropout
-              )
+            val fwd = forward(datum)
+              .tap(f => println(resultStr(f.toString)))
+
+            checkShouldStop()
+            def optimize() = optimizer.minimize(
+              scaleLoss(fwd.loss, fwd.size),
+              pc.allParams,
+              backPropInParallel =
+                Some(parallelCtx -> Timeouts.optimizationTimeout),
+              //                  weightDecay = Some(5e-5),  todo: use dropout
+            )
+
+            limitTime(Timeouts.optimizationTimeout) {
+              announced("optimization") {
+                optimize()
+              }
             }
             fwd
           }
@@ -173,37 +220,70 @@ object TrainingLoop {
 
       private def nonZero(n: Int): Double = if (n == 0) 1.0 else n.toDouble
 
-      private def forward(datum: Datum): ForwardResult = {
-        import datum._
+      private def forward(datum: Datum): ForwardResult =
+        limitTime(Timeouts.forwardTimeout) {
+          checkShouldStop()
 
-        val nodesToPredict = userAnnotations.keys.toVector
-        val predSpace = predictor.predictionSpace
+          import datum._
 
-        val logits = announced("run predictor") {
-          predictor
-            .run(dimMessage, layerFactory, nodesToPredict, iterationNum)
-            .result
+          val nodesToPredict = userAnnotations.keys.toVector
+          val predSpace = predictor.predictionSpace
+
+          val logits = announced("run predictor") {
+            predictor
+              .run(dimMessage, layerFactory, nodesToPredict, iterationNum)
+              .result
+          }
+
+          val groundTruths = nodesToPredict.map(userAnnotations)
+          val targets = groundTruths.map(predSpace.indexOfType)
+          val isFromLib = groundTruths.map(_.madeFromLibTypes)
+
+          assert(logits.shape(1) == predSpace.size)
+          val (libAcc, projAcc) = announced("compute training accuracy") {
+            analyzeLogits(
+              logits,
+              targets,
+              isFromLib,
+            )
+          }
+
+          val loss = predictionLoss(logits, targets, predSpace.size)
+            .pipe(scaleLoss(_, datum.userAnnotations.size))
+
+          val libNodes = isFromLib.count(identity)
+          val projNodes = isFromLib.count(!_)
+          ForwardResult(loss, libNodes, libAcc, projNodes, projAcc)
         }
 
-        val groundTruths = nodesToPredict.map(userAnnotations)
-        val targets = groundTruths.map(predSpace.indexOfType)
-        val isFromLib = groundTruths.map(_.madeFromLibTypes)
+      @throws[TimeoutException]
+      private def limitTime[A](timeLimit: Timeouts.Duration)(f: => A): A = {
+        val exec = scala.concurrent.ExecutionContext.global
+        Await(Future(f)(exec), timeLimit)
+      }
 
-        assert(logits.shape(1) == predSpace.size)
-        val (libAcc, projAcc) = announced("compute training accuracy") {
-          analyzeLogits(
-            logits,
-            targets,
-            isFromLib,
-          )
+      private def saveTraining(step: Int, dirName: String): Unit = {
+        import ammonite.ops._
+
+        announced(s"save training to $dirName") {
+          val saveDir = pwd / "running-result" / "saved" / dirName
+          if (!exists(saveDir)) {
+            mkdir(saveDir)
+          }
+          val savePath = saveDir / "trainingState.serialized"
+          TrainingState(step, dimMessage, iterationNum, optimizer, pc)
+            .saveToFile(
+              savePath,
+            )
         }
+      }
 
-        val loss = predictionLoss(logits, targets, predSpace.size)
-          .pipe(scaleLoss(_, datum.userAnnotations.size))
-
-        val libNodes = isFromLib.count(identity)
-        val projNodes = isFromLib.count(!_)
-        ForwardResult(loss, libNodes, libAcc, projNodes, projAcc)
+      @throws[Exception]
+      private def checkShouldStop(): Unit = {
+        if (TrainingControl.shouldStop(consumeFile = true)) {
+          saveTraining(epoch, s"stopped-epoch$epoch")
+          throw new Exception("Stopped by 'stop.txt'.")
+        }
       }
 
       private def analyzeLogits(
@@ -261,10 +341,9 @@ object TrainingLoop {
       import PrepareRepos._
 
       val ParsedRepos(libDefs, projects) =
-        announced("parsePredGraphs")(parseRepos())
-//        announced(s"read data set from file: $dataSetPath") {
-//          SM.readObjectFromFile[ParsedRepos](dataSetPath.toIO)
-//        }
+        announced(s"read data set from file: $parsedRepoPath") {
+          SM.readObjectFromFile[ParsedRepos](parsedRepoPath.toIO)
+        }
 
       def libNodeType(n: LibNode) =
         libDefs
@@ -319,6 +398,7 @@ object TrainingLoop {
       val totalNum = data.length
       val trainSetNum = totalNum - (totalNum * 0.2).toInt
       DataSet(data.take(trainSetNum), data.drop(trainSetNum))
+        .tap(printResult)
     }
   }
 
@@ -401,7 +481,11 @@ object TrainingLoop {
   case class DataSet(
       trainSet: Vector[Datum],
       testSet: Vector[Datum],
-  )
+  ) {
+    override def toString: String =
+      s"train set size: ${trainSet.size}, " +
+        s"test set size: ${testSet.size}"
+  }
 
   def mkEventLogger() = {
     import ammonite.ops._

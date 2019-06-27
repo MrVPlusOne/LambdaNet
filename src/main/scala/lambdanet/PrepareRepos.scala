@@ -20,31 +20,18 @@ case class LibDefs(
 )
 
 object PrepareRepos {
+  val projectsDir: Path = pwd / up / "lambda-repos" / "projects"
 
-  val dataSetPath: Path = pwd / "results" / "predicateGraphs.serialized"
+  val parsedRepoPath: Path = pwd / "data" / "predicateGraphs.serialized"
 
   def main(args: Array[String]): Unit = {
     val parsed = announced("parsePredGraphs")(parseRepos())
     val stats = repoStatistics(parsed.graphs)
-    println(resultStr(stats.headers.zip(stats.average).toString()))
+    printResult(stats.headers.zip(stats.average).toString())
 
-    //todo: implement serialization
-//    import boopickle.Default._
-//
-//    implicit val pNodePickler = transformPickler(PNode.fromTuple)(PNode.toTuple)
-//    implicit val symbolPickler = transformPickler(Symbol.apply)(_.name)
-//
-//    announced(s"save data set to file: $dataSetPath") {
-//      val bytes = Pickle.intoBytes(parsed)
-//      Serialization.writeByteBuffer(dataSetPath.toIO)(bytes)
-//    }
-//
-//    announced("read"){
-//      val newBytes = Serialization.readByteBuffer(dataSetPath.toIO)
-//      val got = Unpickle.apply[ParsedRepos].fromBytes(newBytes)
-//
-//      println(got)
-//    }
+    announced(s"save data set to file: $parsedRepoPath") {
+      SM.saveObjectToFile(parsedRepoPath.toIO)(parsed)
+    }
   }
 
   @SerialVersionUID(0)
@@ -71,8 +58,6 @@ object PrepareRepos {
       println(s"library definitions saved to $libDefsFile")
       defs
     }
-
-    val projectsDir = pwd / up / "lambda-repos" / "projects"
 
     lambdanet.shouldWarn = false
 

@@ -506,10 +506,13 @@ object TrainingCenter {
 
   object Timeouts {
     import scala.concurrent.duration._
+    type Duration = FiniteDuration
 
     var restartOnTimeout = true
-    var optimizationTimeout = 1000.seconds
     var encodeDecodeTimeout = 400.seconds
+
+    val forwardTimeout = 100.seconds
+    val optimizationTimeout = 100.seconds
   }
 
   case class AccuracyStats(
