@@ -14,12 +14,14 @@ object NewInference {
   import scala.collection.parallel.ForkJoinTaskSupport
   import translation.ImportsResolution.NameDef.unknownDef
   import DebugTime.logTime
+  import funcdiff.{SimpleMath => SM}
 
   /** Pre-computes a (batched) neural network sketch reusable
     * across multiple training steps for the given [[PredicateGraph]].
     * The actual forward propagation only happens in [[run]]. */
   case class Predictor(
       graph: PredicateGraph,
+      libraryTypeNodes: Set[LibTypeNode],
       libNodeType: LibNode => PType,
       taskSupport: Option[ForkJoinTaskSupport],
   ) {
@@ -160,26 +162,27 @@ object NewInference {
 
         val vecForAny = getVar('anyType) { randomVec() }
         val signatureEmbeddings = mutable.HashMap[PType, CompNode]()
-        def embedSignature(sig: PType): CompNode = {
-          val r = sig match {
-            case PTyVar(node) => leafEmbedding(node)
-            case PAny         => vecForAny
-            case PFuncType(args, to) =>
-              val args1 = args.map(embedSignature)
-              val to1 = embedSignature(to)
-              architecture.encodeFunction(args1, to1)
-            case PObjectType(fields) =>
-              val fields1 = fields.toVector.map {
-                case (label, ty) =>
-                  encodeLabel(label) -> embedSignature(ty)
-              }
-              architecture.encodeObject(fields1)
+        def embedSignature(sig: PType): CompNode =
+          SM.withErrorMessage(s"in sig: $sig") {
+            val r = sig match {
+              case PTyVar(node) => leafEmbedding(node)
+              case PAny         => vecForAny
+              case PFuncType(args, to) =>
+                val args1 = args.map(embedSignature)
+                val to1 = embedSignature(to)
+                architecture.encodeFunction(args1, to1)
+              case PObjectType(fields) =>
+                val fields1 = fields.toVector.map {
+                  case (label, ty) =>
+                    encodeLabel(label) -> embedSignature(ty)
+                }
+                architecture.encodeObject(fields1)
+            }
+            signatureEmbeddings.synchronized {
+              signatureEmbeddings(sig) = r
+            }
+            r
           }
-          signatureEmbeddings.synchronized {
-            signatureEmbeddings(sig) = r
-          }
-          r
-        }
 
         parallelize(signatures.toSeq).foreach(embedSignature)
         signatureEmbeddings.toMap
@@ -204,11 +207,12 @@ object NewInference {
 
     val projectTypes: Set[PTyVar] =
       projectNodes.filter(n => n.n.isType).map(n => PTyVar(n.n))
-    val predictionSpace = PredictionSpace(allLibSignatures ++ projectTypes)
+    val libraryTypes: Set[PTyVar] = libraryTypeNodes.map(_.n.n.pipe(PTyVar))
+    val predictionSpace = PredictionSpace(libraryTypes ++ projectTypes)
 
     val allLabels: Set[Symbol] = {
       val pTypeLabels =
-        (predictionSpace.allTypes ++ allFixedTypes)
+        (predictionSpace.allTypes ++ allLibSignatures ++ allFixedTypes)
           .flatMap(_.allLabels)
       val predicateLabels =
         graph.predicates.flatMap {

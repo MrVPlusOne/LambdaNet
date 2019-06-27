@@ -158,7 +158,9 @@ object TrainingLoop {
           def empty: ForwardResult = ForwardResult(0, 0, 1, 0, 1)
 
           def combine(x: ForwardResult, y: ForwardResult): ForwardResult = {
-            val loss = (x.loss * x.size + y.loss * y.size) / nonZero(x.size + y.size)
+            val loss = (x.loss * x.size + y.loss * y.size) / nonZero(
+              x.size + y.size,
+            )
             val libNodes = x.libNodes + y.libNodes
             val libAcc = (x.libAccuracy * x.libNodes + y.libAccuracy * y.libNodes) /
               nonZero(x.libNodes + y.libNodes)
@@ -188,7 +190,6 @@ object TrainingLoop {
         val isFromLib = groundTruths.map(_.madeFromLibTypes)
 
         assert(logits.shape(1) == predSpace.size)
-        println(s"logits shape: ${logits.shape}")
         val (libAcc, projAcc) = announced("compute training accuracy") {
           analyzeLogits(
             logits,
@@ -271,23 +272,53 @@ object TrainingLoop {
           .typeOpt
           .getOrElse(PredictionSpace.unknownType)
 
-      val libraryTypes: Set[PType] =
-        libDefs.nodeMapping.keySet.collect {
-          case n if n.isType => PTyVar(n): PType
-        }
+      val libTypesToPredict: Set[LibTypeNode] = {
+        import cats.implicits._
+        val usages: Map[PNode, Int] = projects.par
+          .map {
+            case (_, _, annots) =>
+              annots.collect { case (_, PTyVar(v)) => v -> 1 }.toMap
+          }
+          .fold(Map[PNode, Int]())(_ |+| _)
+
+        /** sort lib tyeps by their usages */
+        val sortedTypes = libDefs.nodeMapping.keys.toVector
+          .collect {
+            case n if n.isType =>
+              (LibTypeNode(LibNode(n)), usages.getOrElse(n, 0))
+          }
+          .sortBy(-_._2)
+
+        val totalUsages = sortedTypes.map(_._2).sum
+        val coverageGoal = 0.8
+        val (libTypes, achieved) =
+          sortedTypes
+            .zip(sortedTypes.scanLeft(0.0)(_ + _._2.toDouble / totalUsages))
+            .takeWhile(_._2 < coverageGoal)
+            .unzip
+
+        printInfo(s"Coverages achieved: ${achieved.last}")
+        printInfo(s"Lib types selected: $libTypes")
+
+        libTypes.map(_._1).toSet
+      }
+
+      val projectsToUse = 6
 
       val data = projects
         .pipe(x => new Random(1).shuffle(x))
+        .take(projectsToUse)
         .map {
           case (path, g, annotations) =>
-            val predictor = Predictor(g, libNodeType, Some(taskSupport))
+            val predictor =
+              Predictor(g, libTypesToPredict, libNodeType, Some(taskSupport))
             Datum(path, annotations.toMap, predictor)
               .tap(d => println(resultStr(d.showDetail)))
         }
 
       val totalNum = data.length
       val trainSetNum = totalNum - (totalNum * 0.2).toInt
-      DataSet(data.take(trainSetNum), data.drop(trainSetNum), libraryTypes)
+      DataSet(data.take(trainSetNum), data.drop(trainSetNum))
     }
   }
 
@@ -341,17 +372,28 @@ object TrainingLoop {
       userAnnotations: Map[ProjNode, PType],
       predictor: Predictor,
   ) {
+    val inPSpaceRatio: Double =
+      userAnnotations
+        .count(
+          _._2.pipe(predictor.predictionSpace.allTypes.contains),
+        )
+        .toDouble / userAnnotations.size
 
     def showInline: String =
       s"{name: $projectName, annotations: ${userAnnotations.size}, " +
         s"predicates: ${predictor.graph.predicates.size}, " +
-        s"predictionSpace: ${predictor.predictionSpace.size}}"
+        s"predictionSpace: ${predictor.predictionSpace.size}, " +
+        s"inPSpaceRatio: $inPSpaceRatio}"
 
     override def toString: String = {
       showInline
     }
 
     def showDetail: String = {
+      s"""$showInline
+         |${predictor.predictionSpace}
+         |nodes: ${predictor.graph.nodes}
+       """.stripMargin
       showInline + s"\n${predictor.predictionSpace}"
     }
   }
@@ -359,9 +401,7 @@ object TrainingLoop {
   case class DataSet(
       trainSet: Vector[Datum],
       testSet: Vector[Datum],
-      libTypes: Set[PType],
   )
-
 
   def mkEventLogger() = {
     import ammonite.ops._

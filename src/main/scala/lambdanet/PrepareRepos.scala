@@ -55,14 +55,6 @@ object PrepareRepos {
 
   def parseRepos(): ParsedRepos = {
 
-    var projectsToUse = 2
-
-    /** Only projects for which this predicate returns true will be parsed */
-    def filter(path: Path): Boolean = this synchronized {
-      projectsToUse -= 1
-      projectsToUse >= 0
-    }
-
     /** set to true to load declarations from the serialization file */
     val loadFromFile = true
 
@@ -85,7 +77,7 @@ object PrepareRepos {
     lambdanet.shouldWarn = false
 
     val graphs = (ls ! projectsDir)
-      .filter(f => f.isDir && filter(f))
+      .filter(f => f.isDir)
       .par
       .map { f =>
         val p = prepareProject(libDefs, f).copy()

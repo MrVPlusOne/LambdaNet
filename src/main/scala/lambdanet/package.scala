@@ -133,6 +133,10 @@ package object lambdanet extends SimpleMath.ExtensionsTrait {
       Console.err.println(warnStr("[warn] " + str))
   }
 
+  def printInfo(a: Any): Unit ={
+    println(infoStr(a.toString))
+  }
+
   import Console.{RED, BLUE, GREEN, RESET}
   def warnStr(s: String) = s"$RED$s$RESET"
 
