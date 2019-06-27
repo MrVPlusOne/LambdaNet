@@ -4,7 +4,7 @@ import lambdanet.translation.ImportsResolution.NameDef
 import lambdanet.translation.PredicateGraph.{PTyVar, PType}
 import PredictionSpace._
 
-object PredictionSpace{
+object PredictionSpace {
   val unknownType = PTyVar(NameDef.unknownDef.ty.get)
 }
 

@@ -134,7 +134,7 @@ package object lambdanet extends SimpleMath.ExtensionsTrait {
   }
 
   import Console.{RED, BLUE, GREEN, RESET}
-  def warnStr(s: String)= s"$RED$s$RESET"
+  def warnStr(s: String) = s"$RED$s$RESET"
 
   def infoStr(s: String) = s"$BLUE$s$RESET"
 
@@ -146,7 +146,7 @@ package object lambdanet extends SimpleMath.ExtensionsTrait {
     println(infoStr(s"[start] $actionName started..."))
     val startTime = System.nanoTime()
     action.tap { _ =>
-       val took = prettyPrintTime(System.nanoTime() - startTime,2)
+      val took = prettyPrintTime(System.nanoTime() - startTime, 2)
       println(infoStr(s"[finish] $actionName finished. (took $took)"))
     }
   }

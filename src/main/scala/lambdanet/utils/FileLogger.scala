@@ -79,7 +79,6 @@ class EventLogger(
     value.foreach(v => log(name, iteration, Tensor(v)))
   }
 
-
   def log(event: Event): Unit = {
     import event._
     fLogger.println(

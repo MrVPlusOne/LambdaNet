@@ -626,7 +626,7 @@ object SimpleMath {
 
   type Weight = Double
   def weightedAverage(xs: Seq[(Weight, Double)]): Double = {
-    val top = xs.map{ case (w, x) => w*x}.sum
+    val top = xs.map { case (w, x) => w * x }.sum
     val bot = xs.map(_._1).sum
     top / bot
   }

@@ -41,7 +41,8 @@ object JsonParsing {
 
   def space[_: P]: P[Unit] =
     P(
-      (MultilineComment | singleLineComment | CharsWhileIn(" \r\n\t", 1)).rep(0),
+      (MultilineComment | singleLineComment | CharsWhileIn(" \r\n\t", 1))
+        .rep(0),
     )
   def digits[_: P]: P[Unit] = P(CharsWhileIn("0-9"))
   def exponent[_: P]: P[Unit] = P(CharIn("eE") ~ CharIn("+\\-").? ~ digits)

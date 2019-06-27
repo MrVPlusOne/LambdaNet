@@ -3,15 +3,27 @@ package lambdanet
 import ammonite.ops._
 import funcdiff.SimpleMath
 import lambdanet.translation.ImportsResolution.{ErrorHandler, ModuleExports}
-import lambdanet.translation.{IRTranslation, ImportsResolution, PAnnot, PLangTranslation, PredicateGraph, PredicateGraphTranslation, QLangTranslation}
-import lambdanet.translation.PredicateGraph.{PNode, PNodeAllocator, PType, ProjNode}
-import lambdanet.utils.{ProgramParsing, Serialization}
+import lambdanet.translation.{
+  IRTranslation,
+  ImportsResolution,
+  PAnnot,
+  PLangTranslation,
+  PredicateGraph,
+  PredicateGraphTranslation,
+  QLangTranslation,
+}
+import lambdanet.translation.PredicateGraph.{
+  PNode,
+  PNodeAllocator,
+  PType,
+  ProjNode,
+}
+import lambdanet.utils.{ProgramParsing}
 import lambdanet.utils.ProgramParsing.GProject
 @SerialVersionUID(2)
 case class LibDefs(
     baseCtx: ModuleExports,
     nodeMapping: Map[PNode, PAnnot],
-    libAllocator: PNodeAllocator,
     libExports: Map[ProjectPath, ModuleExports],
 )
 
@@ -52,6 +64,7 @@ object PrepareRepos {
   def parseRepos(): ParsedRepos = {
 
     var projectsToUse = 5
+
     /** Only projects for which this predicate returns true will be parsed */
     def filter(path: Path): Boolean = this synchronized {
       projectsToUse -= 1
@@ -79,11 +92,12 @@ object PrepareRepos {
 
     lambdanet.shouldWarn = false
 
-    val graphs = (ls ! projectsDir).par
-      .collect {
-        case f if f.isDir && filter(f) =>
-          val p = prepareProject(libDefs, f).copy()
-          p.copy(_1 = p._1.relativeTo(projectsDir))
+    val graphs = (ls ! projectsDir)
+      .filter(f => f.isDir && filter(f))
+      .par
+      .map { f =>
+        val p = prepareProject(libDefs, f).copy()
+        p.copy(_1 = p._1.relativeTo(projectsDir))
       }
       .seq
       .toVector
@@ -197,7 +211,7 @@ object PrepareRepos {
     val nodeMapping = defaultMapping ++ qModules.flatMap(_.mapping)
 
     println("Declaration files parsed.")
-    LibDefs(baseCtx1, nodeMapping, libAllocator, libExports)
+    LibDefs(baseCtx1, nodeMapping, libExports)
   }
 
   private def prepareProject(libDefs: LibDefs, root: Path) =

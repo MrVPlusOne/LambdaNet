@@ -12,7 +12,6 @@ scalacOptions ++= Seq(
 //  "-deprecation"
 )
 
-
 libraryDependencies ++= Seq(
   "com.lihaoyi" %% "fastparse" % "2.0.4",
   "org.scalacheck" %% "scalacheck" % "1.14.0",
@@ -28,7 +27,7 @@ libraryDependencies ++= Seq(
   "org.typelevel" %% "cats-core" % "2.0.0-M3",
   "org.typelevel" %% "cats-effect" % "2.0.0-M3",
   "com.github.nscala-time" %% "nscala-time" % "2.22.0",
-  "io.suzaku" %% "boopickle" % "1.3.1"
+  "com.lihaoyi" %% "upickle" % "0.7.5",
 )
 
 addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.0")
@@ -43,10 +42,11 @@ addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.0")
 // My tasks
 
 val train = taskKey[Unit]("start training")
-train := 
+train :=
   (runMain in Compile).toTask(" lambdanet.train.TrainingLoop").value
 
-val prepareRepos = taskKey[Unit]("parse and prepare data for training and evaluation")
+val prepareRepos =
+  taskKey[Unit]("parse and prepare data for training and evaluation")
 prepareRepos :=
   (runMain in Compile).toTask(" lambdanet.PrepareRepos").value
 

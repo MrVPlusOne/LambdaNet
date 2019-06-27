@@ -15,11 +15,24 @@ case class PredicateGraph(
 
 object PredicateGraph {
 
-  object PNode{
+  object PNode {
     def toTuple(n: PNode): (Int, Option[Symbol], Boolean, Boolean) =
       (n.id, n.nameOpt, n.isType, n.fromLib)
     def fromTuple(t: (Int, Option[Symbol], Boolean, Boolean)): PNode =
       new PNode(t._1, t._2, t._3, t._4)
+
+    object PNode {
+      def apply(
+          id: Int,
+          nameOpt: Option[Symbol],
+          isType: Boolean,
+          fromLib: Boolean,
+      ): PNode = { new PNode(id, nameOpt, isType, fromLib) }
+
+      def unapply(n: PNode): Option[(Int, Option[Symbol], Boolean, Boolean)] = {
+        Some((n.id, n.nameOpt, n.isType, n.fromLib))
+      }
+    }
   }
 
   @SerialVersionUID(1)
@@ -36,7 +49,7 @@ object PredicateGraph {
 
     override def toString: String = {
       val namePart = nameOpt.map(n => s"{${n.name}}").getOrElse("")
-      val tyPart = if(isType) "[ty]" else ""
+      val tyPart = if (isType) "[ty]" else ""
       s"𝒯$tyPart$id$namePart"
     }
 
@@ -85,12 +98,36 @@ object PredicateGraph {
     assert(n.n.isType, s"$n should be LibTypeNode")
   }
 
+  @SerialVersionUID(0)
   sealed trait PType {
     val madeFromLibTypes: Boolean
 
     def allLabels: Set[Symbol]
 
     def allNodes: Set[PNode]
+
+    def pPrint(envPriority: Int): String = {
+      def wrap(priority: Int)(content: String) = {
+        if (priority < envPriority) s"($content)" else content
+      }
+
+      this match {
+        case PAny      => "any"
+        case PTyVar(n) => n.toString
+        case PFuncType(from, to) =>
+          wrap(0)(
+            from.map(_.pPrint(1)).mkString("(", ",", ")") + "->" + to.pPrint(0),
+          )
+        case PObjectType(fields) =>
+          fields
+            .map {
+              case (l, t) => s"${l.name}: ${t.pPrint(0)}"
+            }
+            .mkString("{", ", ", "}")
+      }
+    }
+
+    override def toString: String = pPrint(0)
   }
 
   case object PAny extends PType {
@@ -283,8 +320,9 @@ object PredicateGraphTranslation {
 
     modules.foreach(_.stmts.foreach(encodeStmt))
 
-    fixedAnnotations.foreach{ case (n, t) =>
-      add(FixedToType(n, t))
+    fixedAnnotations.foreach {
+      case (n, t) =>
+        add(FixedToType(n, t))
     }
 
     val totalMapping = modules.foldLeft(Map[PNode, PAnnot]())(_ ++ _.mapping)
