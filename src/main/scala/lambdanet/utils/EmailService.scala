@@ -2,7 +2,8 @@ package lambdanet.utils
 
 import courier._
 import courier.Defaults._
-import scala.concurrent.Await
+
+import scala.concurrent.{Await, TimeoutException}
 import scala.concurrent.duration.Duration
 
 case class EmailService(userEmail: String, password: String) {
@@ -19,15 +20,22 @@ case class EmailService(userEmail: String, password: String) {
       .as(s"$user@$domain", password)
       .startTls(true)()
 
-    Await.result(
-      mailer(
-        Envelope
-          .from(user `@` domain)
-          .to(targetUser `@` targetDomain)
-          .subject(subject)
-          .content(Text(msg)),
-      ),
-      Duration(s"${timeOutSeconds}s"),
-    )
+    try {
+      Await.result(
+        mailer(
+          Envelope
+            .from(user `@` domain)
+            .to(targetUser `@` targetDomain)
+            .subject(subject)
+            .content(Text(msg)),
+        ),
+        Duration(s"${timeOutSeconds}s"),
+      )
+    } catch {
+      case _: TimeoutException =>
+        throw new Exception(
+          s"send mail {subject: '$subject', msg: '$msg'} time out.",
+        )
+    }
   }
 }

@@ -142,7 +142,9 @@ object TrainingLoop {
 
             limitTime(Timeouts.optimizationTimeout) {
               announced("optimization") {
-                optimize()
+                DebugTime.logTime("optimization") {
+                  optimize()
+                }
               }
             }
             fwd
