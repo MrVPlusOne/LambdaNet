@@ -17,7 +17,13 @@ import lambdanet.utils.EventLogger.PlotConfig
 import lambdanet.{PredictionSpace, printWarning}
 
 import scala.collection.parallel.ForkJoinTaskSupport
-import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutorService, Future, TimeoutException}
+import scala.concurrent.{
+  Await,
+  ExecutionContext,
+  ExecutionContextExecutorService,
+  Future,
+  TimeoutException,
+}
 import scala.util.Random
 
 object TrainingLoop {
@@ -55,7 +61,7 @@ object TrainingLoop {
           }
           .getOrElse(
             TrainingState(
-              epoch = 0,
+              epoch0 = 0,
               dimMessage = 64,
               optimizer = Optimizers.Adam(learningRate = 1e-3),
               iterationNum = 6,
@@ -75,7 +81,7 @@ object TrainingLoop {
       import trainingState._
 
       def result(): Unit = {
-        (trainingState.epoch + 1 to maxTrainingEpochs)
+        (trainingState.epoch0 + 1 to maxTrainingEpochs)
           .foreach { epoch =>
             announced(s"epoch $epoch") {
               handleExceptions(epoch) {
@@ -128,10 +134,11 @@ object TrainingLoop {
 
         val stats = trainSet.map { datum =>
           announced(s"train on $datum") {
+            checkShouldStop(epoch)
             val fwd = forward(datum)
               .tap(f => println(resultStr(f.toString)))
 
-            checkShouldStop()
+            checkShouldStop(epoch)
             def optimize() = optimizer.minimize(
               scaleLoss(fwd.loss, fwd.size),
               pc.allParams,
@@ -168,6 +175,7 @@ object TrainingLoop {
           import cats.implicits._
 
           val stat = testSet.map { datum =>
+            checkShouldStop(epoch)
             announced(s"test on $datum") {
               forward(datum)
             }
@@ -218,8 +226,6 @@ object TrainingLoop {
 
       private def forward(datum: Datum): ForwardResult =
         limitTime(Timeouts.forwardTimeout) {
-          checkShouldStop()
-
           import datum._
 
           val nodesToPredict = userAnnotations.keys.toVector
@@ -258,7 +264,7 @@ object TrainingLoop {
         Await.result(Future(f)(exec), timeLimit)
       }
 
-      private def saveTraining(step: Int, dirName: String): Unit = {
+      private def saveTraining(epoch: Int, dirName: String): Unit = {
         import ammonite.ops._
 
         announced(s"save training to $dirName") {
@@ -267,7 +273,7 @@ object TrainingLoop {
             mkdir(saveDir)
           }
           val savePath = saveDir / "trainingState.serialized"
-          TrainingState(step, dimMessage, iterationNum, optimizer, pc)
+          TrainingState(epoch, dimMessage, iterationNum, optimizer, pc)
             .saveToFile(
               savePath,
             )
@@ -275,7 +281,7 @@ object TrainingLoop {
       }
 
       @throws[Exception]
-      private def checkShouldStop(): Unit = {
+      private def checkShouldStop(epoch: Int): Unit = {
         if (TrainingControl.shouldStop(consumeFile = true)) {
           saveTraining(epoch, s"stopped-epoch$epoch")
           throw new Exception("Stopped by 'stop.txt'.")
@@ -399,7 +405,7 @@ object TrainingLoop {
   }
 
   case class TrainingState(
-      epoch: Int,
+      epoch0: Int,
       dimMessage: Int,
       iterationNum: Int,
       optimizer: Optimizer,
@@ -408,7 +414,7 @@ object TrainingLoop {
     def saveToFile(file: Path): Unit = {
       val toSave =
         List[(String, Any)](
-          "epoch" -> epoch,
+          "epoch" -> epoch0,
           "dimMessage" -> dimMessage,
           "iterationNum" -> iterationNum,
           "optimizer" -> optimizer,
@@ -419,7 +425,7 @@ object TrainingLoop {
 
     override def toString: String = {
       s"""TrainingState:
-         |  step: $epoch
+         |  step: $epoch0
          |  dimMessage: $dimMessage
          |  iterationNum: $iterationNum
          |  optimizer: $optimizer
