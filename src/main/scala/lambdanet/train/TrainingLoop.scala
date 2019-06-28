@@ -17,13 +17,7 @@ import lambdanet.utils.EventLogger.PlotConfig
 import lambdanet.{PredictionSpace, printWarning}
 
 import scala.collection.parallel.ForkJoinTaskSupport
-import scala.concurrent.{
-  Await,
-  ExecutionContext,
-  ExecutionContextExecutorService,
-  Future,
-  TimeoutException,
-}
+import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutorService, Future, TimeoutException}
 import scala.util.Random
 
 object TrainingLoop {

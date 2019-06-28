@@ -12,6 +12,9 @@ scalacOptions ++= Seq(
 //  "-deprecation"
 )
 
+// to make the classpath right
+fork in run := true
+
 libraryDependencies ++= Seq(
   "com.lihaoyi" %% "fastparse" % "2.0.4",
   "org.scalacheck" %% "scalacheck" % "1.14.0",
