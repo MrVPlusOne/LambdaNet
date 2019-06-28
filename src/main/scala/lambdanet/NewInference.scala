@@ -1,8 +1,7 @@
 package lambdanet
 
-import cats.data.Chain
-
 import scala.language.implicitConversions
+import cats.data.Chain
 
 object NewInference {
   import funcdiff._
@@ -14,7 +13,6 @@ object NewInference {
   import scala.collection.parallel.ForkJoinTaskSupport
   import translation.ImportsResolution.NameDef.unknownDef
   import DebugTime.logTime
-  import funcdiff.{SimpleMath => SM}
 
   /** Pre-computes a (batched) neural network sketch reusable
     * across multiple training steps for the given [[PredicateGraph]].

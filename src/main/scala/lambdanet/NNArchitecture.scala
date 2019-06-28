@@ -26,7 +26,7 @@ case class NNArchitecture(dimMessage: Int, layerFactory: LayerFactory) {
   def similarity(
       inputMatrix: CompNode,
       candidateMatrix: CompNode,
-  ) = {
+  ): CompNode = {
     val inputs1 = singleLayer('similarityInputs, inputMatrix)
     val candidates1 = singleLayer('similarityCandidates, candidateMatrix)
     inputs1.dot(candidates1.t) / dimMessage

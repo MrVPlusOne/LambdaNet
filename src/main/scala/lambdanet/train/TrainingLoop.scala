@@ -57,7 +57,7 @@ object TrainingLoop {
             TrainingState(
               epoch = 0,
               dimMessage = 64,
-              optimizer = Optimizers.Adam(learningRate = 5e-4),
+              optimizer = Optimizers.Adam(learningRate = 1e-3),
               iterationNum = 6,
               pc = ParamCollection(),
             ),

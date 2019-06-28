@@ -30,7 +30,7 @@ package object lambdanet extends SimpleMath.ExtensionsTrait {
   val defaultSymbol = 'default
   val undefinedSymbol = 'undefined
 
-  val SM = SimpleMath
+  val SM: SimpleMath.type = SimpleMath
 
   trait IdEquality {
     protected def id: Int
