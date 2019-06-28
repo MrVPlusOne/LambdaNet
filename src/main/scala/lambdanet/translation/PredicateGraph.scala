@@ -8,10 +8,12 @@ import lambdanet.translation.ImportsResolution.NameDef
 import scala.collection.{GenTraversableOnce, mutable}
 
 @SerialVersionUID(1)
-case class PredicateGraph(
+case class PredicateGraph (
     nodes: Set[PNode],
     predicates: Set[TyPredicate],
-)
+) extends Serializable{
+
+}
 
 object PredicateGraph {
 

@@ -1,13 +1,6 @@
 package funcdiff
 
-import java.io.{
-  File,
-  FileInputStream,
-  FileOutputStream,
-  ObjectInputStream,
-  ObjectOutputStream,
-  Serializable,
-}
+import java.io.{File, FileInputStream, FileOutputStream, ObjectInputStream, ObjectOutputStream, ObjectStreamClass, Serializable}
 
 import lambdanet.translation.OldIR.IRType
 
@@ -614,8 +607,12 @@ object SimpleMath {
     }
   }
 
+  val loader = Thread.currentThread().getContextClassLoader
   def readObjectFromFile[T](path: File): T = {
-    val ois = new ObjectInputStream(new FileInputStream(path))
+    val ois = new ObjectInputStream(new FileInputStream(path)) {
+      override def resolveClass(desc: ObjectStreamClass): Class[_] =
+        Class.forName(desc.getName, false, loader)
+    }
     try {
       val obj = ois.readObject.asInstanceOf[T]
       obj
