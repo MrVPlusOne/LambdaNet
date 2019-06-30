@@ -29,7 +29,7 @@ object TrainingLoop {
   def main(args: Array[String]): Unit = {
     run(
       maxTrainingEpochs = 1000,
-      numOfThreads = Runtime.getRuntime.availableProcessors(),
+      numOfThreads = Runtime.getRuntime.availableProcessors() min 14,
     ).result()
   }
 
