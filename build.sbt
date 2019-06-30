@@ -14,7 +14,12 @@ scalacOptions ++= Seq(
 
 // to make the classpath right
 fork in run := true
-javaOptions ++= Seq("-Xms2G", "-Xmx4G", "-Dorg.bytedeco.javacpp.maxbytes=8G")
+
+val memoryLimit = {
+  // for some reason, the memory usage keeps going up on the server
+  if(System.getProperty("os.name") == "Mac OS X") "8G" else "32G"
+}
+javaOptions ++= Seq(s"-Xms2G", "-Xmx4G", "-Dorg.bytedeco.javacpp.maxbytes=" + memoryLimit)
 
 libraryDependencies ++= Seq(
   "com.lihaoyi" %% "fastparse" % "2.0.4",
