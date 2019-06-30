@@ -2,8 +2,10 @@ package funcdiff
 
 import botkop.numsca.Tensor
 import botkop.{numsca => ns}
-import funcdiff.Optimizers.Adam.Momentum
+import funcdiff.Optimizer.Adam.Momentum
+import funcdiff.Optimizer.OptimizeStats
 import funcdiff.ParameterAttribute.NeedRegularization
+
 import collection.mutable
 import scala.concurrent.duration.Duration
 import scala.concurrent.ExecutionContext
@@ -23,7 +25,7 @@ trait Optimizer extends Serializable {
       weightDecay: Option[Double] = None,
       gradientTransform: Gradient => Gradient = identity,
       backPropInParallel: Option[(ExecutionContext, Duration)] = None,
-  ): Unit = {
+  ): OptimizeStats = {
 
     if (warnEmptyUpdates && params.isEmpty) {
       println("Warning: optimizer's param list is empty.")
@@ -44,11 +46,11 @@ trait Optimizer extends Serializable {
     }
 
     val paramMap = params.map(p => p.path -> p).toMap
-    for {
+    val deltas = for {
       (path, g0) <- gradients
       p <- paramMap.get(path)
       g = parameterChangeAmount(p, gradientTransform(g0))
-    } {
+    } yield {
 
       if (newlyCreated contains p.node) {
         g.addToTensor(p.node.value)
@@ -61,7 +63,10 @@ trait Optimizer extends Serializable {
       if (printUpdates) {
         println(s"update param $p")
       }
+      path -> g
     }
+
+    OptimizeStats(gradients, deltas)
   }
 
   def minimize(
@@ -70,7 +75,7 @@ trait Optimizer extends Serializable {
       weightDecay: Option[Double] = None,
       gradientTransform: Gradient => Gradient = identity,
       backPropInParallel: Option[(ExecutionContext, Duration)] = None,
-  ): Unit = {
+  ): OptimizeStats = {
     maximize(
       -objective,
       params,
@@ -81,7 +86,12 @@ trait Optimizer extends Serializable {
   }
 }
 
-object Optimizers {
+object Optimizer {
+  case class OptimizeStats(
+      gradients: Map[SymbolPath, Gradient],
+      deltas: Map[SymbolPath, Gradient],
+  )
+
   @SerialVersionUID(0)
   case class SGD(learningRate: Double) extends Optimizer {
 

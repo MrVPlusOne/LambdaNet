@@ -4,7 +4,7 @@ import funcdiff._
 import botkop.numsca
 import botkop.numsca.{Shape, Tensor}
 import botkop.{numsca => ns}
-import funcdiff.Optimizers.{Adam, SGD}
+import funcdiff.Optimizer.{Adam, SGD}
 
 class RnnOptimizationTest extends TestUtils {
   ns.rand.setSeed(11)

@@ -78,7 +78,7 @@ object ParamCollection {
   def main(args: Array[String]): Unit = {
     import ammonite.ops._
     import lambdanet.TrainingCenter._
-    import funcdiff.Optimizers.Adam
+    import funcdiff.Optimizer.Adam
 
     val pc = new ParamCollection()
     pc.getVar(SymbolPath.empty / 'abc)(Tensor(1, 2, 3))

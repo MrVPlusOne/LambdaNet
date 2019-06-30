@@ -131,7 +131,7 @@ object TrainingCenter {
           layerFactory =
             LayerFactory(SymbolPath.empty / 'TypingNet, ParamCollection()),
           dimMessage = 64,
-          optimizer = Optimizers.Adam(learningRate = 4e-4),
+          optimizer = Optimizer.Adam(learningRate = 4e-4),
           iterationNum = iterationNum,
         ),
       )

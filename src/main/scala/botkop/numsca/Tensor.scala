@@ -18,6 +18,9 @@ class Tensor(val array: INDArray, val isBoolean: Boolean = false)
 
   def newTensor(array: INDArray): Tensor = new Tensor(array, isBoolean)
 
+  /** Total number of elements in this tensor */
+  def elements: Int = if (shape.sizes.isEmpty) 1 else shape.sizes.product.toInt
+
   def copy(): Tensor = new Tensor(array.dup(), isBoolean)
 
   def reshape(newShape: Shape) = newTensor(array.reshape(newShape.sizes: _*))

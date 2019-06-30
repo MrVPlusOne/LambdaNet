@@ -5,15 +5,11 @@ import java.util.concurrent.{ForkJoinPool}
 
 import ammonite.ops.Path
 import botkop.numsca
-import botkop.numsca.Tensor
 import cats.Monoid
 import funcdiff.{SimpleMath => SM}
 import funcdiff._
-import lambdanet.NewInference.Predictor
 import lambdanet.TrainingCenter.Timeouts
-import lambdanet.translation.PredicateGraph._
 import lambdanet.utils.{EventLogger, ReportFinish}
-import lambdanet.utils.EventLogger.PlotConfig
 import lambdanet.{PredictionSpace, printWarning}
 
 import scala.collection.parallel.ForkJoinTaskSupport
@@ -25,7 +21,6 @@ import scala.concurrent.{
   TimeoutException,
 }
 import scala.language.reflectiveCalls
-import scala.util.Random
 
 object TrainingLoop {
 
@@ -45,7 +40,7 @@ object TrainingLoop {
   ) {
     def result(): Unit = {
       val trainingState = loadTrainingState()
-      val dataSet = loadDataSet()
+      val dataSet = DataSet.loadDataSet(taskSupport)
       trainOnProjects(dataSet, trainingState).result()
     }
 
@@ -64,7 +59,7 @@ object TrainingLoop {
             TrainingState(
               epoch0 = 0,
               dimMessage = 32,
-              optimizer = Optimizers.Adam(learningRate = 1e-3),
+              optimizer = Optimizer.Adam(learningRate = 1e-3),
               iterationNum = 6,
               pc = ParamCollection(),
             ),
@@ -90,7 +85,7 @@ object TrainingLoop {
                 testStep(epoch)
               }
 
-              if (epoch % 20 == 0) {
+              if (epoch % 10 == 0) {
                 saveTraining(epoch, s"epoch$epoch")
               }
             }
@@ -149,23 +144,24 @@ object TrainingLoop {
                 // weightDecay = Some(5e-5),  todo: use dropout
               )
 
-              limitTimeOpt(
+              val gradInfo = limitTimeOpt(
                 s"optimization: $datum",
                 Timeouts.optimizationTimeout,
               ) {
                 announced("optimization") {
-                  DebugTime.logTime("optimization") {
+                  val stats = DebugTime.logTime("optimization") {
                     optimize(loss)
                   }
+                  calcGradInfo(stats)
                 }
-              }
-              fwd
+              }.toVector
+              (fwd, gradInfo)
             }
           }
         }
 
         import cats.implicits._
-        val ForwardResult(loss, libAcc, projAcc, distanceAcc) =
+        val (ForwardResult(loss, libAcc, projAcc, distanceAcc), gradInfo) =
           stats.flatMap(_.toVector).combineAll
         logger.logScalar("loss", epoch, toAccuracyD(loss))
         logger.logScalar("libAcc", epoch, toAccuracy(libAcc))
@@ -181,6 +177,10 @@ object TrainingLoop {
                 ks -> toAccuracy(counts)
             },
         )
+
+        val (grads, deltas) = gradInfo.unzip
+        logger.logScalar("gradientNorm", epoch, SM.mean(grads))
+        logger.logScalar("paramDelta", epoch, SM.mean(deltas))
 
         val timeInSec = (System.nanoTime() - startTime).toDouble / 1e9
         logger.logScalar("iter-time", epoch, timeInSec)
@@ -204,28 +204,6 @@ object TrainingLoop {
           logger.logScalar("test-projAcc", epoch, toAccuracy(projCorrect))
         }
 
-      def toAccuracy(counts: Counted[Int]): Double = {
-        def nonZero(n: Int): Double = if (n == 0) 1.0 else n.toDouble
-        counts.value.toDouble / nonZero(counts.count)
-      }
-
-      def toAccuracyD(counts: Counted[Double]): Double = {
-        def nonZero(n: Double): Double = if (n == 0) 1.0 else n.toDouble
-        counts.value / nonZero(counts.count)
-      }
-
-      case class Counted[V](count: Int, value: V)
-
-      object Counted {
-        def zero[V](v: V) = Counted(0, v)
-      }
-
-      type Logits = CompNode
-      type Loss = CompNode
-      type Correct = Int
-      type LibCorrect = Correct
-      type ProjCorrect = Correct
-
       case class ForwardResult(
           loss: Counted[Double],
           libCorrect: Counted[LibCorrect],
@@ -239,20 +217,20 @@ object TrainingLoop {
         }
       }
 
-      implicit def weightedMonoid[V](
-          implicit m: Monoid[V],
-      ): Monoid[Counted[V]] = new Monoid[Counted[V]] {
-        def empty: Counted[V] = Counted(0, m.empty)
-
-        def combine(x: Counted[V], y: Counted[V]): Counted[V] = {
-          Counted(x.count + y.count, m.combine(x.value, y.value))
+      def calcGradInfo(stats: Optimizer.OptimizeStats): (Real, Real) = {
+        def meanSquaredNorm(gs: Iterable[Gradient]) = {
+          import numsca._
+          import cats.implicits._
+          val combined = gs.toVector.map { g =>
+            val t = g.toTensor()
+            Counted(t.elements, sum(square(t)))
+          }.combineAll
+          math.sqrt(combined.value / nonZero(combined.count))
         }
-      }
 
-      implicit object LossMonoid extends Monoid[Loss] {
-        def empty: Loss = 0.0
-
-        def combine(x: Loss, y: Loss): Loss = x + y
+        val grads = meanSquaredNorm(stats.gradients.values)
+        val deltas = meanSquaredNorm(stats.deltas.values)
+        grads -> deltas
       }
 
       implicit val forwardResultMonoid: Monoid[ForwardResult] =
@@ -417,75 +395,6 @@ object TrainingLoop {
     val taskSupport: ForkJoinTaskSupport = new ForkJoinTaskSupport(forkJoinPool)
     val parallelCtx: ExecutionContextExecutorService =
       ExecutionContext.fromExecutorService(forkJoinPool)
-
-    private def loadDataSet(): DataSet = announced("loadDataSet") {
-      import PrepareRepos._
-
-      val ParsedRepos(libDefs, projects) =
-        announced(s"read data set from file: $parsedRepoPath") {
-          SM.readObjectFromFile[ParsedRepos](parsedRepoPath.toIO)
-        }
-
-      def libNodeType(n: LibNode) =
-        libDefs
-          .nodeMapping(n.n)
-          .typeOpt
-          .getOrElse(PredictionSpace.unknownType)
-
-      val libTypesToPredict: Set[LibTypeNode] = {
-        import cats.implicits._
-        val usages: Map[PNode, Int] = projects.par
-          .map {
-            case (_, _, annots) =>
-              annots.collect { case (_, PTyVar(v)) => v -> 1 }.toMap
-          }
-          .fold(Map[PNode, Int]())(_ |+| _)
-
-        /** sort lib types by their usages */
-        val sortedTypes = libDefs.nodeMapping.keys.toVector
-          .collect {
-            case n if n.isType =>
-              (LibTypeNode(LibNode(n)), usages.getOrElse(n, 0))
-          }
-          .sortBy(-_._2)
-
-        val totalUsages = sortedTypes.map(_._2).sum
-        val coverageGoal = 0.85
-        val (libTypes, achieved) =
-          sortedTypes
-            .zip(sortedTypes.scanLeft(0.0)(_ + _._2.toDouble / totalUsages))
-            .takeWhile(_._2 < coverageGoal)
-            .unzip
-
-        printResult(s"Coverages achieved: ${achieved.last}")
-        printResult(s"Lib types selected (${libTypes.length}): $libTypes")
-
-        libTypes.map(_._1).toSet
-      }
-
-      val ALL = 100
-      val projectsToUse = ALL
-
-      val data = projects
-        .pipe(x => new Random(1).shuffle(x))
-        .take(projectsToUse)
-        .map {
-          case (path, g, annotations) =>
-            val predictor =
-              Predictor(g, libTypesToPredict, libNodeType, Some(taskSupport))
-            Datum(path, annotations.toMap, predictor)
-              .tap(d => printResult(d.showDetail))
-        }
-
-      val libAnnots = data.map(_.libAnnots).sum
-      val projAnnots = data.map(_.projAnnots).sum
-      printResult(s"$libAnnots library targets, $projAnnots project targets.")
-
-      val totalNum = data.length
-      val trainSetNum = totalNum - (totalNum * 0.2).toInt
-      DataSet(data.take(trainSetNum), data.drop(trainSetNum))
-        .tap(printResult)
-    }
   }
 
   case class TrainingState(
@@ -531,53 +440,6 @@ object TrainingLoop {
       val pc = ParamCollection.fromSerializable(pcData)
       TrainingState(step, dimMessage, iterationNum, optimizer, pc)
     }
-  }
-
-  case class Datum(
-      projectName: ProjectPath,
-      annotations: Map[ProjNode, PType],
-      predictor: Predictor,
-  ) {
-    val inPSpaceRatio: Double =
-      annotations
-        .count(
-          _._2.pipe(predictor.predictionSpace.allTypes.contains),
-        )
-        .toDouble / annotations.size
-
-    val distanceToConsts: PNode => Int = {
-      Analysis.analyzeGraph(predictor.graph).distanceToConstNode
-    }
-
-    def libAnnots: Int = annotations.count(_._2.madeFromLibTypes)
-    def projAnnots: Int = annotations.count(!_._2.madeFromLibTypes)
-
-    def showInline: String = {
-      s"{name: $projectName, " +
-        s"annotations: ${annotations.size}(L:$libAnnots/P:$projAnnots), " +
-        s"predicates: ${predictor.graph.predicates.size}, " +
-        s"predictionSpace: ${predictor.predictionSpace.size}, " +
-        s"inPSpaceRatio: $inPSpaceRatio}"
-    }
-
-    override def toString: String = {
-      showInline
-    }
-
-    def showDetail: String = {
-      s"""$showInline
-         |${predictor.predictionSpace}
-         |""".stripMargin
-    }
-  }
-
-  case class DataSet(
-      trainSet: Vector[Datum],
-      testSet: Vector[Datum],
-  ) {
-    override def toString: String =
-      s"train set size: ${trainSet.size}, " +
-        s"test set size: ${testSet.size}"
   }
 
   def mkEventLogger() = {

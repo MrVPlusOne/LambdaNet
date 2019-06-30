@@ -1,7 +1,7 @@
 package funcdiff
 
 import botkop.{numsca => ns}
-import funcdiff.Optimizers._
+import funcdiff.Optimizer._
 
 class OptimizerCheck extends TestUtils {
   val optimizers =
