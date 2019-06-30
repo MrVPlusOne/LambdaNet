@@ -23,7 +23,7 @@ object Analysis {
     }
 
     def neighbours(n: PNode): Set[PNode] = {
-      predicates(n).flatMap(_.allNodes) - n
+      predicates.getOrElse(n, Set()).flatMap(_.allNodes) - n
     }
 
     // dijkstra's algorithm
