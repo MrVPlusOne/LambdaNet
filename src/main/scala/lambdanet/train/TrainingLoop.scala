@@ -63,7 +63,7 @@ object TrainingLoop {
           .getOrElse(
             TrainingState(
               epoch0 = 0,
-              dimMessage = 64,
+              dimMessage = 32,
               optimizer = Optimizers.Adam(learningRate = 1e-3),
               iterationNum = 6,
               pc = ParamCollection(),
@@ -137,22 +137,25 @@ object TrainingLoop {
           announced(s"train on $datum") {
             checkShouldStop(epoch)
             for {
-              fwd <- forward(datum).tap(printResult)
+              (loss, fwd) <- forward(datum).tap(printResult)
               _ = checkShouldStop(epoch)
             } yield {
               checkShouldStop(epoch)
-              def optimize(fwd: ForwardResult) = optimizer.minimize(
-                fwd.loss.value / avgAnnotations,
+              def optimize(loss: CompNode) = optimizer.minimize(
+                loss * fwd.loss.count / avgAnnotations,
                 pc.allParams,
                 backPropInParallel =
                   Some(parallelCtx -> Timeouts.optimizationTimeout),
                 // weightDecay = Some(5e-5),  todo: use dropout
               )
 
-              limitTimeOpt("optimization", Timeouts.optimizationTimeout) {
+              limitTimeOpt(
+                s"optimization: $datum",
+                Timeouts.optimizationTimeout,
+              ) {
                 announced("optimization") {
                   DebugTime.logTime("optimization") {
-                    optimize(fwd)
+                    optimize(loss)
                   }
                 }
               }
@@ -164,7 +167,7 @@ object TrainingLoop {
         import cats.implicits._
         val ForwardResult(loss, libAcc, projAcc, distanceAcc) =
           stats.flatMap(_.toVector).combineAll
-        logger.logScalar("loss", epoch, loss.value.value.squeeze() / loss.count)
+        logger.logScalar("loss", epoch, toAccuracyD(loss))
         logger.logScalar("libAcc", epoch, toAccuracy(libAcc))
         logger.logScalar("projAcc", epoch, toAccuracy(projAcc))
         logger.logMap(
@@ -192,7 +195,7 @@ object TrainingLoop {
           val stat = testSet.flatMap { datum =>
             checkShouldStop(epoch)
             announced(s"test on $datum") {
-              forward(datum).toVector
+              forward(datum).map(_._2).toVector
             }
           }.combineAll
 
@@ -204,6 +207,11 @@ object TrainingLoop {
       def toAccuracy(counts: Counted[Int]): Double = {
         def nonZero(n: Int): Double = if (n == 0) 1.0 else n.toDouble
         counts.value.toDouble / nonZero(counts.count)
+      }
+
+      def toAccuracyD(counts: Counted[Double]): Double = {
+        def nonZero(n: Double): Double = if (n == 0) 1.0 else n.toDouble
+        counts.value / nonZero(counts.count)
       }
 
       case class Counted[V](count: Int, value: V)
@@ -219,13 +227,13 @@ object TrainingLoop {
       type ProjCorrect = Correct
 
       case class ForwardResult(
-          loss: Counted[Loss],
+          loss: Counted[Double],
           libCorrect: Counted[LibCorrect],
           projCorrect: Counted[ProjCorrect],
           distCorrectMap: Map[Int, Counted[Correct]],
       ) {
         override def toString: String = {
-          s"forward result: {loss: ${loss.value.value.squeeze() / loss.count}, " +
+          s"forward result: {loss: ${toAccuracyD(loss)}, " +
             s"lib acc: ${toAccuracy(libCorrect)} (${libCorrect.count} nodes), " +
             s"proj acc: ${toAccuracy(projCorrect)} (${projCorrect.count} nodes)}"
         }
@@ -263,8 +271,8 @@ object TrainingLoop {
           }
         }
 
-      private def forward(datum: Datum): Option[ForwardResult] =
-        limitTimeOpt("forward", Timeouts.forwardTimeout) {
+      private def forward(datum: Datum): Option[(Loss, ForwardResult)] =
+        limitTimeOpt(s"forward: $datum", Timeouts.forwardTimeout) {
           import datum._
 
           val nodesToPredict = annotations.keys.toVector
@@ -295,8 +303,8 @@ object TrainingLoop {
           val loss = predictionLoss(logits, targets, predSpace.size)
 
           val totalCount = libCounts.count + projCounts.count
-          ForwardResult(
-            Counted(totalCount, loss * totalCount),
+          loss -> ForwardResult(
+            Counted(totalCount, loss.value.squeeze() * totalCount),
             libCounts,
             projCounts,
             distanceCounts,
@@ -442,7 +450,7 @@ object TrainingLoop {
           .sortBy(-_._2)
 
         val totalUsages = sortedTypes.map(_._2).sum
-        val coverageGoal = 0.8
+        val coverageGoal = 0.85
         val (libTypes, achieved) =
           sortedTypes
             .zip(sortedTypes.scanLeft(0.0)(_ + _._2.toDouble / totalUsages))
@@ -450,7 +458,7 @@ object TrainingLoop {
             .unzip
 
         printResult(s"Coverages achieved: ${achieved.last}")
-        printResult(s"Lib types selected: $libTypes")
+        printResult(s"Lib types selected (${libTypes.length}): $libTypes")
 
         libTypes.map(_._1).toSet
       }

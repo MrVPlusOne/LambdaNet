@@ -19,7 +19,7 @@ case class NNArchitecture(dimMessage: Int, layerFactory: LayerFactory) {
   }
 
   def initialEmbedding(projectNodes: Set[ProjNode]): Embedding = {
-    val vec = getVar('nodeInitVec)(randomUnitVec(dimMessage))
+    val vec = getVar('nodeInitVec)(randomVec())
     projectNodes.map(_ -> vec).toMap
   }
 

@@ -497,8 +497,8 @@ object TrainingCenter {
     var restartOnTimeout = true
     var encodeDecodeTimeout = 400.seconds
 
-    val forwardTimeout = 600.seconds
-    val optimizationTimeout = 600.seconds
+    val forwardTimeout = 100.seconds
+    val optimizationTimeout = 100.seconds
   }
 
   case class AccuracyStats(
