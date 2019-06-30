@@ -18,7 +18,7 @@ let out: GStmt[] = [];
 let parser = new parsing.StmtParser();
 
 source.statements.forEach(s => {
-  let r = parser.parseStmt(s, checker);
+  let r = parser.parseStmt(s);
   if (!r) {
     throw new Error("failed for: " + s.getFullText(source));
   }

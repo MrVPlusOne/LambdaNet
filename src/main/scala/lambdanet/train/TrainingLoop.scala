@@ -27,7 +27,6 @@ object TrainingLoop {
   /** Remember to use these VM options to increase memory limits.
     * VM Options: -Xms2G -Xmx8G -Dorg.bytedeco.javacpp.maxbytes=18G -Dorg.bytedeco.javacpp.maxphysicalbytes=27G */
   def main(args: Array[String]): Unit = {
-
     run(
       maxTrainingEpochs = 1000,
       numOfThreads = Runtime.getRuntime.availableProcessors(),
@@ -128,36 +127,39 @@ object TrainingLoop {
       def trainStep(epoch: Int): Unit = {
         val startTime = System.nanoTime()
 
-        val stats = trainSet.map { datum =>
-          announced(s"train on $datum") {
-            checkShouldStop(epoch)
-            for {
-              (loss, fwd) <- forward(datum).tap(printResult)
-              _ = checkShouldStop(epoch)
-            } yield {
+        val stats = trainSet.zipWithIndex.map {
+          case (datum, i) =>
+            announced(s"(progress: ${i + 1}/${trainSet.size}) train on $datum") {
               checkShouldStop(epoch)
-              def optimize(loss: CompNode) = optimizer.minimize(
-                loss * fwd.loss.count / avgAnnotations,
-                pc.allParams,
-                backPropInParallel =
-                  Some(parallelCtx -> Timeouts.optimizationTimeout),
-                // weightDecay = Some(5e-5),  todo: use dropout
-              )
+              for {
+                (loss, fwd) <- forward(datum).tap(
+                  _.foreach(r => printResult(r._2)),
+                )
+                _ = checkShouldStop(epoch)
+              } yield {
+                checkShouldStop(epoch)
+                def optimize(loss: CompNode) = optimizer.minimize(
+                  loss * fwd.loss.count / avgAnnotations,
+                  pc.allParams,
+                  backPropInParallel =
+                    Some(parallelCtx -> Timeouts.optimizationTimeout),
+                  // weightDecay = Some(5e-5),  todo: use dropout
+                )
 
-              val gradInfo = limitTimeOpt(
-                s"optimization: $datum",
-                Timeouts.optimizationTimeout,
-              ) {
-                announced("optimization") {
-                  val stats = DebugTime.logTime("optimization") {
-                    optimize(loss)
+                val gradInfo = limitTimeOpt(
+                  s"optimization: $datum",
+                  Timeouts.optimizationTimeout,
+                ) {
+                  announced("optimization") {
+                    val stats = DebugTime.logTime("optimization") {
+                      optimize(loss)
+                    }
+                    calcGradInfo(stats)
                   }
-                  calcGradInfo(stats)
-                }
-              }.toVector
-              (fwd, gradInfo)
+                }.toVector
+                (fwd, gradInfo)
+              }
             }
-          }
         }
 
         import cats.implicits._
