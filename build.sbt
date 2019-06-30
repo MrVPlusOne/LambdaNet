@@ -14,7 +14,7 @@ scalacOptions ++= Seq(
 
 // to make the classpath right
 fork in run := true
-javaOptions ++= Seq("-Xms2G", "-Xmx8G", "-Dorg.bytedeco.javacpp.maxbytes=18G", "-Dorg.bytedeco.javacpp.maxphysicalbytes=27G")
+javaOptions ++= Seq("-Xms2G", "-Xmx6G", "-Dorg.bytedeco.javacpp.maxbytes=12G")
 
 libraryDependencies ++= Seq(
   "com.lihaoyi" %% "fastparse" % "2.0.4",
