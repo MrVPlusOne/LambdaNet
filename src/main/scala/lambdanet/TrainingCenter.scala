@@ -333,20 +333,6 @@ object TrainingCenter {
         pwd / "running-result" / "log.txt",
         printToConsole = true,
         overrideMode = true,
-        configs = Seq(
-          //          "embedding-magnitudes" -> PlotConfig("ImageSize->Medium"),
-          "embedding-changes" -> PlotConfig("ImageSize->Medium"),
-//          "embedding-max-length" -> PlotConfig("ImageSize->Medium"),
-          "iteration-time" -> PlotConfig(
-            "ImageSize->Medium",
-            """AxesLabel->{"step","ms"}""",
-          ),
-          "loss" -> PlotConfig("ImageSize->Large"),
-          "accuracy" -> PlotConfig("ImageSize->Medium"),
-          "test-accuracy" -> PlotConfig("ImageSize->Medium"),
-          "test-lib-accuracy" -> PlotConfig("ImageSize->Small"),
-          "test-proj-accuracy" -> PlotConfig("ImageSize->Small"),
-        ),
       )
     }
 

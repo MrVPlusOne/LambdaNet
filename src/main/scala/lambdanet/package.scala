@@ -135,11 +135,11 @@ package object lambdanet extends SimpleMath.ExtensionsTrait {
       Console.err.println(warnStr("[warn] " + str))
   }
 
-  def printInfo(a: Any): Unit ={
+  def printInfo(a: Any): Unit = {
     println(infoStr(a.toString))
   }
 
-  def printResult(a: Any): Unit ={
+  def printResult(a: Any): Unit = {
     println(resultStr(a.toString))
   }
 

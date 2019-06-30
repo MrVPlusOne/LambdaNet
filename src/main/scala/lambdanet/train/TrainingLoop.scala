@@ -1,7 +1,7 @@
 package lambdanet.train
 
 import lambdanet._
-import java.util.concurrent.{ForkJoinPool, TimeoutException}
+import java.util.concurrent.{ForkJoinPool}
 
 import ammonite.ops.Path
 import botkop.numsca
@@ -24,6 +24,7 @@ import scala.concurrent.{
   Future,
   TimeoutException,
 }
+import scala.language.reflectiveCalls
 import scala.util.Random
 
 object TrainingLoop {
@@ -140,7 +141,7 @@ object TrainingLoop {
 
             checkShouldStop(epoch)
             def optimize() = optimizer.minimize(
-              scaleLoss(fwd.loss, fwd.size),
+              fwd.loss.value / avgAnnotations,
               pc.allParams,
               backPropInParallel =
                 Some(parallelCtx -> Timeouts.optimizationTimeout),
@@ -159,13 +160,25 @@ object TrainingLoop {
         }
 
         import cats.implicits._
-        val ForwardResult(loss, _, libAcc, _, projAcc) = stats.combineAll
-        logger.log("loss", epoch, loss.value)
-        logger.log("libAcc", epoch, libAcc)
-        logger.log("projAcc", epoch, projAcc)
+        val ForwardResult(loss, libAcc, projAcc, distanceAcc) =
+          stats.combineAll
+        logger.logScalar("loss", epoch, loss.value.value.squeeze() / loss.count)
+        logger.logScalar("libAcc", epoch, toAccuracy(libAcc))
+        logger.logScalar("projAcc", epoch, toAccuracy(projAcc))
+        logger.logMap(
+          "distanceAcc",
+          epoch,
+          distanceAcc.toVector
+            .sortBy(_._1)
+            .map {
+              case (k, counts) =>
+                val ks = if (k == Analysis.Inf) "Inf" else k.toString
+                ks -> toAccuracy(counts)
+            },
+        )
 
         val timeInSec = (System.nanoTime() - startTime).toDouble / 1e9
-        logger.log("iter-time", epoch, Tensor(timeInSec))
+        logger.logScalar("iter-time", epoch, timeInSec)
 
         println(DebugTime.show)
       }
@@ -181,54 +194,77 @@ object TrainingLoop {
             }
           }.combineAll
 
-          logger.log("test-libAcc", epoch, stat.libAccuracy)
-          logger.log("test-projAcc", epoch, stat.projAccuracy)
+          import stat.{libCorrect, projCorrect}
+          logger.logScalar("test-libAcc", epoch, toAccuracy(libCorrect))
+          logger.logScalar("test-projAcc", epoch, toAccuracy(projCorrect))
         }
+
+      def toAccuracy(counts: Counted[Int]): Double = {
+        def nonZero(n: Int): Double = if (n == 0) 1.0 else n.toDouble
+        counts.value.toDouble / nonZero(counts.count)
+      }
+
+      case class Counted[V](count: Int, value: V)
+
+      object Counted {
+        def zero[V](v: V) = Counted(0, v)
+      }
 
       type Logits = CompNode
       type Loss = CompNode
-      type LibAccuracy = Double
-      type ProjAccuracy = Double
+      type Correct = Int
+      type LibCorrect = Correct
+      type ProjCorrect = Correct
 
       case class ForwardResult(
-          loss: Loss,
-          libNodes: Int,
-          libAccuracy: LibAccuracy,
-          projNodes: Int,
-          projAccuracy: ProjAccuracy,
+          loss: Counted[Loss],
+          libCorrect: Counted[LibCorrect],
+          projCorrect: Counted[ProjCorrect],
+          distCorrectMap: Map[Int, Counted[Correct]],
       ) {
-        val size = libNodes + projNodes
+//        override def toString: String = {
+//          s"forward result: {loss: ${loss}, lib acc: $libAccuracy ($libNodes nodes), " +
+//            s"proj acc: $projAccuracy ($projNodes nodes)}"
+//        }
+      }
 
-        override def toString: String =
-          s"forward result: {loss: ${loss.value}, lib acc: $libAccuracy ($libNodes nodes), " +
-            s"proj acc: $projAccuracy ($projNodes nodes)}"
+      implicit def weightedMonoid[V](
+          implicit m: Monoid[V],
+      ): Monoid[Counted[V]] = new Monoid[Counted[V]] {
+        def empty: Counted[V] = Counted(0, m.empty)
+
+        def combine(x: Counted[V], y: Counted[V]): Counted[V] = {
+          Counted(x.count + y.count, m.combine(x.value, y.value))
+        }
+      }
+
+      implicit object LossMonoid extends Monoid[Loss] {
+        def empty: Loss = 0.0
+
+        def combine(x: Loss, y: Loss): Loss = x + y
       }
 
       implicit val forwardResultMonoid: Monoid[ForwardResult] =
         new Monoid[ForwardResult] {
-          def empty: ForwardResult = ForwardResult(0, 0, 1, 0, 1)
+          import Counted.zero
+          import cats.implicits._
+
+          def empty: ForwardResult =
+            ForwardResult(zero(0), zero(0), zero(0), Map())
 
           def combine(x: ForwardResult, y: ForwardResult): ForwardResult = {
-            val loss = (x.loss * x.size + y.loss * y.size) / nonZero(
-              x.size + y.size,
-            )
-            val libNodes = x.libNodes + y.libNodes
-            val libAcc = (x.libAccuracy * x.libNodes + y.libAccuracy * y.libNodes) /
-              nonZero(x.libNodes + y.libNodes)
-            val projNodes = x.projNodes + y.projNodes
-            val projAcc = (x.projAccuracy * x.projNodes + y.projAccuracy * y.projNodes) /
-              nonZero(x.projNodes + y.projNodes)
-            ForwardResult(loss, libNodes, libAcc, projNodes, projAcc)
+            val z = ForwardResult.unapply(x).get |+| ForwardResult
+              .unapply(y)
+              .get
+            (ForwardResult.apply _).tupled(z)
           }
         }
-
-      private def nonZero(n: Int): Double = if (n == 0) 1.0 else n.toDouble
 
       private def forward(datum: Datum): ForwardResult =
         limitTime(Timeouts.forwardTimeout) {
           import datum._
 
-          val nodesToPredict = userAnnotations.keys.toVector
+          val nodesToPredict = annotations.keys.toVector
           val predSpace = predictor.predictionSpace
 
           val logits = announced("run predictor") {
@@ -237,25 +273,31 @@ object TrainingLoop {
               .result
           }
 
-          val groundTruths = nodesToPredict.map(userAnnotations)
+          val groundTruths = nodesToPredict.map(annotations)
           val targets = groundTruths.map(predSpace.indexOfType)
           val isFromLib = groundTruths.map(_.madeFromLibTypes)
+          val nodeDistances = nodesToPredict.map(_.n.pipe(distanceToConsts))
 
           assert(logits.shape(1) == predSpace.size)
-          val (libAcc, projAcc) = announced("compute training accuracy") {
-            analyzeLogits(
-              logits,
-              targets,
-              isFromLib,
-            )
-          }
+          val (libCounts, projCounts, distanceCounts) =
+            announced("compute training accuracy") {
+              analyzeLogits(
+                logits,
+                targets,
+                isFromLib,
+                nodeDistances,
+              )
+            }
 
           val loss = predictionLoss(logits, targets, predSpace.size)
-            .pipe(scaleLoss(_, datum.userAnnotations.size))
 
-          val libNodes = isFromLib.count(identity)
-          val projNodes = isFromLib.count(!_)
-          ForwardResult(loss, libNodes, libAcc, projNodes, projAcc)
+          val totalCount = libCounts.count + projCounts.count
+          ForwardResult(
+            Counted(totalCount, loss * totalCount),
+            libCounts,
+            projCounts,
+            distanceCounts,
+          )
         }
 
       @throws[TimeoutException]
@@ -291,28 +333,41 @@ object TrainingLoop {
       private def analyzeLogits(
           logits: CompNode,
           targets: Vector[Int],
-          isFromLibrary: Vector[Boolean],
-      ): (LibAccuracy, ProjAccuracy) = {
+          targetFromLibrary: Vector[Boolean],
+          nodeDistances: Vector[Int],
+      ): (
+          Counted[LibCorrect],
+          Counted[ProjCorrect],
+          Map[Int, Counted[Correct]],
+      ) = {
         val predictions = numsca
           .argmax(logits.value, axis = 1)
           .data
           .map(_.toInt)
           .toVector
-        val zipped = isFromLibrary.zip(predictions.zip(targets))
+        val truthValues = predictions.zip(targets).map { case (x, y) => x == y }
+        val zipped = targetFromLibrary.zip(truthValues)
         val libCorrect = zipped.collect {
-          case (true, (x, y)) if x == y => ()
+          case (true, true) => ()
         }.length
         val projCorrect = zipped.collect {
-          case (false, (x, y)) if x == y => ()
+          case (false, true) => ()
         }.length
-        val numLib = isFromLibrary.count(identity)
-        val numProj = isFromLibrary.count(!_)
+        val libCounts = Counted(targetFromLibrary.count(identity), libCorrect)
+        val projCounts = Counted(targetFromLibrary.count(!_), projCorrect)
 
-        (libCorrect / nonZero(numLib), projCorrect / nonZero(numProj))
+        val distMap = nodeDistances
+          .zip(truthValues)
+          .groupBy(_._1)
+          .mapValuesNow { vec =>
+            Counted(vec.length, vec.count(_._2))
+          }
+
+        (libCounts, projCounts, distMap)
       }
 
       private val avgAnnotations =
-        SM.mean(trainSet.map(_.userAnnotations.size.toDouble))
+        SM.mean(trainSet.map(_.annotations.size.toDouble))
       private def scaleLoss(loss: Loss, annotations: Int) = {
         loss * (annotations.toDouble / avgAnnotations)
       }
@@ -362,7 +417,7 @@ object TrainingLoop {
           }
           .fold(Map[PNode, Int]())(_ |+| _)
 
-        /** sort lib tyeps by their usages */
+        /** sort lib types by their usages */
         val sortedTypes = libDefs.nodeMapping.keys.toVector
           .collect {
             case n if n.isType =>
@@ -378,8 +433,8 @@ object TrainingLoop {
             .takeWhile(_._2 < coverageGoal)
             .unzip
 
-        printInfo(s"Coverages achieved: ${achieved.last}")
-        printInfo(s"Lib types selected: $libTypes")
+        printResult(s"Coverages achieved: ${achieved.last}")
+        printResult(s"Lib types selected: $libTypes")
 
         libTypes.map(_._1).toSet
       }
@@ -394,8 +449,12 @@ object TrainingLoop {
             val predictor =
               Predictor(g, libTypesToPredict, libNodeType, Some(taskSupport))
             Datum(path, annotations.toMap, predictor)
-              .tap(d => println(resultStr(d.showDetail)))
+              .tap(d => printResult(d.showDetail))
         }
+
+      val libAnnots = data.map(_.libAnnots).sum
+      val projAnnots = data.map(_.projAnnots).sum
+      printResult(s"$libAnnots library targets, $projAnnots project targets.")
 
       val totalNum = data.length
       val trainSetNum = totalNum - (totalNum * 0.2).toInt
@@ -451,21 +510,30 @@ object TrainingLoop {
 
   case class Datum(
       projectName: ProjectPath,
-      userAnnotations: Map[ProjNode, PType],
+      annotations: Map[ProjNode, PType],
       predictor: Predictor,
   ) {
     val inPSpaceRatio: Double =
-      userAnnotations
+      annotations
         .count(
           _._2.pipe(predictor.predictionSpace.allTypes.contains),
         )
-        .toDouble / userAnnotations.size
+        .toDouble / annotations.size
 
-    def showInline: String =
-      s"{name: $projectName, annotations: ${userAnnotations.size}, " +
+    val distanceToConsts: PNode => Int = {
+      Analysis.analyzeGraph(predictor.graph).distanceToConstNode
+    }
+
+    def libAnnots: Int = annotations.count(_._2.madeFromLibTypes)
+    def projAnnots: Int = annotations.count(!_._2.madeFromLibTypes)
+
+    def showInline: String = {
+      s"{name: $projectName, " +
+        s"annotations: ${annotations.size}(L:$libAnnots/P:$projAnnots), " +
         s"predicates: ${predictor.graph.predicates.size}, " +
         s"predictionSpace: ${predictor.predictionSpace.size}, " +
         s"inPSpaceRatio: $inPSpaceRatio}"
+    }
 
     override def toString: String = {
       showInline
@@ -474,9 +542,7 @@ object TrainingLoop {
     def showDetail: String = {
       s"""$showInline
          |${predictor.predictionSpace}
-         |nodes: ${predictor.graph.nodes}
-       """.stripMargin
-      showInline + s"\n${predictor.predictionSpace}"
+         |""".stripMargin
     }
   }
 
@@ -495,19 +561,6 @@ object TrainingLoop {
       pwd / "running-result" / "log.txt",
       printToConsole = true,
       overrideMode = true,
-      configs = Seq(
-//        "embedding-changes" -> PlotConfig("ImageSize->Medium"),
-        //          "embedding-max-length" -> PlotConfig("ImageSize->Medium"),
-        "loss" -> PlotConfig("ImageSize->Medium"),
-        "libAcc" -> PlotConfig("ImageSize->Medium"),
-        "projAcc" -> PlotConfig("ImageSize->Medium"),
-        "iter-time" -> PlotConfig(
-          "ImageSize->Medium",
-          """AxesLabel->{"step","s"}""",
-        ),
-        "test-libAcc" -> PlotConfig("ImageSize->Medium"),
-        "test-projAcc" -> PlotConfig("ImageSize->Medium"),
-      ),
     )
   }
 

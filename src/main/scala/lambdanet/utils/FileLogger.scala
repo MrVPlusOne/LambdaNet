@@ -37,7 +37,13 @@ class FileLogger(file: Path, printToConsole: Boolean) {
 }
 
 object EventLogger {
-  case class Event(name: String, iteration: Int, value: Tensor)
+  sealed trait EventValue
+
+  case class DoubleValue(v: Double) extends EventValue
+
+  case class MapValue(v: Vector[(String, Double)]) extends EventValue
+
+  case class Event(name: String, iteration: Int, value: EventValue)
 
   case class PlotConfig(options: String*)
 }
@@ -48,7 +54,6 @@ class EventLogger(
     file: Path,
     printToConsole: Boolean,
     overrideMode: Boolean,
-    configs: Seq[(String, PlotConfig)],
 ) {
 
   if (exists(file) && overrideMode) {
@@ -56,41 +61,42 @@ class EventLogger(
   }
   private val fLogger = new FileLogger(file, printToConsole = false)
 
-  fLogger.println(
-    configs
-      .map {
-        case (k, v) =>
-          s""""$k"->${v.options.mkString("{", ",", "}")}"""
-      }
-      .mkString("{", ",", "}"),
-  )
-
-  val names: Set[String] = configs.toMap.keySet
-
+  @deprecated
   def log(name: String, iteration: Int, value: Tensor): Unit = {
-    log(Event(name, iteration, value))
+    ???
   }
 
-  def log(name: String, iteration: Int, value: Double): Unit = {
-    log(Event(name, iteration, Tensor(value)))
+  def logScalar(name: String, iteration: Int, value: Double): Unit = {
+    log(Event(name, iteration, DoubleValue(value)))
   }
 
-  def logOpt(name: String, iteration: Int, value: Option[Double]) = {
-    value.foreach(v => log(name, iteration, Tensor(v)))
+  def logMap(
+      name: String,
+      iteration: Int,
+      value: Vector[(String, Double)],
+  ): Unit = {
+    log(Event(name, iteration, MapValue(value)))
+  }
+
+  def logOpt(name: String, iteration: Int, value: Option[Double]): Unit = {
+    value.foreach(v => logScalar(name, iteration, v))
   }
 
   def log(event: Event): Unit = {
-    import event._
+    import event.{name, iteration}
+    import TensorExtension.mamFormat
+
+    val str = event.value match {
+      case DoubleValue(v) => mamFormat(v)
+      case MapValue(map) =>
+        map.map { case (k, v) => s"{$k,$v}" }.mkString("{", ", ", "}")
+    }
+
     fLogger.println(
-      s"""{"$name", $iteration, ${TensorExtension.mamFormat(value)}}""",
+      s"""{"$name", $iteration, $str}""",
     )
     if (printToConsole) {
-      println(resultStr(s"[$iteration]$name: $value"))
-    }
-    if (!names.contains(name)) {
-      System.err.println(
-        s"Unregistered event name: $name. You should register it in EventLogger.configs.",
-      )
+      println(resultStr(s"[$iteration]$name: $str"))
     }
   }
 }

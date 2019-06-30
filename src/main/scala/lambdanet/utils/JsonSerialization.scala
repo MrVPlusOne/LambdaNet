@@ -1,6 +1,3 @@
 package lambdanet.utils
 
-object JsonSerialization {
-
-
-}
+object JsonSerialization {}

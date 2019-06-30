@@ -1,7 +1,16 @@
 package funcdiff
 
-import java.io.{File, FileInputStream, FileOutputStream, ObjectInputStream, ObjectOutputStream, ObjectStreamClass, Serializable}
+import java.io.{
+  File,
+  FileInputStream,
+  FileOutputStream,
+  ObjectInputStream,
+  ObjectOutputStream,
+  ObjectStreamClass,
+  Serializable,
+}
 
+import cats.Monoid
 import lambdanet.translation.OldIR.IRType
 
 import scala.util.Random
@@ -510,36 +519,6 @@ object SimpleMath {
     }
   }
 
-  trait Monoid[T] {
-    def zero: T
-    def op(x1: T, x2: T): T
-  }
-
-  import scala.concurrent._
-  def parallelReduce[T](
-      xs: Array[T],
-      m: Monoid[T],
-      sequentialThreshold: Int = 2,
-  )(
-      implicit ctx: ExecutionContext,
-  ): Future[T] = {
-    def rec(range: Range): Future[T] = {
-      val span = range.length
-      if (span < sequentialThreshold) {
-        Future(range.map(xs.apply).foldLeft(m.zero)(m.op))
-      } else {
-        val (l, r) = range.splitAt(span / 2)
-        val lF = rec(l)
-        val rF = rec(r)
-        lF.zip(rF).map { p =>
-          m.op(p._1, p._2)
-        }
-      }
-
-    }
-    rec(xs.indices)
-  }
-
   class LabeledGraph() {
     case class Edge(from: IRType, to: IRType, info: String)
     case class Node(name: String, info: String)
@@ -584,16 +563,6 @@ object SimpleMath {
 
       s"""Graph[$nodeList,$edgeList,VertexStyle->$stylePart,GraphLayout -> $graphLayout]"""
     }
-  }
-
-  def main(args: Array[String]): Unit = {
-    val r =
-      Await.result(parallelReduce((0 until 10000).toArray, new Monoid[Int] {
-        def zero: Int = 0
-
-        def op(x1: Int, x2: Int): Int = x1 + x2
-      })(ExecutionContext.global), duration.Duration.Inf)
-    println { r }
   }
 
   def wrapInQuotes(s: String) = s""""$s""""
