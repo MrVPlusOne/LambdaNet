@@ -131,7 +131,7 @@ object NewInference {
           }
 
         val merged: Map[ProjNode, CompNode] = logTime("merge messages") {
-          architecture.mergeMessages(messages, embedding)
+          architecture.mergeMessages(parallelize(messages.toSeq), embedding)
         }
 
         logTime("update embedding") { architecture.update(embedding, merged) }
@@ -269,7 +269,8 @@ object NewInference {
           }
       }
 
-      graph.predicates.par
+      graph.predicates.toSeq
+        .pipe(parallelize)
         .map(toBatched)
         .fold[BatchedMsgModels](Map())(_ |+| _)
         .mapValuesNow(_.filterNot(_.allNodesFromLib))

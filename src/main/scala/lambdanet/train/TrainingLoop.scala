@@ -116,7 +116,9 @@ object TrainingLoop {
                 "Timeout... training restarted (skip one training epoch)...",
               )
             } else {
-              saveTraining(epoch, "error-save")
+              if(!ex.isInstanceOf[StopException]) {
+                saveTraining(epoch, "error-save")
+              }
               throw ex
             }
         }
@@ -357,7 +359,7 @@ object TrainingLoop {
       private def checkShouldStop(epoch: Int): Unit = {
         if (TrainingControl.shouldStop(consumeFile = true)) {
           saveTraining(epoch, s"stopped-epoch$epoch")
-          throw new Exception("Stopped by 'stop.txt'.")
+          throw new StopException("Stopped by 'stop.txt'.")
         }
       }
 

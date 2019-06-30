@@ -8,6 +8,8 @@ import funcdiff._
 import lambdanet.NewInference.{LabelVector, Message, MessageKind, MessageModel}
 import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 
+import scala.collection.{GenMap, GenSeq}
+
 case class NNArchitecture(dimMessage: Int, layerFactory: LayerFactory) {
   import layerFactory._
 
@@ -127,10 +129,10 @@ case class NNArchitecture(dimMessage: Int, layerFactory: LayerFactory) {
   }
 
   def mergeMessages(
-      messages: Map[ProjNode, Chain[Message]],
+      messages: GenSeq[(ProjNode, Chain[Message])],
       embedding: ProjNode => CompNode,
   ): Map[ProjNode, Message] = {
-    messages.par.map {
+    messages.map {
       case (n, ms) =>
         val n1 = embedding(n)
         val values = concatN(axis = 0)(ms.toVector)
@@ -139,7 +141,7 @@ case class NNArchitecture(dimMessage: Int, layerFactory: LayerFactory) {
         //todo: check other kinds of attentions
         val attention = softmax(keys.dot(n1.t).t / dimMessage)
         n -> attention.dot(values)
-    }.seq
+    }.seq.toMap
   }
 
   def update(

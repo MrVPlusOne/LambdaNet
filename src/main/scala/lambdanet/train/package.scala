@@ -49,4 +49,6 @@ package object train {
 
     def combine(x: Tensor, y: Tensor): Tensor = x + y
   }
+
+  case class StopException(msg: String) extends Exception
 }
