@@ -7,6 +7,15 @@ import scala.concurrent.{Await, TimeoutException}
 import scala.concurrent.duration.Duration
 
 case class EmailService(userEmail: String, password: String) {
+
+  private var warned = false
+  def atFirstTime(action: => Unit): Unit = {
+    if(!warned){
+      action
+    }
+    warned = true
+  }
+
   val Array(user, domain) = userEmail.split("@")
 
   def sendMail(
