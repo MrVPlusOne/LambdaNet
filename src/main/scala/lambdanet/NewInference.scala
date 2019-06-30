@@ -79,6 +79,8 @@ object NewInference {
         val libTermEmbedding = {
           libraryNodes
             .filter(_.n.isTerm)
+            .toSeq
+            .pipe(parallelize)
             .map { n =>
               val v1 = getVar('libNode / n.n.symbol) { randomVec() }
               val v2 = libTypeEmbedding(libNodeType(n))

@@ -136,32 +136,34 @@ object TrainingLoop {
         val stats = trainSet.map { datum =>
           announced(s"train on $datum") {
             checkShouldStop(epoch)
-            val fwd = forward(datum)
-              .tap(f => println(resultStr(f.toString)))
+            for {
+              fwd <- forward(datum).tap(printResult)
+              _ = checkShouldStop(epoch)
+            } yield {
+              checkShouldStop(epoch)
+              def optimize(fwd: ForwardResult) = optimizer.minimize(
+                fwd.loss.value / avgAnnotations,
+                pc.allParams,
+                backPropInParallel =
+                  Some(parallelCtx -> Timeouts.optimizationTimeout),
+                // weightDecay = Some(5e-5),  todo: use dropout
+              )
 
-            checkShouldStop(epoch)
-            def optimize() = optimizer.minimize(
-              fwd.loss.value / avgAnnotations,
-              pc.allParams,
-              backPropInParallel =
-                Some(parallelCtx -> Timeouts.optimizationTimeout),
-              //                  weightDecay = Some(5e-5),  todo: use dropout
-            )
-
-            limitTime(Timeouts.optimizationTimeout) {
-              announced("optimization") {
-                DebugTime.logTime("optimization") {
-                  optimize()
+              limitTimeOpt("optimization", Timeouts.optimizationTimeout) {
+                announced("optimization") {
+                  DebugTime.logTime("optimization") {
+                    optimize(fwd)
+                  }
                 }
               }
+              fwd
             }
-            fwd
           }
         }
 
         import cats.implicits._
         val ForwardResult(loss, libAcc, projAcc, distanceAcc) =
-          stats.combineAll
+          stats.flatMap(_.toVector).combineAll
         logger.logScalar("loss", epoch, loss.value.value.squeeze() / loss.count)
         logger.logScalar("libAcc", epoch, toAccuracy(libAcc))
         logger.logScalar("projAcc", epoch, toAccuracy(projAcc))
@@ -187,10 +189,10 @@ object TrainingLoop {
         if (epoch % 5 == 0) announced("test on dev set") {
           import cats.implicits._
 
-          val stat = testSet.map { datum =>
+          val stat = testSet.flatMap { datum =>
             checkShouldStop(epoch)
             announced(s"test on $datum") {
-              forward(datum)
+              forward(datum).toVector
             }
           }.combineAll
 
@@ -222,10 +224,11 @@ object TrainingLoop {
           projCorrect: Counted[ProjCorrect],
           distCorrectMap: Map[Int, Counted[Correct]],
       ) {
-//        override def toString: String = {
-//          s"forward result: {loss: ${loss}, lib acc: $libAccuracy ($libNodes nodes), " +
-//            s"proj acc: $projAccuracy ($projNodes nodes)}"
-//        }
+        override def toString: String = {
+          s"forward result: {loss: ${loss.value.value.squeeze() / loss.count}, " +
+            s"lib acc: ${toAccuracy(libCorrect)} (${libCorrect.count} nodes), " +
+            s"proj acc: ${toAccuracy(projCorrect)} (${projCorrect.count} nodes)}"
+        }
       }
 
       implicit def weightedMonoid[V](
@@ -260,8 +263,8 @@ object TrainingLoop {
           }
         }
 
-      private def forward(datum: Datum): ForwardResult =
-        limitTime(Timeouts.forwardTimeout) {
+      private def forward(datum: Datum): Option[ForwardResult] =
+        limitTimeOpt("forward", Timeouts.forwardTimeout) {
           import datum._
 
           val nodesToPredict = annotations.keys.toVector
@@ -304,6 +307,19 @@ object TrainingLoop {
       private def limitTime[A](timeLimit: Timeouts.Duration)(f: => A): A = {
         val exec = scala.concurrent.ExecutionContext.global
         Await.result(Future(f)(exec), timeLimit)
+      }
+
+      private def limitTimeOpt[A](
+          name: String,
+          timeLimit: Timeouts.Duration,
+      )(f: => A): Option[A] = {
+        try {
+          Some(limitTime(timeLimit)(f))
+        } catch {
+          case _: TimeoutException =>
+            printWarning(s"$name exceeded time limit $timeLimit.")
+            None
+        }
       }
 
       private def saveTraining(epoch: Int, dirName: String): Unit = {
@@ -439,7 +455,8 @@ object TrainingLoop {
         libTypes.map(_._1).toSet
       }
 
-      val projectsToUse = 6
+      val ALL = 100
+      val projectsToUse = ALL
 
       val data = projects
         .pipe(x => new Random(1).shuffle(x))
