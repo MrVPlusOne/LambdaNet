@@ -9,5 +9,5 @@
 cd ./scripts/ts/
 tsc
 cd ../..
-export JAVA_OPTS="-Xms4G -Xmx12G -Dorg.bytedeco.javacpp.maxbytes=18G -Dorg.bytedeco.javacpp.maxphysicalbytes=31G";sbt "train" |& tee console.txt;sbt "runMain lambdanet.utils.ReportFinish"
+sbt "train" |& tee console.txt;sbt "runMain lambdanet.utils.ReportFinish"
 
