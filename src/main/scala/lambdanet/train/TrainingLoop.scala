@@ -10,7 +10,7 @@ import funcdiff.{SimpleMath => SM}
 import funcdiff._
 import lambdanet.TrainingCenter.Timeouts
 import lambdanet.utils.{EventLogger, ReportFinish}
-import lambdanet.{PredictionSpace, printWarning}
+import lambdanet.{printWarning}
 
 import scala.collection.parallel.ForkJoinTaskSupport
 import scala.concurrent.{
@@ -37,6 +37,9 @@ object TrainingLoop {
       maxTrainingEpochs: Int,
       numOfThreads: Int,
   ) {
+
+    printInfo(s"maxTrainingEpochs = $maxTrainingEpochs, numberOfThreads: $numOfThreads")
+
     def result(): Unit = {
       val trainingState = loadTrainingState()
       val dataSet = DataSet.loadDataSet(taskSupport)
@@ -157,6 +160,11 @@ object TrainingLoop {
                     calcGradInfo(stats)
                   }
                 }.toVector
+
+                DebugTime.logTime("GC") {
+                  System.gc()
+                }
+
                 (fwd, gradInfo)
               }
             }
@@ -205,6 +213,18 @@ object TrainingLoop {
           logger.logScalar("test-libAcc", epoch, toAccuracy(libCorrect))
           logger.logScalar("test-projAcc", epoch, toAccuracy(projCorrect))
         }
+
+      private def logMemoryUsage(epoch: Double): Unit ={
+        import java.lang.management.{ManagementFactory => F}
+        val bean = F.getMemoryMXBean
+        val GB = 1024*1024*1024
+
+        val heap = bean.getHeapMemoryUsage.getUsed.toDouble / GB
+        val nonHeap = bean.getNonHeapMemoryUsage.getUsed.toDouble / GB
+        F.getMemoryManagerMXBeans
+        logger.logScalar("memory-heap", epoch, heap)
+        logger.logScalar("memory-nonHeap", epoch, nonHeap)
+      }
 
       case class ForwardResult(
           loss: Counted[Double],
