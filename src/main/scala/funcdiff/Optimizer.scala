@@ -115,11 +115,13 @@ object Optimizer {
       momenta: mutable.HashMap[SymbolPath, Momentum] = mutable.HashMap(),
   ) extends Optimizer {
 
+    override def toString: String = s"Adam(lr=$learningRate, beta1=$beta1, beta2=$beta2, epsilon=$epsilon)"
+
     def parameterChangeAmount(p: Param, g: Gradient): Gradient = {
       val mem @ Momentum(m, v, _) =
         momenta.getOrElse(
           p.path,
-          Momentum(ns.zeros(g.shape), ns.zeros(g.shape)),
+          Momentum(ns.zeros(g.shape()), ns.zeros(g.shape())),
         )
       momenta(p.path) = mem
       mem.t += 1

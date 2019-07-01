@@ -6,8 +6,8 @@
 
 # When you come back again and want to check the status of your process you
 # can use tmux attach to attach to your tmux session.
-cd ./scripts/ts/
-tsc
-cd ../..
+#cd ./scripts/ts/
+#tsc
+#cd ../..
 sbt "train" |& tee console.txt;sbt "runMain lambdanet.utils.ReportFinish"
 

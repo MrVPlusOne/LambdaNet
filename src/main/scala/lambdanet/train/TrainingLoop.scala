@@ -449,7 +449,7 @@ object TrainingLoop {
 
     override def toString: String = {
       s"""TrainingState:
-         |  step: $epoch0
+         |  epoch: $epoch0
          |  dimMessage: $dimMessage
          |  iterationNum: $iterationNum
          |  optimizer: $optimizer
@@ -462,7 +462,7 @@ object TrainingLoop {
       val map = SM
         .readObjectFromFile[List[(String, Any)]](file.toIO)
         .toMap
-      val step = map("step").asInstanceOf[Int]
+      val step = map("epoch").asInstanceOf[Int]
       val dimMessage = map("dimMessage").asInstanceOf[Int]
       val optimizer = map("optimizer").asInstanceOf[Optimizer]
       val iterationNum = map.getOrElse("iterationNum", 10).asInstanceOf[Int]
