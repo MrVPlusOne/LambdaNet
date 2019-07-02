@@ -1,7 +1,8 @@
 package lambdanet
 
-import scala.language.implicitConversions
+//import scala.language.implicitConversions
 import cats.data.Chain
+import lambdanet.architecture.{HybridArchitecture, NNArchitecture}
 
 object NewInference {
   import funcdiff._
@@ -32,8 +33,8 @@ object NewInference {
     ) {
       import layerFactory._
 
-      val architecture = NNArchitecture(dimMessage, layerFactory)
-      import architecture.{Embedding, randomVec}
+      val architecture: NNArchitecture = HybridArchitecture(dimMessage, layerFactory)
+      import architecture.{Embedding, randomVar}
 
       /** returns softmax logits */
       def result: CompNode = {
@@ -56,7 +57,7 @@ object NewInference {
         val allSignatureEmbeddings = logTime("allSignatureEmbeddings") {
           def encodeLeaf(n: PNode) =
             if (n.fromProject) embedding(ProjNode(n))
-            else getVar('libTypeEmbedding / n.symbol) { randomVec() }
+            else randomVar('libTypeEmbedding / n.symbol)
           // encode all types from the prediction space
           signatureEmbeddingMap(encodeLeaf, predictionSpace.allTypes)
         }
@@ -69,7 +70,7 @@ object NewInference {
         val libTypeEmbedding = {
           // todo: better encoding? (like using object label set)
           def encodeLeaf(n: PNode) =
-            getVar('libType / n.symbol) { randomVec() }
+            randomVar('libType / n.symbol)
 
           signatureEmbeddingMap(encodeLeaf, allLibSignatures) ++
             libraryNodes
@@ -82,7 +83,7 @@ object NewInference {
             .toSeq
             .pipe(parallelize)
             .map { n =>
-              val v1 = getVar('libNode / n.n.symbol) { randomVec() }
+              val v1 = randomVar('libNode / n.n.symbol)
               val v2 = libTypeEmbedding(libNodeType(n))
               LibTermNode(n) -> architecture.encodeLibTerm(v1, v2)
             }
@@ -105,7 +106,7 @@ object NewInference {
         val encodeFixedTypes = logTime("encodeFixedTypes") {
           def encodeLeaf(n: PNode) =
             if (n.fromProject) embedding(ProjNode(n))
-            else getVar('libTypeEmbedding / n.symbol) { randomVec() }
+            else randomVar('libTypeEmbedding / n.symbol)
           signatureEmbeddingMap(encodeLeaf, allFixedTypes)
         }
 
@@ -160,7 +161,7 @@ object NewInference {
       ): Map[PType, CompNode] = {
         import collection.mutable
 
-        val vecForAny = getVar('anyType) { randomVec() }
+        val vecForAny = randomVar('anyType)
         val signatureEmbeddings = mutable.HashMap[PType, CompNode]()
         def embedSignature(sig: PType): CompNode =
           SM.withErrorMessage(s"in sig: $sig") {
