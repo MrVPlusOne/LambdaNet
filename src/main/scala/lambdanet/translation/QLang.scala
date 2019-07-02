@@ -122,13 +122,16 @@ object QLangTranslation {
     val errorHandler = ErrorHandler.alwaysThrow
     val exports = ImportsResolution
       .resolveExports(
-        Seq(pModule),
-        ModuleExports.empty,
-        Map(),
-        PathMapping.empty,
-        defaultPublicMode = true,
+        ImportsResolution.ProjectInfo(
+          Seq(pModule),
+          ModuleExports.empty,
+          Map(),
+          PathMapping.empty,
+          defaultPublicMode = true,
+          devDependencies = Set(),
+        ),
         errorHandler = errorHandler,
-        devDependencies = Set(),
+        libAllocator.newDef,
       )
       .values
       .head
@@ -168,13 +171,16 @@ object QLangTranslation {
     } ++ resolved
 
     val dExports = ImportsResolution.resolveExports(
-      Seq(declarations),
-      baseCtx,
-      resolved1,
-      pathMapping,
-      defaultPublicMode = true,
+      ImportsResolution.ProjectInfo(
+        Seq(declarations),
+        baseCtx,
+        resolved1,
+        pathMapping,
+        defaultPublicMode = true,
+        devDependencies,
+      ),
       errorHandler = errorHandler,
-      devDependencies,
+      allocator.newDef,
     )(dPath)
 
     // then, make the modules in the .d.ts files available for import
@@ -187,13 +193,16 @@ object QLangTranslation {
       PLangTranslation.fromGModule(_, allocator)
     }
     val exports = ImportsResolution.resolveExports(
-      modules1,
-      baseCtx,
-      resolved2,
-      pathMapping,
-      defaultPublicMode = false,
+      ImportsResolution.ProjectInfo(
+        modules1,
+        baseCtx,
+        resolved2,
+        pathMapping,
+        defaultPublicMode = false,
+        devDependencies,
+      ),
       errorHandler = errorHandler,
-      devDependencies,
+      allocator.newDef,
     )
 
     modules1.map { m =>

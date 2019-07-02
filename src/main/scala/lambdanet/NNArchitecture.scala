@@ -3,7 +3,6 @@ package lambdanet
 import botkop.numsca
 import botkop.numsca.{:>, Tensor}
 import cats.data.Chain
-import funcdiff.TensorExtension.randomUnitVec
 import funcdiff._
 import lambdanet.NewInference.{LabelVector, Message, MessageKind, MessageModel}
 import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}

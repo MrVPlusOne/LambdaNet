@@ -128,13 +128,15 @@ object TrainingLoop {
       val layerFactory =
         new LayerFactory(SymbolPath.empty / Symbol("TrainingLoop"), pc)
       val stepsPerEpoch = trainSet.length max testSet.length
+      val random = new util.Random(2)
 
       def trainStep(epoch: Int): Unit = {
         val startTime = System.nanoTime()
 
-        val stats = trainSet.zipWithIndex.map {
+        val stats = random.shuffle(trainSet).zipWithIndex.map {
           case (datum, i) =>
-            announced(s"(progress: ${i + 1}/${trainSet.size}) train on $datum") {
+            import Console.{GREEN, BLUE}
+            announced(s"$GREEN(progress: ${i + 1}/${trainSet.size})$BLUE train on $datum") {
               checkShouldStop(epoch)
               for {
                 (loss, fwd) <- forward(datum).tap(

@@ -2,15 +2,10 @@ package lambdanet
 
 import ammonite.ops._
 import funcdiff.SimpleMath
-import lambdanet.translation.ImportsResolution.{ErrorHandler, ModuleExports}
+import lambdanet.translation.ImportsResolution.{ErrorHandler, ModuleExports, NameDef}
 import lambdanet.translation._
-import lambdanet.translation.PredicateGraph.{
-  PNode,
-  PNodeAllocator,
-  PType,
-  ProjNode,
-}
-import lambdanet.utils.{ProgramParsing}
+import lambdanet.translation.PredicateGraph.{PNode, PNodeAllocator, PType, ProjNode}
+import lambdanet.utils.ProgramParsing
 import lambdanet.utils.ProgramParsing.GProject
 @SerialVersionUID(2)
 case class LibDefs(
@@ -21,7 +16,7 @@ case class LibDefs(
 
 object PrepareRepos {
   val projectsDir: Path = pwd / up / "lambda-repos" / "projects"
-
+  val libDefsFile: Path = pwd / up / "lambda-repos" / "libDefs.serialized"
   val parsedRepoPath: Path = pwd / "data" / "predicateGraphs.serialized"
 
   def main(args: Array[String]): Unit = {
@@ -45,13 +40,10 @@ object PrepareRepos {
     /** set to true to load declarations from the serialization file */
     val loadFromFile = true
 
-    val libDefsFile = pwd / up / "lambda-repos" / "libDefs.serialized"
-
     val libDefs = if (loadFromFile) {
-      println(s"loading library definitions from $libDefsFile...")
-      val read = SimpleMath.readObjectFromFile[LibDefs](libDefsFile.toIO)
-      println(s"library definitions loaded.")
-      read
+      announced(s"loading library definitions from $libDefsFile...") {
+        SimpleMath.readObjectFromFile[LibDefs](libDefsFile.toIO)
+      }
     } else {
       val defs = parseLibDefs()
       SimpleMath.saveObjectToFile(libDefsFile.toIO)(defs)
@@ -65,8 +57,8 @@ object PrepareRepos {
       .filter(f => f.isDir)
       .par
       .map { f =>
-        val p = prepareProject(libDefs, f).copy()
-        p.copy(_1 = p._1.relativeTo(projectsDir))
+        val p = prepareProject(libDefs, f)
+        (f.relativeTo(projectsDir), p._1, p._2.toList)
       }
       .seq
       .toVector
@@ -136,13 +128,16 @@ object PrepareRepos {
       case (k, m) => (k: RelPath) -> m
     }
     val exports = ImportsResolution.resolveExports(
-      pModules,
-      baseCtx,
-      resolved1,
-      mapping,
-      defaultPublicMode = true,
+      ImportsResolution.ProjectInfo(
+        pModules,
+        baseCtx,
+        resolved1,
+        mapping,
+        defaultPublicMode = true,
+        devDependencies,
+      ),
       errorHandler = handler,
-      devDependencies,
+      libAllocator.newDef,
       maxIterations = 5,
     )
 
@@ -183,11 +178,14 @@ object PrepareRepos {
     LibDefs(baseCtx1, nodeMapping, libExports)
   }
 
-  private def prepareProject(libDefs: LibDefs, root: Path) =
+  def prepareProject(
+      libDefs: LibDefs,
+      root: Path,
+      skipSet: Set[String] = Set("dist", "__tests__", "test", "tests")
+  ): (PredicateGraph, Map[ProjNode, PType]) =
     SimpleMath.withErrorMessage(s"In project: $root") {
       import libDefs._
 
-      val skipSet = Set("dist", "__tests__", "test", "tests") //todo: also parsing the tests
       def filterTests(path: Path): Boolean = {
         path.segments.forall(!skipSet.contains(_))
       }
@@ -221,9 +219,9 @@ object PrepareRepos {
         PredicateGraphTranslation.fromIRModules(fixedAnnots, irModules)
 
       errorHandler.warnErrors()
-      println(s"Project parsed: '$root'")
+      printResult(s"Project parsed: '$root'")
 
-      (root, graph, userAnnots.toList)
+      (graph, userAnnots)
     }
 
 }

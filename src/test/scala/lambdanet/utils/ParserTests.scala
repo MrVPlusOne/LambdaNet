@@ -7,14 +7,8 @@ import lambdanet.Surface._
 import ImportStmt._
 import funcdiff.SimpleMath
 import lambdanet.translation.ImportsResolution.{ErrorHandler, PathMapping}
-import lambdanet.translation.PredicateGraph.PNodeAllocator
-import lambdanet.translation.{
-  IRTranslation,
-  ImportsResolution,
-  OldPredicateGraphConstruction,
-  PredicateGraphTranslation,
-  QLangTranslation,
-}
+import lambdanet.translation.PredicateGraph.{DefineRel, PNode, PNodeAllocator}
+import lambdanet.translation.{IRTranslation, ImportsResolution, OldPredicateGraphConstruction, PredicateGraphTranslation, QLangTranslation}
 import lambdanet.utils.ProgramParsing.ImportPattern
 
 class ParserTests extends WordSpec with MyTest {
@@ -235,15 +229,20 @@ class ParserTests extends WordSpec with MyTest {
     baseCtx.publicSymbols.foreach(println)
   }
 
-  "playground" in {
-    val root = pwd / RelPath(
-      "data/train/TypeScript-Algorithms-and-Data-Structures-master/ts",
-    )
-    ProgramParsing
-      .parseGModulesFromFiles(
-        Seq(RelPath("Graph/DirectedAdjacencyMatrixGraph.ts")),
-        root,
-      )
-      .foreach(println)
+  "import-unknowns tests" in {
+    import PrepareRepos._
+
+    val libDefs =
+      announced(s"loading library definitions from $libDefsFile...") {
+        SimpleMath.readObjectFromFile[LibDefs](libDefsFile.toIO)
+      }
+
+    val f = pwd / RelPath("data/tests/import-unknowns")
+    val (g, annts) = prepareProject(libDefs, f, skipSet = Set())
+    g.predicates.foreach(println)
+    g.predicates.collect{
+      case DefineRel(p, expr) if p.nameOpt.contains('a) =>
+        assert(expr.asInstanceOf[PNode].fromProject)
+    }
   }
 }

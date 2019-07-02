@@ -256,22 +256,29 @@ object ImportsResolution {
   }
 
   /** Note: parameter `resolvedModules` should also include the namespaces in the baseCtx */
-  def resolveExports(
+  case class ProjectInfo(
       modulesToResolve: Seq[PModule],
       defaultCtx: ModuleExports,
       resolvedModules: Map[ProjectPath, ModuleExports],
       pathMapping: PathMapping,
       defaultPublicMode: Boolean,
-      errorHandler: ErrorHandler,
       devDependencies: Set[ProjectPath],
+  )
+
+  def resolveExports(
+      project: ProjectInfo,
+      errorHandler: ErrorHandler,
+      unresolvedDef: Option[Symbol] => NameDef,
       maxIterations: Int = 10,
   ): Map[ProjectPath, ModuleExports] = {
+    import project._
+
     val devDependencyTree = {
       val map = new PrefixMap[String, Unit]()
       devDependencies.foreach(p => map.update(p.segments.toList, ()))
       map
     }
-    def isInDevelopDeps(path: List[String]): Boolean = {
+    def isInDevDeps(path: List[String]): Boolean = {
       @scala.annotation.tailrec
       def rec(tree: PrefixMap[String, Unit], path: List[String]): Boolean = {
         if (tree.value.nonEmpty) return true
@@ -360,7 +367,7 @@ object ImportsResolution {
     /** Assumes `linkIndexFiles` is already called on `exports` */
     def propagateExports(
         exports: Map[ProjectPath, ModuleExports],
-        shouldReportError: Boolean,
+        isLastIteration: Boolean,
     ): Map[ProjectPath, ModuleExports] = {
       import ModuleExports._
 
@@ -369,10 +376,18 @@ object ImportsResolution {
           inside: ProjectPath,
           exports: ModuleExports,
       ): Unit = {
-        if (shouldReportError)
+        if (isLastIteration)
           errorHandler.importSymbolsNotResolved(
             ImportSingleNotResolved(s, inside, exports),
           )
+      }
+
+      def unresolvedME(name: Symbol): ModuleExports = {
+        if (isLastIteration)
+          ModuleExports(
+            internalSymbols = Map(name -> unresolvedDef(Some(name))),
+          )
+        else ModuleExports.empty
       }
 
       val exports1 = modulesToResolve.map { module =>
@@ -408,7 +423,7 @@ object ImportsResolution {
             }
           exports.getOrElse(
             path, {
-              if (!isInDevelopDeps(ref.path.segments.toList))
+              if (!isInDevDeps(ref.path.segments.toList))
                 errorHandler.sourceFileMissing(path, thisExports)
               ModuleExports.empty
             },
@@ -430,9 +445,7 @@ object ImportsResolution {
                       case None =>
                         if (exports != ModuleExports.empty)
                           failToResolve(i, thisPath, exports)
-                        ModuleExports(
-                          internalSymbols = Map(i.newName -> NameDef.unknownDef),
-                        )
+                        unresolvedME(i.newName)
                     }
                   case i: ImportModule =>
                     ModuleExports(
@@ -440,15 +453,15 @@ object ImportsResolution {
                         Map(i.newName -> NameDef.namespaceDef(exports)),
                     )
                   case i: ImportDefault =>
-                    val d =
-                      if (exports == ModuleExports.empty) NameDef.unknownDef
-                      else if (exports.defaultDefs == NameDef.empty) {
-                        failToResolve(i, thisPath, exports)
-                        NameDef.unknownDef
-                      } else exports.defaultDefs
-                    ModuleExports(
-                      internalSymbols = Map(i.newName -> d),
-                    )
+                    if (exports == ModuleExports.empty)
+                      unresolvedME(i.newName)
+                    else if (exports.defaultDefs == NameDef.empty) {
+                      failToResolve(i, thisPath, exports)
+                      unresolvedME(i.newName)
+                    } else
+                      ModuleExports(
+                        internalSymbols = Map(i.newName -> exports.defaultDefs),
+                      )
                 }
               case Namespace(name, block, _) =>
                 val df =
@@ -488,9 +501,10 @@ object ImportsResolution {
                   }
                 case ExportDefault(newName, None) =>
                   val name = newName.get
-                  ModuleExports(
-                    defaultDefs = thisExports.internalSymbols(name),
-                  )
+                  thisExports.internalSymbols
+                    .get(name)
+                    .map(d => ModuleExports(defaultDefs = d))
+                    .getOrElse(ModuleExports.empty)
               }
             case Namespace(name, block, _) =>
               val ctx1 = thisExports |+|

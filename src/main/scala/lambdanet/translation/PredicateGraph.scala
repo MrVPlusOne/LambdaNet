@@ -50,7 +50,8 @@ object PredicateGraph {
     override def toString: String = {
       val namePart = nameOpt.map(n => s"{${n.name}}").getOrElse("")
       val tyPart = if (isType) "[ty]" else ""
-      s"𝒯$tyPart$id$namePart"
+      val prefix = if (fromLib) "𝓛" else "𝓟"
+      s"$prefix$tyPart$id$namePart"
     }
 
     override def equals(obj: Any): Boolean = obj match {
@@ -74,6 +75,7 @@ object PredicateGraph {
   class PNodeAllocator(val forLib: Boolean)
       extends IdAllocator[PNode]
       with Serializable {
+
     val unknownDef: NameDef =
       if (forLib) NameDef.makeUnknownDef(this) else null
 
@@ -83,6 +85,13 @@ object PredicateGraph {
     ): PNode = {
       useNewId(id => new PNode(id, nameOpt, isType, forLib))
     }
+
+    def newDef(nameOpt: Option[Symbol]) =
+      NameDef(
+        Some(newNode(nameOpt, isType = false)),
+        Some(newNode(nameOpt, isType = true)),
+        None,
+      )
   }
 
   case class ProjNode(n: PNode) {
