@@ -497,9 +497,9 @@ object TrainingCenter {
 
     def readFromFile(): Unit ={
       val file = pwd / "configs" / "timeouts.json"
-      printInfo(s"read timeouts from $file")
+      printInfo(s"read timeouts from '$file'")
       if(!exists(file)){
-        printWarning(s"Timeouts file not found under $file, use default timeout values")
+        printWarning(s"Timeouts file not found under '$file', use default timeout values")
       }
       import ProgramParsing._
       val text = read(file)

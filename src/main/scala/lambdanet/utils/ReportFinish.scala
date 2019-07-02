@@ -14,8 +14,9 @@ object ReportFinish {
 
   type MachineName = String
   def readEmailInfo(): (MachineName, EmailService) = {
-    println("reading email credentials from 'emails.txt'...")
-    val Array(email, password, name) = read(pwd / "emails.txt").trim.split("\n")
+    val emailFile = pwd / "configs" / "emails.txt"
+    println(s"reading email credentials from '$emailFile'...")
+    val Array(email, password, name) = read(emailFile).trim.split("\n")
     name -> EmailService(email, password)
   }
 }
