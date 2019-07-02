@@ -10,7 +10,7 @@ case class EmailService(userEmail: String, password: String) {
 
   private var warned = false
   def atFirstTime(action: => Unit): Unit = {
-    if(!warned){
+    if (!warned) {
       action
     }
     warned = true

@@ -8,7 +8,13 @@ import ImportStmt._
 import funcdiff.SimpleMath
 import lambdanet.translation.ImportsResolution.{ErrorHandler, PathMapping}
 import lambdanet.translation.PredicateGraph.{DefineRel, PNode, PNodeAllocator}
-import lambdanet.translation.{IRTranslation, ImportsResolution, OldPredicateGraphConstruction, PredicateGraphTranslation, QLangTranslation}
+import lambdanet.translation.{
+  IRTranslation,
+  ImportsResolution,
+  OldPredicateGraphConstruction,
+  PredicateGraphTranslation,
+  QLangTranslation,
+}
 import lambdanet.utils.ProgramParsing.ImportPattern
 
 class ParserTests extends WordSpec with MyTest {
@@ -240,7 +246,7 @@ class ParserTests extends WordSpec with MyTest {
     val f = pwd / RelPath("data/tests/import-unknowns")
     val (g, annts) = prepareProject(libDefs, f, skipSet = Set())
     g.predicates.foreach(println)
-    g.predicates.collect{
+    g.predicates.collect {
       case DefineRel(p, expr) if p.nameOpt.contains('a) =>
         assert(expr.asInstanceOf[PNode].fromProject)
     }

@@ -2,9 +2,18 @@ package lambdanet
 
 import ammonite.ops._
 import funcdiff.SimpleMath
-import lambdanet.translation.ImportsResolution.{ErrorHandler, ModuleExports, NameDef}
+import lambdanet.translation.ImportsResolution.{
+  ErrorHandler,
+  ModuleExports,
+  NameDef,
+}
 import lambdanet.translation._
-import lambdanet.translation.PredicateGraph.{PNode, PNodeAllocator, PType, ProjNode}
+import lambdanet.translation.PredicateGraph.{
+  PNode,
+  PNodeAllocator,
+  PType,
+  ProjNode,
+}
 import lambdanet.utils.ProgramParsing
 import lambdanet.utils.ProgramParsing.GProject
 @SerialVersionUID(2)
@@ -181,7 +190,7 @@ object PrepareRepos {
   def prepareProject(
       libDefs: LibDefs,
       root: Path,
-      skipSet: Set[String] = Set("dist", "__tests__", "test", "tests")
+      skipSet: Set[String] = Set("dist", "__tests__", "test", "tests"),
   ): (PredicateGraph, Map[ProjNode, PType]) =
     SimpleMath.withErrorMessage(s"In project: $root") {
       import libDefs._

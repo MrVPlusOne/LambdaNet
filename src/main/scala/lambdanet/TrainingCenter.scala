@@ -17,7 +17,12 @@ import lambdanet.utils.{EventLogger, ProgramParsing, ReportFinish}
 
 import scala.collection.mutable
 import scala.collection.parallel.ForkJoinTaskSupport
-import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutorService, Future}
+import scala.concurrent.{
+  Await,
+  ExecutionContext,
+  ExecutionContextExecutorService,
+  Future,
+}
 import scala.util.Random
 
 /**
@@ -495,11 +500,13 @@ object TrainingCenter {
     var forwardTimeout = 100.seconds
     var optimizationTimeout = 100.seconds
 
-    def readFromFile(): Unit ={
+    def readFromFile(): Unit = {
       val file = pwd / "configs" / "timeouts.json"
       printInfo(s"read timeouts from '$file'")
-      if(!exists(file)){
-        printWarning(s"Timeouts file not found under '$file', use default timeout values")
+      if (!exists(file)) {
+        printWarning(
+          s"Timeouts file not found under '$file', use default timeout values",
+        )
       }
       import ProgramParsing._
       val text = read(file)
