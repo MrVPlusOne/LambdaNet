@@ -596,4 +596,25 @@ object SimpleMath {
     val bot = xs.map(_._1).sum
     top / bot
   }
+
+  type Coverage = Double
+  def selectBasedOnFrequency[A](
+      freqs: Seq[(A, Int)],
+      coverageGoal: Coverage,
+  ): (Seq[(A, Int)], Coverage) = {
+
+    /** sort lib types by their usages */
+    val sorted = freqs.sortBy(p => -p._2)
+    val totalUsages = sorted.map(_._2).sum
+
+    val (selected, _) =
+      sorted
+        .zip(sorted.scanLeft(0.0)(_ + _._2.toDouble / totalUsages))
+        .takeWhile(_._2 < coverageGoal)
+        .unzip
+
+    val achieved = selected.map(_._2).sum.toDouble / totalUsages
+
+    (selected, achieved)
+  }
 }

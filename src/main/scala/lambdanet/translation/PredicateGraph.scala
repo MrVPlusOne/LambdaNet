@@ -182,6 +182,10 @@ object PredicateGraph {
     def allNodes: Set[PNode]
   }
 
+  case class HasName(n: PNode, name: Symbol) extends TyPredicate {
+    val allNodes: Set[PNode] = Set(n)
+  }
+
   case class FixedToType(n: PNode, ty: PType) extends TyPredicate {
     val allNodes: Set[PNode] = Set(n) ++ ty.allNodes
   }
@@ -335,6 +339,10 @@ object PredicateGraphTranslation {
     }
 
     val totalMapping = modules.foldLeft(Map[PNode, PAnnot]())(_ ++ _.mapping)
+    totalMapping.keySet.foreach { n =>
+      n.nameOpt.foreach(name => add(HasName(n, name)))
+    }
+
     val libInMapping = totalMapping.filter(_._1.fromLib)
     assert(libInMapping.isEmpty, s"lib node in totalMapping: $libInMapping")
 

@@ -1,7 +1,7 @@
 package lambdanet.train
 
 import lambdanet._
-import java.util.concurrent.{ForkJoinPool}
+import java.util.concurrent.ForkJoinPool
 
 import ammonite.ops.Path
 import botkop.numsca
@@ -9,8 +9,9 @@ import cats.Monoid
 import funcdiff.{SimpleMath => SM}
 import funcdiff._
 import lambdanet.TrainingCenter.Timeouts
+import lambdanet.architecture.{HybridArchitecture, NNArchitecture}
 import lambdanet.utils.{EventLogger, ReportFinish}
-import lambdanet.{printWarning}
+import lambdanet.printWarning
 
 import scala.collection.parallel.ForkJoinTaskSupport
 import scala.concurrent.{
@@ -38,13 +39,17 @@ object TrainingLoop {
       numOfThreads: Int,
   ) {
 
-    printInfo(s"maxTrainingEpochs = $maxTrainingEpochs, numberOfThreads: $numOfThreads")
+    printInfo(
+      s"maxTrainingEpochs = $maxTrainingEpochs, numberOfThreads: $numOfThreads",
+    )
     Timeouts.readFromFile()
 
     def result(): Unit = {
       val trainingState = loadTrainingState()
-      val dataSet = DataSet.loadDataSet(taskSupport)
-      trainOnProjects(dataSet, trainingState).result()
+      val architecture =
+        HybridArchitecture(trainingState.dimMessage, trainingState.pc)
+      val dataSet = DataSet.loadDataSet(taskSupport, architecture)
+      trainOnProjects(dataSet, trainingState, architecture).result()
     }
 
     private def loadTrainingState(): TrainingState =
@@ -74,6 +79,7 @@ object TrainingLoop {
     case class trainOnProjects(
         dataSet: DataSet,
         trainingState: TrainingState,
+        architecture: NNArchitecture,
     ) {
       import TensorExtension.oneHot
       import dataSet._
@@ -117,7 +123,7 @@ object TrainingLoop {
                 "Timeout... training restarted (skip one training epoch)...",
               )
             } else {
-              if(!ex.isInstanceOf[StopException]) {
+              if (!ex.isInstanceOf[StopException]) {
                 saveTraining(epoch, "error-save")
               }
               throw ex
@@ -126,8 +132,6 @@ object TrainingLoop {
       }
 
       val logger: EventLogger = mkEventLogger()
-      val layerFactory =
-        new LayerFactory(SymbolPath.empty / Symbol("TrainingLoop"), pc)
       val stepsPerEpoch = trainSet.length max testSet.length
       val random = new util.Random(2)
 
@@ -137,7 +141,9 @@ object TrainingLoop {
         val stats = random.shuffle(trainSet).zipWithIndex.map {
           case (datum, i) =>
             import Console.{GREEN, BLUE}
-            announced(s"$GREEN(progress: ${i + 1}/${trainSet.size})$BLUE train on $datum") {
+            announced(
+              s"$GREEN(progress: ${i + 1}/${trainSet.size})$BLUE train on $datum",
+            ) {
               checkShouldStop(epoch)
               for {
                 (loss, fwd) <- forward(datum).tap(
@@ -219,10 +225,10 @@ object TrainingLoop {
           logger.logScalar("test-projAcc", epoch, toAccuracy(projCorrect))
         }
 
-      private def logMemoryUsage(epoch: Double): Unit ={
+      private def logMemoryUsage(epoch: Double): Unit = {
         import java.lang.management.{ManagementFactory => F}
         val bean = F.getMemoryMXBean
-        val GB = 1024*1024*1024
+        val GB = 1024 * 1024 * 1024
 
         val heap = bean.getHeapMemoryUsage.getUsed.toDouble / GB
         val nonHeap = bean.getNonHeapMemoryUsage.getUsed.toDouble / GB
@@ -285,7 +291,7 @@ object TrainingLoop {
 
           val logits = announced("run predictor") {
             predictor
-              .run(dimMessage, layerFactory, nodesToPredict, iterationNum)
+              .run(architecture, nodesToPredict, iterationNum)
               .result
           }
 
@@ -330,7 +336,7 @@ object TrainingLoop {
           Some(limitTime(timeLimit)(f))
         } catch {
           case _: TimeoutException =>
-            val msg= s"$name exceeded time limit $timeLimit."
+            val msg = s"$name exceeded time limit $timeLimit."
             printWarning(msg)
             emailService.atFirstTime {
               emailService.sendMail(emailService.userEmail)(

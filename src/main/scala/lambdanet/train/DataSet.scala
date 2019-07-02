@@ -3,6 +3,9 @@ package lambdanet.train
 import lambdanet._
 import lambdanet.translation.PredicateGraph._
 import NewInference._
+import lambdanet.PrepareRepos.ParsedRepos
+import lambdanet.architecture.{NNArchitecture, SegmentedLabelEncoder}
+
 import scala.collection.parallel.ForkJoinTaskSupport
 
 case class DataSet(
@@ -15,12 +18,15 @@ case class DataSet(
 }
 
 object DataSet {
-  def loadDataSet(taskSupport: ForkJoinTaskSupport): DataSet =
+  def loadDataSet(
+      taskSupport: ForkJoinTaskSupport,
+      architecture: NNArchitecture,
+  ): DataSet =
     announced("loadDataSet") {
       import PrepareRepos._
       import util.Random
 
-      val ParsedRepos(libDefs, projects) =
+      val repos @ ParsedRepos(libDefs, projects) =
         announced(s"read data set from file: $parsedRepoPath") {
           SM.readObjectFromFile[ParsedRepos](parsedRepoPath.toIO)
         }
@@ -31,35 +37,11 @@ object DataSet {
           .typeOpt
           .getOrElse(PredictionSpace.unknownType)
 
-      val libTypesToPredict: Set[LibTypeNode] = {
-        import cats.implicits._
-        val usages: Map[PNode, Int] = projects.par
-          .map {
-            case (_, _, annots) =>
-              annots.collect { case (_, PTyVar(v)) => v -> 1 }.toMap
-          }
-          .fold(Map[PNode, Int]())(_ |+| _)
+      val libTypesToPredict: Set[LibTypeNode] =
+        selectLibTypes(repos, coverageGoal = 0.9)
 
-        /** sort lib types by their usages */
-        val sortedTypes = libDefs.nodeMapping.keys.toVector
-          .collect {
-            case n if n.isType =>
-              (LibTypeNode(LibNode(n)), usages.getOrElse(n, 0))
-          }
-          .sortBy(-_._2)
-
-        val totalUsages = sortedTypes.map(_._2).sum
-        val coverageGoal = 0.85
-        val (libTypes, achieved) =
-          sortedTypes
-            .zip(sortedTypes.scanLeft(0.0)(_ + _._2.toDouble / totalUsages))
-            .takeWhile(_._2 < coverageGoal)
-            .unzip
-
-        printResult(s"Coverages achieved: ${achieved.last}")
-        printResult(s"Lib types selected (${libTypes.length}): $libTypes")
-
-        libTypes.map(_._1).toSet
+      val labelEncoder = announced("create label encoder") {
+        SegmentedLabelEncoder(repos, coverageGoal = 0.9, architecture)
       }
 
       val ALL = 100
@@ -72,7 +54,13 @@ object DataSet {
         .map {
           case (path, g, annotations) =>
             val predictor =
-              Predictor(g, libTypesToPredict, libNodeType, Some(taskSupport))
+              Predictor(
+                g,
+                libTypesToPredict,
+                libNodeType,
+                labelEncoder.encode,
+                Some(taskSupport),
+              )
             Datum(path, annotations.toMap, predictor)
               .tap(d => printResult(d.showDetail))
         }
@@ -86,6 +74,36 @@ object DataSet {
       DataSet(data.take(trainSetNum), data.drop(trainSetNum))
         .tap(printResult)
     }
+
+  def selectLibTypes(
+      repos: ParsedRepos,
+      coverageGoal: Double,
+  ): Set[LibTypeNode] = {
+    import cats.implicits._
+    import repos.{libDefs, graphs => projects}
+
+    val usages: Map[PNode, Int] = projects.par
+      .map {
+        case (_, _, annots) =>
+          annots.collect { case (_, PTyVar(v)) => v -> 1 }.toMap
+      }
+      .fold(Map[PNode, Int]())(_ |+| _)
+
+    /** sort lib types by their usages */
+    val typeFreqs = libDefs.nodeMapping.keys.toVector
+      .collect {
+        case n if n.isType =>
+          (LibTypeNode(LibNode(n)), usages.getOrElse(n, 0))
+      }
+
+    val (libTypes, achieved) =
+      SM.selectBasedOnFrequency(typeFreqs, coverageGoal)
+
+    printResult(s"Coverages achieved: $achieved")
+    printResult(s"Lib types selected (${libTypes.length}): $libTypes")
+
+    libTypes.map(_._1).toSet
+  }
 
 }
 

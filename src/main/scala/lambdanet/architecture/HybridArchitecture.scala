@@ -2,12 +2,11 @@ package lambdanet.architecture
 
 import cats.data.Chain
 import funcdiff._
-import lambdanet.NewInference.{LabelVector, Message, MessageKind, MessageModel}
+import lambdanet.NewInference.{Message, MessageKind, MessageModel}
 import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 
-
-case class HybridArchitecture(dimMessage: Int, layerFactory: LayerFactory)
-    extends NNArchitecture {
+case class HybridArchitecture(dimMessage: Int, pc: ParamCollection)
+    extends NNArchitecture(s"hybrid-$dimMessage", dimMessage, pc) {
 
   def initialEmbedding(projectNodes: Set[ProjNode]): Embedding = {
     val vec = randomVar('nodeInitVec)
@@ -50,7 +49,12 @@ case class HybridArchitecture(dimMessage: Int, layerFactory: LayerFactory)
           .unzip3
         verticalBatching(n1s.zip(inputs), singleLayer(name / 'left, _)) |+|
           verticalBatching(n2s.zip(inputs), singleLayer(name / 'right, _))
-      case KindLabeled(name, labelType) =>
+      case KindNaming(name) =>
+        val paired = models
+          .asInstanceOf[Vector[Naming]]
+          .map(s => s.n -> encodeLabel(s.name))
+        verticalBatching(paired, singleLayer(name, _))
+      case KindBinaryLabeled(name, labelType) =>
         val (n1s, n2s, inputs) = models
           .asInstanceOf[Vector[Labeled]]
           .map {

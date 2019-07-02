@@ -2,7 +2,7 @@ package lambdanet
 
 //import scala.language.implicitConversions
 import cats.data.Chain
-import lambdanet.architecture.{HybridArchitecture, NNArchitecture}
+import lambdanet.architecture.{NNArchitecture}
 
 object NewInference {
   import funcdiff._
@@ -22,18 +22,15 @@ object NewInference {
       graph: PredicateGraph,
       libraryTypeNodes: Set[LibTypeNode],
       libNodeType: LibNode => PType,
+      labelEncoder: GenSeq[Symbol] => Symbol => CompNode,
       taskSupport: Option[ForkJoinTaskSupport],
   ) {
 
     case class run(
-        dimMessage: Int,
-        layerFactory: LayerFactory,
+        architecture: NNArchitecture,
         nodesToPredict: Vector[ProjNode],
         iterations: Int,
     ) {
-      import layerFactory._
-
-      val architecture: NNArchitecture = HybridArchitecture(dimMessage, layerFactory)
       import architecture.{Embedding, randomVar}
 
       /** returns softmax logits */
@@ -69,8 +66,11 @@ object NewInference {
       private def computeLibNodeEncoding(): LibNode => CompNode = {
         val libTypeEmbedding = {
           // todo: better encoding? (like using object label set)
-          def encodeLeaf(n: PNode) =
-            randomVar('libType / n.symbol)
+          def encodeLeaf(n: PNode) = {
+            val ex = randomVar('libType / n.symbol)
+            val name = encodeNameOpt(n.nameOpt)
+            architecture.encodeLibType(ex, name)
+          }
 
           signatureEmbeddingMap(encodeLeaf, allLibSignatures) ++
             libraryNodes
@@ -85,7 +85,8 @@ object NewInference {
             .map { n =>
               val v1 = randomVar('libNode / n.n.symbol)
               val v2 = libTypeEmbedding(libNodeType(n))
-              LibTermNode(n) -> architecture.encodeLibTerm(v1, v2)
+              val name = encodeNameOpt(n.n.nameOpt)
+              LibTermNode(n) -> architecture.encodeLibTerm(v1, v2, name)
             }
             .toMap
         }
@@ -189,11 +190,16 @@ object NewInference {
         signatureEmbeddings.toMap
       }
 
-      private val encodeLabel =
-        allLabels.map { k =>
-          k -> const(randomUnitVec(dimMessage))
-        }.toMap
+      private val encodeLabel = labelEncoder(
+        parallelize((allLabels ++ additionalNames).toSeq),
+      )
 
+      def encodeNameOpt(nameOpt: Option[Symbol]): CompNode = {
+        nameOpt match {
+          case Some(n) => encodeLabel(n)
+          case None    => randomVar("nameMissing")
+        }
+      }
     }
 
     val projectNodes: Set[ProjNode] =
@@ -223,6 +229,11 @@ object NewInference {
       pTypeLabels ++ predicateLabels
     }
 
+    val additionalNames: Set[Symbol] = {
+      val nodes = graph.nodes ++ allLibSignatures.flatMap(_.allNodes)
+      nodes.flatMap(_.nameOpt)
+    }
+
     type BatchedMsgModels = Map[MessageKind, Vector[MessageModel]]
     val batchedMsgModels: BatchedMsgModels = {
       import cats.implicits._
@@ -233,6 +244,8 @@ object NewInference {
         Map(KindBinary(name) -> Vector(Binary(p1, p2)))
 
       def toBatched(pred: TyPredicate): BatchedMsgModels = pred match {
+        case HasName(n, name) =>
+          Map(KindNaming("hasName") -> Vector(Naming(n, name)))
         case UsedAsBool(n) =>
           Map(KindSingle("usedAsBool") -> Vector(Single(n)))
         case FixedToType(n, ty) =>
@@ -251,22 +264,22 @@ object NewInference {
               val msgs = (to +: args).zipWithIndex.map {
                 case (a, i) => Labeled(defined, a, Label.Position(i - 1))
               }
-              Map(KindLabeled("defineFunc", LabelType.Position) -> msgs)
+              Map(KindBinaryLabeled("defineFunc", LabelType.Position) -> msgs)
             case PCall(f, args) =>
               // todo: reason about generics
               val msgs = (defined +: args).zipWithIndex.map {
                 case (a, i) => Labeled(f, a, Label.Position(i - 1))
               }
-              Map(KindLabeled("defineCall", LabelType.Position) -> msgs)
+              Map(KindBinaryLabeled("defineCall", LabelType.Position) -> msgs)
             case PObject(fields) =>
               //todo: use usage information
               val msgs = fields.toVector.map {
                 case (l, v) => Labeled(defined, v, Label.Field(l))
               }
-              Map(KindLabeled("defineObject", LabelType.Field) -> msgs)
+              Map(KindBinaryLabeled("defineObject", LabelType.Field) -> msgs)
             case PAccess(obj, l) =>
               val msg = Vector(Labeled(defined, obj, Label.Field(l)))
-              Map(KindLabeled("defineAccess", LabelType.Field) -> msg)
+              Map(KindBinaryLabeled("defineAccess", LabelType.Field) -> msg)
           }
       }
 
@@ -300,7 +313,9 @@ object NewInference {
 
     case class KindBinary(name: String) extends MessageKind
 
-    case class KindLabeled(name: String, labelType: LabelType.Value)
+    case class KindNaming(name: String) extends MessageKind
+
+    case class KindBinaryLabeled(name: String, labelType: LabelType.Value)
         extends MessageKind
 
     object LabelType extends Enumeration {
@@ -313,6 +328,7 @@ object NewInference {
 
     /** If this is true, then this message model can be discarded */
     def allNodesFromLib: Boolean = this match {
+      case Naming(n, _)       => n.fromLib
       case Single(n)          => n.fromLib
       case Binary(n1, n2)     => n1.fromLib && n2.fromLib
       case WithType(n, _)     => n.fromLib
@@ -321,6 +337,8 @@ object NewInference {
   }
 
   object MessageModel {
+
+    case class Naming(n: PNode, name: Symbol) extends MessageModel
 
     case class Single(n: PNode) extends MessageModel
 

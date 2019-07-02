@@ -58,6 +58,9 @@ trait APITrait {
 
   def total(xs: IS[CompNode]): CompNode = funcNode(Total(xs))
 
+  def totalSafe(xs: IS[CompNode], whenEmpty: => CompNode) =
+    if (xs.isEmpty) whenEmpty else total(xs)
+
   def concatN(axis: Int)(xs: IS[CompNode]): CompNode =
     funcNode(ConcatN(xs, axis))
 

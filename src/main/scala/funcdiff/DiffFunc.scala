@@ -334,6 +334,8 @@ object DiffFunc {
 
   // ================ N-nary functions ==================
   case class Total(args: IS[CompNode]) extends DiffFunc {
+    require(args.nonEmpty)
+
     val value: Tensor = args.map(_.value).reduce(_ + _)
 
     def name: String = "total"

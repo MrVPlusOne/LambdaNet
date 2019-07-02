@@ -10,10 +10,14 @@ import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 
 import scala.collection.GenSeq
 
-trait NNArchitecture {
+abstract class NNArchitecture(
+    name: String,
+    dimMessage: Int,
+    pc: ParamCollection,
+) {
+
   type Embedding = Map[ProjNode, CompNode]
-  val dimMessage: Int
-  val layerFactory: LayerFactory
+  val layerFactory: LayerFactory = LayerFactory(name, pc)
 
   import layerFactory._
 
@@ -57,8 +61,19 @@ trait NNArchitecture {
     }
   }
 
-  def encodeLibTerm(experience: CompNode, signature: CompNode): CompNode = {
-    singleLayer('encodeLibTerm, experience.concat(signature, axis = 1))
+  def encodeLibTerm(
+      experience: CompNode,
+      signature: CompNode,
+      name: CompNode,
+  ): CompNode = {
+    singleLayer(
+      'encodeLibTerm,
+      experience.concat(signature, axis = 1).concat(name, axis = 1),
+    )
+  }
+
+  def encodeLibType(experience: CompNode, name: CompNode): CompNode = {
+    singleLayer('encodeLibType, experience.concat(name, axis = 1))
   }
 
   def mergeMessages(
@@ -146,11 +161,14 @@ trait NNArchitecture {
   }
 
   private val normalizeFactor = 0.1 / math.sqrt(dimMessage)
-  private def randomVec(): Tensor = {
+  def randomVec(): Tensor = {
     numsca.randn(1, dimMessage) * normalizeFactor
   }
 
   def randomVar(name: SymbolPath): CompNode = {
     getVar(name)(randomVec())
   }
+
+  def zeroVec() = numsca.zeros(1, dimMessage)
+
 }
