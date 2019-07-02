@@ -39,6 +39,7 @@ object TrainingLoop {
   ) {
 
     printInfo(s"maxTrainingEpochs = $maxTrainingEpochs, numberOfThreads: $numOfThreads")
+    Timeouts.readFromFile()
 
     def result(): Unit = {
       val trainingState = loadTrainingState()

@@ -13,16 +13,11 @@ import lambdanet.translation.OldPredicateGraph
 import lambdanet.translation.OldPredicateGraph._
 import lambdanet.translation.OldPredicateGraphConstruction._
 import lambdanet.utils.EventLogger.PlotConfig
-import lambdanet.utils.{EventLogger, ReportFinish}
+import lambdanet.utils.{EventLogger, ProgramParsing, ReportFinish}
 
 import scala.collection.mutable
 import scala.collection.parallel.ForkJoinTaskSupport
-import scala.concurrent.{
-  Await,
-  ExecutionContext,
-  ExecutionContextExecutorService,
-  Future,
-}
+import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutorService, Future}
 import scala.util.Random
 
 /**
@@ -497,8 +492,25 @@ object TrainingCenter {
     var restartOnTimeout = true
     var encodeDecodeTimeout = 400.seconds
 
-    val forwardTimeout = 100.seconds
-    val optimizationTimeout = 100.seconds
+    var forwardTimeout = 100.seconds
+    var optimizationTimeout = 100.seconds
+
+    def readFromFile(): Unit ={
+      val file = pwd / "configs" / "timeouts.json"
+      printInfo(s"read timeouts from $file")
+      if(!exists(file)){
+        printWarning(s"Timeouts file not found under $file, use default timeout values")
+      }
+      import ProgramParsing._
+      val text = read(file)
+      printResult(s"use timeouts: \n$text")
+
+      val js = parseJson(text)
+
+      restartOnTimeout = asBoolean(js("restartOnTimeout"))
+      forwardTimeout = asNumber(js("forwardTimeout")).seconds
+      optimizationTimeout = asNumber(js("optimizationTimeout")).seconds
+    }
   }
 
   case class AccuracyStats(
