@@ -62,7 +62,7 @@ object DataSet {
                 Some(taskSupport),
               )
             Datum(path, annotations.toMap, predictor)
-              .tap(d => printResult(d.showDetail))
+              .tap(printResult)
         }
 
       val libAnnots = data.map(_.libAnnots).sum

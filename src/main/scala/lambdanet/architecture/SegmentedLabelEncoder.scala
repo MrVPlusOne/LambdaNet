@@ -50,7 +50,7 @@ case class SegmentedLabelEncoder(
       val unknownSeg = architecture.zeroVec()
 
       def encodeSeg(seg: Segment): CompNode = {
-        segmentsMap.getOrElse(seg, unknownSeg)
+        segmentsMap.getOrElse(seg, architecture.randomVec())
       }
 
       labels
