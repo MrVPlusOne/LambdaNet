@@ -12,6 +12,7 @@ import lambdanet.TrainingCenter.Timeouts
 import lambdanet.architecture.{HybridArchitecture, NNArchitecture}
 import lambdanet.utils.{EventLogger, ReportFinish}
 import lambdanet.printWarning
+import TrainingState._
 
 import scala.collection.parallel.ForkJoinTaskSupport
 import scala.concurrent.{
@@ -51,29 +52,6 @@ object TrainingLoop {
       val dataSet = DataSet.loadDataSet(taskSupport, architecture)
       trainOnProjects(dataSet, trainingState, architecture).result()
     }
-
-    private def loadTrainingState(): TrainingState =
-      announced("loadTrainingState") {
-        val loadFromFile: Option[Path] =
-          TrainingControl.restoreFromFile(consumeFile = true)
-
-        loadFromFile
-          .map { p =>
-            announced("Loading training from file: " + p) {
-              TrainingState.fromFile(p)
-            }
-          }
-          .getOrElse(
-            TrainingState(
-              epoch0 = 0,
-              dimMessage = 32,
-              optimizer = Optimizer.Adam(learningRate = 1e-3),
-              iterationNum = 6,
-              pc = ParamCollection(),
-            ),
-          )
-          .tap(println)
-      }
 
     //noinspection TypeAnnotation
     case class trainOnProjects(
@@ -157,7 +135,6 @@ object TrainingLoop {
                   pc.allParams,
                   backPropInParallel =
                     Some(parallelCtx -> Timeouts.optimizationTimeout),
-                  // weightDecay = Some(5e-5),  todo: use dropout
                 )
 
                 val gradInfo = limitTimeOpt(
@@ -187,17 +164,14 @@ object TrainingLoop {
         logger.logScalar("loss", epoch, toAccuracyD(loss))
         logger.logScalar("libAcc", epoch, toAccuracy(libAcc))
         logger.logScalar("projAcc", epoch, toAccuracy(projAcc))
-        logger.logMap(
-          "distanceAcc",
-          epoch,
-          distanceAcc.toVector
-            .sortBy(_._1)
-            .map {
-              case (k, counts) =>
-                val ks = if (k == Analysis.Inf) "Inf" else k.toString
-                ks -> toAccuracy(counts)
-            },
-        )
+        val disMap = distanceAcc.toVector
+          .sortBy(_._1)
+          .map {
+            case (k, counts) =>
+              val ks = if (k == Analysis.Inf) "Inf" else k.toString
+              ks -> toAccuracy(counts)
+          }
+        logger.logMap("distanceAcc", epoch, disMap)
 
         val (grads, deltas) = gradInfo.unzip
         logger.logScalar("gradientNorm", epoch, SM.mean(grads))
@@ -224,18 +198,6 @@ object TrainingLoop {
           logger.logScalar("test-libAcc", epoch, toAccuracy(libCorrect))
           logger.logScalar("test-projAcc", epoch, toAccuracy(projCorrect))
         }
-
-      private def logMemoryUsage(epoch: Double): Unit = {
-        import java.lang.management.{ManagementFactory => F}
-        val bean = F.getMemoryMXBean
-        val GB = 1024 * 1024 * 1024
-
-        val heap = bean.getHeapMemoryUsage.getUsed.toDouble / GB
-        val nonHeap = bean.getNonHeapMemoryUsage.getUsed.toDouble / GB
-        F.getMemoryManagerMXBeans
-        logger.logScalar("memory-heap", epoch, heap)
-        logger.logScalar("memory-nonHeap", epoch, nonHeap)
-      }
 
       case class ForwardResult(
           loss: Counted[Double],
@@ -364,11 +326,11 @@ object TrainingLoop {
         }
       }
 
-      @throws[Exception]
+      @throws[StopException]
       private def checkShouldStop(epoch: Int): Unit = {
         if (TrainingControl.shouldStop(consumeFile = true)) {
           saveTraining(epoch, s"stopped-epoch$epoch")
-          throw new StopException("Stopped by 'stop.txt'.")
+          throw StopException("Stopped by 'stop.txt'.")
         }
       }
 
@@ -435,51 +397,6 @@ object TrainingLoop {
     val taskSupport: ForkJoinTaskSupport = new ForkJoinTaskSupport(forkJoinPool)
     val parallelCtx: ExecutionContextExecutorService =
       ExecutionContext.fromExecutorService(forkJoinPool)
-  }
-
-  case class TrainingState(
-      epoch0: Int,
-      dimMessage: Int,
-      iterationNum: Int,
-      optimizer: Optimizer,
-      pc: ParamCollection,
-  ) {
-    def saveToFile(file: Path): Unit = {
-      val toSave =
-        List[(String, Any)](
-          "epoch" -> epoch0,
-          "dimMessage" -> dimMessage,
-          "iterationNum" -> iterationNum,
-          "optimizer" -> optimizer,
-          "pcData" -> pc.toSerializable,
-        )
-      SM.saveObjectToFile(file.toIO)(toSave)
-    }
-
-    override def toString: String = {
-      s"""TrainingState:
-         |  epoch: $epoch0
-         |  dimMessage: $dimMessage
-         |  iterationNum: $iterationNum
-         |  optimizer: $optimizer
-       """.stripMargin
-    }
-  }
-
-  object TrainingState {
-    def fromFile(file: Path): TrainingState = {
-      val map = SM
-        .readObjectFromFile[List[(String, Any)]](file.toIO)
-        .toMap
-      val step = map("epoch").asInstanceOf[Int]
-      val dimMessage = map("dimMessage").asInstanceOf[Int]
-      val optimizer = map("optimizer").asInstanceOf[Optimizer]
-      val iterationNum = map.getOrElse("iterationNum", 10).asInstanceOf[Int]
-      val pcData = map("pcData")
-        .asInstanceOf[ParamCollection.SerializableFormat]
-      val pc = ParamCollection.fromSerializable(pcData)
-      TrainingState(step, dimMessage, iterationNum, optimizer, pc)
-    }
   }
 
   def mkEventLogger() = {
