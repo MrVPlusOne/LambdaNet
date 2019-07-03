@@ -188,7 +188,7 @@ class IRTranslation(allocator: PNodeAllocator) {
 
   def translateStmt(s: QStmt): Vector[IRStmt] = {
     def translateFunc(f: QLang.FuncDef): FuncDef = {
-      val body1 = groupInBlock(translateStmt(f.body))
+      val body1 = makeSureInBlock(translateStmt(f.body))
       FuncDef(f.funcNode, f.args, f.returnType, body1)
     }
 
@@ -213,8 +213,8 @@ class IRTranslation(allocator: PNodeAllocator) {
       case QLang.IfStmt(cond, branch1, branch2) =>
         val (condDef, condE) = translateExpr2(cond)
         val (condDef2, condV) = exprAsPNode(condE)
-        val branch1Stmt = groupInBlock(translateStmt(branch1))
-        val branch2Stmt = groupInBlock(translateStmt(branch2))
+        val branch1Stmt = makeSureInBlock(translateStmt(branch1))
+        val branch2Stmt = makeSureInBlock(translateStmt(branch2))
         val ifStmt = IfStmt(condV, branch1Stmt, branch2Stmt)
         condDef ++ condDef2 :+ ifStmt
       case QLang.WhileStmt(cond, body) =>
@@ -223,10 +223,10 @@ class IRTranslation(allocator: PNodeAllocator) {
         // recompute the conditional expression value at the end of the loop
         val condCompute =
           (condDef ++ condDef2).filterNot(_.isInstanceOf[VarDef])
-        val bodyStmt = groupInBlock(translateStmt(body) ++ condCompute)
+        val bodyStmt = makeSureInBlock(translateStmt(body) ++ condCompute)
         condDef ++ condDef2 :+ WhileStmt(condV, bodyStmt)
       case b: QLang.BlockStmt =>
-        Vector(groupInBlock(b.stmts.flatMap(translateStmt)))
+        Vector(makeSureInBlock(b.stmts.flatMap(translateStmt)))
       case f: QLang.FuncDef =>
         Vector(translateFunc(f))
       case QLang.ClassDef(classNode, superType, vars, funcDefs) =>

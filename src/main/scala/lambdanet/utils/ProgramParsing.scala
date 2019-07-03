@@ -8,7 +8,7 @@ import lambdanet.Surface._
 import lambdanet.translation.OldIRTranslation
 import fastparse.Parsed
 import lambdanet.translation.ImportsResolution.PathMapping
-import lambdanet.translation.groupInBlockSurface
+import lambdanet.translation.makeSureInBlockSurface
 
 import scala.collection.mutable
 
@@ -441,14 +441,14 @@ object ProgramParsing {
           Vector(
             IfStmt(
               cond,
-              groupInBlockSurface(branch1),
-              groupInBlockSurface(branch2),
+              makeSureInBlockSurface(branch1),
+              makeSureInBlockSurface(branch2),
             ),
           )
         case "WhileStmt" =>
           val cond = parseGExpr(map("cond"))
           val body = parseGStmt(map("body"))
-          Vector(WhileStmt(cond, groupInBlockSurface(body)))
+          Vector(WhileStmt(cond, makeSureInBlockSurface(body)))
         case "CommentStmt" =>
           val text = asString(map("text"))
           Vector(CommentStmt(text))
@@ -457,7 +457,7 @@ object ProgramParsing {
           Vector(BlockStmt(stmts))
         case "NamespaceStmt" =>
           val name = asString(map("name"))
-          val body = groupInBlockSurface(parseGStmt(map("block")))
+          val body = makeSureInBlockSurface(parseGStmt(map("block")))
           val ms = parseModifiers(map("modifiers"))
           Vector(Namespace(Symbol(name), body, ms.exportLevel))
         case "FuncDef" =>
@@ -466,7 +466,7 @@ object ProgramParsing {
           val returnType =
             if (name == 'Constructor) Annot.Missing
             else parseGTMark(map("returnType"))
-          val body = groupInBlockSurface(parseGStmt(map("body")))
+          val body = makeSureInBlockSurface(parseGStmt(map("body")))
 
           val tyVars = asVector(map("tyVars")).map(asSymbol)
           val ms = parseModifiers(map("modifiers"))
@@ -556,14 +556,14 @@ object ProgramParsing {
             val lambdas = asVector(map("instanceLambdas"))
               .flatMap(parseGStmt)
               .asInstanceOf[Vector[FuncDef]]
-            val stmts = groupInBlockSurface(Vector(constructor0.body)).stmts
+            val stmts = makeSureInBlockSurface(Vector(constructor0.body)).stmts
             val inits = instanceInits.toVector.map {
               case (s, expr) =>
                 AssignStmt(Access(Var(thisSymbol), s), expr)
             }
             constructor0.copy(
               body =
-                groupInBlockSurface(thisSuperVars ++ lambdas ++ inits ++ stmts),
+                makeSureInBlockSurface(thisSuperVars ++ lambdas ++ inits ++ stmts),
             )
           }
 

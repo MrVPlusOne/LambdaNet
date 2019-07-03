@@ -244,7 +244,7 @@ class ParserTests extends WordSpec with MyTest {
       }
 
     val f = pwd / RelPath("data/tests/import-unknowns")
-    val (g, annts) = prepareProject(libDefs, f, skipSet = Set())
+    val (g, qModules, annts) = prepareProject(libDefs, f, skipSet = Set())
     g.predicates.foreach(println)
     g.predicates.collect {
       case DefineRel(p, expr) if p.nameOpt.contains('a) =>

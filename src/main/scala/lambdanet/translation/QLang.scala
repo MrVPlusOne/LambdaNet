@@ -64,7 +64,21 @@ object QLang {
       funcDefs: Map[Symbol, FuncDef],
   ) extends QStmt
 
-  sealed trait QExpr
+  sealed trait QExpr {
+    override def toString: String = this match {
+      case Var(n) => n.toString
+      case FuncCall(f, args) =>
+        s"$f${args.mkString("(", ",", ")")}"
+      case Cast(expr, ty) =>
+        s"$expr as $ty"
+      case ObjLiteral(fields) =>
+        fields.map{case (n, t) => s"${n.name}: $t"}.mkString("{", ",","}")
+      case Access(l, r) =>
+        s"$l.${r.name}"
+      case IfExpr(cond, e1, e2) =>
+        s"($cond ? $e1 : $e2)"
+    }
+  }
 
   case class Var(node: PNode) extends QExpr
 

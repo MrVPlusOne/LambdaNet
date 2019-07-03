@@ -13,15 +13,10 @@ import lambdanet.architecture.{HybridArchitecture, NNArchitecture}
 import lambdanet.utils.{EventLogger, ReportFinish}
 import lambdanet.printWarning
 import TrainingState._
+import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 
 import scala.collection.parallel.ForkJoinTaskSupport
-import scala.concurrent.{
-  Await,
-  ExecutionContext,
-  ExecutionContextExecutorService,
-  Future,
-  TimeoutException,
-}
+import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutorService, Future, TimeoutException}
 import scala.language.reflectiveCalls
 
 object TrainingLoop {
@@ -129,7 +124,7 @@ object TrainingLoop {
             ) {
               checkShouldStop(epoch)
               for {
-                (loss, fwd) <- forward(datum).tap(
+                (loss, fwd, _) <- forward(datum).tap(
                   _.foreach(r => printResult(r._2)),
                 )
                 _ = checkShouldStop(epoch)
@@ -165,7 +160,8 @@ object TrainingLoop {
 
         import cats.implicits._
         val (fws, gs, data) = stats.flatMap(_.toVector).unzip3
-        val ForwardResult(loss, libAcc, projAcc, distanceAcc) = fws.combineAll
+        val ForwardResult(loss, libAcc, projAcc, distanceAcc) =
+          fws.combineAll
         val gradInfo = gs.combineAll
         logger.logScalar("loss", epoch, toAccuracyD(loss))
         logger.logScalar("libAcc", epoch, toAccuracy(libAcc))
@@ -219,7 +215,10 @@ object TrainingLoop {
           val stat = testSet.flatMap { datum =>
             checkShouldStop(epoch)
             announced(s"test on $datum") {
-              forward(datum).map(_._2).toVector
+              forward(datum).map{ case (_, fwd, pred) =>
+                printQSource(datum.projectName, pred)
+                fwd
+              }.toVector
             }
           }.combineAll
 
@@ -227,6 +226,8 @@ object TrainingLoop {
           logger.logScalar("test-libAcc", epoch, toAccuracy(libCorrect))
           logger.logScalar("test-projAcc", epoch, toAccuracy(projCorrect))
         }
+
+      def printQSource(path: ProjectPath, predictions: Map[ProjNode, PType]) = ???
 
       case class ForwardResult(
           loss: Counted[Double],
@@ -273,7 +274,9 @@ object TrainingLoop {
           }
         }
 
-      private def forward(datum: Datum): Option[(Loss, ForwardResult)] =
+      private def forward(
+          datum: Datum,
+      ): Option[(Loss, ForwardResult, Map[ProjNode, PType])] =
         limitTimeOpt(s"forward: $datum", Timeouts.forwardTimeout) {
           import datum._
 
@@ -305,12 +308,23 @@ object TrainingLoop {
           val loss = predictionLoss(logits, targets, predSpace.size)
 
           val totalCount = libCounts.count + projCounts.count
-          loss -> ForwardResult(
+          val fwd = ForwardResult(
             Counted(totalCount, loss.value.squeeze() * totalCount),
             libCounts,
             projCounts,
             distanceCounts,
           )
+
+          val predictions: Map[ProjNode, PType] = {
+            val predVec = numsca
+              .argmax(logits.value, axis = 1)
+              .data
+              .map(d => predSpace.typeVector(d.toInt))
+              .toVector
+            nodesToPredict.zip(predVec).toMap
+          }
+
+          (loss, fwd, predictions)
         }
 
       @throws[TimeoutException]

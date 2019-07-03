@@ -20,26 +20,33 @@ interface A {
 type B = {foo: number; bar: number};
 
 function foo(x: {x1: string, x2: number}){
-  const {x1, x2} = x;
-  return x1
+  const {x1: s, x2} = x;
+  return s
 }
 
 
 let x: A = {foo: 5, bar: 4};
 
 class FieldTest2{
-  f1: boolean;
+  f1: boolean = false;
   f2: number;
   f4: FieldTest2;
 
   constructor(){
-    this.f1 = true;
     this.f2 = 1;
     this.f4 = this;
   }
 }
 
 class FunctionTest{
+  static B: boolean = true;
+
+  f1(x: number, y: number): boolean {}
+
+  g1(x: Node): any {}
+
+  id<T>(x: T): T {}
+
   constructor(n2: number){
     let n = 1;
     let e = undefined;
@@ -47,16 +54,10 @@ class FunctionTest{
       e = this.g1(new Node(e));
     }else{
       this.id(1+n2);
-      this.id(true) && true;
+      FunctionTest.B = this.id(true);
       this.id(new Array()).length;
     }
   }
-
-  f1(x: number, y: number): boolean {}
-
-  g1(x: Node): any {}
-
-  id<T>(x: T): T {}
 }
 
 export class Node{
@@ -108,20 +109,4 @@ class LinkedList{
     }
     this._size = this._size + 1;
   }
-}
-
-function f<T,U>(x: {plus: (_:T)=>U} & T): U {
-  return x.plus(x)
-}
-
-class Number{
-  constructor(public value: number){}
-
-  public plus(n: Number): Number { throw new Error() }
-}
-
-f(new Number(5));
-
-function g<T>(x: {plus: (_:T)=>T} & T): T {
-  return x.plus(x)
 }

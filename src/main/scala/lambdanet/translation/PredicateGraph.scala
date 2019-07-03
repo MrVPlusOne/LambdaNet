@@ -21,18 +21,17 @@ object PredicateGraph {
     def fromTuple(t: (Int, Option[Symbol], Boolean, Boolean)): PNode =
       new PNode(t._1, t._2, t._3, t._4)
 
-    object PNode {
-      def apply(
-          id: Int,
-          nameOpt: Option[Symbol],
-          isType: Boolean,
-          fromLib: Boolean,
-      ): PNode = { new PNode(id, nameOpt, isType, fromLib) }
+    def apply(
+        id: Int,
+        nameOpt: Option[Symbol],
+        isType: Boolean,
+        fromLib: Boolean,
+    ): PNode = { new PNode(id, nameOpt, isType, fromLib) }
 
-      def unapply(n: PNode): Option[(Int, Option[Symbol], Boolean, Boolean)] = {
-        Some((n.id, n.nameOpt, n.isType, n.fromLib))
-      }
+    def unapply(n: PNode): Option[(Int, Option[Symbol], Boolean, Boolean)] = {
+      Some((n.id, n.nameOpt, n.isType, n.fromLib))
     }
+
   }
 
   @SerialVersionUID(1)
@@ -69,6 +68,8 @@ object PredicateGraph {
     val symbol: Symbol = Symbol(id.toString)
 
     def allLabels: Set[Symbol] = Set()
+
+    def name: String = nameOpt.get.name
   }
 
   @SerialVersionUID(1)

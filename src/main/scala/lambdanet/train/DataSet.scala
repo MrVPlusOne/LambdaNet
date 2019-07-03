@@ -53,9 +53,9 @@ object DataSet {
         SegmentedLabelEncoder(repos, coverageGoal = 0.95, architecture)
       }
 
-      val data = projects
+      val data = projects.toVector
         .map {
-          case (path, g, annotations) =>
+          case ParsedProject(path, g, qModules, annotations) =>
             val predictor =
               Predictor(
                 g,
@@ -64,7 +64,7 @@ object DataSet {
                 labelEncoder.encode,
                 Some(taskSupport),
               )
-            Datum(path, annotations.toMap, predictor)
+            Datum(path, annotations, predictor)
               .tap(printResult)
         }
 
@@ -83,12 +83,11 @@ object DataSet {
       coverageGoal: Double,
   ): Set[LibTypeNode] = {
     import cats.implicits._
-    import repos.{libDefs, graphs => projects}
+    import repos.{libDefs, projects}
 
     val usages: Map[PNode, Int] = projects.par
-      .map {
-        case (_, _, annots) =>
-          annots.collect { case (_, PTyVar(v)) => v -> 1 }.toMap
+      .map { p =>
+          p.userAnnots.collect { case (_, PTyVar(v)) => v -> 1 }
       }
       .fold(Map[PNode, Int]())(_ |+| _)
 
