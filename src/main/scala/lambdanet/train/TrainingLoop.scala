@@ -29,6 +29,11 @@ object TrainingLoop {
   /** Remember to use these VM options to increase memory limits.
     * VM Options: -Xms2G -Xmx8G -Dorg.bytedeco.javacpp.maxbytes=18G -Dorg.bytedeco.javacpp.maxphysicalbytes=27G */
   def main(args: Array[String]): Unit = {
+    printResult(
+      """Experiment description:
+        |Label: trainable random unit vec
+        |3 iterations """.stripMargin)
+
     run(
       maxTrainingEpochs = 1000,
       numOfThreads = Runtime.getRuntime.availableProcessors() min 14,

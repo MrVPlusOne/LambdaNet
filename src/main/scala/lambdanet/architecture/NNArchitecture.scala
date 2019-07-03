@@ -135,7 +135,10 @@ abstract class NNArchitecture(
   }
 
   def singleLayer(path: SymbolPath, input: CompNode): CompNode = {
-    linear(path / 'linear, dimMessage)(input) ~> relu
+    def oneLayer(name: Symbol)(input: CompNode) = {
+      linear(path / name, dimMessage)(input) ~> relu
+    }
+    input ~> oneLayer('L1)// ~> oneLayer('L2)
   }
 
   val encodePosition = {
@@ -167,6 +170,14 @@ abstract class NNArchitecture(
 
   def randomVar(name: SymbolPath): CompNode = {
     getVar(name)(randomVec())
+  }
+
+  def randomUnitVec(): Tensor = {
+    TensorExtension.randomUnitVec(dimMessage)
+  }
+
+  def randomUnitVar(name: SymbolPath): CompNode = {
+    getVar(name)(randomUnitVec())
   }
 
   def zeroVec() = numsca.zeros(1, dimMessage)

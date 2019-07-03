@@ -41,23 +41,23 @@ case class SegmentedLabelEncoder(
 
     segments.map {
       case (s, _) =>
-        s -> architecture.randomVar("segments" / s.symbol)
+        s -> architecture.randomUnitVar("segments" / s.symbol)
     }.toMap
   }
 
   def encode(labels: GenSeq[Symbol]): Symbol => CompNode =
     DebugTime.logTime("encode labels") {
-      val unknownSeg = architecture.zeroVec()
+      val zeroVec = architecture.zeroVec()
 
       def encodeSeg(seg: Segment): CompNode = {
-        segmentsMap.getOrElse(seg, architecture.randomVec())
+        segmentsMap.getOrElse(seg, architecture.randomUnitVec())
       }
 
       labels
         .map { l =>
           l -> segmentName(l)
             .map(encodeSeg)
-            .pipe(totalSafe(_, unknownSeg))
+            .pipe(totalSafe(_, zeroVec))
         }
         .toMap
         .apply
