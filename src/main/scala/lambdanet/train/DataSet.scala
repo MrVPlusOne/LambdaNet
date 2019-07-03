@@ -26,10 +26,19 @@ object DataSet {
       import PrepareRepos._
       import util.Random
 
-      val repos @ ParsedRepos(libDefs, projects) =
+      val ParsedRepos(libDefs, projects0) =
         announced(s"read data set from file: $parsedRepoPath") {
           SM.readObjectFromFile[ParsedRepos](parsedRepoPath.toIO)
         }
+
+      val projectsToUse = 5
+      val testSetRatio = 0.3
+
+      val projects = projects0
+        .pipe(x => new Random(1).shuffle(x))
+        .take(projectsToUse)
+
+      val repos = ParsedRepos(libDefs, projects)
 
       def libNodeType(n: LibNode) =
         libDefs
@@ -38,19 +47,13 @@ object DataSet {
           .getOrElse(PredictionSpace.unknownType)
 
       val libTypesToPredict: Set[LibTypeNode] =
-        selectLibTypes(repos, coverageGoal = 0.9)
+        selectLibTypes(repos, coverageGoal = 0.95)
 
       val labelEncoder = announced("create label encoder") {
-        SegmentedLabelEncoder(repos, coverageGoal = 0.9, architecture)
+        SegmentedLabelEncoder(repos, coverageGoal = 0.95, architecture)
       }
 
-      val ALL = 100
-      val projectsToUse = ALL
-      val testSetRatio = 0.3
-
       val data = projects
-        .pipe(x => new Random(1).shuffle(x))
-        .take(projectsToUse)
         .map {
           case (path, g, annotations) =>
             val predictor =

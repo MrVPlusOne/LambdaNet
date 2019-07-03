@@ -29,10 +29,10 @@ object TrainingLoop {
   /** Remember to use these VM options to increase memory limits.
     * VM Options: -Xms2G -Xmx8G -Dorg.bytedeco.javacpp.maxbytes=18G -Dorg.bytedeco.javacpp.maxphysicalbytes=27G */
   def main(args: Array[String]): Unit = {
-    printResult(
-      """Experiment description:
-        |Label: trainable random unit vec
-        |3 iterations """.stripMargin)
+    printResult("""Experiment description:
+                  |Label: trainable random unit vec
+                  |SingleLayer: 2 FC
+                  |6 iterations """.stripMargin)
 
     run(
       maxTrainingEpochs = 1000,
@@ -158,17 +158,19 @@ object TrainingLoop {
                   System.gc()
                 }
 
-                (fwd, gradInfo)
+                (fwd, gradInfo, datum)
               }
             }
         }
 
         import cats.implicits._
-        val (ForwardResult(loss, libAcc, projAcc, distanceAcc), gradInfo) =
-          stats.flatMap(_.toVector).combineAll
+        val (fws, gs, data) = stats.flatMap(_.toVector).unzip3
+        val ForwardResult(loss, libAcc, projAcc, distanceAcc) = fws.combineAll
+        val gradInfo = gs.combineAll
         logger.logScalar("loss", epoch, toAccuracyD(loss))
         logger.logScalar("libAcc", epoch, toAccuracy(libAcc))
         logger.logScalar("projAcc", epoch, toAccuracy(projAcc))
+        logAccuracyDetails(data zip fws, epoch)
         val disMap = distanceAcc.toVector
           .sortBy(_._1)
           .map {
@@ -177,6 +179,9 @@ object TrainingLoop {
               ks -> toAccuracy(counts)
           }
         logger.logMap("distanceAcc", epoch, disMap)
+        printResult("distance counts: " + distanceAcc.map {
+          case (k, c) => k -> c.count
+        })
 
         val (grads, deltas) = gradInfo.unzip
         logger.logScalar("gradientNorm", epoch, SM.mean(grads))
@@ -188,8 +193,27 @@ object TrainingLoop {
         println(DebugTime.show)
       }
 
+      private def logAccuracyDetails(
+          stats: Vector[(Datum, ForwardResult)],
+          epoch: Int,
+      ) = {
+        import cats.implicits._
+        val str = stats
+          .map {
+            case (d, f) =>
+              val size = d.predictor.graph.predicates.size
+              val acc = toAccuracy(
+                f.libCorrect.combine(f.projCorrect),
+              )
+              val name = d.projectName
+              s"""{$size, $acc, "$name"}"""
+          }
+          .mkString("{", ",", "}")
+        logger.logString("accuracy-distr", epoch, str)
+      }
+
       def testStep(epoch: Int): Unit =
-        if (epoch % 5 == 0) announced("test on dev set") {
+        if (epoch % 4 == 0) announced("test on dev set") {
           import cats.implicits._
 
           val stat = testSet.flatMap { datum =>

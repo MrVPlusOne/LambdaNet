@@ -30,7 +30,9 @@ object Analysis {
     val constDis = mutable.HashMap[PNode, Int]()
 
     g.nodes.foreach(n => {
-      val dis = if (n.fromLib) 0 else Inf
+      val dis =
+        if (n.fromLib || predicates(n).any(_.isInstanceOf[UsedAsBool])) 0
+        else Inf
       constDis(n) = dis
     })
 

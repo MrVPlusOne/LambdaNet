@@ -82,6 +82,15 @@ class EventLogger(
     value.foreach(v => logScalar(name, iteration, v))
   }
 
+  def logString(name: String, epoch: Double, str: String) = {
+    fLogger.println(
+      s"""{"$name", $epoch, $str}""",
+    )
+    if (printToConsole) {
+      println(resultStr(s"[$epoch]$name: $str"))
+    }
+  }
+
   def log(event: Event): Unit = {
     import event.{name, iteration}
     import TensorExtension.mamFormat
@@ -92,11 +101,6 @@ class EventLogger(
         map.map { case (k, v) => s"{$k,$v}" }.mkString("{", ", ", "}")
     }
 
-    fLogger.println(
-      s"""{"$name", $iteration, $str}""",
-    )
-    if (printToConsole) {
-      println(resultStr(s"[$iteration]$name: $str"))
-    }
+    logString(name, iteration, str)
   }
 }
