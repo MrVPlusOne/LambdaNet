@@ -74,23 +74,6 @@ object ParamCollection {
     val data = SimpleMath.readObjectFromFile[SerializableFormat](file)
     fromSerializable(data)
   }
-
-  def main(args: Array[String]): Unit = {
-    import ammonite.ops._
-    import lambdanet.TrainingCenter._
-    import funcdiff.Optimizer.Adam
-
-    val pc = new ParamCollection()
-    pc.getVar(SymbolPath.empty / 'abc)(Tensor(1, 2, 3))
-    val factory = LayerFactory(SymbolPath.empty / 'layers, pc)
-    val s = TrainingState(4, 64, factory, Adam(1e-4), 10)
-
-    val file = pwd / "testFile"
-    s.saveToFile(file)
-    println {
-      TrainingState.fromFile(file)
-    }
-  }
 }
 
 case class ParamCollection() {

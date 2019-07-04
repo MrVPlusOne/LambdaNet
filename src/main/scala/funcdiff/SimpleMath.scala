@@ -10,9 +10,6 @@ import java.io.{
   Serializable,
 }
 
-import cats.Monoid
-import lambdanet.translation.OldIR.IRType
-
 import scala.util.Random
 import collection.mutable
 
@@ -516,52 +513,6 @@ object SimpleMath {
       case e: Error =>
         System.err.println(msg)
         throw e
-    }
-  }
-
-  class LabeledGraph() {
-    case class Edge(from: IRType, to: IRType, info: String)
-    case class Node(name: String, info: String)
-
-    val nodeInfo = mutable.HashMap[IRType, Node]()
-    val edges = mutable.ListBuffer[Edge]()
-    val nodeStyleMap = mutable.HashMap[IRType, String]()
-
-    def setNodeStyle(id: IRType, style: String): Unit = {
-      nodeStyleMap(id) = style
-    }
-
-    def addNode(id: IRType, name: String, info: String, style: String): Unit = {
-      nodeInfo(id) = Node(name, info)
-      setNodeStyle(id, style)
-    }
-
-    def addEdge(from: IRType, to: IRType, info: String): Unit = {
-      edges += Edge(from, to, info: String)
-    }
-
-    def toMamFormat(graphLayout: String, directed: Boolean): String = {
-      val arrow = if (directed) "->" else "\\[UndirectedEdge]"
-
-      val nodeList = nodeInfo
-        .map {
-          case (id, Node(name, info)) =>
-            s"""Labeled[Tooltip[$id,$info],"$name"]"""
-        }
-        .mkString("{", ",", "}")
-
-      val edgeList = edges
-        .map {
-          case Edge(from, to, info) =>
-            if (info.isEmpty) s"$from$arrow$to"
-            else s"""Labeled[$from$arrow$to, $info]"""
-        }
-        .mkString("{", ",", "}")
-
-      val stylePart =
-        nodeStyleMap.map { case (id, s) => s"$id->$s" }.mkString("{", ",", "}")
-
-      s"""Graph[$nodeList,$edgeList,VertexStyle->$stylePart,GraphLayout -> $graphLayout]"""
     }
   }
 

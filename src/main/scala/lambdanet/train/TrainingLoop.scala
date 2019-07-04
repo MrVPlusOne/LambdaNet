@@ -7,7 +7,6 @@ import botkop.numsca
 import cats.Monoid
 import funcdiff.{SimpleMath => SM}
 import funcdiff._
-import lambdanet.TrainingCenter.Timeouts
 import lambdanet.architecture.{HybridArchitecture, NNArchitecture}
 import lambdanet.utils.{EventLogger, QLangDisplay, ReportFinish}
 import lambdanet.printWarning

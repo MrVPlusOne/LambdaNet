@@ -5,7 +5,6 @@ import funcdiff.SimpleMath
 import lambdanet._
 import lambdanet.utils.Js._
 import lambdanet.Surface._
-import lambdanet.translation.OldIRTranslation
 import fastparse.Parsed
 import lambdanet.translation.ImportsResolution.PathMapping
 import lambdanet.translation.makeSureInBlockSurface
@@ -22,47 +21,6 @@ object ProgramParsing {
       namespaces: Map[Symbol, DeclarationModule],
   )
 
-  @deprecated
-  def extractDeclarationModule(stmts: Vector[GStmt]): DeclarationModule = {
-    val varDefs: mutable.Map[Symbol, GType] = mutable.HashMap()
-    val typeDefs: mutable.Map[Symbol, GType] = mutable.HashMap()
-    val namespaces: mutable.Map[Symbol, DeclarationModule] = mutable.HashMap()
-
-    stmts.foreach {
-      case VarDef(
-          x,
-          Annot.WithContent(t),
-          _: Const,
-          _,
-          ExportLevel.Unspecified,
-          ) =>
-        varDefs(x) = t
-      case f: FuncDef =>
-        varDefs(f.name) = GStmt.extractSignature(f)
-      case alias @ TypeAliasStmt(name, tyVars, ty, ExportLevel.Unspecified) =>
-        val rhs = try {
-          OldIRTranslation.translateType(ty)(tyVars.toSet)
-        } catch {
-          case _: ClassCastException => throw new Error(s"Failed for $alias")
-        }
-
-        typeDefs(name) = typeDefs.get(name) match {
-          case Some(o1: ObjectType) =>
-            o1.merge(rhs.asInstanceOf[ObjectType])
-          case Some(_) => throw new Error("Contradicting type aliases")
-          case None    => rhs
-        }
-      case _: CommentStmt =>
-      case ns: Namespace =>
-        namespaces(ns.name) = extractDeclarationModule(ns.block.stmts)
-      case other =>
-        throw new Error(
-          s"Illegal statement encountered in a declaration file: $other",
-        )
-    }
-
-    DeclarationModule(varDefs.toMap, typeDefs.toMap, namespaces.toMap)
-  }
 
   case class PackageFile(
       moduleName: Option[ProjectPath],

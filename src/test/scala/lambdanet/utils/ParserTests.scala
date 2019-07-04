@@ -3,16 +3,10 @@ package lambdanet.utils
 import lambdanet._
 import org.scalatest.WordSpec
 import ammonite.ops._
-import lambdanet.Surface._
 import ImportStmt._
 import funcdiff.SimpleMath
-import lambdanet.translation.ImportsResolution.{ErrorHandler, PathMapping}
 import lambdanet.translation.PredicateGraph.{DefineRel, PNode, PNodeAllocator}
 import lambdanet.translation.{
-  IRTranslation,
-  ImportsResolution,
-  OldPredicateGraphConstruction,
-  PredicateGraphTranslation,
   QLangTranslation,
 }
 import lambdanet.utils.ProgramParsing.ImportPattern
