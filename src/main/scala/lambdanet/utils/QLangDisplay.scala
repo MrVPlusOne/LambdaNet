@@ -19,9 +19,8 @@ object QLangDisplay {
 
     type Output = Modifier
 
-    def correct(str: Output): Output = {
+    def correct(str: Output): Output =
       span(color := "green")(str)
-    }
 
     def incorrect(str: Output): Output =
       span(color := "red")(str)
@@ -75,15 +74,12 @@ object QLangDisplay {
                   incorrect(s": ($p ≠ $t)")
                 }
             }
-          case Annot.Fixed(t) =>
-            span(s": [fix]$t")
-          case Annot.Missing =>
-            span("")
+          case Annot.Fixed(t) => s": [fix]$t"
+          case Annot.Missing => ""
         }
       }
 
       def rec(indent: Int, stmt: QStmt): Vector[(Int, Output)] = {
-
         stmt match {
           case VarDef(x, init, isConst) =>
             val keyword = if (isConst) "const" else "let"

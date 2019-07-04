@@ -3,7 +3,6 @@ package lambdanet.train
 import lambdanet._
 import java.util.concurrent.ForkJoinPool
 
-import ammonite.ops.Path
 import botkop.numsca
 import cats.Monoid
 import funcdiff.{SimpleMath => SM}
@@ -30,13 +29,13 @@ object TrainingLoop {
 
   def main(args: Array[String]): Unit = {
     printResult("""Experiment description:
-                  |Label: trainable random unit vec
+                  |Label: segmented words
                   |SingleLayer: 2 FC
                   |6 iterations """.stripMargin)
 
     run(
       maxTrainingEpochs = 1000,
-      numOfThreads = Runtime.getRuntime.availableProcessors() min 14,
+      numOfThreads = Runtime.getRuntime.availableProcessors() min 16,
     ).result()
   }
 
@@ -213,7 +212,7 @@ object TrainingLoop {
       }
 
       def testStep(epoch: Int): Unit =
-        if (epoch % 5 == 0) announced("test on dev set") {
+        if (epoch % 10 == 0) announced("test on dev set") {
           import cats.implicits._
 
           val stat = testSet.flatMap { datum =>
@@ -240,16 +239,16 @@ object TrainingLoop {
           qModules: Vector[QModule],
           predictions: Map[ProjNode, PType],
           predictionSpace: PredictionSpace,
-      ) = DebugTime.logTime("printQSource"){
+      ) = DebugTime.logTime("printQSource") {
         import ammonite.ops._
-        val predictionPath = pwd / "predictions"
-        rm(predictionPath)
+        val predictionDir = pwd / "predictions"
+        rm(predictionDir)
         qModules.par.foreach { m =>
           QLangDisplay.renderModuleToDirectory(
             m,
             predictions.map { case (k, v) => k.n -> v },
             predictionSpace.allTypes,
-          )(predictionPath / m.path)
+          )(predictionDir)
         }
       }
 

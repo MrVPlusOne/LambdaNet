@@ -138,7 +138,7 @@ abstract class NNArchitecture(
     def oneLayer(name: Symbol)(input: CompNode) = {
       linear(path / name, dimMessage)(input) ~> relu
     }
-    input ~> oneLayer('L1)// ~> oneLayer('L2)
+    input ~> oneLayer('L1) ~> oneLayer('L2)
   }
 
   val encodePosition = {

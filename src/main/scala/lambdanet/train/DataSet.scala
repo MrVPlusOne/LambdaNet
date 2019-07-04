@@ -5,7 +5,6 @@ import lambdanet.translation.PredicateGraph._
 import NewInference._
 import lambdanet.PrepareRepos.ParsedRepos
 import lambdanet.architecture.{NNArchitecture, SegmentedLabelEncoder}
-import lambdanet.translation.ImportsResolution.NameDef
 import lambdanet.translation.QLang.QModule
 
 import scala.collection.parallel.ForkJoinTaskSupport
@@ -27,14 +26,20 @@ object DataSet {
     announced("loadDataSet") {
       import PrepareRepos._
       import util.Random
+      import ammonite.ops._
+
+      val toyMod = false
+      printResult(s"Is toy data set? : $toyMod")
 
       val ParsedRepos(libDefs, projects0) =
-        announced(s"read data set from file: $parsedRepoPath") {
-          SM.readObjectFromFile[ParsedRepos](parsedRepoPath.toIO)
-        }
+        if (toyMod) parseRepos(pwd / RelPath("data/toy"))
+        else
+          announced(s"read data set from file: $parsedRepoPath") {
+            SM.readObjectFromFile[ParsedRepos](parsedRepoPath.toIO)
+          }
 
-      val projectsToUse = 1
-//      val testSetRatio = 0.3
+      val projectsToUse = 100
+      val testSetRatio = 0.3
 
       val projects = projects0
         .pipe(x => new Random(1).shuffle(x))
@@ -75,11 +80,13 @@ object DataSet {
       val projAnnots = data.map(_.projAnnots).sum
       printResult(s"$libAnnots library targets, $projAnnots project targets.")
 
-//      val totalNum = data.length
-//      val trainSetNum = totalNum - (totalNum * testSetRatio).toInt
-//      DataSet(data.take(trainSetNum), data.drop(trainSetNum))
-//        .tap(printResult)
-      DataSet(data, data)
+      if (toyMod) DataSet(data, data)
+      else {
+        val totalNum = data.length
+        val trainSetNum = totalNum - (totalNum * testSetRatio).toInt
+        DataSet(data.take(trainSetNum), data.drop(trainSetNum))
+          .tap(printResult)
+      }
     }
 
   def selectLibTypes(

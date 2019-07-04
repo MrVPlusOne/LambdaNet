@@ -25,13 +25,12 @@ case class LibDefs(
 )
 
 object PrepareRepos {
-//  val projectsDir: Path = pwd / up / "lambda-repos" / "projects"
-  val projectsDir: Path = pwd / RelPath("data/toy")
   val libDefsFile: Path = pwd / up / "lambda-repos" / "libDefs.serialized"
   val parsedRepoPath: Path = pwd / "data" / "predicateGraphs.serialized"
 
   def main(args: Array[String]): Unit = {
-    val parsed = announced("parsePredGraphs")(parseRepos())
+      val projectsDir: Path = pwd / up / "lambda-repos" / "projects"
+    val parsed = announced("parsePredGraphs")(parseRepos(projectsDir))
     val stats = repoStatistics(parsed.projects)
     printResult(stats.headers.zip(stats.average).toString())
 
@@ -54,7 +53,7 @@ object PrepareRepos {
       projects: List[ParsedProject]
   )
 
-  def parseRepos(): ParsedRepos = {
+  def parseRepos(projectsDir: Path): ParsedRepos = {
 
     /** set to true to load declarations from the serialization file */
     val loadFromFile = true
