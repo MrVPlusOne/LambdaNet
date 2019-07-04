@@ -49,7 +49,7 @@ object PredicateGraph {
     override def toString: String = {
       val namePart = nameOpt.map(n => s"{${n.name}}").getOrElse("")
       val tyPart = if (isType) "[ty]" else ""
-      val prefix = if (fromLib) "𝓛" else "𝓟"
+      val prefix = if (fromLib) "𝓛"else "𝓟"
       s"$prefix$tyPart$id$namePart"
     }
 
