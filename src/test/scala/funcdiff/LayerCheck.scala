@@ -52,7 +52,7 @@ class LayerCheck extends TestUtils {
           newParams(pPath).attributes shouldBe param.attributes
           newParams(pPath).path shouldBe param.path
       }
-      println("create y2")
+      println("create bool2")
       val y2 = f2.linear('linear1, 4)(input) ~> f2.linear('linear2, 6)
 
       val gradients = y2.backpropForParams(None)

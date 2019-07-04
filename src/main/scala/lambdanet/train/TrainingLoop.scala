@@ -10,7 +10,7 @@ import funcdiff.{SimpleMath => SM}
 import funcdiff._
 import lambdanet.TrainingCenter.Timeouts
 import lambdanet.architecture.{HybridArchitecture, NNArchitecture}
-import lambdanet.utils.{EventLogger, PLangPrinting, ReportFinish}
+import lambdanet.utils.{EventLogger, QLangDisplay, ReportFinish}
 import lambdanet.printWarning
 import TrainingState._
 import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
@@ -245,7 +245,7 @@ object TrainingLoop {
         val predictionPath = pwd / "predictions"
         rm(predictionPath)
         qModules.par.foreach { m =>
-          PLangPrinting.renderModuleToDirectory(
+          QLangDisplay.renderModuleToDirectory(
             m,
             predictions.map { case (k, v) => k.n -> v },
             predictionSpace.allTypes,

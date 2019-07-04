@@ -10,7 +10,7 @@ import lambdanet.translation.QLang._
 
 import scala.language.implicitConversions
 
-object PLangPrinting {
+object QLangDisplay {
   import scalatags.Text.all._
 
   private object Impl {
@@ -28,6 +28,8 @@ object PLangPrinting {
 
     def warning(str: Output): Output =
       span(color := "magenta")(str)
+
+    def key(str: Output): Output = b(str)
 
     implicit def qExpr2Output(e: QExpr): Output = e.toString
 
@@ -68,7 +70,7 @@ object PLangPrinting {
                 if (t == p) correct(": " + t)
                 else if (!predSpace.contains(t)) {
                   if (p == unknownType) correct(": OoS")
-                  else incorrect(": Oos")
+                  else incorrect(": OoS")
                 } else {
                   incorrect(s": ($p ≠ $t)")
                 }
@@ -87,24 +89,24 @@ object PLangPrinting {
             val keyword = if (isConst) "const" else "let"
             Vector(
               indent ->
-                code(keyword, " ", x, showAnnot(x), " := ", init, ";"),
+                code(key(keyword), " ", x, showAnnot(x), key(" = "), init, ";"),
             )
           case AssignStmt(lhs, rhs) =>
-            Vector(indent -> code(lhs, " = ", rhs, ";"))
+            Vector(indent -> code(lhs, key("  ⃪ "), rhs, ";"))
           case ReturnStmt(e, ret) =>
-            val str = code("return ", ret, " = ", e)
+            val str = code(key("return "), ret, key(" = "), e)
             Vector(indent -> str)
           case ExprStmt(e) =>
             Vector(indent -> e.toString)
           case IfStmt(cond, e1, e2) =>
             lazy val elsePart = {
               if (e2 == BlockStmt(Vector())) Vector()
-              else Vector(indent -> ("else": Output)) ++ rec(indent, e2)
+              else Vector(indent -> key("else")) ++ rec(indent, e2)
             }
-            Vector(indent -> code("if (", cond, ")")) ++
+            Vector(indent -> code(key("if"), " (", cond, ")")) ++
               rec(indent, e1) ++ elsePart
           case WhileStmt(cond, bd) =>
-            (indent -> code("while (", cond, ")")) +: rec(indent, bd)
+            (indent -> code(key("while"), " (", cond, ")")) +: rec(indent, bd)
           case BlockStmt(stmts) =>
             (indent -> code("{")) +: stmts.flatMap(
               s => rec(indent + 1, s),
@@ -112,12 +114,12 @@ object PLangPrinting {
           case FuncDef(funcName, args, ret, bd) =>
             val argList = args
               .map { n =>
-                code(n, ", ", showAnnot(n))
+                code(n, showAnnot(n))
               }
               .pipe(xs => mkSpan(xs, "(", ",", ")"))
             Vector(
               indent -> code(
-                "function ",
+                key("function "),
                 funcName,
                 " ",
                 argList,
@@ -130,11 +132,11 @@ object PLangPrinting {
               rec(indent, makeSureInBlockQ(bd))
           case ClassDef(n, superType, vars, funcDefs) =>
             val superPart = superType
-              .map(t => code(" extends ", t.toString))
+              .map(t => code(key(" extends "), t.toString))
               .getOrElse(code(""))
             Vector(
-              indent -> code("class ", n, superPart, "{"),
-            )++
+              indent -> code(key("class "), n, superPart, "{"),
+            ) ++
               vars.toList.map {
                 case (_, field) =>
                   (indent + 1, code(field, showAnnot(field), ";"))

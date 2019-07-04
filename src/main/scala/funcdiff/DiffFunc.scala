@@ -162,7 +162,7 @@ object DiffFunc {
       x1.shape.sizes.zip(ranges).forall {
         case (s, r) => r.to.forall { _ <= s }
       },
-      s"slice out of range. x1 shape: ${x1.shape}, ranges: ${showRanges(ranges)}",
+      s"slice out of range. num1 shape: ${x1.shape}, ranges: ${showRanges(ranges)}",
     )
     val value = x1.value.apply(ranges: _*)
 
