@@ -17,10 +17,10 @@ fork in run := true
 
 val memoryLimit = {
   // for some reason, the memory usage keeps going up on the server
-  if(System.getProperty("os.name") == "Mac OS X") "8G" else "32G"
+  if(System.getProperty("os.name") == "Mac OS X") 8 else 32
 }
-javaOptions ++= Seq(s"-Xms2G", "-Xmx4G", "-Dorg.bytedeco.javacpp.maxbytes=" + memoryLimit, 
-  "-Dorg.bytedeco.javacpp.maxphysicalbytes=20G" + (memoryLimit + 5))
+javaOptions ++= Seq(s"-Xms2G", "-Xmx6G", s"-Dorg.bytedeco.javacpp.maxbytes=${memoryLimit}G", 
+  s"-Dorg.bytedeco.javacpp.maxphysicalbytes=${memoryLimit+8}G")
 
 libraryDependencies ++= Seq(
   "com.lihaoyi" %% "fastparse" % "2.0.4",
