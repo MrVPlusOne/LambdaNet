@@ -1,7 +1,7 @@
 package lambdanet
 
 import lambdanet.translation.ImportsResolution.NameDef
-import lambdanet.translation.PredicateGraph.{PTyVar, PType,PNode}
+import lambdanet.translation.PredicateGraph.{PTyVar, PType, PNode}
 import PredictionSpace._
 
 object PredictionSpace {

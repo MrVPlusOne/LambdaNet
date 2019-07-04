@@ -75,7 +75,7 @@ object QLangDisplay {
                 }
             }
           case Annot.Fixed(t) => s": [fix]$t"
-          case Annot.Missing => ""
+          case Annot.Missing  => ""
         }
       }
 

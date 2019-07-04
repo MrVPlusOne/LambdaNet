@@ -25,7 +25,7 @@ package object translation {
   def makeSureInBlockQ(stmt: QStmt): QLang.BlockStmt = {
     stmt match {
       case b: QLang.BlockStmt => b
-      case _                    => QLang.BlockStmt(Vector(stmt))
+      case _                  => QLang.BlockStmt(Vector(stmt))
     }
   }
 

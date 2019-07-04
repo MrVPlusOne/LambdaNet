@@ -72,7 +72,7 @@ object QLang {
       case Cast(expr, ty) =>
         s"$expr as $ty"
       case ObjLiteral(fields) =>
-        fields.map{case (n, t) => s"${n.name}: $t"}.mkString("{", ",","}")
+        fields.map { case (n, t) => s"${n.name}: $t" }.mkString("{", ",", "}")
       case Access(l, r) =>
         s"$l.${r.name}"
       case IfExpr(cond, e1, e2) =>

@@ -562,8 +562,9 @@ object ProgramParsing {
                 AssignStmt(Access(Var(thisSymbol), s), expr)
             }
             constructor0.copy(
-              body =
-                makeSureInBlockSurface(thisSuperVars ++ lambdas ++ inits ++ stmts),
+              body = makeSureInBlockSurface(
+                thisSuperVars ++ lambdas ++ inits ++ stmts,
+              ),
             )
           }
 

@@ -18,19 +18,18 @@ case class SegmentedLabelEncoder(
   private val segmentsMap: Map[Segment, CompNode] = {
 
     val totalUsages = projects.foldMap { p =>
+      val predsUsage = p.pGraph.predicates.toVector.collect {
+        case DefineRel(_, expr) =>
+          expr.allLabels.toVector.foldMap(nameUsages)
+        case HasName(_, name) =>
+          nameUsages(name)
+      }.combineAll
 
-        val predsUsage = p.pGraph.predicates.toVector.collect {
-          case DefineRel(_, expr) =>
-            expr.allLabels.toVector.foldMap(nameUsages)
-          case HasName(_, name) =>
-            nameUsages(name)
-        }.combineAll
+      val annotsUsage = p.userAnnots.toVector.foldMap {
+        case (_, t) => t.allLabels.toVector.foldMap(nameUsages)
+      }
 
-        val annotsUsage = p.userAnnots.toVector.foldMap {
-          case (_, t) => t.allLabels.toVector.foldMap(nameUsages)
-        }
-
-        Vector(predsUsage, annotsUsage).combineAll
+      Vector(predsUsage, annotsUsage).combineAll
     }
 
     val (segments, achieved) =
