@@ -29,7 +29,7 @@ object PrepareRepos {
   val parsedRepoPath: Path = pwd / "data" / "predicateGraphs.serialized"
 
   def main(args: Array[String]): Unit = {
-      val projectsDir: Path = pwd / up / "lambda-repos" / "projects"
+    val projectsDir: Path = pwd / up / "lambda-repos" / "projects"
     val parsed = announced("parsePredGraphs")(parseRepos(projectsDir))
     val stats = repoStatistics(parsed.projects)
     printResult(stats.headers.zip(stats.average).toString())
@@ -50,7 +50,7 @@ object PrepareRepos {
   @SerialVersionUID(1)
   case class ParsedRepos(
       libDefs: LibDefs,
-      projects: List[ParsedProject]
+      projects: List[ParsedProject],
   )
 
   def parseRepos(projectsDir: Path): ParsedRepos = {
@@ -75,8 +75,8 @@ object PrepareRepos {
       .filter(f => f.isDir)
       .par
       .map { f =>
-        val (a,b,c) = prepareProject(libDefs, f)
-        ParsedProject(f.relativeTo(projectsDir), a,b,c)
+        val (a, b, c) = prepareProject(libDefs, f)
+        ParsedProject(f.relativeTo(projectsDir), a, b, c)
       }
       .toList
     ParsedRepos(libDefs, graphs)
@@ -95,9 +95,7 @@ object PrepareRepos {
       Vector("libNodes", "projNodes", "annotations", "predicates")
   }
 
-  def repoStatistics(
-      results: Seq[ParsedProject],
-  ): RepoStats = {
+  def repoStatistics(results: Seq[ParsedProject]): RepoStats = {
     require(results.nonEmpty)
 
     val rows = results
