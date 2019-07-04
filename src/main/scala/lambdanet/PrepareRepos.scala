@@ -25,7 +25,8 @@ case class LibDefs(
 )
 
 object PrepareRepos {
-  val projectsDir: Path = pwd / up / "lambda-repos" / "projects"
+//  val projectsDir: Path = pwd / up / "lambda-repos" / "projects"
+  val projectsDir: Path = pwd / RelPath("data/toy")
   val libDefsFile: Path = pwd / up / "lambda-repos" / "libDefs.serialized"
   val parsedRepoPath: Path = pwd / "data" / "predicateGraphs.serialized"
 
@@ -43,7 +44,7 @@ object PrepareRepos {
   case class ParsedProject(
       path: ProjectPath,
       pGraph: PredicateGraph,
-      qModules: Seq[QModule],
+      qModules: Vector[QModule],
       userAnnots: Map[ProjNode, PType],
   )
 
@@ -98,6 +99,8 @@ object PrepareRepos {
   def repoStatistics(
       results: Seq[ParsedProject],
   ): RepoStats = {
+    require(results.nonEmpty)
+
     val rows = results
       .map {
         case ParsedProject(path, graph, _, annots) =>
@@ -199,7 +202,7 @@ object PrepareRepos {
       libDefs: LibDefs,
       root: Path,
       skipSet: Set[String] = Set("dist", "__tests__", "test", "tests"),
-  ): (PredicateGraph, Seq[QModule], Map[ProjNode, PType]) =
+  ): (PredicateGraph, Vector[QModule], Map[ProjNode, PType]) =
     SimpleMath.withErrorMessage(s"In project: $root") {
       import libDefs._
 

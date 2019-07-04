@@ -5,6 +5,8 @@ import lambdanet.translation.PredicateGraph._
 import NewInference._
 import lambdanet.PrepareRepos.ParsedRepos
 import lambdanet.architecture.{NNArchitecture, SegmentedLabelEncoder}
+import lambdanet.translation.ImportsResolution.NameDef
+import lambdanet.translation.QLang.QModule
 
 import scala.collection.parallel.ForkJoinTaskSupport
 
@@ -31,8 +33,8 @@ object DataSet {
           SM.readObjectFromFile[ParsedRepos](parsedRepoPath.toIO)
         }
 
-      val projectsToUse = 5
-      val testSetRatio = 0.3
+      val projectsToUse = 1
+//      val testSetRatio = 0.3
 
       val projects = projects0
         .pipe(x => new Random(1).shuffle(x))
@@ -47,7 +49,8 @@ object DataSet {
           .getOrElse(PredictionSpace.unknownType)
 
       val libTypesToPredict: Set[LibTypeNode] =
-        selectLibTypes(repos, coverageGoal = 0.95)
+        selectLibTypes(repos, coverageGoal = 0.95) +
+          LibTypeNode(LibNode(PredictionSpace.unknownTypeNode))
 
       val labelEncoder = announced("create label encoder") {
         SegmentedLabelEncoder(repos, coverageGoal = 0.95, architecture)
@@ -64,7 +67,7 @@ object DataSet {
                 labelEncoder.encode,
                 Some(taskSupport),
               )
-            Datum(path, annotations, predictor)
+            Datum(path, annotations, qModules, predictor)
               .tap(printResult)
         }
 
@@ -72,10 +75,11 @@ object DataSet {
       val projAnnots = data.map(_.projAnnots).sum
       printResult(s"$libAnnots library targets, $projAnnots project targets.")
 
-      val totalNum = data.length
-      val trainSetNum = totalNum - (totalNum * testSetRatio).toInt
-      DataSet(data.take(trainSetNum), data.drop(trainSetNum))
-        .tap(printResult)
+//      val totalNum = data.length
+//      val trainSetNum = totalNum - (totalNum * testSetRatio).toInt
+//      DataSet(data.take(trainSetNum), data.drop(trainSetNum))
+//        .tap(printResult)
+      DataSet(data, data)
     }
 
   def selectLibTypes(
@@ -87,7 +91,7 @@ object DataSet {
 
     val usages: Map[PNode, Int] = projects.par
       .map { p =>
-          p.userAnnots.collect { case (_, PTyVar(v)) => v -> 1 }
+        p.userAnnots.collect { case (_, PTyVar(v)) => v -> 1 }
       }
       .fold(Map[PNode, Int]())(_ |+| _)
 
@@ -112,6 +116,7 @@ object DataSet {
 case class Datum(
     projectName: ProjectPath,
     annotations: Map[ProjNode, PType],
+    qModules: Vector[QModule],
     predictor: Predictor,
 ) {
   val inPSpaceRatio: Double =

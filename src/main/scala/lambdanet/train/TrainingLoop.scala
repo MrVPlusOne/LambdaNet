@@ -10,19 +10,24 @@ import funcdiff.{SimpleMath => SM}
 import funcdiff._
 import lambdanet.TrainingCenter.Timeouts
 import lambdanet.architecture.{HybridArchitecture, NNArchitecture}
-import lambdanet.utils.{EventLogger, ReportFinish}
+import lambdanet.utils.{EventLogger, PLangPrinting, ReportFinish}
 import lambdanet.printWarning
 import TrainingState._
 import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
+import lambdanet.translation.QLang.QModule
 
 import scala.collection.parallel.ForkJoinTaskSupport
-import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutorService, Future, TimeoutException}
+import scala.concurrent.{
+  Await,
+  ExecutionContext,
+  ExecutionContextExecutorService,
+  Future,
+  TimeoutException,
+}
 import scala.language.reflectiveCalls
 
 object TrainingLoop {
 
-  /** Remember to use these VM options to increase memory limits.
-    * VM Options: -Xms2G -Xmx8G -Dorg.bytedeco.javacpp.maxbytes=18G -Dorg.bytedeco.javacpp.maxphysicalbytes=27G */
   def main(args: Array[String]): Unit = {
     printResult("""Experiment description:
                   |Label: trainable random unit vec
@@ -46,11 +51,10 @@ object TrainingLoop {
     Timeouts.readFromFile()
 
     def result(): Unit = {
-      val trainingState = loadTrainingState()
-      val architecture =
-        HybridArchitecture(trainingState.dimMessage, trainingState.pc)
+      val state = loadTrainingState()
+      val architecture = HybridArchitecture(state.dimMessage, state.pc)
       val dataSet = DataSet.loadDataSet(taskSupport, architecture)
-      trainOnProjects(dataSet, trainingState, architecture).result()
+      trainOnProjects(dataSet, state, architecture).result()
     }
 
     //noinspection TypeAnnotation
@@ -209,15 +213,20 @@ object TrainingLoop {
       }
 
       def testStep(epoch: Int): Unit =
-        if (epoch % 4 == 0) announced("test on dev set") {
+        if (epoch % 5 == 0) announced("test on dev set") {
           import cats.implicits._
 
           val stat = testSet.flatMap { datum =>
             checkShouldStop(epoch)
             announced(s"test on $datum") {
-              forward(datum).map{ case (_, fwd, pred) =>
-                printQSource(datum.projectName, pred)
-                fwd
+              forward(datum).map {
+                case (_, fwd, pred) =>
+                  printQSource(
+                    datum.qModules,
+                    pred,
+                    datum.predictor.predictionSpace,
+                  )
+                  fwd
               }.toVector
             }
           }.combineAll
@@ -227,7 +236,22 @@ object TrainingLoop {
           logger.logScalar("test-projAcc", epoch, toAccuracy(projCorrect))
         }
 
-      def printQSource(path: ProjectPath, predictions: Map[ProjNode, PType]) = ???
+      def printQSource(
+          qModules: Vector[QModule],
+          predictions: Map[ProjNode, PType],
+          predictionSpace: PredictionSpace,
+      ) = DebugTime.logTime("printQSource"){
+        import ammonite.ops._
+        val predictionPath = pwd / "predictions"
+        rm(predictionPath)
+        qModules.par.foreach { m =>
+          PLangPrinting.renderModuleToDirectory(
+            m,
+            predictions.map { case (k, v) => k.n -> v },
+            predictionSpace.allTypes,
+          )(predictionPath / m.path)
+        }
+      }
 
       case class ForwardResult(
           loss: Counted[Double],

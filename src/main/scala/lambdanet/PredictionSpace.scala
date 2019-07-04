@@ -1,11 +1,12 @@
 package lambdanet
 
 import lambdanet.translation.ImportsResolution.NameDef
-import lambdanet.translation.PredicateGraph.{PTyVar, PType}
+import lambdanet.translation.PredicateGraph.{PTyVar, PType,PNode}
 import PredictionSpace._
 
 object PredictionSpace {
-  val unknownType = PTyVar(NameDef.unknownDef.ty.get)
+  val unknownTypeNode: PNode = NameDef.unknownDef.ty.get
+  val unknownType: PType = PTyVar(unknownTypeNode)
 }
 
 case class PredictionSpace(allTypes: Set[PType]) {
