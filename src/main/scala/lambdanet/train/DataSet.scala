@@ -28,7 +28,7 @@ object DataSet {
       import util.Random
       import ammonite.ops._
 
-      val toyMod = false
+      val toyMod = true
       printResult(s"Is toy data set? : $toyMod")
 
       val ParsedRepos(libDefs, projects0) =
