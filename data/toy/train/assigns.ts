@@ -27,3 +27,7 @@ class Bar{
 
 const bar1 = new Bar();
 const num5 = bar1.num4;
+let x14: any = 1;
+x14 = "a";
+let x15: string = 'a';
+x15 = "a";
