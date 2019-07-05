@@ -60,6 +60,7 @@ object DataSet {
       val labelEncoder = announced("create label encoder") {
         SegmentedLabelEncoder(repos, coverageGoal = 0.95, architecture)
       }
+      printResult(s"Label encoder: ${labelEncoder.name}")
 
       val data = projects.toVector
         .map {

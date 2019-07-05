@@ -15,6 +15,8 @@ case class SegmentedLabelEncoder(
   import cats.implicits._
   import repos._
 
+  def name: String = "SegmentedLabelEncoder"
+
   private val segmentsMap: Map[Segment, CompNode] = {
 
     val totalUsages = projects.foldMap { p =>

@@ -7,7 +7,7 @@ import botkop.numsca
 import cats.Monoid
 import funcdiff.{SimpleMath => SM}
 import funcdiff._
-import lambdanet.architecture.{HybridArchitecture, NNArchitecture}
+import lambdanet.architecture._
 import lambdanet.utils.{EventLogger, QLangDisplay, ReportFinish}
 import lambdanet.printWarning
 import TrainingState._
@@ -27,11 +27,6 @@ import scala.language.reflectiveCalls
 object TrainingLoop {
 
   def main(args: Array[String]): Unit = {
-    printResult("""Experiment description:
-                  |Label: segmented words
-                  |SingleLayer: 2 FC
-                  |6 iterations """.stripMargin)
-
     run(
       maxTrainingEpochs = 1000,
       numOfThreads = Runtime.getRuntime.availableProcessors() min 16,
@@ -43,14 +38,12 @@ object TrainingLoop {
       numOfThreads: Int,
   ) {
 
-    printInfo(
-      s"maxTrainingEpochs = $maxTrainingEpochs, numberOfThreads: $numOfThreads",
-    )
+    printInfo(s"maxEpochs = $maxTrainingEpochs, threads: $numOfThreads")
     Timeouts.readFromFile()
 
     def result(): Unit = {
       val state = loadTrainingState()
-      val architecture = HybridArchitecture(state.dimMessage, state.pc)
+      val architecture = ReNormalizeArch(state.dimMessage, state.pc)
       val dataSet = DataSet.loadDataSet(taskSupport, architecture)
       trainOnProjects(dataSet, state, architecture).result()
     }
@@ -64,6 +57,9 @@ object TrainingLoop {
       import TensorExtension.oneHot
       import dataSet._
       import trainingState._
+
+      printResult(s"NN Architecture: ${architecture.name}")
+      printResult(s"Single layer consists of: ${architecture.singleLayerModel}")
 
       def result(): Unit = {
         (trainingState.epoch0 + 1 to maxTrainingEpochs)
