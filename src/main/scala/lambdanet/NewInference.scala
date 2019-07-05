@@ -215,7 +215,7 @@ object NewInference {
     val projectTypes: Set[PTyVar] =
       projectNodes.filter(n => n.n.isType).map(n => PTyVar(n.n))
     val libraryTypes: Set[PTyVar] = libraryTypeNodes.map(_.n.n.pipe(PTyVar))
-    val predictionSpace = PredictionSpace(libraryTypes ++ projectTypes)
+    val predictionSpace = PredictionSpace(Set(PAny) ++ libraryTypes ++ projectTypes)
 
     val allLabels: Set[Symbol] = {
       val pTypeLabels =

@@ -15,7 +15,8 @@ class Foo{
 }
 
 const x7: Foo = new Foo();
-const x8: number = 1+1;
+let x8: number = 1+1;
+x8 = 3;
 const x9: string = x3;
 const x10: boolean = x7.x5;
 
@@ -25,4 +26,6 @@ class Bar{
 }
 
 const x12 = new Bar();
-const x13 = x12.x11;
+const x13: number = x12.x11;
+let x14: any = 1;
+x14 = "a";

@@ -113,7 +113,7 @@ object DataSet {
     val (libTypes, achieved) =
       SM.selectBasedOnFrequency(typeFreqs, coverageGoal)
 
-    printResult(s"Coverages achieved: $achieved")
+    printResult(s"Lib types coverage achieved: $achieved")
     printResult(s"Lib types selected (${libTypes.length}): $libTypes")
 
     libTypes.map(_._1).toSet
