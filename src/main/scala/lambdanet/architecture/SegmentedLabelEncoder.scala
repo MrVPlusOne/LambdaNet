@@ -11,7 +11,7 @@ case class SegmentedLabelEncoder(
     repos: ParsedRepos,
     coverageGoal: Double,
     architecture: NNArchitecture,
-) {
+) extends LabelEncoder {
   import cats.implicits._
   import repos._
 

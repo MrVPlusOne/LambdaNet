@@ -11,6 +11,7 @@ import lambdanet.architecture._
 import lambdanet.utils.{EventLogger, QLangDisplay, ReportFinish}
 import lambdanet.printWarning
 import TrainingState._
+import funcdiff.TensorExtension.oneHot
 import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 import lambdanet.translation.QLang.QModule
 
@@ -25,10 +26,11 @@ import scala.concurrent.{
 import scala.language.reflectiveCalls
 
 object TrainingLoop {
+  var toyMod: Boolean = true
 
   def main(args: Array[String]): Unit = {
     run(
-      maxTrainingEpochs = 1000,
+      maxTrainingEpochs = 5000,
       numOfThreads = Runtime.getRuntime.availableProcessors() min 16,
     ).result()
   }
@@ -70,7 +72,8 @@ object TrainingLoop {
                 testStep(epoch)
               }
 
-              if (epoch % 10 == 0) {
+              val saveInterval = if (toyMod) 100 else 10
+              if (epoch % saveInterval == 0) {
                 saveTraining(epoch, s"epoch$epoch")
               }
             }
@@ -292,6 +295,9 @@ object TrainingLoop {
           }
         }
 
+      val lossModel: LossModel = LossModel.EchoLoss
+        .tap(m => printResult(s"loss model: ${m.name}"))
+
       private def forward(
           datum: Datum,
       ): Option[(Loss, ForwardResult, Map[ProjNode, PType])] =
@@ -301,18 +307,19 @@ object TrainingLoop {
           val nodesToPredict = annotations.keys.toVector
           val predSpace = predictor.predictionSpace
 
-          val logits = announced("run predictor") {
+          // the logits for very iterations
+          val logitsVec = announced("run predictor") {
             predictor
               .run(architecture, nodesToPredict, iterationNum)
               .result
           }
+          val logits = logitsVec.last
 
           val groundTruths = nodesToPredict.map(annotations)
           val targets = groundTruths.map(predSpace.indexOfType)
           val isFromLib = groundTruths.map(_.madeFromLibTypes)
           val nodeDistances = nodesToPredict.map(_.n.pipe(distanceToConsts))
 
-          assert(logits.shape(1) == predSpace.size)
           val (libCounts, projCounts, distanceCounts) =
             announced("compute training accuracy") {
               analyzeLogits(
@@ -323,7 +330,8 @@ object TrainingLoop {
               )
             }
 
-          val loss = predictionLoss(logits, targets, predSpace.size)
+          val loss =
+            lossModel.predictionLoss(logitsVec.par, targets, predSpace.size)
 
           val totalCount = libCounts.count + projCounts.count
           val fwd = ForwardResult(
@@ -433,25 +441,6 @@ object TrainingLoop {
 
       private val avgAnnotations =
         SM.mean(trainSet.map(_.annotations.size.toDouble))
-      private def scaleLoss(loss: Loss, annotations: Int) = {
-        loss * (annotations.toDouble / avgAnnotations)
-      }
-
-      private def predictionLoss(
-          logits: CompNode,
-          targets: Vector[Int],
-          predSpaceSize: Int,
-      ): CompNode = {
-        val loss = mean(
-          crossEntropyOnSoftmax(logits, oneHot(targets, predSpaceSize)),
-        )
-        if (loss.value.squeeze() > 20) {
-          printWarning(
-            s"Abnormally large loss: ${loss.value}, logits: \n${logits.value}",
-          )
-        }
-        loss
-      }
     }
 
     val forkJoinPool = new ForkJoinPool(numOfThreads)

@@ -28,7 +28,7 @@ private object TrainingControl {
       if (consumeFile) {
         rm(restoreFile)
       }
-      Some(p)
+      Some(p / "trainingState.serialized")
     } else None
   }
 }

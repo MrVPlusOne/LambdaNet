@@ -34,7 +34,7 @@ object NewInference {
       import architecture.{Embedding, randomVar}
 
       /** returns softmax logits */
-      def result: CompNode = {
+      def result: Vector[CompNode] = {
 
         val initEmbedding: Embedding =
           architecture.initialEmbedding(projectNodes)
@@ -43,23 +43,24 @@ object NewInference {
           computeLibNodeEncoding()
         }
 
-        val embedding = logTime("iterate") {
+        val embeddings = logTime("iterate") {
           Vector
             .iterate(initEmbedding, iterations + 1)(
               updateEmbedding(encodeLibNode),
             )
-            .last
         }
 
-        val allSignatureEmbeddings = logTime("allSignatureEmbeddings") {
-          def encodeLeaf(n: PNode) =
-            if (n.fromProject) embedding(ProjNode(n))
-            else randomVar('libTypeEmbedding / n.symbol)
-          // encode all types from the prediction space
-          signatureEmbeddingMap(encodeLeaf, predictionSpace.allTypes)
-        }
-        logTime("decode") {
-          decode(embedding, allSignatureEmbeddings)
+        embeddings.map{ embed =>
+          val allSignatureEmbeddings = logTime("allSignatureEmbeddings") {
+            def encodeLeaf(n: PNode) =
+              if (n.fromProject) embed(ProjNode(n))
+              else randomVar('libTypeEmbedding / n.symbol)
+            // encode all types from the prediction space
+            signatureEmbeddingMap(encodeLeaf, predictionSpace.allTypes)
+          }
+          logTime("decode") {
+            decode(embed, allSignatureEmbeddings)
+          }
         }
       }
 
@@ -245,7 +246,8 @@ object NewInference {
 
       def toBatched(pred: TyPredicate): BatchedMsgModels = pred match {
         case HasName(n, name) =>
-          Map(KindNaming("hasName") -> Vector(Naming(n, name)))
+//          Map(KindNaming("hasName") -> Vector(Naming(n, name))) todo: use name features
+          Map()
         case UsedAsBool(n) =>
           Map(KindSingle("usedAsBool") -> Vector(Single(n)))
         case FixedToType(n, ty) =>

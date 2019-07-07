@@ -4,7 +4,7 @@ import lambdanet._
 import lambdanet.translation.PredicateGraph._
 import NewInference._
 import lambdanet.PrepareRepos.ParsedRepos
-import lambdanet.architecture.{NNArchitecture, SegmentedLabelEncoder}
+import lambdanet.architecture.{NNArchitecture, RandomLabelEncoder, SegmentedLabelEncoder}
 import lambdanet.translation.QLang.QModule
 
 import scala.collection.parallel.ForkJoinTaskSupport
@@ -27,8 +27,8 @@ object DataSet {
       import PrepareRepos._
       import util.Random
       import ammonite.ops._
+      import TrainingLoop.toyMod
 
-      val toyMod = true
       printResult(s"Is toy data set? : $toyMod")
 
       val ParsedRepos(libDefs, projects0) =
@@ -58,7 +58,8 @@ object DataSet {
           LibTypeNode(LibNode(PredictionSpace.unknownTypeNode))
 
       val labelEncoder = announced("create label encoder") {
-        SegmentedLabelEncoder(repos, coverageGoal = 0.95, architecture)
+//        SegmentedLabelEncoder(repos, coverageGoal = 0.95, architecture)
+        RandomLabelEncoder(architecture)
       }
       printResult(s"Label encoder: ${labelEncoder.name}")
 
