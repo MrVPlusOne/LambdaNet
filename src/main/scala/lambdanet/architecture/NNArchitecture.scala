@@ -176,7 +176,8 @@ abstract class NNArchitecture(
 
     val (nodes, vectors) = inputs.unzip
 
-    val output = transformation(concatN(axis = 0)(vectors))
+    val stacked = concatN(axis = 0)(vectors)
+    val output = transformation(stacked)
     nodes.zipWithIndex.map {
       case (n, i) =>
         Map(n -> Chain(output.slice(i, :>)))

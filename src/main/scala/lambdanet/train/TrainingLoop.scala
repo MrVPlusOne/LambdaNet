@@ -14,15 +14,10 @@ import TrainingState._
 import funcdiff.TensorExtension.oneHot
 import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 import lambdanet.translation.QLang.QModule
+import org.nd4j.linalg.factory.Nd4j
 
 import scala.collection.parallel.ForkJoinTaskSupport
-import scala.concurrent.{
-  Await,
-  ExecutionContext,
-  ExecutionContextExecutorService,
-  Future,
-  TimeoutException,
-}
+import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutorService, Future, TimeoutException}
 import scala.language.reflectiveCalls
 
 object TrainingLoop {
@@ -40,12 +35,13 @@ object TrainingLoop {
       numOfThreads: Int,
   ) {
 
+    Nd4j.setNumThreads(numOfThreads)
     printInfo(s"maxEpochs = $maxTrainingEpochs, threads: $numOfThreads")
     Timeouts.readFromFile()
 
     def result(): Unit = {
       val state = loadTrainingState()
-      val architecture = ReNormalizeArch(state.dimMessage, state.pc)
+      val architecture = GruArchitecture(state.dimMessage, state.pc)
       val dataSet = DataSet.loadDataSet(taskSupport, architecture)
       trainOnProjects(dataSet, state, architecture).result()
     }
@@ -56,7 +52,6 @@ object TrainingLoop {
         trainingState: TrainingState,
         architecture: NNArchitecture,
     ) {
-      import TensorExtension.oneHot
       import dataSet._
       import trainingState._
 
@@ -136,6 +131,7 @@ object TrainingLoop {
                   pc.allParams,
                   backPropInParallel =
                     Some(parallelCtx -> Timeouts.optimizationTimeout),
+                  gradientTransform = _.clipNorm(0.2),
                 )
 
                 val gradInfo = limitTimeOpt(
@@ -161,28 +157,33 @@ object TrainingLoop {
 
         import cats.implicits._
         val (fws, gs, data) = stats.flatMap(_.toVector).unzip3
-        val ForwardResult(loss, libAcc, projAcc, distanceAcc) =
-          fws.combineAll
-        val gradInfo = gs.combineAll
-        logger.logScalar("loss", epoch, toAccuracyD(loss))
-        logger.logScalar("libAcc", epoch, toAccuracy(libAcc))
-        logger.logScalar("projAcc", epoch, toAccuracy(projAcc))
-        logAccuracyDetails(data zip fws, epoch)
-        val disMap = distanceAcc.toVector
-          .sortBy(_._1)
-          .map {
-            case (k, counts) =>
-              val ks = if (k == Analysis.Inf) "Inf" else k.toString
-              ks -> toAccuracy(counts)
-          }
-        logger.logMap("distanceAcc", epoch, disMap)
-        printResult("distance counts: " + distanceAcc.map {
-          case (k, c) => k -> c.count
-        })
 
-        val (grads, deltas) = gradInfo.unzip
-        logger.logScalar("gradientNorm", epoch, SM.mean(grads))
-        logger.logScalar("paramDelta", epoch, SM.mean(deltas))
+        fws.combineAll.tap {
+          case ForwardResult(loss, libAcc, projAcc, distanceAcc) =>
+            logger.logScalar("loss", epoch, toAccuracyD(loss))
+            logger.logScalar("libAcc", epoch, toAccuracy(libAcc))
+            logger.logScalar("projAcc", epoch, toAccuracy(projAcc))
+            logAccuracyDetails(data zip fws, epoch)
+            val disMap = distanceAcc.toVector
+              .sortBy(_._1)
+              .map {
+                case (k, counts) =>
+                  val ks = if (k == Analysis.Inf) "Inf" else k.toString
+                  ks -> toAccuracy(counts)
+              }
+            logger.logMap("distanceAcc", epoch, disMap)
+            printResult("distance counts: " + distanceAcc.map {
+              case (k, c) => k -> c.count
+            })
+        }
+
+        val gradInfo = gs.combineAll
+        gradInfo.unzip3.tap {
+          case (grads, transformed, deltas) =>
+            logger.logScalar("gradient", epoch, grads.sum)
+            logger.logScalar("clippedGradient", epoch, transformed.sum)
+            logger.logScalar("paramDelta", epoch, SM.mean(deltas))
+        }
 
         val timeInSec = (System.nanoTime() - startTime).toDouble / 1e9
         logger.logScalar("iter-time", epoch, timeInSec)
@@ -263,7 +264,7 @@ object TrainingLoop {
         }
       }
 
-      def calcGradInfo(stats: Optimizer.OptimizeStats): (Real, Real) = {
+      def calcGradInfo(stats: Optimizer.OptimizeStats) = {
         def meanSquaredNorm(gs: Iterable[Gradient]) = {
           import numsca._
           import cats.implicits._
@@ -275,8 +276,9 @@ object TrainingLoop {
         }
 
         val grads = meanSquaredNorm(stats.gradients.values)
+        val transformed = meanSquaredNorm(stats.transformedGrads.values)
         val deltas = meanSquaredNorm(stats.deltas.values)
-        grads -> deltas
+        (grads, transformed, deltas)
       }
 
       implicit val forwardResultMonoid: Monoid[ForwardResult] =

@@ -57,6 +57,8 @@ sealed trait Gradient {
   def transpose: Gradient
 
   def clip(min: Real, max: Real): Gradient
+
+  def clipNorm(maxNorm: Real): Gradient
 }
 
 object Gradient {
@@ -110,6 +112,8 @@ case class ZeroGradient(shape: Shape) extends Gradient {
       (r.end - r.start).toLong
     }.toVector))
   }
+
+  def clipNorm(maxNorm: Real): Gradient = this
 }
 
 case class DenseGradient(value: Tensor) extends Gradient {
@@ -161,6 +165,7 @@ case class DenseGradient(value: Tensor) extends Gradient {
     DenseGradient(value(ranges: _*))
   }
 
+  def clipNorm(maxNorm: Real): Gradient = copy(value = value.clipNorm(maxNorm))
 }
 
 /**
@@ -297,6 +302,8 @@ case class InflatedGradient(
       "subGradient on sparse gradient not supported. Turn the gradient into dense instead.",
     )
   }
+
+  def clipNorm(maxNorm: Real): Gradient = copy(core = core.clipNorm(maxNorm))
 }
 
 /** Mutable buffer used to accumulate gradients */

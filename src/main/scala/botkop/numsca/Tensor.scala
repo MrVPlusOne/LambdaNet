@@ -1,5 +1,6 @@
 package botkop.numsca
 
+import funcdiff.Real
 import org.nd4j.linalg.api.iter.NdIndexIterator
 import org.nd4j.linalg.api.ndarray.INDArray
 import org.nd4j.linalg.factory.{Broadcast, Nd4j}
@@ -221,6 +222,15 @@ class Tensor(val array: INDArray, val isBoolean: Boolean = false)
         max
       else x
     }).reshape(shape)
+
+  def clipNorm(maxNorm: Real): Tensor = {
+    val maxNorm2 = maxNorm * maxNorm
+    val norm2 = sum(square(this))
+    if(norm2 > maxNorm2){
+      val ratio = math.sqrt(maxNorm2 / norm2)
+      this * ratio
+    } else this
+  }
 
   override def toString: String = array.toString
 }
