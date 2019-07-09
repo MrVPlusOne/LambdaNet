@@ -6,6 +6,7 @@ import NewInference._
 import lambdanet.PrepareRepos.ParsedRepos
 import lambdanet.architecture.{NNArchitecture, RandomLabelEncoder, SegmentedLabelEncoder}
 import lambdanet.translation.QLang.QModule
+import lambdanet.utils.QLangAccuracy.FseAccuracy
 
 import scala.collection.parallel.ForkJoinTaskSupport
 
@@ -159,4 +160,6 @@ case class Datum(
        |${predictor.predictionSpace}
        |""".stripMargin
   }
+
+  val fseAcc: FseAccuracy = FseAccuracy(qModules)
 }

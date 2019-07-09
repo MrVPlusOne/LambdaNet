@@ -8,7 +8,7 @@ import cats.Monoid
 import funcdiff.{SimpleMath => SM}
 import funcdiff._
 import lambdanet.architecture._
-import lambdanet.utils.{EventLogger, QLangDisplay, ReportFinish}
+import lambdanet.utils.{EventLogger, QLangAccuracy, QLangDisplay, ReportFinish}
 import lambdanet.printWarning
 import TrainingState._
 import funcdiff.TensorExtension.oneHot
@@ -214,7 +214,7 @@ object TrainingLoop {
         if (epoch % 10 == 0) announced("test on dev set") {
           import cats.implicits._
 
-          val stat = testSet.flatMap { datum =>
+          val (stat, fseAcc) = testSet.flatMap { datum =>
             checkShouldStop(epoch)
             announced(s"test on $datum") {
               forward(datum).map {
@@ -224,7 +224,10 @@ object TrainingLoop {
                     pred,
                     datum.predictor.predictionSpace,
                   )
-                  fwd
+
+                  val fse = datum.fseAcc.countCorrect(pred)
+
+                  (fwd, fse)
               }.toVector
             }
           }.combineAll
@@ -232,6 +235,7 @@ object TrainingLoop {
           import stat.{libCorrect, projCorrect}
           logger.logScalar("test-libAcc", epoch, toAccuracy(libCorrect))
           logger.logScalar("test-projAcc", epoch, toAccuracy(projCorrect))
+          logger.logScalar("test-fseAcc", epoch, toAccuracy(fseAcc))
         }
 
       def printQSource(

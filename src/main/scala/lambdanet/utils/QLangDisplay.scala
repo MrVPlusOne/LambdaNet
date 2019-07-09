@@ -158,27 +158,14 @@ object QLangDisplay {
 
   }
 
-  private def measureAcc(
-      nodesToPredict: Map[PNode, PType],
-      predictions: Map[PNode, PType],
-  ): (Double, Int, Int) = {
-    val (y, n) = nodesToPredict.foldLeft((0, 0)) {
-      case ((yes, no), (n, t)) =>
-        val rightQ = predictions.get(n) match {
-          case Some(t1) => t1 == t
-          case None     => false
-        }
-        if (rightQ) (yes + 1, no) else (yes, no + 1)
-    }
-    (y.toDouble / train.nonZero(y + n), y, y + n)
-  }
-
   def renderModuleToDirectory(
       m: QModule,
       prediction: Map[PNode, PType],
       predSpace: Set[PType],
       indentSpaces: Int = 2,
   )(dir: Path): Unit = {
+    import QLangAccuracy.measureAcc
+
     val file = dir / RelPath(m.path + ".html")
     val data = m.stmts
       .map {
@@ -188,12 +175,12 @@ object QLangDisplay {
 
     val libAccStr = {
       val (acc, yes, total) =
-        measureAcc(annots.filter(_._2.madeFromLibTypes), prediction)
+        measureAcc(annots.filter(_._2.madeFromLibTypes), prediction, _ => 1)
       s"%.4f=$yes/$total".format(acc)
     }
     val projAccStr = {
       val (acc, yes, total) =
-        measureAcc(annots.filter(!_._2.madeFromLibTypes), prediction)
+        measureAcc(annots.filter(!_._2.madeFromLibTypes), prediction, _ => 1)
       s"%.4f=$yes/$total".format(acc)
     }
 
