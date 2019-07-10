@@ -19,6 +19,7 @@ import lambdanet.utils.ProgramParsing
 import lambdanet.utils.ProgramParsing.GProject
 @SerialVersionUID(2)
 case class LibDefs(
+    nodeForAny: PNode,
     baseCtx: ModuleExports,
     nodeMapping: Map[PNode, PAnnot],
     libExports: Map[ProjectPath, ModuleExports],
@@ -192,7 +193,8 @@ object PrepareRepos {
     val nodeMapping = defaultMapping ++ qModules.flatMap(_.mapping)
 
     println("Declaration files parsed.")
-    LibDefs(baseCtx1, nodeMapping, libExports)
+    val anyNode = libAllocator.newNode(None, isType = true)
+    LibDefs(anyNode, baseCtx1, nodeMapping, libExports)
   }
 
   def prepareProject(
@@ -233,7 +235,7 @@ object PrepareRepos {
       }
 
       val graph =
-        PredicateGraphTranslation.fromIRModules(fixedAnnots, irModules)
+        PredicateGraphTranslation.fromIRModules(fixedAnnots, allocator, nodeForAny, irModules)
 
       errorHandler.warnErrors()
       printResult(s"Project parsed: '$root'")

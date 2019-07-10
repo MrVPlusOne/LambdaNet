@@ -69,6 +69,7 @@ object DataSet {
           case ParsedProject(path, g, qModules, annotations) =>
             val predictor =
               Predictor(
+                LibTypeNode(LibNode(libDefs.nodeForAny)),
                 g,
                 libTypesToPredict,
                 libNodeType,

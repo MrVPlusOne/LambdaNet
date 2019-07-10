@@ -28,7 +28,6 @@ abstract class NNArchitecture(
       models: Vector[MessageModel],
       encodeNode: PNode => CompNode,
       encodeLabel: Symbol => CompNode,
-      encodeFixedType: PType => CompNode,
   ): Map[ProjNode, Chain[Message]] = {
     import MessageKind._
     import MessageModel._
@@ -76,15 +75,6 @@ abstract class NNArchitecture(
           .unzip3
         verticalBatching(n1s.zip(inputs), singleLayer(name / 'left, _)) |+|
           verticalBatching(n2s.zip(inputs), singleLayer(name / 'right, _))
-      case KindWithType(name) =>
-        // limitation: information flows in only one direction
-        val inputs = models
-          .asInstanceOf[Vector[WithType]]
-          .map {
-            case WithType(n, ty) =>
-              n -> encodeFixedType(ty)
-          }
-        verticalBatching(inputs, singleLayer(name, _))
     }
 
     // filter out all messages for lib nodes

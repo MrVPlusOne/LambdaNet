@@ -1,11 +1,9 @@
 package lambdanet.utils
 
-import funcdiff.DebugTime
 import lambdanet.train.{Correct, Counted}
 import lambdanet.{Annot, train}
 import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 import lambdanet.translation.QLang._
-import lambdanet.utils.QLangAccuracy.countCorrect
 
 object QLangAccuracy {
   import cats.implicits._

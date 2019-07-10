@@ -187,10 +187,6 @@ object PredicateGraph {
     val allNodes: Set[PNode] = Set(n)
   }
 
-  case class FixedToType(n: PNode, ty: PType) extends TyPredicate {
-    val allNodes: Set[PNode] = Set(n) ++ ty.allNodes
-  }
-
   case class SubtypeRel(sub: PNode, sup: PNode) extends TyPredicate {
     val allNodes: Set[PNode] = Set(sub, sup)
   }
@@ -268,9 +264,12 @@ object PredicateGraphTranslation {
 
   def fromIRModules(
       fixedAnnotations: Map[PNode, PType],
+      allocator: PNodeAllocator,
+      nodeForAny: PNode,
       modules: Vector[IRModule],
   ): PredicateGraph = {
     val predicates = mutable.Set[TyPredicate]()
+    val typeMap = mutable.HashMap[PType, PNode]()
 
     def add(pred: TyPredicate): Unit = {
       predicates += pred
@@ -279,6 +278,26 @@ object PredicateGraphTranslation {
     def useCond(cond: PNode): Unit = {
       add(UsedAsBool(cond))
     }
+
+    def encodePType(t: PType): PNode =
+      typeMap.getOrElseUpdate(
+        t,
+        t match {
+          case PTyVar(node) => node
+          case PAny         => nodeForAny
+          case PFuncType(args, to) =>
+            val args1 = args.map(encodePType)
+            val to1 = encodePType(to)
+            val n = allocator.newNode(None, isType = true)
+            add(DefineRel(n, PFunc(args1, to1)))
+            n
+          case PObjectType(fields) =>
+            val fields1 = fields.mapValuesNow(encodePType)
+            val n = allocator.newNode(None, isType = true)
+            add(DefineRel(n, PObject(fields1)))
+            n
+        },
+      )
 
     def encodeStmt(stmt: IRStmt): Unit =
       SimpleMath.withErrorMessage(s"Error in IRStmt: $stmt") {
@@ -336,7 +355,8 @@ object PredicateGraphTranslation {
 
     fixedAnnotations.foreach {
       case (n, t) =>
-        add(FixedToType(n, t))
+        val tn = encodePType(t)
+        add(DefineRel(n, tn))
     }
 
     val totalMapping = modules.foldLeft(Map[PNode, PAnnot]())(_ ++ _.mapping)

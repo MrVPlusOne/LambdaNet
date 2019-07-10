@@ -56,6 +56,7 @@ object LossModel {
       }
       val len = losses.length
       val weights = (1 to len).map(i => 1.0 / i).reverse
+//      val weights = Vector.iterate(1.0, len)(_ * 0.8).reverse
       val sum = weights.sum
       losses
         .zip(weights)

@@ -19,6 +19,7 @@ object NewInference {
     * across multiple training steps for the given [[PredicateGraph]].
     * The actual forward propagation only happens in [[run]]. */
   case class Predictor(
+      nodeForAny: LibTypeNode,
       graph: PredicateGraph,
       libraryTypeNodes: Set[LibTypeNode],
       libNodeType: LibNode => PType,
@@ -50,7 +51,7 @@ object NewInference {
             )
         }
 
-        embeddings.map{ embed =>
+        embeddings.map { embed =>
           val allSignatureEmbeddings = logTime("allSignatureEmbeddings") {
             def encodeLeaf(n: PNode) =
               if (n.fromProject) embed(ProjNode(n))
@@ -69,6 +70,10 @@ object NewInference {
           // todo: better encoding? (like using object label set)
           def encodeLeaf(n: PNode) = {
             val ex = randomVar('libType / n.symbol)
+//            libNodeType(n) match {
+//              case PObjectType(fields) =>
+//                fields.keys.toVector.map(encodeLabel)
+//            }
             val name = encodeNameOpt(n.nameOpt)
             architecture.encodeLibType(ex, name)
           }
@@ -104,14 +109,6 @@ object NewInference {
       )(embedding: Embedding): Embedding = {
         import cats.implicits._
 
-        // leaves can be project nodes, which change between iterations
-        val encodeFixedTypes = logTime("encodeFixedTypes") {
-          def encodeLeaf(n: PNode) =
-            if (n.fromProject) embedding(ProjNode(n))
-            else randomVar('libTypeEmbedding / n.symbol)
-          signatureEmbeddingMap(encodeLeaf, allFixedTypes)
-        }
-
         val messages: Map[ProjNode, Chain[Message]] =
           logTime("compute messages") {
             def encodeNode(n: PNode): CompNode =
@@ -127,7 +124,6 @@ object NewInference {
                     messageModels,
                     encodeNode,
                     encodeLabel,
-                    encodeFixedTypes,
                   )
               }
               .fold(Map())(_ |+| _)
@@ -163,13 +159,12 @@ object NewInference {
       ): Map[PType, CompNode] = {
         import collection.mutable
 
-        val vecForAny = randomVar('anyType)
         val signatureEmbeddings = mutable.HashMap[PType, CompNode]()
         def embedSignature(sig: PType): CompNode =
           SM.withErrorMessage(s"in sig: $sig") {
             val r = sig match {
               case PTyVar(node) => leafEmbedding(node)
-              case PAny         => vecForAny
+              case PAny         => leafEmbedding(nodeForAny.n.n)
               case PFuncType(args, to) =>
                 val args1 = args.map(embedSignature)
                 val to1 = embedSignature(to)
@@ -208,19 +203,17 @@ object NewInference {
     val libraryNodes: Set[LibNode] =
       graph.nodes.filter(_.fromLib).map(LibNode) ++ unknownNodes
     val allLibSignatures: Set[PType] = libraryNodes.map(libNodeType)
-    val allFixedTypes: Set[PType] = graph.predicates.flatMap {
-      case FixedToType(_, ty) => Set(ty)
-      case _                  => Set[PType]()
-    }
 
     val projectTypes: Set[PTyVar] =
       projectNodes.filter(n => n.n.isType).map(n => PTyVar(n.n))
     val libraryTypes: Set[PTyVar] = libraryTypeNodes.map(_.n.n.pipe(PTyVar))
-    val predictionSpace = PredictionSpace(Set(PAny) ++ libraryTypes ++ projectTypes)
+    val predictionSpace = PredictionSpace(
+      Set(PAny) ++ libraryTypes ++ projectTypes,
+    )
 
     val allLabels: Set[Symbol] = {
       val pTypeLabels =
-        (predictionSpace.allTypes ++ allLibSignatures ++ allFixedTypes)
+        (predictionSpace.allTypes ++ allLibSignatures)
           .flatMap(_.allLabels)
       val predicateLabels =
         graph.predicates.flatMap {
@@ -250,8 +243,6 @@ object NewInference {
           Map()
         case UsedAsBool(n) =>
           Map(KindSingle("usedAsBool") -> Vector(Single(n)))
-        case FixedToType(n, ty) =>
-          Map(KindWithType("fixedToType") -> Vector(WithType(n, ty)))
         case SubtypeRel(sub, sup) =>
           mutual("subtypeRel", sub, sup)
         case AssignRel(lhs, rhs) =>
@@ -311,8 +302,6 @@ object NewInference {
 
     case class KindSingle(name: String) extends MessageKind
 
-    case class KindWithType(name: String) extends MessageKind
-
     case class KindBinary(name: String) extends MessageKind
 
     case class KindNaming(name: String) extends MessageKind
@@ -333,7 +322,6 @@ object NewInference {
       case Naming(n, _)       => n.fromLib
       case Single(n)          => n.fromLib
       case Binary(n1, n2)     => n1.fromLib && n2.fromLib
-      case WithType(n, _)     => n.fromLib
       case Labeled(n1, n2, _) => n1.fromLib && n2.fromLib
     }
   }
@@ -345,8 +333,6 @@ object NewInference {
     case class Single(n: PNode) extends MessageModel
 
     case class Binary(n1: PNode, n2: PNode) extends MessageModel
-
-    case class WithType(n: PNode, ty: PType) extends MessageModel
 
     case class Labeled(n1: PNode, n2: PNode, label: Label) extends MessageModel
 
