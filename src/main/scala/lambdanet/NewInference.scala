@@ -38,7 +38,7 @@ object NewInference {
       def result: Vector[CompNode] = {
 
         val initEmbedding: Embedding =
-          architecture.initialEmbedding(projectNodes)
+          architecture.initialEmbedding(projectNodes, predicateLabels)
 
         val encodeLibNode = logTime("encodeLibNode") {
           computeLibNodeEncoding()
@@ -54,10 +54,13 @@ object NewInference {
         embeddings.map { embed =>
           val allSignatureEmbeddings = logTime("allSignatureEmbeddings") {
             def encodeLeaf(n: PNode) =
-              if (n.fromProject) embed(ProjNode(n))
+              if (n.fromProject) embed.vars(ProjNode(n))
               else randomVar('libTypeEmbedding / n.symbol)
+            def encodeLabel(l: Symbol) =
+              embed.labels.getOrElse(l,encodeLibLabels(l))
+
             // encode all types from the prediction space
-            signatureEmbeddingMap(encodeLeaf, predictionSpace.allTypes)
+            signatureEmbeddingMap(encodeLeaf, encodeLabel, predictionSpace.allTypes)
           }
           logTime("decode") {
             decode(embed, allSignatureEmbeddings)
@@ -78,7 +81,7 @@ object NewInference {
             architecture.encodeLibType(ex, name)
           }
 
-          signatureEmbeddingMap(encodeLeaf, allLibSignatures) ++
+          signatureEmbeddingMap(encodeLeaf, encodeLibLabels, allLibSignatures) ++
             libraryNodes
               .filter(_.n.isType)
               .map(n => PTyVar(n.n) -> encodeLeaf(n.n))
@@ -107,33 +110,39 @@ object NewInference {
       private def updateEmbedding(
           encodeLibNode: LibNode => CompNode,
       )(embedding: Embedding): Embedding = {
-        import cats.implicits._
 
-        val messages: Map[ProjNode, Chain[Message]] =
+        val messages =
           logTime("compute messages") {
             def encodeNode(n: PNode): CompNode =
-              if (n.fromProject) embedding(ProjNode(n))
+              if (n.fromProject) embedding.vars(ProjNode(n))
               else encodeLibNode(LibNode(n))
 
-            batchedMsgModels.toSeq
-              .pipe(parallelize)
-              .map {
-                case (kind, messageModels) =>
-                  architecture.calculateMessages(
-                    kind,
-                    messageModels,
-                    encodeNode,
-                    encodeLabel,
-                  )
-              }
-              .fold(Map())(_ |+| _)
+            def encodeLabel(l: Symbol): CompNode = {
+              embedding.labels.getOrElse(l, encodeLibLabels(l))
+            }
+
+            architecture.calculateMessages(
+              parallelize(batchedMsgModels.toSeq),
+              encodeNode,
+              encodeLabel,
+            )
           }
 
-        val merged: Map[ProjNode, CompNode] = logTime("merge messages") {
-          architecture.mergeMessages(parallelize(messages.toSeq), embedding)
+        val merged = logTime("merge messages") {
+          val (m1, m2) = messages
+          val r1 =
+            architecture.mergeMessages('vars , parallelize(m1.toSeq), embedding.vars)
+          val r2 =
+            architecture.mergeMessages('labels, parallelize(m2.toSeq), embedding.labels)
+          (r1, r2)
         }
 
-        logTime("update embedding") { architecture.update(embedding, merged) }
+        logTime("update embedding") {
+          architecture.Embedding(
+            architecture.update('vars, embedding.vars, merged._1),
+            architecture.update('labels, embedding.labels, merged._2),
+          )
+        }
       }
 
       private def decode(
@@ -147,7 +156,7 @@ object NewInference {
           .toVector
           .pipe(concatN(axis = 0))
         val inputs = nodesToPredict
-          .map(embedding.apply)
+          .map(embedding.vars.apply)
           .pipe(concatN(axis = 0))
 
         architecture.similarity(inputs, candidates)
@@ -155,6 +164,7 @@ object NewInference {
 
       private def signatureEmbeddingMap(
           leafEmbedding: PNode => CompNode,
+          labelEncoding: Symbol => CompNode,
           signatures: Set[PType],
       ): Map[PType, CompNode] = {
         import collection.mutable
@@ -172,7 +182,7 @@ object NewInference {
               case PObjectType(fields) =>
                 val fields1 = fields.toVector.map {
                   case (label, ty) =>
-                    encodeLabel(label) -> embedSignature(ty)
+                    labelEncoding(label) -> embedSignature(ty)
                 }
                 architecture.encodeObject(fields1)
             }
@@ -186,13 +196,13 @@ object NewInference {
         signatureEmbeddings.toMap
       }
 
-      private val encodeLabel = labelEncoder(
-        parallelize((allLabels ++ additionalNames).toSeq),
+      private val encodeLibLabels = labelEncoder(
+        parallelize((allLabels ++ additionalNames -- predicateLabels).toSeq),
       )
 
       def encodeNameOpt(nameOpt: Option[Symbol]): CompNode = {
         nameOpt match {
-          case Some(n) => encodeLabel(n)
+          case Some(n) => encodeLibLabels(n)
           case None    => randomVar("nameMissing")
         }
       }
@@ -210,16 +220,15 @@ object NewInference {
     val predictionSpace = PredictionSpace(
       Set(PAny) ++ libraryTypes ++ projectTypes,
     )
-
+    val predicateLabels: Set[Symbol] =
+      graph.predicates.flatMap {
+        case DefineRel(_, expr) => expr.allLabels
+        case _                  => Set[Symbol]()
+      }
     val allLabels: Set[Symbol] = {
       val pTypeLabels =
         (predictionSpace.allTypes ++ allLibSignatures)
           .flatMap(_.allLabels)
-      val predicateLabels =
-        graph.predicates.flatMap {
-          case DefineRel(_, expr) => expr.allLabels
-          case _                  => Set[Symbol]()
-        }
       pTypeLabels ++ predicateLabels
     }
 
@@ -306,11 +315,13 @@ object NewInference {
 
     case class KindNaming(name: String) extends MessageKind
 
-    case class KindBinaryLabeled(name: String, labelType: LabelType.Value)
+    case class KindBinaryLabeled(name: String, labelType: LabelType)
         extends MessageKind
 
+    sealed trait LabelType
     object LabelType extends Enumeration {
-      val Position, Field = Value
+      case object Position extends LabelType
+      case object Field extends LabelType
     }
   }
 

@@ -17,7 +17,13 @@ import lambdanet.translation.QLang.QModule
 import org.nd4j.linalg.factory.Nd4j
 
 import scala.collection.parallel.ForkJoinTaskSupport
-import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutorService, Future, TimeoutException}
+import scala.concurrent.{
+  Await,
+  ExecutionContext,
+  ExecutionContextExecutorService,
+  Future,
+  TimeoutException,
+}
 import scala.language.reflectiveCalls
 
 object TrainingLoop {
@@ -55,7 +61,7 @@ object TrainingLoop {
       import dataSet._
       import trainingState._
 
-      printResult(s"NN Architecture: ${architecture.name}")
+      printResult(s"NN Architecture: ${architecture.arcName}")
       printResult(s"Single layer consists of: ${architecture.singleLayerModel}")
 
       def result(): Unit = {
@@ -131,7 +137,7 @@ object TrainingLoop {
                   pc.allParams,
                   backPropInParallel =
                     Some(parallelCtx -> Timeouts.optimizationTimeout),
-                  gradientTransform = _.clipNorm(0.2),
+                  gradientTransform = _.clipNorm(0.125),
                 )
 
                 val gradInfo = limitTimeOpt(

@@ -1,18 +1,18 @@
 class A{
-  a1: number = 1;
-  a2: string = "a";
-  a3: A = new A();
-  a4: number;
+  x1: number = 1;
+  x2: string = "a";
+  x3: A = new A();
+  x4: number;
 }
 
 class B{
-  b1: string;
-  b2: B = new B();
-  b3: string[];
-  b4: boolean;
+  x1: string;
+  x2: B = new B();
+  x3: string[];
+  x4: boolean;
   constructor(){
-    this.b1 = "b";
-    this.b3 = ["a"];
+    this.x1 = "b";
+    this.x3 = ["a"];
   }
 }
 
@@ -21,8 +21,8 @@ class C{
   c2: number;
 }
 
-new A().a4 = 5;
-if(new B().b4){
+new A().x4 = 5;
+if(new B().x4){
   new C().c1 = undefined;
   new C().c2 = 5;
 }
