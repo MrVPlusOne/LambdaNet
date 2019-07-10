@@ -4,7 +4,7 @@ import lambdanet._
 import lambdanet.translation.PredicateGraph._
 import NewInference._
 import lambdanet.PrepareRepos.ParsedRepos
-import lambdanet.architecture.{NNArchitecture, RandomLabelEncoder, SegmentedLabelEncoder}
+import lambdanet.architecture.{FiniteRandomLabelEncoder, NNArchitecture, RandomLabelEncoder, SegmentedLabelEncoder}
 import lambdanet.translation.QLang.QModule
 import lambdanet.utils.QLangAccuracy.FseAccuracy
 
@@ -61,6 +61,7 @@ object DataSet {
       val labelEncoder = announced("create label encoder") {
 //        SegmentedLabelEncoder(repos, coverageGoal = 0.95, architecture)
         RandomLabelEncoder(architecture)
+//        FiniteRandomLabelEncoder(200, architecture, new Random(1))
       }
       printResult(s"Label encoder: ${labelEncoder.name}")
 
