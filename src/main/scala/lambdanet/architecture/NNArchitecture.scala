@@ -48,6 +48,7 @@ abstract class NNArchitecture(
       messages: GenSeq[(MessageKind, Vector[MessageModel])],
       encodeNode: PNode => CompNode,
       encodeLabel: Symbol => CompNode,
+      encodeName: Symbol => CompNode,
   ): UpdateMessages = {
     import MessageKind._
     import MessageModel._
@@ -81,7 +82,7 @@ abstract class NNArchitecture(
             case KindNaming(name) =>
               val paired = models
                 .asInstanceOf[Vector[Naming]]
-                .map(s => s.n -> encodeLabel(s.name)) //todo: handle naming for labels
+                .map(s => s.n -> encodeName(s.name))
               verticalBatching(paired, singleLayer(name, _))
                 .pipe(toVars)
             case KindBinaryLabeled(name, LabelType.Position) =>
@@ -110,9 +111,8 @@ abstract class NNArchitecture(
                 .map {
                   case Labeled(n1, n2, label) =>
                     val f = label.asInstanceOf[Label.Field].get
-                    val lEmbed = encodeLabel(f)
                     val input = concatN(axis = 1)(
-                      Vector(encodeNode(n1), encodeNode(n2), lEmbed),
+                      Vector(encodeNode(n1), encodeNode(n2), encodeLabel(f), encodeName(f)),
                     )
                     ((n1, n2, f), input)
                 }

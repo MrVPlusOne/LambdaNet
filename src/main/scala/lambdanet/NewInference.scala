@@ -2,7 +2,7 @@ package lambdanet
 
 //import scala.language.implicitConversions
 import cats.data.Chain
-import lambdanet.architecture.{NNArchitecture}
+import lambdanet.architecture.{NNArchitecture, SegmentedLabelEncoder}
 
 object NewInference {
   import funcdiff._
@@ -24,6 +24,7 @@ object NewInference {
       libraryTypeNodes: Set[LibTypeNode],
       libNodeType: LibNode => PType,
       labelEncoder: GenSeq[Symbol] => Symbol => CompNode,
+      nameEncoder: GenSeq[Symbol] => Symbol => CompNode,
       taskSupport: Option[ForkJoinTaskSupport],
   ) {
 
@@ -125,6 +126,7 @@ object NewInference {
               parallelize(batchedMsgModels.toSeq),
               encodeNode,
               encodeLabel,
+              encodeNames,
             )
           }
 
@@ -200,6 +202,10 @@ object NewInference {
         parallelize((allLabels ++ additionalNames -- predicateLabels).toSeq),
       )
 
+      private val encodeNames = nameEncoder(
+        parallelize((allLabels ++ additionalNames).toSeq)
+      )
+
       def encodeNameOpt(nameOpt: Option[Symbol]): CompNode = {
         nameOpt match {
           case Some(n) => encodeLibLabels(n)
@@ -248,8 +254,7 @@ object NewInference {
 
       def toBatched(pred: TyPredicate): BatchedMsgModels = pred match {
         case HasName(n, name) =>
-//          Map(KindNaming("hasName") -> Vector(Naming(n, name))) todo: use name features
-          Map()
+          Map(KindNaming("hasName") -> Vector(Naming(n, name)))
         case UsedAsBool(n) =>
           Map(KindSingle("usedAsBool") -> Vector(Single(n)))
         case SubtypeRel(sub, sup) =>

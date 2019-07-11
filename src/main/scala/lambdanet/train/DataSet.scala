@@ -4,7 +4,12 @@ import lambdanet._
 import lambdanet.translation.PredicateGraph._
 import NewInference._
 import lambdanet.PrepareRepos.ParsedRepos
-import lambdanet.architecture.{FiniteRandomLabelEncoder, NNArchitecture, RandomLabelEncoder, SegmentedLabelEncoder}
+import lambdanet.architecture.{
+  FiniteRandomLabelEncoder,
+  NNArchitecture,
+  RandomLabelEncoder,
+  SegmentedLabelEncoder,
+}
 import lambdanet.translation.QLang.QModule
 import lambdanet.utils.QLangAccuracy.FseAccuracy
 
@@ -59,10 +64,13 @@ object DataSet {
           LibTypeNode(LibNode(PredictionSpace.unknownTypeNode))
 
       val labelEncoder = announced("create label encoder") {
-//        SegmentedLabelEncoder(repos, coverageGoal = 0.95, architecture)
         RandomLabelEncoder(architecture)
 //        FiniteRandomLabelEncoder(200, architecture, new Random(1))
       }
+      val nameEncoder = announced("create name encoder") {
+        SegmentedLabelEncoder(repos, coverageGoal = 0.95, architecture)
+      }
+
       printResult(s"Label encoder: ${labelEncoder.name}")
 
       val data = projects.toVector
@@ -75,6 +83,7 @@ object DataSet {
                 libTypesToPredict,
                 libNodeType,
                 labelEncoder.encode,
+                nameEncoder.encode,
                 Some(taskSupport),
               )
             Datum(path, annotations, qModules, predictor)

@@ -47,7 +47,7 @@ object TrainingLoop {
 
     def result(): Unit = {
       val state = loadTrainingState()
-      val architecture = GruArchitecture(state.dimMessage, state.pc)
+      val architecture = ReNormalizeArch(state.dimMessage, state.pc)
       val dataSet = DataSet.loadDataSet(taskSupport, architecture)
       trainOnProjects(dataSet, state, architecture).result()
     }
