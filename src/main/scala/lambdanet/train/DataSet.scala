@@ -36,10 +36,12 @@ object DataSet {
 
       printResult(s"Is toy data set? : $toyMod")
 
-      val ParsedRepos(libDefs, projects0) = announced("parse repos") {
+      val ParsedRepos(libDefs, projects0) =
         if (toyMod) parseRepos(pwd / RelPath("data/toy"))
-        else parseRepos(pwd / up / "lambda-repos" / "projects", loadFromFile = false)
-      }
+        else
+          announced(s"read data set from: $parsedRepoPath") {
+            SM.readObjectFromFile[ParsedRepos](parsedRepoPath.toIO)
+          }
 
       val projectsToUse = 100
       val testSetRatio = 0.3
