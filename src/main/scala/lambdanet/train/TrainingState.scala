@@ -3,6 +3,7 @@ package lambdanet.train
 import ammonite.ops.Path
 import funcdiff.{Optimizer, ParamCollection}
 import lambdanet._
+import lambdanet.utils.EventLogger
 
 object TrainingState {
   def fromFile(file: Path): TrainingState = {
@@ -19,28 +20,41 @@ object TrainingState {
     TrainingState(step, dimMessage, iterationNum, optimizer, pc)
   }
 
-  def loadTrainingState(): TrainingState =
+  def loadTrainingState(): (TrainingState, EventLogger) = {
+    import ammonite.ops._
+    val loggerFile = pwd / "running-result" / "log.txt"
+    def mkEventLogger(overrideMode: Boolean) = {
+      new EventLogger(
+        loggerFile,
+        printToConsole = true,
+        overrideMode = overrideMode,
+      )
+    }
+
     announced("loadTrainingState") {
       val loadFromFile: Option[Path] =
         TrainingControl.restoreFromFile(consumeFile = true)
 
       loadFromFile
         .map { p =>
-          announced("Loading training from file: " + p) {
+          cp(p / up / "log.txt", loggerFile)
+          val s = announced("Loading training from file: " + p) {
             TrainingState.fromFile(p)
           }
+          (s, mkEventLogger(overrideMode = false))
         }
         .getOrElse(
           TrainingState(
             epoch0 = 0,
             dimMessage = 32,
             optimizer = Optimizer.Adam(learningRate = 5e-4),
-            iterationNum = if(TrainingLoop.toyMod) 4 else 6,
+            iterationNum = if (TrainingLoop.toyMod) 4 else 6,
             pc = ParamCollection(),
-          ),
+          ) -> mkEventLogger(overrideMode = true),
         )
         .tap(println)
     }
+  }
 
 }
 

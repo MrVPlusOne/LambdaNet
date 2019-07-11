@@ -61,11 +61,6 @@ class EventLogger(
   }
   private val fLogger = new FileLogger(file, printToConsole = false)
 
-  @deprecated
-  def log(name: String, iteration: Int, value: Tensor): Unit = {
-    ???
-  }
-
   def logScalar(name: String, iteration: Double, value: Double): Unit = {
     log(Event(name, iteration, DoubleValue(value)))
   }

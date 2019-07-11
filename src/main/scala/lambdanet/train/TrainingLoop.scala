@@ -11,7 +11,6 @@ import lambdanet.architecture._
 import lambdanet.utils.{EventLogger, QLangAccuracy, QLangDisplay, ReportFinish}
 import lambdanet.printWarning
 import TrainingState._
-import funcdiff.TensorExtension.oneHot
 import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 import lambdanet.translation.QLang.QModule
 import org.nd4j.linalg.factory.Nd4j
@@ -46,16 +45,17 @@ object TrainingLoop {
     Timeouts.readFromFile()
 
     def result(): Unit = {
-      val state = loadTrainingState()
+      val (state, logger) = loadTrainingState()
       val architecture = GruArchitecture(state.dimMessage, state.pc)
       val dataSet = DataSet.loadDataSet(taskSupport, architecture)
-      trainOnProjects(dataSet, state, architecture).result()
+      trainOnProjects(dataSet, state, logger, architecture).result()
     }
 
     //noinspection TypeAnnotation
     case class trainOnProjects(
         dataSet: DataSet,
         trainingState: TrainingState,
+        logger: EventLogger,
         architecture: NNArchitecture,
     ) {
       import dataSet._
@@ -111,7 +111,6 @@ object TrainingLoop {
         }
       }
 
-      val logger: EventLogger = mkEventLogger()
       val stepsPerEpoch = trainSet.length max testSet.length
       val random = new util.Random(2)
 
@@ -122,7 +121,7 @@ object TrainingLoop {
           case (datum, i) =>
             import Console.{GREEN, BLUE}
             announced(
-              s"$GREEN(progress: ${i + 1}/${trainSet.size})$BLUE train on $datum",
+              s"$GREEN[epoch $epoch](progress: ${i + 1}/${trainSet.size})$BLUE train on $datum",
             ) {
               checkShouldStop(epoch)
               for {
@@ -217,8 +216,25 @@ object TrainingLoop {
       }
 
       def testStep(epoch: Int): Unit =
-        if ((epoch-1) % 5 == 0) announced("test on dev set") {
+        if ((epoch - 1) % 5 == 0) announced("test on dev set") {
           import cats.implicits._
+          import ammonite.ops._
+          val predictionDir = pwd / "predictions"
+          rm(predictionDir)
+
+          def printQSource(
+              qModules: Vector[QModule],
+              predictions: Map[ProjNode, PType],
+              predictionSpace: PredictionSpace,
+          ) = DebugTime.logTime("printQSource") {
+            qModules.par.foreach { m =>
+              QLangDisplay.renderModuleToDirectory(
+                m,
+                predictions.map { case (k, v) => k.n -> v },
+                predictionSpace.allTypes,
+              )(predictionDir)
+            }
+          }
 
           val (stat, fseAcc) = testSet.flatMap { datum =>
             checkShouldStop(epoch)
@@ -243,23 +259,6 @@ object TrainingLoop {
           logger.logScalar("test-projAcc", epoch, toAccuracy(projCorrect))
           logger.logScalar("test-fseAcc", epoch, toAccuracy(fseAcc))
         }
-
-      def printQSource(
-          qModules: Vector[QModule],
-          predictions: Map[ProjNode, PType],
-          predictionSpace: PredictionSpace,
-      ) = DebugTime.logTime("printQSource") {
-        import ammonite.ops._
-        val predictionDir = pwd / "predictions"
-        rm(predictionDir)
-        qModules.par.foreach { m =>
-          QLangDisplay.renderModuleToDirectory(
-            m,
-            predictions.map { case (k, v) => k.n -> v },
-            predictionSpace.allTypes,
-          )(predictionDir)
-        }
-      }
 
       case class ForwardResult(
           loss: Counted[Double],
@@ -404,6 +403,7 @@ object TrainingLoop {
             .saveToFile(
               savePath,
             )
+          cp(pwd / "running-result" / "log.txt", saveDir / "log.txt")
         }
       }
 
@@ -459,15 +459,6 @@ object TrainingLoop {
     val taskSupport: ForkJoinTaskSupport = new ForkJoinTaskSupport(forkJoinPool)
     val parallelCtx: ExecutionContextExecutorService =
       ExecutionContext.fromExecutorService(forkJoinPool)
-  }
-
-  def mkEventLogger() = {
-    import ammonite.ops._
-    new EventLogger(
-      pwd / "running-result" / "log.txt",
-      printToConsole = true,
-      overrideMode = true,
-    )
   }
 
 }
