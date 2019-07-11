@@ -37,7 +37,7 @@ object TrainingState {
 
       loadFromFile
         .map { p =>
-          cp(p / up / "log.txt", loggerFile)
+          cp.over(p / up / "log.txt", loggerFile)
           val s = announced("Loading training from file: " + p) {
             TrainingState.fromFile(p)
           }

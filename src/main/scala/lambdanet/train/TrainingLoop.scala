@@ -187,7 +187,7 @@ object TrainingLoop {
           case (grads, transformed, deltas) =>
             logger.logScalar("gradient", epoch, grads.sum)
             logger.logScalar("clippedGradient", epoch, transformed.sum)
-            logger.logScalar("paramDelta", epoch, SM.mean(deltas))
+            logger.logScalar("paramDelta", epoch, deltas.sum)
         }
 
         val timeInSec = (System.nanoTime() - startTime).toDouble / 1e9

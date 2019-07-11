@@ -144,8 +144,6 @@ object CompNode {
     rec(List(), nodes).reverse
   }
 
-  import concurrent._
-
   /**
     * Back-propagate gradients through the computation graph in parallel
     */
