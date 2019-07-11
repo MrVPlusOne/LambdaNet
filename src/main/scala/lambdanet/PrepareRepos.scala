@@ -60,6 +60,7 @@ object PrepareRepos {
       projectsDir: Path,
       loadFromFile: Boolean = true,
   ): ParsedRepos = {
+    lambdanet.shouldWarn = false
 
     val libDefs = if (loadFromFile) {
       announced(s"loading library definitions from $libDefsFile...") {
@@ -71,8 +72,6 @@ object PrepareRepos {
       println(s"library definitions saved to $libDefsFile")
       defs
     }
-
-    lambdanet.shouldWarn = false
 
     val graphs = (ls ! projectsDir)
       .filter(f => f.isDir)
