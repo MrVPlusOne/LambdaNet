@@ -31,7 +31,9 @@ object PrepareRepos {
 
   def main(args: Array[String]): Unit = {
     val projectsDir: Path = pwd / up / "lambda-repos" / "projects"
-    val parsed = announced("parsePredGraphs")(parseRepos(projectsDir))
+    val parsed = announced("parsePredGraphs")(
+      parseRepos(projectsDir, loadFromFile = false),
+    )
     val stats = repoStatistics(parsed.projects)
     printResult(stats.headers.zip(stats.average).toString())
 
@@ -54,10 +56,10 @@ object PrepareRepos {
       projects: List[ParsedProject],
   )
 
-  def parseRepos(projectsDir: Path): ParsedRepos = {
-
-    /** set to true to load declarations from the serialization file */
-    val loadFromFile = true
+  def parseRepos(
+      projectsDir: Path,
+      loadFromFile: Boolean = true,
+  ): ParsedRepos = {
 
     val libDefs = if (loadFromFile) {
       announced(s"loading library definitions from $libDefsFile...") {
@@ -190,10 +192,12 @@ object PrepareRepos {
         QLangTranslation.fromPModule(m, baseCtx1 |+| exports(m.path))
       }
 
-    val nodeMapping = defaultMapping ++ qModules.flatMap(_.mapping)
+    val anyNode = libAllocator.newNode(None, isType = true)
+
+    val nodeMapping = defaultMapping ++
+      qModules.flatMap(_.mapping) + (anyNode -> Annot.Missing)
 
     println("Declaration files parsed.")
-    val anyNode = libAllocator.newNode(None, isType = true)
     LibDefs(anyNode, baseCtx1, nodeMapping, libExports)
   }
 
@@ -235,7 +239,12 @@ object PrepareRepos {
       }
 
       val graph =
-        PredicateGraphTranslation.fromIRModules(fixedAnnots, allocator, nodeForAny, irModules)
+        PredicateGraphTranslation.fromIRModules(
+          fixedAnnots,
+          allocator,
+          nodeForAny,
+          irModules,
+        )
 
       errorHandler.warnErrors()
       printResult(s"Project parsed: '$root'")

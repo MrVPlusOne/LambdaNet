@@ -1,15 +1,12 @@
 package lambdanet
 
-//import scala.language.implicitConversions
-import cats.data.Chain
-import lambdanet.architecture.{NNArchitecture, SegmentedLabelEncoder}
+import lambdanet.architecture.{NNArchitecture}
 
 object NewInference {
   import funcdiff._
   import translation.PredicateGraph
   import PredicateGraph._
   import PredicateGraph.PNode
-  import TensorExtension.randomUnitVec
   import scala.collection.GenSeq
   import scala.collection.parallel.ForkJoinTaskSupport
   import translation.ImportsResolution.NameDef.unknownDef
@@ -199,7 +196,7 @@ object NewInference {
       }
 
       private val encodeLibLabels = labelEncoder(
-        parallelize((allLabels ++ additionalNames -- predicateLabels).toSeq),
+        parallelize((allLabels ++ additionalNames).toSeq),
       )
 
       private val encodeNames = nameEncoder(

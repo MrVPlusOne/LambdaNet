@@ -60,7 +60,7 @@ object QLangAccuracy {
 
     def countCorrect(predictions: Map[ProjNode, PType]): Counted[Correct] = {
       val preds = predictions.map { case (k, v) => k.n -> v }
-      QLangAccuracy.countCorrect(annots, preds, occurrence.apply)
+      QLangAccuracy.countCorrect(annots, preds, occurrence.getOrElse(_, 0))
     }
   }
 

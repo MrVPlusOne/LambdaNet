@@ -27,7 +27,7 @@ import scala.concurrent.{
 import scala.language.reflectiveCalls
 
 object TrainingLoop {
-  var toyMod: Boolean = true
+  var toyMod: Boolean = false
 
   def main(args: Array[String]): Unit = {
     run(
@@ -47,7 +47,7 @@ object TrainingLoop {
 
     def result(): Unit = {
       val state = loadTrainingState()
-      val architecture = ReNormalizeArch(state.dimMessage, state.pc)
+      val architecture = GruArchitecture(state.dimMessage, state.pc)
       val dataSet = DataSet.loadDataSet(taskSupport, architecture)
       trainOnProjects(dataSet, state, architecture).result()
     }
@@ -65,17 +65,17 @@ object TrainingLoop {
       printResult(s"Single layer consists of: ${architecture.singleLayerModel}")
 
       def result(): Unit = {
+        val saveInterval = if (toyMod) 100 else 10
+
         (trainingState.epoch0 + 1 to maxTrainingEpochs)
           .foreach { epoch =>
             announced(s"epoch $epoch") {
               handleExceptions(epoch) {
                 trainStep(epoch)
+                if (epoch % saveInterval == 0) {
+                  saveTraining(epoch, s"epoch$epoch")
+                }
                 testStep(epoch)
-              }
-
-              val saveInterval = if (toyMod) 100 else 10
-              if (epoch % saveInterval == 0) {
-                saveTraining(epoch, s"epoch$epoch")
               }
             }
           }
@@ -137,7 +137,7 @@ object TrainingLoop {
                   pc.allParams,
                   backPropInParallel =
                     Some(parallelCtx -> Timeouts.optimizationTimeout),
-                  gradientTransform = _.clipNorm(0.125),
+                  gradientTransform = _.clipNorm(0.25),
                 )
 
                 val gradInfo = limitTimeOpt(
@@ -217,7 +217,7 @@ object TrainingLoop {
       }
 
       def testStep(epoch: Int): Unit =
-        if (epoch % 10 == 0) announced("test on dev set") {
+        if ((epoch-1) % 5 == 0) announced("test on dev set") {
           import cats.implicits._
 
           val (stat, fseAcc) = testSet.flatMap { datum =>

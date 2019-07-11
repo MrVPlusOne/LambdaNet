@@ -5,7 +5,6 @@ import lambdanet.translation.PredicateGraph._
 import NewInference._
 import lambdanet.PrepareRepos.ParsedRepos
 import lambdanet.architecture.{
-  FiniteRandomLabelEncoder,
   NNArchitecture,
   RandomLabelEncoder,
   SegmentedLabelEncoder,

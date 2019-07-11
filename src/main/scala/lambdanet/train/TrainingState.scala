@@ -34,7 +34,7 @@ object TrainingState {
           TrainingState(
             epoch0 = 0,
             dimMessage = 32,
-            optimizer = Optimizer.Adam(learningRate = 1e-3),
+            optimizer = Optimizer.Adam(learningRate = 5e-4),
             iterationNum = 4,
             pc = ParamCollection(),
           ),
