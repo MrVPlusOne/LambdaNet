@@ -131,13 +131,16 @@ object TrainingLoop {
                 _ = checkShouldStop(epoch)
               } yield {
                 checkShouldStop(epoch)
-                def optimize(loss: CompNode) = optimizer.minimize(
-                  loss * fwd.loss.count / avgAnnotations,
-                  pc.allParams,
-                  backPropInParallel =
-                    Some(parallelCtx -> Timeouts.optimizationTimeout),
-                  gradientTransform = _.clipNorm(0.25),
-                )
+                def optimize(loss: CompNode) = {
+                  val factor = fwd.loss.count.toDouble / avgAnnotations
+                  optimizer.minimize(
+                    loss * factor,
+                    pc.allParams,
+                    backPropInParallel =
+                      Some(parallelCtx -> Timeouts.optimizationTimeout),
+                    gradientTransform = _.clipNorm(0.25 * factor),
+                  )
+                }
 
                 val gradInfo = limitTimeOpt(
                   s"optimization: $datum",
