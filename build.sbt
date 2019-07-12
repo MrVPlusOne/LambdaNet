@@ -19,7 +19,7 @@ val memoryLimit = {
   // for some reason, the memory usage keeps going up on the server
   if(System.getProperty("os.name") == "Mac OS X") 8 else 32
 }
-javaOptions ++= Seq(s"-Xms2G", "-Xmx6G", s"-Dorg.bytedeco.javacpp.maxbytes=${memoryLimit}G", 
+javaOptions ++= Seq(s"-Xms2G", "-Xmx6G", s"-Dorg.bytedeco.javacpp.maxbytes=${memoryLimit}G",
   s"-Dorg.bytedeco.javacpp.maxphysicalbytes=${memoryLimit+8}G")
 
 libraryDependencies ++= Seq(

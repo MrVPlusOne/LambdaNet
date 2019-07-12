@@ -305,14 +305,13 @@ object NewInference {
     }
 
     private def parallelize[T](xs: Seq[T]): GenSeq[T] = {
-      xs.par
-//      taskSupport match {
-//        case None => xs
-//        case Some(ts) =>
-//          val r = xs.par
-//          r.tasksupport = ts
-//          r
-//      }
+      taskSupport match {
+        case None => xs
+        case Some(ts) =>
+          val r = xs.par
+          r.tasksupport = ts
+          r
+      }
     }
   }
 

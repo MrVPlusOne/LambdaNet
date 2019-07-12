@@ -9,5 +9,6 @@
 #cd ./scripts/ts/
 #tsc
 #cd ../..
+export OMP_NUM_THREADS=1
 sbt "train" |& tee console.txt;sbt "runMain lambdanet.utils.ReportFinish"
 
