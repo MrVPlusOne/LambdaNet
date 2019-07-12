@@ -27,7 +27,7 @@ object TrainingLoop {
   def main(args: Array[String]): Unit = {
     run(
       maxTrainingEpochs = 5000,
-      numOfThreads = Runtime.getRuntime.availableProcessors() min 16,
+      numOfThreads = Runtime.getRuntime.availableProcessors() / 2,
     ).result()
   }
 
@@ -36,7 +36,7 @@ object TrainingLoop {
       numOfThreads: Int,
   ) {
 
-    Nd4j.setNumThreads(numOfThreads)
+//    Nd4j.setNumThreads(numOfThreads)
     printInfo(s"maxEpochs = $maxTrainingEpochs, threads: $numOfThreads")
     Timeouts.readFromFile()
 
@@ -402,7 +402,7 @@ object TrainingLoop {
             .saveToFile(
               savePath,
             )
-          cp(pwd / "running-result" / "log.txt", saveDir / "log.txt")
+          cp.over(pwd / "running-result" / "log.txt", saveDir / "log.txt")
           val dateTime = Calendar.getInstance().getTime
           write(saveDir / "time.txt", dateTime.toString)
         }
