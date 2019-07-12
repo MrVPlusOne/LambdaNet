@@ -120,6 +120,7 @@ object TrainingLoop {
               s"$GREEN[epoch $epoch](progress: ${i + 1}/${trainSet.size})$BLUE train on $datum",
             ) {
               checkShouldStop(epoch)
+              println(DebugTime.show)
               for {
                 (loss, fwd, _) <- forward(datum).tap(
                   _.foreach(r => printResult(r._2)),
@@ -134,7 +135,7 @@ object TrainingLoop {
                     pc.allParams,
                     backPropInParallel =
                       Some(parallelCtx -> Timeouts.optimizationTimeout),
-                    gradientTransform = _.clipNorm(0.25 * factor),
+//                    gradientTransform = _.clipNorm(0.25 * factor),
                   )
                 }
 

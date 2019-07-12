@@ -13,10 +13,13 @@ import lambdanet.translation.PredicateGraph.{
   PNodeAllocator,
   PType,
   ProjNode,
+  TyPredicate,
 }
 import lambdanet.translation.QLang.QModule
 import lambdanet.utils.ProgramParsing
 import lambdanet.utils.ProgramParsing.GProject
+import scala.collection.mutable
+
 @SerialVersionUID(2)
 case class LibDefs(
     nodeForAny: PNode,
@@ -200,6 +203,40 @@ object PrepareRepos {
     LibDefs(anyNode, baseCtx1, nodeMapping, libExports)
   }
 
+  def pruneGraph(
+      graph: PredicateGraph,
+      needed: Set[ProjNode],
+  ): PredicateGraph = {
+    val predicates: Map[PNode, Set[TyPredicate]] = {
+      graph.predicates
+        .flatMap(p => p.allNodes.map(n => n -> p))
+        .groupBy(_._1)
+        .map { case (k, v) => k -> v.map(_._2) }
+    }
+
+    def neighbours(n: PNode): (Set[ProjNode], Set[TyPredicate]) = {
+      val ps = predicates.getOrElse(n, Set())
+      (ps.flatMap(_.allNodes) - n).filterNot(_.fromLib).map(ProjNode) -> ps
+    }
+
+    val toVisit = mutable.Queue(needed.toSeq: _*)
+    var activeNodes = Set[ProjNode]()
+    var newPredicates = Set[TyPredicate]()
+    while (toVisit.nonEmpty) {
+      val n = toVisit.dequeue()
+      activeNodes += n
+      val (ns, ps) = neighbours(n.n)
+      newPredicates ++= ps
+      toVisit.enqueue(ns.diff(activeNodes).toSeq: _*)
+    }
+
+    val newNodes = activeNodes.map(_.n) ++ graph.nodes.filter(_.fromLib)
+    printResult(s"Before pruning: ${graph.nodes.size}")
+    PredicateGraph(newNodes, newPredicates).tap { g =>
+      printResult(s"After pruning: ${g.nodes.size}")
+    }
+  }
+
   def prepareProject(
       libDefs: LibDefs,
       root: Path,
@@ -237,13 +274,16 @@ object PrepareRepos {
         case (n, Annot.User(t)) => ProjNode(n) -> t
       }
 
-      val graph =
+      val graph0 =
         PredicateGraphTranslation.fromIRModules(
           fixedAnnots,
           allocator,
           nodeForAny,
           irModules,
         )
+      val userTypes =
+        graph0.nodes.filter(n => !n.fromLib && n.isType).map(ProjNode)
+      val graph = pruneGraph(graph0, userAnnots.keySet ++ userTypes)
 
       errorHandler.warnErrors()
       printResult(s"Project parsed: '$root'")
