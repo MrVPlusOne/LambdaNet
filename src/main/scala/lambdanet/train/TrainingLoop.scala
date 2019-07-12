@@ -1,5 +1,7 @@
 package lambdanet.train
 
+import java.util.Calendar
+
 import lambdanet._
 import java.util.concurrent.ForkJoinPool
 
@@ -16,13 +18,7 @@ import lambdanet.translation.QLang.QModule
 import org.nd4j.linalg.factory.Nd4j
 
 import scala.collection.parallel.ForkJoinTaskSupport
-import scala.concurrent.{
-  Await,
-  ExecutionContext,
-  ExecutionContextExecutorService,
-  Future,
-  TimeoutException,
-}
+import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutorService, Future, TimeoutException}
 import scala.language.reflectiveCalls
 
 object TrainingLoop {
@@ -407,6 +403,8 @@ object TrainingLoop {
               savePath,
             )
           cp(pwd / "running-result" / "log.txt", saveDir / "log.txt")
+          val dateTime = Calendar.getInstance().getTime
+          write(saveDir / "time.txt", dateTime.toString)
         }
       }
 

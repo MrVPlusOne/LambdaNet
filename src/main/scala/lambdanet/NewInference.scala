@@ -55,10 +55,14 @@ object NewInference {
               if (n.fromProject) embed.vars(ProjNode(n))
               else randomVar('libTypeEmbedding / n.symbol)
             def encodeLabel(l: Symbol) =
-              embed.labels.getOrElse(l,encodeLibLabels(l))
+              embed.labels.getOrElse(l, encodeLibLabels(l))
 
             // encode all types from the prediction space
-            signatureEmbeddingMap(encodeLeaf, encodeLabel, predictionSpace.allTypes)
+            signatureEmbeddingMap(
+              encodeLeaf,
+              encodeLabel,
+              predictionSpace.allTypes,
+            )
           }
           logTime("decode") {
             decode(embed, allSignatureEmbeddings)
@@ -130,9 +134,17 @@ object NewInference {
         val merged = logTime("merge messages") {
           val (m1, m2) = messages
           val r1 =
-            architecture.mergeMessages('vars , parallelize(m1.toSeq), embedding.vars)
+            architecture.mergeMessages(
+              'vars,
+              parallelize(m1.toSeq),
+              embedding.vars,
+            )
           val r2 =
-            architecture.mergeMessages('labels, parallelize(m2.toSeq), embedding.labels)
+            architecture.mergeMessages(
+              'labels,
+              parallelize(m2.toSeq),
+              embedding.labels,
+            )
           (r1, r2)
         }
 
@@ -166,29 +178,28 @@ object NewInference {
           labelEncoding: Symbol => CompNode,
           signatures: Set[PType],
       ): Map[PType, CompNode] = {
-        import collection.mutable
 
-        val signatureEmbeddings = mutable.HashMap[PType, CompNode]()
+        val signatureEmbeddings =
+          collection.concurrent.TrieMap[PType, CompNode]()
         def embedSignature(sig: PType): CompNode =
           SM.withErrorMessage(s"in sig: $sig") {
-            val r = sig match {
-              case PTyVar(node) => leafEmbedding(node)
-              case PAny         => leafEmbedding(nodeForAny.n.n)
-              case PFuncType(args, to) =>
-                val args1 = args.map(embedSignature)
-                val to1 = embedSignature(to)
-                architecture.encodeFunction(args1, to1)
-              case PObjectType(fields) =>
-                val fields1 = fields.toVector.map {
-                  case (label, ty) =>
-                    labelEncoding(label) -> embedSignature(ty)
-                }
-                architecture.encodeObject(fields1)
-            }
-            signatureEmbeddings.synchronized {
-              signatureEmbeddings(sig) = r
-            }
-            r
+            signatureEmbeddings.getOrElseUpdate(
+              sig,
+              sig match {
+                case PTyVar(node) => leafEmbedding(node)
+                case PAny         => leafEmbedding(nodeForAny.n.n)
+                case PFuncType(args, to) =>
+                  val args1 = args.map(embedSignature)
+                  val to1 = embedSignature(to)
+                  architecture.encodeFunction(args1, to1)
+                case PObjectType(fields) =>
+                  val fields1 = fields.toVector.map {
+                    case (label, ty) =>
+                      labelEncoding(label) -> embedSignature(ty)
+                  }
+                  architecture.encodeObject(fields1)
+              },
+            )
           }
 
         parallelize(signatures.toSeq).foreach(embedSignature)
@@ -200,7 +211,7 @@ object NewInference {
       )
 
       private val encodeNames = nameEncoder(
-        parallelize((allLabels ++ additionalNames).toSeq)
+        parallelize((allLabels ++ additionalNames).toSeq),
       )
 
       def encodeNameOpt(nameOpt: Option[Symbol]): CompNode = {

@@ -210,21 +210,6 @@ object SimpleMath {
     }
   }
 
-  def threadSafeGetOrElseUpdate[K, V](
-      map: mutable.Map[K, V],
-      k: K,
-      default: => V,
-  ): V = {
-    map.get(k) match {
-      case Some(v) => v
-      case None =>
-        val v = default
-        map.synchronized {
-          map.getOrElseUpdate(k, v)
-        }
-    }
-  }
-
   def noDuplicate[T](xs: Seq[T]): Boolean = {
     xs.toSet.size == xs.length
   }
@@ -245,29 +230,6 @@ object SimpleMath {
       }
     }
     parExecute
-  }
-
-  def parallelMapWithResource[A, B, R](
-      threadNum: Int,
-  )(xs: Seq[A], resources: IS[R])(f: (A, R) => B): IS[B] = {
-    require(threadNum == resources.length)
-    import collection.mutable
-
-    val threadProblemMap = mutable.HashMap[Long, R]()
-    var registeredThreadNum = 0
-
-    SimpleMath.parallelMap(threadNum)(xs) { x =>
-      val tId = Thread.currentThread().getId
-      val resource = threadProblemMap.synchronized {
-        threadProblemMap.getOrElse(tId, {
-          val r = resources(registeredThreadNum)
-          threadProblemMap(tId) = r
-          registeredThreadNum += 1
-          r
-        })
-      }
-      f(x, resource)
-    }
   }
 
   def normalizeDistribution(xs: IS[Double]): IS[Double] = {
