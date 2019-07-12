@@ -456,10 +456,10 @@ object TrainingLoop {
         SM.mean(trainSet.map(_.annotations.size.toDouble))
     }
 
-    val forkJoinPool = new ForkJoinPool(numOfThreads)
-    val taskSupport: ForkJoinTaskSupport = new ForkJoinTaskSupport(forkJoinPool)
+    val taskSupport: ForkJoinTaskSupport =
+      new ForkJoinTaskSupport(new ForkJoinPool(numOfThreads))
     val parallelCtx: ExecutionContextExecutorService =
-      ExecutionContext.fromExecutorService(forkJoinPool)
+      ExecutionContext.fromExecutorService(new ForkJoinPool(numOfThreads))
   }
 
 }
