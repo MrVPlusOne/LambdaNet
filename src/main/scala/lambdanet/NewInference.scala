@@ -287,7 +287,6 @@ object NewInference {
               }
               Map(KindBinaryLabeled("defineCall", LabelType.Position) -> msgs)
             case PObject(fields) =>
-              //todo: use usage information
               val msgs = fields.toVector.map {
                 case (l, v) => Labeled(defined, v, Label.Field(l))
               }
