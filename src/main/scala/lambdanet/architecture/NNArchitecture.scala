@@ -10,8 +10,6 @@ import lambdanet.translation.PredicateGraph.{PNode, ProjNode}
 
 import scala.collection.GenSeq
 
-object NNArchitecture {}
-
 abstract class NNArchitecture(
     val arcName: String,
     dimMessage: Int,
