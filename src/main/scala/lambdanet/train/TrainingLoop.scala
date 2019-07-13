@@ -1,8 +1,10 @@
 package lambdanet.train
 
 import java.util.Calendar
+
 import lambdanet._
 import java.util.concurrent.ForkJoinPool
+
 import botkop.numsca
 import cats.Monoid
 import funcdiff.{SimpleMath => SM}
@@ -11,9 +13,11 @@ import lambdanet.architecture._
 import lambdanet.utils.{EventLogger, QLangAccuracy, QLangDisplay, ReportFinish}
 import lambdanet.printWarning
 import TrainingState._
+import botkop.numsca.Tensor
 import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 import lambdanet.translation.QLang.QModule
-import org.nd4j.linalg.factory.Nd4j
+import org.nd4j.linalg.api.buffer.DataType
+
 import scala.collection.parallel.ForkJoinTaskSupport
 import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutorService, Future, TimeoutException}
 import scala.language.reflectiveCalls
@@ -22,6 +26,7 @@ object TrainingLoop {
   var toyMod: Boolean = false
 
   def main(args: Array[String]): Unit = {
+    Tensor.floatingDataType = DataType.DOUBLE
     run(
       maxTrainingEpochs = 5000,
       numOfThreads = Runtime.getRuntime.availableProcessors() / 2,
@@ -350,7 +355,7 @@ object TrainingLoop {
 
           val predictions: Map[ProjNode, PType] = {
             val predVec = numsca
-              .argmax(logits.value, axis = 1)
+              .argmaxAxis(logits.value, axis = 1)
               .data
               .map(d => predSpace.typeVector(d.toInt))
               .toVector
@@ -399,9 +404,12 @@ object TrainingLoop {
             .saveToFile(
               savePath,
             )
-          cp.over(pwd / "running-result" / "log.txt", saveDir / "log.txt")
+          val currentLogFile = pwd / "running-result" / "log.txt"
+          if (exists(currentLogFile)) {
+            cp.over(currentLogFile, saveDir / "log.txt")
+          }
           val dateTime = Calendar.getInstance().getTime
-          write(saveDir / "time.txt", dateTime.toString)
+          write.over(saveDir / "time.txt", dateTime.toString)
         }
       }
 
@@ -424,7 +432,7 @@ object TrainingLoop {
           Map[Int, Counted[Correct]],
       ) = {
         val predictions = numsca
-          .argmax(logits.value, axis = 1)
+          .argmaxAxis (logits.value, axis = 1)
           .data
           .map(_.toInt)
           .toVector

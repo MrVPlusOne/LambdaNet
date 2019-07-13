@@ -84,14 +84,14 @@ trait APITrait {
     var wrong = Set[Int]()
 
     for (i <- targets.indices) {
-      val groupSum = numsca.sum(
+      val groupSum = numsca.sumAxis(
         probabilities(
           i * predictionGroupSize :> (i + 1) * predictionGroupSize,
           :>,
         ),
         axis = 0,
       )
-      val prediction = TensorExtension.argmax(groupSum, axis = 1).squeeze()
+      val prediction = argmaxAxis(groupSum, axis = 1).squeeze()
       if (prediction == targets(i)) {
         correct += i
       } else {

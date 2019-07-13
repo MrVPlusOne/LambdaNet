@@ -272,7 +272,7 @@ abstract class NNArchitecture(
   }
 
   def randomUnitVec(): Tensor = {
-    TensorExtension.randomUnitVec(dimMessage)
+    TensorExtension.randomUnitVec(dimMessage).reshape(1, dimMessage)
   }
 
   def randomUnitVar(name: SymbolPath): CompNode = {

@@ -3,7 +3,7 @@ package funcdiff
 import botkop.numsca.{NumscaRange, Tensor}
 import botkop.{numsca => ns}
 import com.typesafe.scalalogging.LazyLogging
-import org.nd4j.linalg.api.buffer.DataBuffer
+import org.nd4j.linalg.api.buffer.{DataBuffer, DataType}
 import org.nd4j.linalg.factory.Nd4j
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -12,7 +12,7 @@ import scala.util.Random
 trait TestUtils extends FlatSpec with Matchers with LazyLogging {
 
   ns.rand.setSeed(1)
-  Nd4j.setDataType(DataBuffer.Type.DOUBLE)
+  Nd4j.setDefaultDataTypes(DataType.DOUBLE, DataType.DOUBLE)
 
   def relError(x: Tensor, y: Tensor): Double =
     ns.max(ns.abs(x - y) / ns.maximum(ns.abs(x) + ns.abs(y), 1e-8)).squeeze()

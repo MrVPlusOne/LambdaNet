@@ -38,7 +38,7 @@ libraryDependencies ++= Seq(
   "com.github.daddykotex" %% "courier" % "1.0.0", // for email notifications
   //  "be.botkop" %% "numsca" % "0.1.4",
   // for building numsca
-  "org.nd4j" % nd4jBinary % "1.0.0-beta3",
+  "org.nd4j" % nd4jBinary % "1.0.0-beta4",
   "com.typesafe.scala-logging" %% "scala-logging" % "3.7.2",
   "org.typelevel" %% "cats-core" % "2.0.0-M3",
   "org.typelevel" %% "cats-effect" % "2.0.0-M3",

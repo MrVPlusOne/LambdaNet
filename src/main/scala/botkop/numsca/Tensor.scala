@@ -1,6 +1,7 @@
 package botkop.numsca
 
 import funcdiff.Real
+import org.nd4j.linalg.api.buffer.DataType
 import org.nd4j.linalg.api.iter.NdIndexIterator
 import org.nd4j.linalg.api.ndarray.INDArray
 import org.nd4j.linalg.factory.{Broadcast, Nd4j}
@@ -40,6 +41,11 @@ class Tensor(val array: INDArray, val isBoolean: Boolean = false)
     Tensor(data.map(math.round(_).toDouble)).reshape(this.shape)
 
   def dot(other: Tensor) = Tensor(array mmul other.array)
+
+  def boolToFloating: Tensor = {
+    assert(isBoolean)
+    new Tensor(array.castTo(Tensor.floatingDataType), isBoolean = false)
+  }
 
   def unary_- : Tensor = Tensor(array mul -1)
   def +(d: Double): Tensor = Tensor(array add d)
@@ -258,6 +264,13 @@ object Shape {
 }
 
 object Tensor {
+
+  private var _floatingDataType: DataType = DataType.DOUBLE
+  def floatingDataType: DataType = _floatingDataType
+  def floatingDataType_=(dataType: DataType): Unit = {
+    Nd4j.setDefaultDataTypes(dataType, dataType)
+    _floatingDataType = dataType
+  }
 
   type Size = Long
 

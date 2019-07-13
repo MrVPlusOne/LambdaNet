@@ -2,7 +2,7 @@ package funcdiff
 
 import botkop.numsca.Tensor
 import botkop.{numsca => ns}
-import org.nd4j.linalg.api.buffer.DataBuffer
+import org.nd4j.linalg.api.buffer.{DataBuffer, DataType}
 import org.nd4j.linalg.factory.Nd4j
 import org.scalactic.{Equality, TolerantNumerics}
 import ns._
@@ -110,7 +110,7 @@ class GradientScalarCheck extends TestUtils {
 }
 
 class GradientMatrixTest extends TestUtils {
-  Nd4j.setDataType(DataBuffer.Type.DOUBLE)
+  Nd4j.setDefaultDataTypes(DataType.DOUBLE, DataType.DOUBLE)
   ns.rand.setSeed(231)
 
   val gruModule = {
@@ -246,11 +246,11 @@ class GradientMatrixTest extends TestUtils {
 
     val original = {
       val y = ns.softmax(x) * mask
-      y / ns.sum(y, 1)
+      y / ns.sumAxis(y, 1)
     }
     val masked = {
       val y = ns.softmax(x * mask) * mask
-      y / ns.sum(y, 1)
+      y / ns.sumAxis(y, 1)
     }
     logger.debug(s"masked: $masked")
     logger.debug(s"original: $original")

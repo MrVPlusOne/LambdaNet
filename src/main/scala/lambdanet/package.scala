@@ -1,6 +1,7 @@
 import ammonite.ops.RelPath
 import funcdiff.SimpleMath
-import lambdanet.GType
+import org.nd4j.linalg.api.buffer.DataType
+import org.nd4j.linalg.factory.Nd4j
 
 import scala.collection.mutable
 
@@ -14,6 +15,9 @@ import scala.collection.mutable
   *
   */
 package object lambdanet extends SimpleMath.ExtensionsTrait {
+
+  Nd4j.setDefaultDataTypes(DataType.DOUBLE, DataType.DOUBLE)
+
 
   /** the path related to the project root */
   type ProjectPath = RelPath

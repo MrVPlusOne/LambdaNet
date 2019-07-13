@@ -28,14 +28,6 @@ object TensorExtension {
   var zeroTolerance = 1e-8
 
   // ==== basic operations ====
-  /** fix the implementation in numsca */
-  def argmax(t: Tensor, axis: Int): Tensor =
-    new Tensor(Nd4j.getExecutioner.exec(new IMax(t.array), axis))
-
-  /** fix the implementation in numsca */
-  def argmin(t: Tensor, axis: Int): Tensor =
-    new Tensor(Nd4j.getExecutioner.exec(new IMin(t.array), axis))
-
   /** calculates which axes have been broadcasted */
   def broadcastAxes(oldShape: Shape, newShape: Shape): Seq[Int] = {
     val s1 = oldShape.sizes
@@ -104,7 +96,7 @@ object TensorExtension {
     }
 
     def sumAlongAxes(axes: Seq[Int]): Tensor = {
-      axes.foldLeft(data) { case (t, axis) => ns.sum(t, axis) }
+      axes.foldLeft(data) { case (t, axis) => ns.sumAxis(t, axis) }
     }
 
     def broadcast(newShape: Shape): Tensor = {
@@ -171,14 +163,14 @@ object TensorExtension {
   }
 
   def normL2(tensor: Tensor, sumAlongDim: Int = -1): Tensor = {
-    numsca.sqrt(numsca.sum(numsca.square(tensor), sumAlongDim))
+    numsca.sqrt(numsca.sumAxis(numsca.square(tensor), sumAlongDim))
   }
 
   /** Generates a random point on the surface of an N-dimensional sphere.
     * @param resultDim the dimension N */
   def randomUnitVec(resultDim: Size): Tensor = {
     val x = numsca.randn(resultDim)
-    val n = normL2(x)
+    val n = normL2(x, sumAlongDim = 0)
     if (n.squeeze() < TensorExtension.zeroTolerance) {
       randomUnitVec(resultDim) // try again
     } else {

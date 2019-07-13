@@ -4,6 +4,8 @@ import botkop.numsca._
 import TensorExtension._
 import botkop.numsca
 import botkop.{numsca => ns}
+import org.nd4j.linalg.api.ndarray.INDArray
+import org.nd4j.linalg.factory.Nd4j
 
 trait DiffFunc {
   def name: String
@@ -103,9 +105,10 @@ object DiffFunc {
     def name: String = "mean"
   }
 
-  case class MeanByAxis(x1: CompNode, axis: Int) extends UnaryFunc {
+  case class MeanByAxis(x1: CompNode, axis: Int, keepDim: Boolean = true)
+      extends UnaryFunc {
     require(x1.shape.product > 0)
-    val value: Tensor = numsca.mean(x1.value, axis)
+    val value: Tensor = numsca.meanAxis(x1.value, axis, keepDim)
 
     def backprop1(grad: Gradient): Gradient = {
       val n = x1.shape(axis)
@@ -126,8 +129,9 @@ object DiffFunc {
     def name: String = "sum"
   }
 
-  case class SumByAxis(x1: CompNode, axis: Int) extends UnaryFunc {
-    val value: Tensor = ns.sum(x1.value, axis)
+  case class SumByAxis(x1: CompNode, axis: Int, keepDim: Boolean = true)
+      extends UnaryFunc {
+    val value: Tensor = ns.sumAxis (x1.value, axis, keepDim)
 
     def backprop1(grad: Gradient): Gradient = {
       grad.broadcast(x1.shape)
@@ -140,7 +144,7 @@ object DiffFunc {
     val value: Tensor = ns.maximum(x1.value, threshold)
 
     def backprop1(grad: Gradient): Gradient = {
-      grad * (x1.value > threshold)
+      grad * (x1.value > threshold).boolToFloating
     }
 
     def name: String = s"threshold{t=$threshold}"
@@ -202,7 +206,7 @@ object DiffFunc {
       val y = value
       val dy = grad.toTensor()
       val dx = dy * y
-      val s = ns.sum(dx, axis = dx.shape.rank - 1)
+      val s = ns.sumAxis(dx, axis = dx.shape.rank - 1)
       dx -= y * s
       DenseGradient(dx)
     }
@@ -388,11 +392,11 @@ object DiffFunc {
     def x1: CompNode = logits
 
     val (y, value) = {
-      val baseline = ns.max(logits.value, axis = 1)
+      val baseline = ns.maxAxis (logits.value, axis = 1)
       val x = logits.value - baseline
-      val denum = ns.sum(ns.exp(x), axis = 1)
+      val denum = ns.sumAxis (ns.exp(x), axis = 1)
       val y = ns.exp(x) / denum
-      y -> ns.sum((ns.log(denum) - x) * targets.value, axis = 1)
+      y -> ns.sumAxis ((ns.log(denum) - x) * targets.value, axis = 1)
     }
 
     def backprop1(grad: Gradient): Gradient = {

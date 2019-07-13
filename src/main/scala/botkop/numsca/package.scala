@@ -4,7 +4,7 @@ import funcdiff.DebugTime
 import org.nd4j.linalg.api.iter.NdIndexIterator
 import org.nd4j.linalg.api.ndarray.INDArray
 import org.nd4j.linalg.api.ops.impl.indexaccum.{IMax, IMin}
-import org.nd4j.linalg.api.ops.impl.transforms.comparison.{
+import org.nd4j.linalg.api.ops.impl.transforms.custom.{
   GreaterThanOrEqual,
   LessThanOrEqual,
 }
@@ -64,7 +64,7 @@ package object numsca {
 
   def full(shape: Shape, value: Double): Tensor = zeros(shape) + value
 
-  def randn(shape: Long*): Tensor = new Tensor(Nd4j.randn(shape.toArray))
+  def randn(shape: Long*): Tensor = new Tensor(Nd4j.randn(shape.toArray: _*))
   def randn(shape: Shape): Tensor = randn(shape.sizes: _*)
 
   def rand(shape: Long*): Tensor = new Tensor(Nd4j.rand(shape.toArray))
@@ -82,9 +82,6 @@ package object numsca {
   ): Tensor =
     (new Tensor(Nd4j.randn(shape)) - low) / (high - low)
 
-  def linspace(lower: Double, upper: Double, num: Int): Tensor =
-    new Tensor(Nd4j.linspace(lower, upper, num))
-
   def copy(t: Tensor): Tensor = t.copy()
 
   def abs(t: Tensor): Tensor = new Tensor(Transforms.abs(t.array))
@@ -94,16 +91,30 @@ package object numsca {
   def minimum(t: Tensor, d: Double): Tensor = t.minimum(d)
   def minimum(a: Tensor, b: Tensor): Tensor = a.minimum(b)
 
+  type Axis = Int
+  case class axisOps(op: (INDArray, Axis) => INDArray) {
+    def apply(t: Tensor, axis: Int, keepDim: Boolean = true): Tensor = {
+      val x1 = new Tensor(op(t.array, axis))
+      if (keepDim) {
+        val s1 = {
+          val a = if (axis < 0) t.shape.rank + axis else axis
+          t.shape.sizes.updated(a, 1L)
+        }
+        x1.reshape(Shape(s1))
+      } else x1
+    }
+  }
+
   def max(t: Tensor): Tensor = new Tensor(Nd4j.max(t.array))
-  def max(t: Tensor, axis: Int): Tensor = new Tensor(Nd4j.max(t.array, axis))
+  val maxAxis = axisOps(Nd4j.max)
   def min(t: Tensor): Tensor = new Tensor(Nd4j.min(t.array))
-  def min(t: Tensor, axis: Int): Tensor = new Tensor(Nd4j.min(t.array, axis))
+  val minAxis = axisOps(Nd4j.min)
 
   def sum(t: Tensor): Double = Nd4j.sum(t.array).getDouble(0L)
-  def sum(t: Tensor, axis: Int): Tensor = new Tensor(Nd4j.sum(t.array, axis))
+  val sumAxis = axisOps(Nd4j.sum)
 
   def prod(t: Tensor): Double = Nd4j.prod(t.array).getDouble(0L)
-  def prod(t: Tensor, axis: Int): Tensor = new Tensor(Nd4j.prod(t.array, axis))
+  val prodAxis = axisOps(Nd4j.prod)
 
   def arange(end: Double): Tensor = new Tensor(Nd4j.arange(end))
   def arange(start: Double, end: Double): Tensor =
@@ -126,26 +137,28 @@ package object numsca {
 
   def argmax(t: Tensor): Tensor =
     new Tensor(Nd4j.getExecutioner.exec(new IMax(t.array)))
-  def argmax(t: Tensor, axis: Int): Tensor =
-    new Tensor(Nd4j.getExecutioner.exec(new IMax(t.array), axis))
+  val argmaxAxis =
+    axisOps((x, a) => Nd4j.getExecutioner.exec(new IMax(x, a)))
   def argmin(t: Tensor, axis: Int): Tensor =
-    new Tensor(Nd4j.getExecutioner.exec(new IMin(t.array), axis))
-  def argmin(t: Tensor): Tensor =
-    new Tensor(Nd4j.getExecutioner.exec(new IMin(t.array)))
+    new Tensor(Nd4j.getExecutioner.exec(new IMin(t.array, axis)))
+
+  val argminAxis =
+    axisOps((x, a) => Nd4j.getExecutioner.exec(new IMin(x, a)))
 
   def round(t: Tensor): Tensor = new Tensor(Transforms.round(t.array))
   def ceil(t: Tensor): Tensor = new Tensor(Transforms.ceil(t.array))
   def floor(t: Tensor): Tensor = new Tensor(Transforms.floor(t.array))
 
   def mean(t: Tensor): Tensor = new Tensor(Nd4j.mean(t.array))
-  def mean(t: Tensor, axis: Int): Tensor = new Tensor(Nd4j.mean(t.array, axis))
+  val meanAxis = axisOps(Nd4j.mean)
 
   // really do not understand how they calculate the variance and std in nd4j
   def variance(t: Tensor): Tensor = mean((t - mean(t)) ** 2)
-  def variance(t: Tensor, axis: Int): Tensor =
-    mean((t - mean(t, axis)) ** 2, axis)
+  def variance(t: Tensor, axis: Int, keepDim: Boolean = true): Tensor =
+    meanAxis((t - meanAxis(t, axis, keepDim)) ** 2, axis, keepDim)
   def std(t: Tensor): Tensor = sqrt(variance(t))
-  def std(t: Tensor, axis: Int): Tensor = sqrt(variance(t, axis))
+  def std(t: Tensor, axis: Int, keepDim: Boolean = true): Tensor =
+    sqrt(variance(t, axis, keepDim))
 
   /*
   def variance(t: Tensor): Tensor = new Tensor(Nd4j.`var`(t.array))
@@ -319,8 +332,11 @@ package object numsca {
       val newShape = s1.zip(s2).map {
         case (a, b) =>
           if (a != b) {
-            assert(a == 1 || b == 1)
-            a.max(b)
+            if (a == 1L || b == 1L)
+              a.max(b)
+            else {
+              throw new Error(s"incompatible broadcasting: a = $a, b = $b")
+            }
           } else a
       }
       Seq(
