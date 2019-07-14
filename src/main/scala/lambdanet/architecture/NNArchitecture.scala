@@ -110,7 +110,12 @@ abstract class NNArchitecture(
                   case Labeled(n1, n2, label) =>
                     val f = label.asInstanceOf[Label.Field].get
                     val input = concatN(axis = 1)(
-                      Vector(encodeNode(n1), encodeNode(n2), encodeLabel(f), encodeName(f)),
+                      Vector(
+                        encodeNode(n1),
+                        encodeNode(n2),
+                        encodeLabel(f),
+                        encodeName(f),
+                      ),
                     )
                     ((n1, n2, f), input)
                 }
@@ -196,13 +201,14 @@ abstract class NNArchitecture(
     messages
       .map {
         case (n, ms) =>
-          val n1 = embedding(n)
-          val values = concatN(axis = 0)(ms.toVector)
-          val keys = singleLayer(name / 'mergeMsgs / 'transKey, values)
-
-          //todo: check other kinds of attentions
-          val attention = softmax(keys.dot(n1.t).t / dimMessage)
-          n -> attention.dot(values)
+//          val n1 = embedding(n)
+//          val values = concatN(axis = 0)(ms.toVector)
+//          val keys = singleLayer(name / 'mergeMsgs / 'transKey, values)
+//
+//          //todo: check other kinds of attentions
+//          val attention = softmax(keys.dot(n1.t).t / dimMessage)
+//          n -> attention.dot(values)
+          n -> total(ms.toVector)
       }
       .seq
       .toMap
@@ -232,12 +238,32 @@ abstract class NNArchitecture(
     }.combineAll
   }
 
+  /** stack inputs vertically (axis=0) for batching */
+  def verticalBatching2[K](
+      inputs: Vector[(K, (CompNode, CompNode))],
+      transformation: (CompNode, CompNode) => CompNode,
+  ): Map[K, Chain[CompNode]] = {
+    import cats.implicits._
+    import numsca.:>
+
+    val (nodes, vectors) = inputs.unzip
+    val (l, r) = vectors.unzip
+
+    val l1 = concatN(axis = 0)(l)
+    val r1 = concatN(axis = 0)(r)
+    val output = transformation(l1, r1)
+    nodes.zipWithIndex.map {
+      case (n, i) =>
+        Map(n -> Chain(output.slice(i, :>)))
+    }.combineAll
+  }
+
   val singleLayerModel = "2 FCs"
   def singleLayer(path: SymbolPath, input: CompNode): CompNode = {
     def oneLayer(name: Symbol)(input: CompNode) = {
       linear(path / name, dimMessage)(input) ~> relu
     }
-    input ~> oneLayer('L1) ~> oneLayer('L2)
+    input ~> oneLayer('L1)// ~> oneLayer('L2)
   }
 
   val encodePosition = {

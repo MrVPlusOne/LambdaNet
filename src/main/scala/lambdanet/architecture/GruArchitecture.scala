@@ -26,15 +26,11 @@ case class GruArchitecture(dimMessage: Int, pc: ParamCollection)
       embedding: Map[K, CompNode],
       messages: Map[K, CompNode],
   ): Map[K, CompNode] = {
-    import numsca._
-
     val inputs = embedding.toVector.map {
       case (k, v) =>
-        k -> v.concat(messages.getOrElse(k, emptyMessage), axis = 1)
+        k -> (v, messages.getOrElse(k, emptyMessage))
     }
-    verticalBatching[K](inputs, stacked => {
-      val old = stacked.slice(:>, 0 :> dimMessage)
-      val msg = stacked.slice(:>, dimMessage :> 2 * dimMessage)
+    verticalBatching2[K](inputs, (old, msg) => {
       gru(name / 'updateEmbedding)(old, msg)
     }).map {
       case (k, chain) =>

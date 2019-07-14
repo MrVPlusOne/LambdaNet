@@ -159,9 +159,9 @@ object TrainingLoop {
                   }
                 }.toVector
 
-                DebugTime.logTime("GC") {
-                  System.gc()
-                }
+//                DebugTime.logTime("GC") {
+//                  System.gc()
+//                }
 
                 (fwd, gradInfo, datum)
               }
