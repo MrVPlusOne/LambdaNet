@@ -127,6 +127,7 @@ object TrainingLoop {
             announced(
               s"$GREEN[epoch $epoch](progress: ${i + 1}/${trainSet.size})$BLUE train on $datum",
             ) {
+              println(DebugTime.show)
               checkShouldStop(epoch)
               for {
                 (loss, fwd, _) <- forward(datum).tap(
