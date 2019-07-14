@@ -25,7 +25,7 @@ case class DataSet(
 
 object DataSet {
   def loadDataSet(
-      taskSupport: ForkJoinTaskSupport,
+      taskSupport: Option[ForkJoinTaskSupport],
       architecture: NNArchitecture,
   ): DataSet =
     announced("loadDataSet") {
@@ -83,7 +83,7 @@ object DataSet {
                 libNodeType,
                 labelEncoder.encode,
                 nameEncoder.encode,
-                Some(taskSupport),
+                taskSupport,
               )
             Datum(path, annotations, qModules, predictor)
               .tap(printResult)

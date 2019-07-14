@@ -349,7 +349,11 @@ object TrainingLoop {
             }
 
           val loss =
-            lossModel.predictionLoss(logitsVec.par, targets, predSpace.size)
+            lossModel.predictionLoss(
+              predictor.parallelize(logitsVec),
+              targets,
+              predSpace.size,
+            )
 
           val totalCount = libCounts.count + projCounts.count
           val fwd = ForwardResult(
@@ -467,10 +471,13 @@ object TrainingLoop {
         SM.mean(trainSet.map(_.annotations.size.toDouble))
     }
 
-    val taskSupport: ForkJoinTaskSupport =
-      new ForkJoinTaskSupport(new ForkJoinPool(numOfThreads))
-    val parallelCtx: ExecutionContextExecutorService =
-      ExecutionContext.fromExecutorService(new ForkJoinPool(numOfThreads))
+    val taskSupport: Option[ForkJoinTaskSupport] =
+      if (numOfThreads == 1) None
+      else Some(new ForkJoinTaskSupport(new ForkJoinPool(numOfThreads)))
+    val parallelCtx: ExecutionContextExecutorService = {
+      import ExecutionContext.fromExecutorService
+      fromExecutorService(new ForkJoinPool(numOfThreads))
+    }
   }
 
   private def readThreadNumber() = {

@@ -297,14 +297,13 @@ object NewInference {
           }
       }
 
-      graph.predicates.toSeq
-        .pipe(parallelize)
+      graph.predicates.par
         .map(toBatched)
         .fold[BatchedMsgModels](Map())(_ |+| _)
         .mapValuesNow(_.filterNot(_.allNodesFromLib))
     }
 
-    private def parallelize[T](xs: Seq[T]): GenSeq[T] = {
+    def parallelize[T](xs: Seq[T]): GenSeq[T] = {
       taskSupport match {
         case None => xs
         case Some(ts) =>
