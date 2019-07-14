@@ -22,7 +22,7 @@ val memoryLimit = {
 
 val nd4jBinary = {
   val useCuda = new File("configs/useCuda.txt").exists()
-  if(useCuda) "nd4j-cuda-10.0" else "nd4j-native-platform"
+  if(useCuda) "nd4j-cuda-10.0-platform" else "nd4j-native-platform"
 }
 
 javaOptions ++= Seq(s"-Xms2G", "-Xmx6G", s"-Dorg.bytedeco.javacpp.maxbytes=${memoryLimit}G",

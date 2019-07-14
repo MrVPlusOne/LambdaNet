@@ -19,7 +19,13 @@ import lambdanet.translation.QLang.QModule
 import org.nd4j.linalg.api.buffer.DataType
 
 import scala.collection.parallel.ForkJoinTaskSupport
-import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutorService, Future, TimeoutException}
+import scala.concurrent.{
+  Await,
+  ExecutionContext,
+  ExecutionContextExecutorService,
+  Future,
+  TimeoutException,
+}
 import scala.language.reflectiveCalls
 
 object TrainingLoop {
@@ -29,7 +35,7 @@ object TrainingLoop {
     Tensor.floatingDataType = DataType.DOUBLE
     run(
       maxTrainingEpochs = 5000,
-      numOfThreads = Runtime.getRuntime.availableProcessors() / 2,
+      numOfThreads = readThreadNumber(),
     ).result()
   }
 
@@ -432,7 +438,7 @@ object TrainingLoop {
           Map[Int, Counted[Correct]],
       ) = {
         val predictions = numsca
-          .argmaxAxis (logits.value, axis = 1)
+          .argmaxAxis(logits.value, axis = 1)
           .data
           .map(_.toInt)
           .toVector
@@ -465,6 +471,16 @@ object TrainingLoop {
       new ForkJoinTaskSupport(new ForkJoinPool(numOfThreads))
     val parallelCtx: ExecutionContextExecutorService =
       ExecutionContext.fromExecutorService(new ForkJoinPool(numOfThreads))
+  }
+
+  private def readThreadNumber() = {
+    import ammonite.ops._
+    val f = pwd / "configs" / "threads.txt"
+    if (exists(f)) {
+      read(f).trim.toInt
+    } else {
+      Runtime.getRuntime.availableProcessors() / 2
+    }
   }
 
 }
