@@ -119,8 +119,10 @@ object TrainingLoop {
       val random = new util.Random(2)
 
       def trainStep(epoch: Int): Unit = {
+        DebugTime.logTime("GC") {
+          System.gc()
+        }
         val startTime = System.nanoTime()
-
         val stats = random.shuffle(trainSet).zipWithIndex.map {
           case (datum, i) =>
             import Console.{GREEN, BLUE}
@@ -158,10 +160,6 @@ object TrainingLoop {
                     calcGradInfo(stats)
                   }
                 }.toVector
-
-//                DebugTime.logTime("GC") {
-//                  System.gc()
-//                }
 
                 (fwd, gradInfo, datum)
               }
