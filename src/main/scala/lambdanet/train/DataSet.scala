@@ -36,21 +36,13 @@ object DataSet {
 
       printResult(s"Is toy data set? : $toyMod")
 
-      val ParsedRepos(libDefs, projects0) =
-        if (toyMod) parseRepos(pwd / RelPath("data/toy"))
+      val repos@ParsedRepos(libDefs, trainSet, devSet) =
+        if (toyMod) parseRepos(pwd / RelPath("data/toy"), pwd / RelPath("data/toy"))
         else
           announced(s"read data set from: $parsedRepoPath") {
             SM.readObjectFromFile[ParsedRepos](parsedRepoPath.toIO)
           }
 
-      val projectsToUse = 100
-      val testSetRatio = 0.3
-
-      val projects = projects0
-        .pipe(x => new Random(1).shuffle(x))
-        .take(projectsToUse)
-
-      val repos = ParsedRepos(libDefs, projects)
 
       def libNodeType(n: LibNode) =
         libDefs
@@ -67,12 +59,12 @@ object DataSet {
 //        FiniteRandomLabelEncoder(200, architecture, new Random(1))
       }
       val nameEncoder = announced("create name encoder") {
-        SegmentedLabelEncoder(repos, coverageGoal = 0.95, architecture)
+        SegmentedLabelEncoder(repos, coverageGoal = 0.90, architecture)
       }
 
       printResult(s"Label encoder: ${labelEncoder.name}")
 
-      val data = projects.toVector
+      val data = (trainSet++devSet).toVector
         .map {
           case ParsedProject(path, g, qModules, annotations) =>
             val predictor =
@@ -93,13 +85,8 @@ object DataSet {
       val projAnnots = data.map(_.projAnnots).sum
       printResult(s"$libAnnots library targets, $projAnnots project targets.")
 
-      if (toyMod) DataSet(data, data)
-      else {
-        val totalNum = data.length
-        val trainSetNum = totalNum - (totalNum * testSetRatio).toInt
-        DataSet(data.take(trainSetNum), data.drop(trainSetNum))
-          .tap(printResult)
-      }
+      DataSet(data.take(trainSet.length), data.drop(trainSet.length))
+        .tap(printResult)
     }
 
   def selectLibTypes(
@@ -107,9 +94,9 @@ object DataSet {
       coverageGoal: Double,
   ): Set[LibTypeNode] = {
     import cats.implicits._
-    import repos.{libDefs, projects}
+    import repos.{libDefs, trainSet}
 
-    val usages: Map[PNode, Int] = projects.par
+    val usages: Map[PNode, Int] = trainSet.par
       .map { p =>
         p.userAnnots.collect { case (_, PTyVar(v)) => v -> 1 }
       }

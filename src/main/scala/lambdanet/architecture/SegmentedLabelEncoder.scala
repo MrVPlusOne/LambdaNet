@@ -19,7 +19,7 @@ case class SegmentedLabelEncoder(
 
   private val segmentsMap: Map[Segment, CompNode] = {
 
-    val totalUsages = projects.foldMap { p =>
+    val totalUsages = trainSet.foldMap { p =>
       val predsUsage = p.pGraph.predicates.toVector.collect {
         case DefineRel(_, expr) =>
           expr.allLabels.toVector.foldMap(nameUsages)

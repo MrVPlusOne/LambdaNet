@@ -206,13 +206,17 @@ object NewInference {
         signatureEmbeddings.toMap
       }
 
-      private val encodeLibLabels = labelEncoder(
-        parallelize((allLabels ++ additionalNames).toSeq),
-      )
+      private val encodeLibLabels = DebugTime.logTime("encodeNames") {
+        labelEncoder(
+          parallelize((allLabels ++ additionalNames).toSeq),
+        )
+      }
 
-      private val encodeNames = nameEncoder(
-        parallelize((allLabels ++ additionalNames).toSeq),
-      )
+      private val encodeNames = DebugTime.logTime("encodeNames") {
+        nameEncoder(
+          parallelize((allLabels ++ additionalNames).toSeq),
+        )
+      }
 
       def encodeNameOpt(nameOpt: Option[Symbol]): CompNode = {
         nameOpt match {

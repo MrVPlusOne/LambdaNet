@@ -33,11 +33,12 @@ object PrepareRepos {
   val parsedRepoPath: Path = pwd / "data" / "predicateGraphs.serialized"
 
   def main(args: Array[String]): Unit = {
-    val projectsDir: Path = pwd / up / "lambda-repos" / "projects"
+    val trainSetDir: Path = pwd / up / "lambda-repos" / "trainSet"
+    val devSetDir: Path = pwd / up / "lambda-repos" / "devSet"
     val parsed = announced("parsePredGraphs")(
-      parseRepos(projectsDir, loadFromFile = false),
+      parseRepos(trainSetDir, devSetDir, loadFromFile = false),
     )
-    val stats = repoStatistics(parsed.projects)
+    val stats = repoStatistics(parsed.trainSet ++ parsed.devSet)
     printResult(stats.headers.zip(stats.average).toString())
 
     announced(s"save data set to file: $parsedRepoPath") {
@@ -56,11 +57,13 @@ object PrepareRepos {
   @SerialVersionUID(1)
   case class ParsedRepos(
       libDefs: LibDefs,
-      projects: List[ParsedProject],
+      trainSet: List[ParsedProject],
+      devSet: List[ParsedProject],
   )
 
   def parseRepos(
-      projectsDir: Path,
+      trainSetDir: Path,
+      devSetDir: Path,
       loadFromFile: Boolean = true,
   ): ParsedRepos = {
     lambdanet.shouldWarn = false
@@ -76,15 +79,17 @@ object PrepareRepos {
       defs
     }
 
-    val graphs = (ls ! projectsDir)
-      .filter(f => f.isDir)
-      .par
-      .map { f =>
-        val (a, b, c) = prepareProject(libDefs, f)
-        ParsedProject(f.relativeTo(projectsDir), a, b, c)
-      }
-      .toList
-    ParsedRepos(libDefs, graphs)
+    def fromDir(dir: Path) =
+      (ls ! dir)
+        .filter(f => f.isDir)
+        .par
+        .map { f =>
+          val (a, b, c) = prepareProject(libDefs, f)
+          ParsedProject(f.relativeTo(dir), a, b, c)
+        }
+        .toList
+
+    ParsedRepos(libDefs, fromDir(trainSetDir), fromDir(devSetDir))
   }
 
   case class RepoStats(
