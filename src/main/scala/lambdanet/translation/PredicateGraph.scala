@@ -70,6 +70,8 @@ object PredicateGraph {
     def allLabels: Set[Symbol] = Set()
 
     def name: String = nameOpt.get.name
+
+    def getId: Int = id
   }
 
   @SerialVersionUID(1)
