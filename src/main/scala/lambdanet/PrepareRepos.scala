@@ -5,7 +5,6 @@ import funcdiff.SimpleMath
 import lambdanet.translation.ImportsResolution.{
   ErrorHandler,
   ModuleExports,
-  NameDef,
 }
 import lambdanet.translation._
 import lambdanet.translation.PredicateGraph.{

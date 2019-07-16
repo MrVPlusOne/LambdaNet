@@ -83,6 +83,7 @@ object DataSet {
 
       val libAnnots = data.map(_.libAnnots).sum
       val projAnnots = data.map(_.projAnnots).sum
+      printResult(s"Train set size: ${trainSet.size}, Dev set size: ${devSet.size}")
       printResult(s"$libAnnots library targets, $projAnnots project targets.")
 
       DataSet(data.take(trainSet.length), data.drop(trainSet.length))

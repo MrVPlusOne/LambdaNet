@@ -29,7 +29,7 @@ import scala.concurrent.{
 import scala.language.reflectiveCalls
 
 object TrainingLoop {
-  var toyMod: Boolean = true
+  var toyMod: Boolean = false
 
   def main(args: Array[String]): Unit = {
     Tensor.floatingDataType = DataType.DOUBLE
