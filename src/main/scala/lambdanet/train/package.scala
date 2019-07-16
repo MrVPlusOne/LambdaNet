@@ -1,6 +1,7 @@
 package lambdanet
 
-import botkop.numsca.Tensor
+import botkop.numsca
+import botkop.numsca.{Shape, Tensor}
 import cats.Monoid
 import funcdiff.CompNode
 
@@ -10,6 +11,18 @@ package object train {
   type Correct = Int
   type LibCorrect = Correct
   type ProjCorrect = Correct
+  type ConfusionMatrix = Map[(Int, Int), Int]
+
+  def confusionMatrix(
+      predictions: Vector[Int],
+      groundTruths: Vector[Int],
+      categories: Int,
+  ): ConfusionMatrix = {
+    import cats.implicits._
+    predictions.zip(groundTruths).map{
+      case (p, g) => Map((g, p) -> 1)
+    }.combineAll
+  }
 
   def nonZero(n: Int): Double = if (n == 0) 1.0 else n.toDouble
 

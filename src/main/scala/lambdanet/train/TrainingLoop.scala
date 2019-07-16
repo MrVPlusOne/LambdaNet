@@ -29,7 +29,7 @@ import scala.concurrent.{
 import scala.language.reflectiveCalls
 
 object TrainingLoop {
-  var toyMod: Boolean = false
+  var toyMod: Boolean = true
 
   def main(args: Array[String]): Unit = {
     Tensor.floatingDataType = DataType.DOUBLE
@@ -170,10 +170,11 @@ object TrainingLoop {
         val (fws, gs, data) = stats.flatMap(_.toVector).unzip3
 
         fws.combineAll.tap {
-          case ForwardResult(loss, libAcc, projAcc, distanceAcc) =>
+          case ForwardResult(loss, libAcc, projAcc, confMat, distanceAcc) =>
             logger.logScalar("loss", epoch, toAccuracyD(loss))
             logger.logScalar("libAcc", epoch, toAccuracy(libAcc))
             logger.logScalar("projAcc", epoch, toAccuracy(projAcc))
+            logger.logConfusionMatrix("confusionMat", epoch, confMat.value, 2)
             logAccuracyDetails(data zip fws, epoch)
             val disMap = distanceAcc.toVector
               .sortBy(_._1)
@@ -247,7 +248,7 @@ object TrainingLoop {
             announced(s"test on $datum") {
               forward(datum).map {
                 case (_, fwd, pred) =>
-                  val pred1 = pred.mapValuesNow{ _.head }
+                  val pred1 = pred.mapValuesNow { _.head }
                   printQSource(
                     datum.qModules,
                     pred1,
@@ -262,25 +263,13 @@ object TrainingLoop {
             }
           }.combineAll
 
-          import stat.{libCorrect, projCorrect}
+          import stat.{libCorrect, projCorrect, confusionMatrix}
           logger.logScalar("test-libAcc", epoch, toAccuracy(libCorrect))
           logger.logScalar("test-projAcc", epoch, toAccuracy(projCorrect))
+          logger.logConfusionMatrix("test-confusionMat", epoch, confusionMatrix.value, 2)
           logger.logScalar("test-fse-top1", epoch, toAccuracy(fse1Acc))
           logger.logScalar("test-fse-top5", epoch, toAccuracy(fse5Acc))
         }
-
-      case class ForwardResult(
-          loss: Counted[Double],
-          libCorrect: Counted[LibCorrect],
-          projCorrect: Counted[ProjCorrect],
-          distCorrectMap: Map[Int, Counted[Correct]],
-      ) {
-        override def toString: String = {
-          s"forward result: {loss: ${toAccuracyD(loss)}, " +
-            s"lib acc: ${toAccuracy(libCorrect)} (${libCorrect.count} nodes), " +
-            s"proj acc: ${toAccuracy(projCorrect)} (${projCorrect.count} nodes)}"
-        }
-      }
 
       def calcGradInfo(stats: Optimizer.OptimizeStats) = {
         def meanSquaredNorm(gs: Iterable[Gradient]) = {
@@ -298,22 +287,6 @@ object TrainingLoop {
         val deltas = meanSquaredNorm(stats.deltas.values)
         (grads, transformed, deltas)
       }
-
-      implicit val forwardResultMonoid: Monoid[ForwardResult] =
-        new Monoid[ForwardResult] {
-          import Counted.zero
-          import cats.implicits._
-
-          def empty: ForwardResult =
-            ForwardResult(zero(0), zero(0), zero(0), Map())
-
-          def combine(x: ForwardResult, y: ForwardResult): ForwardResult = {
-            val z = ForwardResult.unapply(x).get |+| ForwardResult
-              .unapply(y)
-              .get
-            (ForwardResult.apply _).tupled(z)
-          }
-        }
 
       val lossModel: LossModel = LossModel.EchoLoss
         .tap(m => printResult(s"loss model: ${m.name}"))
@@ -337,15 +310,14 @@ object TrainingLoop {
 
           val groundTruths = nodesToPredict.map(annotations)
           val targets = groundTruths.map(predSpace.indexOfType)
-          val isFromLib = groundTruths.map(_.madeFromLibTypes)
           val nodeDistances = nodesToPredict.map(_.n.pipe(distanceToConsts))
 
-          val (libCounts, projCounts, distanceCounts) =
+          val (libCounts, projCounts, confMat, distanceCounts) =
             announced("compute training accuracy") {
               analyzeLogits(
                 logits,
                 targets,
-                isFromLib,
+                predSpace,
                 nodeDistances,
               )
             }
@@ -362,6 +334,7 @@ object TrainingLoop {
             Counted(totalCount, loss.value.squeeze() * totalCount),
             libCounts,
             projCounts,
+            confMat,
             distanceCounts,
           )
 
@@ -444,11 +417,12 @@ object TrainingLoop {
       private def analyzeLogits(
           logits: CompNode,
           targets: Vector[Int],
-          targetFromLibrary: Vector[Boolean],
+          predictionSpace: PredictionSpace,
           nodeDistances: Vector[Int],
       ): (
           Counted[LibCorrect],
           Counted[ProjCorrect],
+          Counted[ConfusionMatrix],
           Map[Int, Counted[Correct]],
       ) = {
         val predictions = numsca
@@ -457,6 +431,7 @@ object TrainingLoop {
           .map(_.toInt)
           .toVector
         val truthValues = predictions.zip(targets).map { case (x, y) => x == y }
+        val targetFromLibrary = targets.map { predictionSpace.isLibType }
         val zipped = targetFromLibrary.zip(truthValues)
         val libCorrect = zipped.collect {
           case (true, true) => ()
@@ -474,7 +449,17 @@ object TrainingLoop {
             Counted(vec.length, vec.count(_._2))
           }
 
-        (libCounts, projCounts, distMap)
+        val confMat = {
+          def toCat(isLibType: Boolean): Int = if (isLibType) 0 else 1
+          val predictionCats = predictions.map { i =>
+            toCat(predictionSpace.isLibType(i))
+          }
+          val truthCats = targetFromLibrary.map(toCat)
+          val mat = confusionMatrix(predictionCats, truthCats, categories = 2)
+          Counted(predictionCats.length, mat)
+        }
+
+        (libCounts, projCounts, confMat, distMap)
       }
 
       private val avgAnnotations =
@@ -499,5 +484,35 @@ object TrainingLoop {
       Runtime.getRuntime.availableProcessors() / 2
     }
   }
+
+  private case class ForwardResult(
+      loss: Counted[Double],
+      libCorrect: Counted[LibCorrect],
+      projCorrect: Counted[ProjCorrect],
+      confusionMatrix: Counted[ConfusionMatrix],
+      distCorrectMap: Map[Int, Counted[Correct]],
+  ) {
+    override def toString: String = {
+      s"forward result: {loss: ${toAccuracyD(loss)}, " +
+        s"lib acc: ${toAccuracy(libCorrect)} (${libCorrect.count} nodes), " +
+        s"proj acc: ${toAccuracy(projCorrect)} (${projCorrect.count} nodes)}"
+    }
+  }
+
+  private implicit val forwardResultMonoid: Monoid[ForwardResult] =
+    new Monoid[ForwardResult] {
+      import Counted.zero
+      import cats.implicits._
+
+      def empty: ForwardResult =
+        ForwardResult(zero(0), zero(0), zero(0), zero(Map()), Map())
+
+      def combine(x: ForwardResult, y: ForwardResult): ForwardResult = {
+        val z = ForwardResult.unapply(x).get |+| ForwardResult
+          .unapply(y)
+          .get
+        (ForwardResult.apply _).tupled(z)
+      }
+    }
 
 }

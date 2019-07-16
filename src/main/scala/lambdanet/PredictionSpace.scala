@@ -22,4 +22,6 @@ case class PredictionSpace(allTypes: Set[PType]) {
     indexMap.getOrElse(ty, indexMap(unknownType))
   }
 
+  def isLibType(i: Int): Boolean = typeVector(i).madeFromLibTypes
+
 }

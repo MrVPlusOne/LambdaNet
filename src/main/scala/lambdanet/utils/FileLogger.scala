@@ -4,6 +4,7 @@ import lambdanet._
 import ammonite.ops._
 import botkop.numsca.Tensor
 import funcdiff.TensorExtension
+import lambdanet.train.ConfusionMatrix
 
 class FileLogger(file: Path, printToConsole: Boolean) {
 
@@ -46,6 +47,8 @@ object EventLogger {
   case class Event(name: String, iteration: Double, value: EventValue)
 
   case class PlotConfig(options: String*)
+
+  def showVec[T](xs: Seq[T]): String = xs.mkString("{", ",", "}")
 }
 
 import lambdanet.utils.EventLogger._
@@ -61,6 +64,15 @@ class EventLogger(
   }
   private val fLogger = new FileLogger(file, printToConsole = false)
 
+  def logString(name: String, epoch: Double, str: String): Unit = {
+    fLogger.println(
+      s"""{"$name", $epoch, $str}""",
+    )
+    if (printToConsole) {
+      println(resultStr(s"[$epoch]$name: $str"))
+    }
+  }
+
   def logScalar(name: String, iteration: Double, value: Double): Unit = {
     log(Event(name, iteration, DoubleValue(value)))
   }
@@ -73,17 +85,17 @@ class EventLogger(
     log(Event(name, iteration, MapValue(value)))
   }
 
-  def logOpt(name: String, iteration: Int, value: Option[Double]): Unit = {
-    value.foreach(v => logScalar(name, iteration, v))
+  def logConfusionMatrix(name: String, epoch: Int, confMat: ConfusionMatrix, categories: Int): Unit = {
+    val array = Array.fill(categories)(Array.fill(categories)(0))
+    confMat.foreach{ case ((i,j), n) =>
+      array(i)(j) = n
+    }
+    val str = showVec(array.map(xs => showVec(xs.toSeq)).toSeq)
+    logString(name, epoch, str)
   }
 
-  def logString(name: String, epoch: Double, str: String) = {
-    fLogger.println(
-      s"""{"$name", $epoch, $str}""",
-    )
-    if (printToConsole) {
-      println(resultStr(s"[$epoch]$name: $str"))
-    }
+  def logOpt(name: String, iteration: Int, value: Option[Double]): Unit = {
+    value.foreach(v => logScalar(name, iteration, v))
   }
 
   def log(event: Event): Unit = {
@@ -93,7 +105,7 @@ class EventLogger(
     val str = event.value match {
       case DoubleValue(v) => mamFormat(v)
       case MapValue(map) =>
-        map.map { case (k, v) => s"{$k,$v}" }.mkString("{", ", ", "}")
+        showVec(map.map { case (k, v) => s"{$k,$v}" })
     }
 
     logString(name, iteration, str)
