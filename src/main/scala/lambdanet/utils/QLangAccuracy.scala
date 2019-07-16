@@ -47,7 +47,7 @@ object QLangAccuracy {
     stmts.foldMap(rec)
   }
 
-  case class FseAccuracy(modules: Vector[QModule]){
+  case class FseAccuracy(modules: Vector[QModule]) {
     private val occurrence = modules.foldMap { m =>
       occurrenceMap(m.stmts)
     }
@@ -58,36 +58,58 @@ object QLangAccuracy {
       }
     }.toMap
 
-    def countCorrect(predictions: Map[ProjNode, PType]): Counted[Correct] = {
+    /** Count top-N correctness */
+    def countTopNCorrect(
+        n: Int,
+        predictions: Map[ProjNode, Vector[PType]],
+    ): Counted[Correct] = {
       val preds = predictions.map { case (k, v) => k.n -> v }
-      QLangAccuracy.countCorrect(annots, preds, occurrence.getOrElse(_, 0))
+      QLangAccuracy.countTopNCorrect(
+        n,
+        annots,
+        preds,
+        occurrence.getOrElse(_, 0),
+      )
     }
   }
 
-  def countCorrect(
+  def countTopNCorrect(
+      n: Int,
       nodesToPredict: Map[PNode, PType],
-      predictions: Map[PNode, PType],
+      predictions: Map[PNode, Vector[PType]],
       nodeWeight: PNode => Int,
   ): Counted[Correct] = {
-    val (y, n) = nodesToPredict.foldLeft((0, 0)) {
-      case ((yes, no), (n, t)) =>
-        val rightQ = predictions.get(n) match {
-          case Some(t1) => t1 == t
-          case None     => false
+    val (y1, n1) = nodesToPredict.foldLeft((0, 0)) {
+      case ((yes, no), (node, t)) =>
+        val rightQ = predictions.get(node) match {
+          case Some(t1) => t1.take(n).contains(t)
+          case None =>
+            lambdanet.printWarning("Prediction missing!")
+            false
         }
-        val w = nodeWeight(n)
+        val w = nodeWeight(node)
         if (rightQ) (yes + w, no) else (yes, no + w)
     }
-    Counted(y + n, y)
+    Counted(y1 + n1, y1)
   }
 
-  def measureAcc(
+  def topNAccuracy(
+      n: Int,
+      nodesToPredict: Map[PNode, PType],
+      predictions: Map[PNode, Vector[PType]],
+      nodeWeight: PNode => Int,
+  ): (Double, Int, Int) = {
+    val c = countTopNCorrect(n, nodesToPredict, predictions, nodeWeight)
+    (train.toAccuracy(c), c.value, c.count)
+  }
+
+  def top1Accuracy(
       nodesToPredict: Map[PNode, PType],
       predictions: Map[PNode, PType],
       nodeWeight: PNode => Int,
   ): (Double, Int, Int) = {
-    val c = countCorrect(nodesToPredict, predictions, nodeWeight)
+    val pred1 = predictions.mapValuesNow(Vector(_))
+    val c = countTopNCorrect(1, nodesToPredict, pred1, nodeWeight)
     (train.toAccuracy(c), c.value, c.count)
   }
-
 }

@@ -164,7 +164,7 @@ object QLangDisplay {
       predSpace: Set[PType],
       indentSpaces: Int = 2,
   )(dir: Path): Unit = {
-    import QLangAccuracy.measureAcc
+    import QLangAccuracy.{top1Accuracy}
 
     val file = dir / RelPath(m.path + ".html")
     val data = m.stmts
@@ -175,12 +175,12 @@ object QLangDisplay {
 
     val libAccStr = {
       val (acc, yes, total) =
-        measureAcc(annots.filter(_._2.madeFromLibTypes), prediction, _ => 1)
+        top1Accuracy(annots.filter(_._2.madeFromLibTypes), prediction, _ => 1)
       s"%.4f=$yes/$total".format(acc)
     }
     val projAccStr = {
       val (acc, yes, total) =
-        measureAcc(annots.filter(!_._2.madeFromLibTypes), prediction, _ => 1)
+        top1Accuracy(annots.filter(!_._2.madeFromLibTypes), prediction, _ => 1)
       s"%.4f=$yes/$total".format(acc)
     }
 

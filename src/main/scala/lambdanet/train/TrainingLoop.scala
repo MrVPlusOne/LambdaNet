@@ -10,11 +10,11 @@ import cats.Monoid
 import funcdiff.{SimpleMath => SM}
 import funcdiff._
 import lambdanet.architecture._
-import lambdanet.utils.{EventLogger, QLangAccuracy, QLangDisplay, ReportFinish}
+import lambdanet.utils.{EventLogger, QLangDisplay, ReportFinish}
 import lambdanet.printWarning
 import TrainingState._
-import botkop.numsca.Tensor
-import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
+import botkop.numsca.{Tensor}
+import lambdanet.translation.PredicateGraph.{PType, ProjNode}
 import lambdanet.translation.QLang.QModule
 import org.nd4j.linalg.api.buffer.DataType
 
@@ -242,20 +242,22 @@ object TrainingLoop {
             }
           }
 
-          val (stat, fseAcc) = testSet.flatMap { datum =>
+          val (stat, fse1Acc, fse5Acc) = testSet.flatMap { datum =>
             checkShouldStop(epoch)
             announced(s"test on $datum") {
               forward(datum).map {
                 case (_, fwd, pred) =>
+                  val pred1 = pred.mapValuesNow{ _.head }
                   printQSource(
                     datum.qModules,
-                    pred,
+                    pred1,
                     datum.predictor.predictionSpace,
                   )
 
-                  val fse = datum.fseAcc.countCorrect(pred)
+                  val fse1 = datum.fseAcc.countTopNCorrect(1, pred)
+                  val fse5 = datum.fseAcc.countTopNCorrect(5, pred)
 
-                  (fwd, fse)
+                  (fwd, fse1, fse5)
               }.toVector
             }
           }.combineAll
@@ -263,7 +265,8 @@ object TrainingLoop {
           import stat.{libCorrect, projCorrect}
           logger.logScalar("test-libAcc", epoch, toAccuracy(libCorrect))
           logger.logScalar("test-projAcc", epoch, toAccuracy(projCorrect))
-          logger.logScalar("test-fseAcc", epoch, toAccuracy(fseAcc))
+          logger.logScalar("test-fse-top1", epoch, toAccuracy(fse1Acc))
+          logger.logScalar("test-fse-top5", epoch, toAccuracy(fse5Acc))
         }
 
       case class ForwardResult(
@@ -317,7 +320,7 @@ object TrainingLoop {
 
       private def forward(
           datum: Datum,
-      ): Option[(Loss, ForwardResult, Map[ProjNode, PType])] =
+      ): Option[(Loss, ForwardResult, Map[ProjNode, Vector[PType]])] =
         limitTimeOpt(s"forward: $datum", Timeouts.forwardTimeout) {
           import datum._
 
@@ -362,12 +365,20 @@ object TrainingLoop {
             distanceCounts,
           )
 
-          val predictions: Map[ProjNode, PType] = {
-            val predVec = numsca
-              .argmaxAxis(logits.value, axis = 1)
-              .data
-              .map(d => predSpace.typeVector(d.toInt))
-              .toVector
+          val predictions: Map[ProjNode, Vector[PType]] = {
+            import numsca._
+            val Shape(Vector(row, _)) = logits.value.shape
+            val predVec = (0 until row.toInt).map { r =>
+              logits
+                .value(r, :>)
+                .data
+                .zipWithIndex
+                .sortBy(_._1)
+                .map { case (_, i) => predSpace.typeVector(i) }
+                .reverse
+                .toVector
+            }
+
             nodesToPredict.zip(predVec).toMap
           }
 
