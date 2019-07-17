@@ -10,8 +10,7 @@ import cats.Monoid
 import funcdiff.{SimpleMath => SM}
 import funcdiff._
 import lambdanet.architecture._
-import lambdanet.utils.{EventLogger, QLangDisplay, ReportFinish}
-import lambdanet.printWarning
+import lambdanet.utils.{EventLogger, FileLogger, QLangDisplay, ReportFinish}
 import TrainingState._
 import botkop.numsca.Tensor
 import lambdanet.translation.PredicateGraph.{PType, ProjNode}
@@ -24,11 +23,13 @@ import scala.language.reflectiveCalls
 
 object TrainingLoop {
   val toyMod: Boolean = false
-  val taskName = "withDropout"
+  val taskName = "testLogger"
   val resultsDir = {
     import ammonite.ops._
     pwd / "running-result" / taskName
   }
+  val fileLogger = new FileLogger(resultsDir / "console.txt", printToConsole = true)
+  import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
   def main(args: Array[String]): Unit = {
     Tensor.floatingDataType = DataType.DOUBLE
@@ -44,11 +45,12 @@ object TrainingLoop {
   ) {
 
 //    Nd4j.setNumThreads(numOfThreads)
+    printInfo(s"Task: $taskName")
     printInfo(s"maxEpochs = $maxTrainingEpochs, threads: $numOfThreads")
     Timeouts.readFromFile()
 
     def result(): Unit = {
-      val (state, logger) = loadTrainingState(resultsDir)
+      val (state, logger) = loadTrainingState(resultsDir, fileLogger)
       val architecture = GruArchitecture(state.dimMessage, state.pc)
       val dataSet = DataSet.loadDataSet(taskSupport, architecture)
       trainOnProjects(dataSet, state, logger, architecture).result()

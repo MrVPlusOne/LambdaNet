@@ -3,7 +3,7 @@ package lambdanet.train
 import ammonite.ops.Path
 import funcdiff.{Optimizer, ParamCollection}
 import lambdanet._
-import lambdanet.utils.EventLogger
+import lambdanet.utils.{EventLogger, FileLogger}
 
 object TrainingState {
   def fromFile(file: Path): TrainingState = {
@@ -20,8 +20,9 @@ object TrainingState {
     TrainingState(step, dimMessage, iterationNum, optimizer, pc)
   }
 
-  def loadTrainingState(resultsDir: Path): (TrainingState, EventLogger) = {
+  def loadTrainingState(resultsDir: Path, logger: FileLogger): (TrainingState, EventLogger) = {
     import ammonite.ops._
+    import logger._
     val loggerFile = resultsDir / "log.txt"
     def mkEventLogger(overrideMode: Boolean) = {
       new EventLogger(
@@ -44,7 +45,8 @@ object TrainingState {
           (s, mkEventLogger(overrideMode = false))
         }
         .getOrElse {
-          require(!exists(resultsDir), s"directory $resultsDir already exists.")
+          val resultsDirEmpty = ls(resultsDir) == Seq(logger.file)
+          require(resultsDirEmpty, s"directory $resultsDir is not empty. Clear or remove it first.")
           mkdir(resultsDir / "control")
           TrainingState(
             epoch0 = 0,

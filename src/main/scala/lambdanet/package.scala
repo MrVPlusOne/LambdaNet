@@ -133,6 +133,7 @@ package object lambdanet extends SimpleMath.ExtensionsTrait {
     f(x1).orElse(f(x2))
   }
 
+
   var shouldWarn = true
   def printWarning(str: String): Unit = {
     if (shouldWarn)

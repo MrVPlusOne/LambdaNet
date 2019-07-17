@@ -3,10 +3,11 @@ package lambdanet.utils
 import lambdanet._
 import ammonite.ops._
 import botkop.numsca.Tensor
-import funcdiff.TensorExtension
+import funcdiff.SimpleMath.prettyPrintTime
+import funcdiff.{SimpleMath, TensorExtension}
 import lambdanet.train.ConfusionMatrix
 
-class FileLogger(file: Path, printToConsole: Boolean) {
+class FileLogger(val file: Path, printToConsole: Boolean) {
 
   def append(s: String) = {
     write.append(file, s)
@@ -29,11 +30,29 @@ class FileLogger(file: Path, printToConsole: Boolean) {
     }
   }
 
-  def printSection[A](name: String)(content: => A): A = {
-    println(s"[$name]")
-    val r = content
-    println(s"[End of $name]\n")
-    r
+  var shouldWarn = true
+  def printWarning(str: String): Unit = {
+    if (shouldWarn)
+      Console.err.println(warnStr("[warn] " + str))
+  }
+
+  def printInfo(a: Any): Unit = {
+    println(infoStr(a.toString))
+  }
+
+  def printResult(a: Any): Unit = {
+    println(resultStr(a.toString))
+  }
+
+  def announced[A](actionName: String)(action: => A): A = {
+    import SimpleMath.prettyPrintTime
+
+    println(infoStr(s"  [start] $actionName started..."))
+    val startTime = System.nanoTime()
+    action.tap { _ =>
+      val took = prettyPrintTime(System.nanoTime() - startTime, 2)
+      println(infoStr(s"  [finish] $actionName finished. (took $took)"))
+    }
   }
 }
 
