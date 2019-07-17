@@ -131,7 +131,7 @@ object DiffFunc {
 
   case class SumByAxis(x1: CompNode, axis: Int, keepDim: Boolean = true)
       extends UnaryFunc {
-    val value: Tensor = ns.sumAxis (x1.value, axis, keepDim)
+    val value: Tensor = ns.sumAxis(x1.value, axis, keepDim)
 
     def backprop1(grad: Gradient): Gradient = {
       grad.broadcast(x1.shape)
@@ -392,11 +392,11 @@ object DiffFunc {
     def x1: CompNode = logits
 
     val (y, value) = {
-      val baseline = ns.maxAxis (logits.value, axis = 1)
+      val baseline = ns.maxAxis(logits.value, axis = 1)
       val x = logits.value - baseline
-      val denum = ns.sumAxis (ns.exp(x), axis = 1)
+      val denum = ns.sumAxis(ns.exp(x), axis = 1)
       val y = ns.exp(x) / denum
-      y -> ns.sumAxis ((ns.log(denum) - x) * targets.value, axis = 1)
+      y -> ns.sumAxis((ns.log(denum) - x) * targets.value, axis = 1)
     }
 
     def backprop1(grad: Gradient): Gradient = {

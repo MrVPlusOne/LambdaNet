@@ -9,12 +9,12 @@ object NamingExperiment {
     nameOpt.map(_.name.toString).getOrElse("$MISSING")
   }
 
-  sealed trait Target{
+  sealed trait Target {
     def display: String
 
     override def toString: String = display
   }
-  case class LibType(id: Int, nameOpt: Option[Symbol]) extends Target{
+  case class LibType(id: Int, nameOpt: Option[Symbol]) extends Target {
     def display: String = s"Lib($id,${showName(nameOpt)})"
   }
   case class ProjectType(nameOpt: Option[Symbol]) extends Target {
@@ -45,8 +45,8 @@ object NamingExperiment {
 
   def showResult(result: Map[(Symbol, Target), LibCorrect]): String = {
     result.toVector
-      .sortBy{ case (k, v) => - v}
-      .map{ case (k, v) => s"${k._1.name},${k._2},$v"}
+      .sortBy { case (k, v) => -v }
+      .map { case (k, v) => s"${k._1.name},${k._2},$v" }
       .mkString("\n")
   }
 
@@ -59,7 +59,7 @@ object NamingExperiment {
     }
     val train = repos.trainSet.map(toData).combineAll
     val dev = repos.devSet.map(toData).combineAll
-    val dir = pwd / "data" /"name-data"
+    val dir = pwd / "data" / "name-data"
     write(dir / "train.csv", showResult(train))
     write(dir / "test.csv", showResult(dev))
   }

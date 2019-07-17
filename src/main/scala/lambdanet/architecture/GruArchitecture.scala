@@ -30,9 +30,10 @@ case class GruArchitecture(dimMessage: Int, pc: ParamCollection)
       case (k, v) =>
         k -> (v, messages.getOrElse(k, emptyMessage))
     }
-    verticalBatching2[K](inputs, (old, msg) => {
-      gru(name / 'updateEmbedding)(old, msg)
-    }).map {
+    verticalBatching2[K](
+      inputs,
+      (old, msg) => gru(name / 'updateEmbedding)(old, msg),
+    ).map {
       case (k, chain) =>
         val Vector(x) = chain.toVector
         k -> x

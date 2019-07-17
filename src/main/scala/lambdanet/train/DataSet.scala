@@ -36,13 +36,13 @@ object DataSet {
 
       printResult(s"Is toy data set? : $toyMod")
 
-      val repos@ParsedRepos(libDefs, trainSet, devSet) =
-        if (toyMod) parseRepos(pwd / RelPath("data/toy"), pwd / RelPath("data/toy"))
+      val repos @ ParsedRepos(libDefs, trainSet, devSet) =
+        if (toyMod)
+          parseRepos(pwd / RelPath("data/toy"), pwd / RelPath("data/toy"))
         else
           announced(s"read data set from: $parsedRepoPath") {
             SM.readObjectFromFile[ParsedRepos](parsedRepoPath.toIO)
           }
-
 
       def libNodeType(n: LibNode) =
         libDefs
@@ -64,7 +64,7 @@ object DataSet {
 
       printResult(s"Label encoder: ${labelEncoder.name}")
 
-      val data = (trainSet++devSet).toVector
+      val data = (trainSet ++ devSet).toVector
         .map {
           case ParsedProject(path, g, qModules, annotations) =>
             val predictor =
@@ -83,7 +83,9 @@ object DataSet {
 
       val libAnnots = data.map(_.libAnnots).sum
       val projAnnots = data.map(_.projAnnots).sum
-      printResult(s"Train set size: ${trainSet.size}, Dev set size: ${devSet.size}")
+      printResult(
+        s"Train set size: ${trainSet.size}, Dev set size: ${devSet.size}",
+      )
       printResult(s"$libAnnots library targets, $projAnnots project targets.")
 
       DataSet(data.take(trainSet.length), data.drop(trainSet.length))

@@ -232,7 +232,7 @@ class Tensor(val array: INDArray, val isBoolean: Boolean = false)
   def clipNorm(maxNorm: Real): Tensor = {
     val maxNorm2 = maxNorm * maxNorm
     val norm2 = sum(square(this))
-    if(norm2 > maxNorm2){
+    if (norm2 > maxNorm2) {
       val ratio = math.sqrt(maxNorm2 / norm2)
       this * ratio
     } else this

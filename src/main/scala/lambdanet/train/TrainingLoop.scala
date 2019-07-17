@@ -18,7 +18,13 @@ import lambdanet.translation.QLang.QModule
 import org.nd4j.linalg.api.buffer.DataType
 
 import scala.collection.parallel.ForkJoinTaskSupport
-import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutorService, Future, TimeoutException}
+import scala.concurrent.{
+  Await,
+  ExecutionContext,
+  ExecutionContextExecutorService,
+  Future,
+  TimeoutException,
+}
 import scala.language.reflectiveCalls
 
 object TrainingLoop {
@@ -28,7 +34,8 @@ object TrainingLoop {
     import ammonite.ops._
     pwd / "running-result" / taskName
   }
-  val fileLogger = new FileLogger(resultsDir / "console.txt", printToConsole = true)
+  val fileLogger =
+    new FileLogger(resultsDir / "console.txt", printToConsole = true)
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
   def main(args: Array[String]): Unit = {
@@ -72,18 +79,19 @@ object TrainingLoop {
       def result(): Unit = {
         val saveInterval = if (toyMod) 100 else 10
 
-        (trainingState.epoch0 + 1 to maxTrainingEpochs)
-          .foreach { epoch =>
-            announced(s"epoch $epoch") {
-              handleExceptions(epoch) {
-                trainStep(epoch)
-                if (epoch % saveInterval == 0) {
-                  saveTraining(epoch, s"epoch$epoch")
-                }
+        (trainingState.epoch0 + 1 to maxTrainingEpochs).foreach { epoch =>
+          announced(s"epoch $epoch") {
+            handleExceptions(epoch) {
+              trainStep(epoch)
+              if (epoch % saveInterval == 0) {
+                saveTraining(epoch, s"epoch$epoch")
+              }
+              DebugTime.logTime("test-step") {
                 testStep(epoch)
               }
             }
           }
+        }
 
         saveTraining(maxTrainingEpochs, "finished")
         emailService.sendMail(emailService.userEmail)(
@@ -269,7 +277,12 @@ object TrainingLoop {
           import stat.{libCorrect, projCorrect, confusionMatrix}
           logger.logScalar("test-libAcc", epoch, toAccuracy(libCorrect))
           logger.logScalar("test-projAcc", epoch, toAccuracy(projCorrect))
-          logger.logConfusionMatrix("test-confusionMat", epoch, confusionMatrix.value, 2)
+          logger.logConfusionMatrix(
+            "test-confusionMat",
+            epoch,
+            confusionMatrix.value,
+            2,
+          )
           logger.logScalar("test-fse-top1", epoch, toAccuracy(fse1Acc))
           logger.logScalar("test-fse-top5", epoch, toAccuracy(fse5Acc))
         }

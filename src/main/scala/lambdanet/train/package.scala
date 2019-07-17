@@ -19,9 +19,12 @@ package object train {
       categories: Int,
   ): ConfusionMatrix = {
     import cats.implicits._
-    predictions.zip(groundTruths).map{
-      case (p, g) => Map((g, p) -> 1)
-    }.combineAll
+    predictions
+      .zip(groundTruths)
+      .map {
+        case (p, g) => Map((g, p) -> 1)
+      }
+      .combineAll
   }
 
   def nonZero(n: Int): Double = if (n == 0) 1.0 else n.toDouble

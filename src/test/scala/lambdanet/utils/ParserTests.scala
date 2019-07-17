@@ -6,9 +6,7 @@ import ammonite.ops._
 import ImportStmt._
 import funcdiff.SimpleMath
 import lambdanet.translation.PredicateGraph.{DefineRel, PNode, PNodeAllocator}
-import lambdanet.translation.{
-  QLangTranslation,
-}
+import lambdanet.translation.{QLangTranslation}
 import lambdanet.utils.ProgramParsing.ImportPattern
 
 class ParserTests extends WordSpec with MyTest {

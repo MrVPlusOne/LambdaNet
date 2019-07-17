@@ -21,7 +21,6 @@ object ProgramParsing {
       namespaces: Map[Symbol, DeclarationModule],
   )
 
-
   case class PackageFile(
       moduleName: Option[ProjectPath],
       devDependencies: Set[ProjectPath],

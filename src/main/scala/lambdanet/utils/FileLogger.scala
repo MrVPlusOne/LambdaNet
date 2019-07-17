@@ -104,10 +104,16 @@ class EventLogger(
     log(Event(name, iteration, MapValue(value)))
   }
 
-  def logConfusionMatrix(name: String, epoch: Int, confMat: ConfusionMatrix, categories: Int): Unit = {
+  def logConfusionMatrix(
+      name: String,
+      epoch: Int,
+      confMat: ConfusionMatrix,
+      categories: Int,
+  ): Unit = {
     val array = Array.fill(categories)(Array.fill(categories)(0))
-    confMat.foreach{ case ((i,j), n) =>
-      array(i)(j) = n
+    confMat.foreach {
+      case ((i, j), n) =>
+        array(i)(j) = n
     }
     val str = showVec(array.map(xs => showVec(xs.toSeq)).toSeq)
     logString(name, epoch, str)

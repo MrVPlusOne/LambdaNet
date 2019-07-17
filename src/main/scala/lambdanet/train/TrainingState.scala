@@ -20,7 +20,10 @@ object TrainingState {
     TrainingState(step, dimMessage, iterationNum, optimizer, pc)
   }
 
-  def loadTrainingState(resultsDir: Path, logger: FileLogger): (TrainingState, EventLogger) = {
+  def loadTrainingState(
+      resultsDir: Path,
+      logger: FileLogger,
+  ): (TrainingState, EventLogger) = {
     import ammonite.ops._
     import logger._
     val loggerFile = resultsDir / "log.txt"
@@ -46,7 +49,10 @@ object TrainingState {
         }
         .getOrElse {
           val resultsDirEmpty = ls(resultsDir) == Seq(logger.file)
-          require(resultsDirEmpty, s"directory $resultsDir is not empty. Clear or remove it first.")
+          require(
+            resultsDirEmpty,
+            s"directory $resultsDir is not empty. Clear or remove it first.",
+          )
           mkdir(resultsDir / "control")
           TrainingState(
             epoch0 = 0,

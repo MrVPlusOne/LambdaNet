@@ -46,7 +46,8 @@ trait APITrait {
 
   def sum(x1: CompNode): CompNode = funcNode(Sum(x1))
 
-  def sum(x1: CompNode, axis: Int, keepDim: Boolean = true): CompNode = funcNode(SumByAxis(x1, axis, keepDim))
+  def sum(x1: CompNode, axis: Int, keepDim: Boolean = true): CompNode =
+    funcNode(SumByAxis(x1, axis, keepDim))
 
   def softmax(x1: CompNode): CompNode = funcNode(Softmax(x1))
 
