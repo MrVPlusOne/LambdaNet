@@ -4,7 +4,7 @@ import ammonite.ops.{pwd, read}
 
 object ReportFinish {
   def main(args: Array[String]): Unit = {
-    val (name, emailService) = readEmailInfo()
+    val (name, emailService) = readEmailInfo("reportFinish")
 
     emailService.sendMail(emailService.userEmail)(
       s"TypingNet: Training process on $name has stopped",
