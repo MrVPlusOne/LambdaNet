@@ -2,10 +2,7 @@ package lambdanet
 
 import ammonite.ops._
 import funcdiff.SimpleMath
-import lambdanet.translation.ImportsResolution.{
-  ErrorHandler,
-  ModuleExports,
-}
+import lambdanet.translation.ImportsResolution.{ErrorHandler, ModuleExports}
 import lambdanet.translation._
 import lambdanet.translation.PredicateGraph.{
   PNode,
@@ -17,7 +14,9 @@ import lambdanet.translation.PredicateGraph.{
 import lambdanet.translation.QLang.QModule
 import lambdanet.utils.ProgramParsing
 import lambdanet.utils.ProgramParsing.GProject
+
 import scala.collection.mutable
+import scala.util.Random
 
 @SerialVersionUID(2)
 case class LibDefs(
@@ -78,9 +77,12 @@ object PrepareRepos {
       defs
     }
 
-    def fromDir(dir: Path) =
+    val random = new Random(1)
+    def fromDir(dir: Path, maxNum: Int) =
       (ls ! dir)
         .filter(f => f.isDir)
+        .pipe(random.shuffle(_))
+        .take(maxNum)
         .par
         .map { f =>
           val (a, b, c) = prepareProject(libDefs, f)
@@ -88,7 +90,7 @@ object PrepareRepos {
         }
         .toList
 
-    ParsedRepos(libDefs, fromDir(trainSetDir), fromDir(devSetDir))
+    ParsedRepos(libDefs, fromDir(trainSetDir, 20), fromDir(devSetDir, 1000))
   }
 
   case class RepoStats(
