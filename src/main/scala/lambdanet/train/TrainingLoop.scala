@@ -24,7 +24,7 @@ import scala.language.reflectiveCalls
 
 object TrainingLoop {
   val toyMod: Boolean = false
-  val taskName = "20projects"
+  val taskName = "withDropout"
   val resultsDir = {
     import ammonite.ops._
     pwd / "running-result" / taskName
@@ -117,6 +117,7 @@ object TrainingLoop {
       val random = new util.Random(2)
 
       def trainStep(epoch: Int): Unit = {
+        architecture.inTraining = true
         DebugTime.logTime("GC") {
           System.gc()
         }
@@ -224,8 +225,10 @@ object TrainingLoop {
         if ((epoch - 1) % 5 == 0) announced("test on dev set") {
           import cats.implicits._
           import ammonite.ops._
-          val predictionDir = pwd / "predictions"
+          val predictionDir = resultsDir / "predictions"
           rm(predictionDir)
+
+          architecture.inTraining = false
 
           def printQSource(
               qModules: Vector[QModule],

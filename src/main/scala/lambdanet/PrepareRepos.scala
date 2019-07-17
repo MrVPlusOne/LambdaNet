@@ -30,35 +30,6 @@ object PrepareRepos {
   val libDefsFile: Path = pwd / up / "lambda-repos" / "libDefs.serialized"
   val parsedRepoPath: Path = pwd / "data" / "predicateGraphs.serialized"
 
-  def main(args: Array[String]): Unit = {
-    val trainSetDir: Path = pwd / up / "lambda-repos" / "trainSet"
-    val devSetDir: Path = pwd / up / "lambda-repos" / "devSet"
-    val parsed = announced("parsePredGraphs")(
-      parseRepos(trainSetDir, devSetDir, loadFromFile = false),
-    )
-    val stats = repoStatistics(parsed.trainSet ++ parsed.devSet)
-    printResult(stats.headers.zip(stats.average).toString())
-
-    announced(s"save data set to file: $parsedRepoPath") {
-      SM.saveObjectToFile(parsedRepoPath.toIO)(parsed)
-    }
-  }
-
-  @SerialVersionUID(0)
-  case class ParsedProject(
-      path: ProjectPath,
-      pGraph: PredicateGraph,
-      qModules: Vector[QModule],
-      userAnnots: Map[ProjNode, PType],
-  )
-
-  @SerialVersionUID(1)
-  case class ParsedRepos(
-      libDefs: LibDefs,
-      trainSet: List[ParsedProject],
-      devSet: List[ParsedProject],
-  )
-
   def parseRepos(
       trainSetDir: Path,
       devSetDir: Path,
@@ -90,8 +61,37 @@ object PrepareRepos {
         }
         .toList
 
-    ParsedRepos(libDefs, fromDir(trainSetDir, 20), fromDir(devSetDir, 1000))
+    ParsedRepos(libDefs, fromDir(trainSetDir, 1000), fromDir(devSetDir, 1000))
   }
+
+  def main(args: Array[String]): Unit = {
+    val trainSetDir: Path = pwd / up / "lambda-repos" / "trainSet"
+    val devSetDir: Path = pwd / up / "lambda-repos" / "devSet"
+    val parsed = announced("parsePredGraphs")(
+      parseRepos(trainSetDir, devSetDir, loadFromFile = false),
+    )
+    val stats = repoStatistics(parsed.trainSet ++ parsed.devSet)
+    printResult(stats.headers.zip(stats.average).toString())
+
+    announced(s"save data set to file: $parsedRepoPath") {
+      SM.saveObjectToFile(parsedRepoPath.toIO)(parsed)
+    }
+  }
+
+  @SerialVersionUID(0)
+  case class ParsedProject(
+      path: ProjectPath,
+      pGraph: PredicateGraph,
+      qModules: Vector[QModule],
+      userAnnots: Map[ProjNode, PType],
+  )
+
+  @SerialVersionUID(1)
+  case class ParsedRepos(
+      libDefs: LibDefs,
+      trainSet: List[ParsedProject],
+      devSet: List[ParsedProject],
+  )
 
   case class RepoStats(
       average: Vector[Double],

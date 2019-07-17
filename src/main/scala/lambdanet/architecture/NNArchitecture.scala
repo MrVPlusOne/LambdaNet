@@ -16,6 +16,8 @@ abstract class NNArchitecture(
     pc: ParamCollection,
 ) {
 
+  var inTraining: Boolean = true
+
   case class Embedding(
       vars: Map[ProjNode, CompNode],
       labels: Map[Symbol, CompNode],
@@ -258,12 +260,14 @@ abstract class NNArchitecture(
     }.combineAll
   }
 
-  val singleLayerModel = "2 FCs"
+  val singleLayerModel = "2 FCs with dropout"
   def singleLayer(path: SymbolPath, input: CompNode): CompNode = {
     def oneLayer(name: Symbol)(input: CompNode) = {
       linear(path / name, dimMessage)(input) ~> relu
     }
-    input ~> oneLayer('L1) ~> oneLayer('L2)
+    input ~>
+      oneLayer('L1) ~> dropout(0.5, inTraining) ~>
+      oneLayer('L2) ~> dropout(0.5, inTraining)
   }
 
   val encodePosition = {

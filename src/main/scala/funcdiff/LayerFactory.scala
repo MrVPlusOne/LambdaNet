@@ -57,10 +57,10 @@ case class LayerFactory(
   def dropout(keepProb: Double, inTraining: Boolean)(
       input: CompNode,
   ): CompNode = {
-    if (keepProb == 1 || !inTraining) input
+    if (keepProb >= 1 || !inTraining) input
     else {
       require(keepProb > 0 && keepProb < 1)
-      val mask = (ns.rand(input.shape) < keepProb) / keepProb
+      val mask = (ns.rand(input.shape) < keepProb).boolToFloating / keepProb
       input * const(mask)
     }
   }
