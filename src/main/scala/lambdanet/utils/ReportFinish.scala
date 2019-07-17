@@ -13,10 +13,10 @@ object ReportFinish {
   }
 
   type MachineName = String
-  def readEmailInfo(): (MachineName, EmailService) = {
+  def readEmailInfo(taskName: String): (MachineName, EmailService) = {
     val emailFile = pwd / "configs" / "emails.txt"
     println(s"reading email credentials from '$emailFile'...")
     val Array(email, password, name) = read(emailFile).trim.split("\n")
-    name -> EmailService(email, password)
+    s"$name-$taskName" -> EmailService(email, password)
   }
 }

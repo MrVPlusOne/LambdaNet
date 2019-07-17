@@ -3,9 +3,9 @@ package lambdanet.train
 import ammonite.ops._
 
 /** Use text files to control the training loop (stop, restore, etc) */
-private object TrainingControl {
-  val stopFile: Path = pwd / "running-result" / "control" / "stop.txt"
-  val restoreFile: Path = pwd / "running-result" / "control" / "restore.txt"
+private case class TrainingControl(resultsDir: Path) {
+  val stopFile: Path =  resultsDir / "control" / "stop.txt"
+  val restoreFile: Path = resultsDir / "control" / "restore.txt"
 
   def shouldStop(consumeFile: Boolean): Boolean = {
     val stop = exists(stopFile)

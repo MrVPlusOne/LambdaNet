@@ -20,9 +20,9 @@ object TrainingState {
     TrainingState(step, dimMessage, iterationNum, optimizer, pc)
   }
 
-  def loadTrainingState(): (TrainingState, EventLogger) = {
+  def loadTrainingState(resultsDir: Path): (TrainingState, EventLogger) = {
     import ammonite.ops._
-    val loggerFile = pwd / "running-result" / "log.txt"
+    val loggerFile = resultsDir / "log.txt"
     def mkEventLogger(overrideMode: Boolean) = {
       new EventLogger(
         loggerFile,
@@ -33,7 +33,7 @@ object TrainingState {
 
     announced("loadTrainingState") {
       val loadFromFile: Option[Path] =
-        TrainingControl.restoreFromFile(consumeFile = true)
+        TrainingControl(resultsDir).restoreFromFile(consumeFile = true)
 
       loadFromFile
         .map { p =>
@@ -43,15 +43,17 @@ object TrainingState {
           }
           (s, mkEventLogger(overrideMode = false))
         }
-        .getOrElse(
+        .getOrElse {
+          require(!exists(resultsDir), s"directory $resultsDir already exists.")
+          mkdir(resultsDir / "control")
           TrainingState(
             epoch0 = 0,
             dimMessage = 32,
             optimizer = Optimizer.Adam(learningRate = 5e-4),
             iterationNum = if (TrainingLoop.toyMod) 4 else 6,
             pc = ParamCollection(),
-          ) -> mkEventLogger(overrideMode = true),
-        )
+          ) -> mkEventLogger(overrideMode = true)
+        }
         .tap(println)
     }
   }

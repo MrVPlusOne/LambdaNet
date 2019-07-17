@@ -13,23 +13,22 @@ import lambdanet.architecture._
 import lambdanet.utils.{EventLogger, QLangDisplay, ReportFinish}
 import lambdanet.printWarning
 import TrainingState._
-import botkop.numsca.{Tensor}
+import botkop.numsca.Tensor
 import lambdanet.translation.PredicateGraph.{PType, ProjNode}
 import lambdanet.translation.QLang.QModule
 import org.nd4j.linalg.api.buffer.DataType
 
 import scala.collection.parallel.ForkJoinTaskSupport
-import scala.concurrent.{
-  Await,
-  ExecutionContext,
-  ExecutionContextExecutorService,
-  Future,
-  TimeoutException,
-}
+import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutorService, Future, TimeoutException}
 import scala.language.reflectiveCalls
 
 object TrainingLoop {
-  var toyMod: Boolean = false
+  val toyMod: Boolean = false
+  val taskName = "noNaming"
+  val resultsDir = {
+    import ammonite.ops._
+    pwd / "running-result" / taskName
+  }
 
   def main(args: Array[String]): Unit = {
     Tensor.floatingDataType = DataType.DOUBLE
@@ -49,7 +48,7 @@ object TrainingLoop {
     Timeouts.readFromFile()
 
     def result(): Unit = {
-      val (state, logger) = loadTrainingState()
+      val (state, logger) = loadTrainingState(resultsDir)
       val architecture = GruArchitecture(state.dimMessage, state.pc)
       val dataSet = DataSet.loadDataSet(taskSupport, architecture)
       trainOnProjects(dataSet, state, logger, architecture).result()
@@ -91,7 +90,7 @@ object TrainingLoop {
         )
       }
 
-      val (machineName, emailService) = ReportFinish.readEmailInfo()
+      val (machineName, emailService) = ReportFinish.readEmailInfo(taskName)
       private def handleExceptions(epoch: Int)(f: => Unit): Unit = {
         try f
         catch {
@@ -103,7 +102,7 @@ object TrainingLoop {
               s"Details:\n" + ex.getMessage,
             )
             if (isTimeout && Timeouts.restartOnTimeout) {
-              println(
+              printWarning(
                 "Timeout... training restarted (skip one training epoch)...",
               )
             } else {
@@ -115,7 +114,6 @@ object TrainingLoop {
         }
       }
 
-      val stepsPerEpoch = trainSet.length max testSet.length
       val random = new util.Random(2)
 
       def trainStep(epoch: Int): Unit = {
@@ -145,7 +143,7 @@ object TrainingLoop {
                     pc.allParams,
                     backPropInParallel =
                       Some(parallelCtx -> Timeouts.optimizationTimeout),
-//                    gradientTransform = _.clipNorm(0.25 * factor),
+                    gradientTransform = _.clipNorm(2 * factor),
                   )
                 }
 
@@ -388,7 +386,7 @@ object TrainingLoop {
         import ammonite.ops._
 
         announced(s"save training to $dirName") {
-          val saveDir = pwd / "running-result" / "saved" / dirName
+          val saveDir = resultsDir / "saved" / dirName
           if (!exists(saveDir)) {
             mkdir(saveDir)
           }
@@ -397,7 +395,7 @@ object TrainingLoop {
             .saveToFile(
               savePath,
             )
-          val currentLogFile = pwd / "running-result" / "log.txt"
+          val currentLogFile = resultsDir / "log.txt"
           if (exists(currentLogFile)) {
             cp.over(currentLogFile, saveDir / "log.txt")
           }
@@ -408,7 +406,7 @@ object TrainingLoop {
 
       @throws[StopException]
       private def checkShouldStop(epoch: Int): Unit = {
-        if (TrainingControl.shouldStop(consumeFile = true)) {
+        if (TrainingControl(resultsDir).shouldStop(consumeFile = true)) {
           saveTraining(epoch, s"stopped-epoch$epoch")
           throw StopException("Stopped by 'stop.txt'.")
         }

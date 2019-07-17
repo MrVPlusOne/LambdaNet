@@ -267,6 +267,7 @@ object NewInference {
       def toBatched(pred: TyPredicate): BatchedMsgModels = pred match {
         case HasName(n, name) =>
           Map(KindNaming("hasName") -> Vector(Naming(n, name)))
+//          Map()
         case UsedAsBool(n) =>
           Map(KindSingle("usedAsBool") -> Vector(Single(n)))
         case SubtypeRel(sub, sup) =>
