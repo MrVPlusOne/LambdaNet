@@ -265,13 +265,14 @@ abstract class NNArchitecture(
   val singleLayerModel = "2 FCs with proper dropout"
   def singleLayer(path: SymbolPath, input: CompNode): CompNode = {
     def oneLayer(name: Symbol)(input: CompNode) = {
-      val r = linear(path / name, dimMessage)(input) ~> relu
+      val p = path / name
+      val r = linear(p, dimMessage)(input) ~> relu
       dropoutStorage match {
         case None => r
         case Some(maskPc) =>
           import botkop.{numsca => ns}
           val keepProb = 0.5
-          val mask = maskPc.getConst(name) {
+          val mask = maskPc.getConst(p) {
             (ns.rand(ns.Shape.make(1,r.shape.sizes(1))) < keepProb).boolToFloating / keepProb
           }
           r * mask
