@@ -127,7 +127,6 @@ object TrainingLoop {
       val random = new util.Random(2)
 
       def trainStep(epoch: Int): Unit = {
-        architecture.dropoutStorage = Some(new ParamCollection())
         DebugTime.logTime("GC") {
           System.gc()
         }
@@ -140,6 +139,7 @@ object TrainingLoop {
             ) {
               println(DebugTime.show)
               checkShouldStop(epoch)
+              architecture.dropoutStorage = Some(new ParamCollection())
               for {
                 (loss, fwd, _) <- forward(datum).tap(
                   _.foreach(r => printResult(r._2)),
