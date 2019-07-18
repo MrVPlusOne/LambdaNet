@@ -29,7 +29,7 @@ import scala.language.reflectiveCalls
 
 object TrainingLoop {
   val toyMod: Boolean = false
-  val taskName = "64dims"
+  val taskName = "dropout64"
   val resultsDir = {
     import ammonite.ops._
     pwd / "running-result" / taskName
@@ -127,7 +127,7 @@ object TrainingLoop {
       val random = new util.Random(2)
 
       def trainStep(epoch: Int): Unit = {
-        architecture.inTraining = true
+        architecture.dropoutStorage = Some(new ParamCollection())
         DebugTime.logTime("GC") {
           System.gc()
         }
@@ -238,7 +238,7 @@ object TrainingLoop {
           val predictionDir = resultsDir / "predictions"
           rm(predictionDir)
 
-          architecture.inTraining = false
+          architecture.dropoutStorage = None
 
           def printQSource(
               qModules: Vector[QModule],

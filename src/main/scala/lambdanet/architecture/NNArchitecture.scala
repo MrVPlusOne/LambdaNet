@@ -16,7 +16,9 @@ abstract class NNArchitecture(
     pc: ParamCollection,
 ) {
 
-  var inTraining: Boolean = true
+  /** Store the dropout masks so that they can be reused across a
+    * single forward propagation (but should be cleared between iterations) */
+  var dropoutStorage: Option[ParamCollection] = None
 
   case class Embedding(
       vars: Map[ProjNode, CompNode],
@@ -260,12 +262,23 @@ abstract class NNArchitecture(
     }.combineAll
   }
 
-  val singleLayerModel = "2 FCs"
+  val singleLayerModel = "2 FCs with proper dropout"
   def singleLayer(path: SymbolPath, input: CompNode): CompNode = {
     def oneLayer(name: Symbol)(input: CompNode) = {
-      linear(path / name, dimMessage)(input) ~> relu
+      val r = linear(path / name, dimMessage)(input) ~> relu
+      dropoutStorage match {
+        case None => r
+        case Some(maskPc) =>
+          import botkop.{numsca => ns}
+          val keepProb = 0.5
+          val mask = maskPc.getConst(name) {
+            (ns.rand(ns.Shape.make(1,r.shape.sizes(1))) < keepProb).boolToFloating / keepProb
+          }
+          r * mask
+      }
     }
-    input ~> oneLayer('L1) ~> oneLayer('L2)// ~> dropout(0.5, inTraining)
+
+    input ~> oneLayer('L1) ~> oneLayer('L2)
   }
 
   val encodePosition = {
