@@ -29,7 +29,7 @@ import scala.language.reflectiveCalls
 
 object TrainingLoop {
   val toyMod: Boolean = false
-  val taskName = "testLogger"
+  val taskName = "64dims"
   val resultsDir = {
     import ammonite.ops._
     pwd / "running-result" / taskName

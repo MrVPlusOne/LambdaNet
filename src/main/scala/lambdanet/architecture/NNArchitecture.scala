@@ -260,14 +260,12 @@ abstract class NNArchitecture(
     }.combineAll
   }
 
-  val singleLayerModel = "2 FCs with dropout"
+  val singleLayerModel = "2 FCs"
   def singleLayer(path: SymbolPath, input: CompNode): CompNode = {
     def oneLayer(name: Symbol)(input: CompNode) = {
       linear(path / name, dimMessage)(input) ~> relu
     }
-    input ~>
-      oneLayer('L1) ~> dropout(0.5, inTraining) ~>
-      oneLayer('L2) ~> dropout(0.5, inTraining)
+    input ~> oneLayer('L1) ~> oneLayer('L2)// ~> dropout(0.5, inTraining)
   }
 
   val encodePosition = {

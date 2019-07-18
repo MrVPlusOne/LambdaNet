@@ -56,7 +56,7 @@ object TrainingState {
           mkdir(resultsDir / "control")
           TrainingState(
             epoch0 = 0,
-            dimMessage = 32,
+            dimMessage = 64,
             optimizer = Optimizer.Adam(learningRate = 5e-4),
             iterationNum = if (TrainingLoop.toyMod) 4 else 6,
             pc = ParamCollection(),
