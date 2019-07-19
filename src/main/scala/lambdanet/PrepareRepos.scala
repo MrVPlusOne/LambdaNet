@@ -72,7 +72,7 @@ object PrepareRepos {
     val trainSetDir: Path = pwd / up / "lambda-repos" / "trainSet"
     val devSetDir: Path = pwd / up / "lambda-repos" / "devSet"
     val parsed = announced("parsePredGraphs")(
-      parseRepos(trainSetDir, devSetDir, loadFromFile = true),
+      parseRepos(trainSetDir, devSetDir, loadFromFile = false),
     )
     val stats = repoStatistics(parsed.trainSet ++ parsed.devSet)
     printResult(stats.headers.zip(stats.average).toString())

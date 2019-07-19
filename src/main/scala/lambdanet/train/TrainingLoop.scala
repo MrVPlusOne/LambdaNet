@@ -29,7 +29,7 @@ import scala.language.reflectiveCalls
 
 object TrainingLoop {
   val toyMod: Boolean = false
-  val taskName = "dropout64"
+  val taskName = "annotated"
   val resultsDir = {
     import ammonite.ops._
     pwd / "running-result" / taskName
@@ -141,7 +141,7 @@ object TrainingLoop {
               checkShouldStop(epoch)
               architecture.dropoutStorage = Some(new ParamCollection())
               for {
-                (loss, fwd, _) <- forward(datum).tap(
+                (loss, fwd, pred) <- forward(datum).tap(
                   _.foreach(r => printResult(r._2)),
                 )
                 _ = checkShouldStop(epoch)
@@ -154,7 +154,7 @@ object TrainingLoop {
                     pc.allParams,
                     backPropInParallel =
                       Some(parallelCtx -> Timeouts.optimizationTimeout),
-                    gradientTransform = _.clipNorm(2 * factor),
+                    gradientTransform = _.clipNorm(1 * factor),
                   )
                 }
 

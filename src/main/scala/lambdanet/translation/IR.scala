@@ -184,7 +184,8 @@ class IRTranslation(allocator: PNodeAllocator) {
   def fromQModule(module: QModule): IRModule = {
     mapping.clear()
     val stmts1 = module.stmts.flatMap(translateStmt)
-    IRModule(module.path, stmts1, module.mapping ++ mapping)
+    assert(mapping.keySet.intersect(module.mapping.keySet).isEmpty)
+    IRModule(module.path, stmts1, module.mapping ++ mapping.toMap)
   }
 
   private def translateStmt(s: QStmt): Vector[IRStmt] = {
@@ -198,34 +199,28 @@ class IRTranslation(allocator: PNodeAllocator) {
         val (defs, initE) = translateExpr2(init)
         defs ++ Vector(VarDef(v, initE, isConst))
       case QLang.AssignStmt(lhs, rhs) =>
-        val (lDefs, lE) = translateExpr2(lhs)
-        val (rDefs, rE) = translateExpr2(rhs)
-        val (defs3, lV) = exprAsPNode(lE)
-        val (defs4, rV) = exprAsPNode(rE)
-        (lDefs ++ rDefs ++ defs3 ++ defs4) :+ AssignStmt(lV, rV)
+        val (defs3, lV) = exprAsPNode(lhs)
+        val (defs4, rV) = exprAsPNode(rhs)
+        (defs3 ++ defs4) :+ AssignStmt(lV, rV)
       case QLang.ReturnStmt(expr, ret) =>
-        val (defs, e) = translateExpr2(expr)
-        val (defs2, r) = exprAsPNode(e)
-        defs ++ defs2 :+ ReturnStmt(r, ret)
+        val (defs2, r) = exprAsPNode(expr)
+        defs2 :+ ReturnStmt(r, ret)
       case QLang.ExprStmt(expr) =>
-        val (defs, e) = translateExpr2(expr)
-        val (defs2, _) = exprAsPNode(e)
-        defs ++ defs2
+        val (defs2, _) = exprAsPNode(expr)
+        defs2
       case QLang.IfStmt(cond, branch1, branch2) =>
-        val (condDef, condE) = translateExpr2(cond)
-        val (condDef2, condV) = exprAsPNode(condE)
+        val (condDef2, condV) = exprAsPNode(cond)
         val branch1Stmt = makeSureInBlock(translateStmt(branch1))
         val branch2Stmt = makeSureInBlock(translateStmt(branch2))
         val ifStmt = IfStmt(condV, branch1Stmt, branch2Stmt)
-        condDef ++ condDef2 :+ ifStmt
+        condDef2 :+ ifStmt
       case QLang.WhileStmt(cond, body) =>
-        val (condDef, condE) = translateExpr2(cond)
-        val (condDef2, condV) = exprAsPNode(condE)
+        val (condDef2, condV) = exprAsPNode(cond)
         // recompute the conditional expression value at the end of the loop
         val condCompute =
-          (condDef ++ condDef2).filterNot(_.isInstanceOf[VarDef])
+          condDef2.filterNot(_.isInstanceOf[VarDef])
         val bodyStmt = makeSureInBlock(translateStmt(body) ++ condCompute)
-        condDef ++ condDef2 :+ WhileStmt(condV, bodyStmt)
+        condDef2 :+ WhileStmt(condV, bodyStmt)
       case b: QLang.BlockStmt =>
         Vector(makeSureInBlock(b.stmts.flatMap(translateStmt)))
       case f: QLang.FuncDef =>
@@ -255,13 +250,8 @@ class IRTranslation(allocator: PNodeAllocator) {
 
     def rec(expr: QExpr): W[IRExpr] = {
       def asVar(expr: QExpr): W[PNode] = {
-        rec(expr).flatMap { e =>
-          val (stmts, v) = exprAsPNode(e)
-          if(v.fromProject) {
-            mapping(v) = expr.tyAnnot
-          }
-          v.writer(stmts)
-        }
+        val (stmts, v) = exprAsPNode(expr)
+        v.writer(stmts)
       }
 
       def pure(ex: IRExpr): W[IRExpr] = ex.pure[W]
@@ -278,7 +268,9 @@ class IRTranslation(allocator: PNodeAllocator) {
         case QLang.Cast(e, ty) =>
           val node = allocator.newNode(None, isType = false)
           asVar(e).map{v =>
-            mapping(node) = Annot.Fixed(ty)
+            if(v.fromProject) {
+              mapping(node) = Annot.Fixed(ty)
+            }
             Cast(v, node)
           }
         case QLang.ObjLiteral(fields) =>
@@ -300,11 +292,13 @@ class IRTranslation(allocator: PNodeAllocator) {
     rec(expr).run
   }
 
-  private def exprAsPNode(expr: IRExpr): (Vector[IRStmt], PNode) =
-    expr match {
+  private def exprAsPNode( qExpr: QExpr): (Vector[IRStmt], PNode) = {
+    val (defs, expr) = translateExpr2(qExpr)
+    val (defs2, n) = expr match {
       case v: Var => (Vector(), v.node)
       case _ =>
         val v = allocator.newNode(None, isType = false)
+        mapping(v) = qExpr.tyAnnot
         Vector(
           VarDef(
             v,
@@ -313,5 +307,7 @@ class IRTranslation(allocator: PNodeAllocator) {
           ),
         ) -> v
     }
+    (defs ++ defs2, n)
+  }
 
 }

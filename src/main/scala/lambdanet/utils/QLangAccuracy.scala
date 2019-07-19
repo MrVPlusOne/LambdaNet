@@ -52,9 +52,9 @@ object QLangAccuracy {
       occurrenceMap(m.stmts)
     }
 
-    private val annots = modules.flatMap {
+    val annots = modules.flatMap {
       _.mapping.collect {
-        case (k, Annot.User(t)) if t.madeFromLibTypes => k -> t
+        case (k, Annot.User(t)) if k.fromProject && t.madeFromLibTypes => k -> t
       }
     }.toMap
 
@@ -84,7 +84,7 @@ object QLangAccuracy {
         val rightQ = predictions.get(node) match {
           case Some(t1) => t1.take(n).contains(t)
           case None =>
-            lambdanet.printWarning("Prediction missing!")
+            lambdanet.printWarning(s"Prediction missing for $node of type $t")
             false
         }
         val w = nodeWeight(node)
