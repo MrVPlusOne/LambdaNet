@@ -169,7 +169,7 @@ object IR {
 
   case class ClassDef(
       classNode: PNode,
-      superType: Option[PTyVar],
+      superTypes: Set[PTyVar],
       vars: Map[Symbol, PNode],
       funcDefs: Map[Symbol, FuncDef],
   ) extends IRStmt {

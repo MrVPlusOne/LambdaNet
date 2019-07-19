@@ -239,7 +239,7 @@ object Surface {
   case class ClassDef(
       name: Symbol,
       tyVars: Vector[Symbol],
-      superType: Option[Symbol] = None,
+      superTypes: Set[Symbol],
       vars: Map[Symbol, TyAnnot],
       funcDefs: Vector[FuncDef],
       exportLevel: ExportLevel.Value,
@@ -258,6 +258,7 @@ object Surface {
       tyVars: Vector[Symbol],
       ty: GType,
       exportLevel: ExportLevel.Value,
+      superTypes: Set[Symbol],
   ) extends GStmt
 
   case class NamespaceAliasStmt(name: Symbol, rhs: Vector[Symbol]) extends GStmt
@@ -328,14 +329,15 @@ object Surface {
         case ClassDef(
             name,
             tyVars,
-            superType,
+            superTypes,
             vars,
             funcDefs,
             level,
             ) =>
-          val superPart = superType
-            .map(t => s" extends $t")
-            .getOrElse("")
+          val superPart =
+            if (superTypes.nonEmpty)
+              " extends " + superTypes.mkString(" with ")
+            else ""
           val tyVarPart = tyVarClause(tyVars)
           Vector(
             indent -> s"${asPrefix(level)}class ${name.name}$tyVarPart$superPart {",
@@ -348,12 +350,16 @@ object Surface {
               prettyPrintHelper(indent + 1, fDef)
             } ++
             Vector(indent -> "}")
-        case TypeAliasStmt(name, tyVars, ty, level) =>
+        case TypeAliasStmt(name, tyVars, ty, level, superTypes) =>
           val tyVarList =
             if (tyVars.isEmpty) ""
             else tyVars.map(_.name).mkString("<", ",", ">")
+          val superPart =
+            if (superTypes.nonEmpty)
+              " extends " + superTypes.mkString(" with ")
+            else ""
           Vector(
-            indent -> s"${asPrefix(level)}type ${name.name}$tyVarList = $ty;",
+            indent -> s"${asPrefix(level)}type ${name.name}$tyVarList = $ty$superPart;",
           )
         case Namespace(name, block, level) =>
           (indent -> s"${asPrefix(level)}namespace ${name.name}") +:

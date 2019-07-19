@@ -373,7 +373,7 @@ class TypeAliasStmt implements GStmt {
   category: string = "TypeAliasStmt";
 
   constructor(public name: string, public tyVars: string[], public type: GType,
-              public modifiers: string[], public superType: string | null) {
+              public modifiers: string[], public superTypes: string[]) {
     mustExist(name);
     mustExist(tyVars);
     mustExist(type);
@@ -434,7 +434,7 @@ class ClassDef implements GStmt {
               public staticLambdas: FuncDef[],
               public vars: NamedValue<[GMark, GExpr, boolean]>[],
               public funcDefs: [FuncDef, boolean][],
-              public superType: string | null, public modifiers: string[],
+              public superTypes: string[], public modifiers: string[],
               public tyVars: string[]) {
   }
 }
@@ -945,14 +945,11 @@ export class StmtParser {
 
             const name = n.name ? n.name.text : "DefaultClass";
 
-            let superType: string | null = null;
+            let superTypes: string[] = [];
             if (n.heritageClauses) {
               let clauses = n.heritageClauses;
               for (const c of clauses) {
-                if (c.token == ts.SyntaxKind.ExtendsKeyword) {
-                  superType = c.types[0].expression.getText(); //todo: handle more cases
-                  // superType = mustExist((c.types[0].expression as any)["name"]) as string;
-                }
+                superTypes.push(c.types[0].expression.getText());
               }
             }
 
@@ -1001,7 +998,7 @@ export class StmtParser {
             let classStmt = new ClassDef(name, constructor,
               instanceEp.lambdaDefs, staticEp.lambdaDefs,
               vars, funcDefs,
-              superType, classModifiers, tVars);
+              superTypes, classModifiers, tVars);
 
             return EP.alongWith(classStmt);
           }
@@ -1073,19 +1070,17 @@ export class StmtParser {
             return EP.alongWithMany([
               new VarDef(n.name.text, "missing", rhs,
                 true, mds),
-              new TypeAliasStmt(n.name.text, [], enumEquiv, mds, null)
+              new TypeAliasStmt(n.name.text, [], enumEquiv, mds, [])
             ]);
           }
           case SyntaxKind.InterfaceDeclaration: {
             let n = node as ts.InterfaceDeclaration;
 
-            let superType: string | null = null;
+            let superTypes: string[] = [];
             if (n.heritageClauses) {
               let clauses = n.heritageClauses;
               for (const c of clauses) {
-                if (c.token == ts.SyntaxKind.ExtendsKeyword) {
-                  superType = c.types[0].expression.getText(); //todo: handle more cases
-                }
+                superTypes.push(c.types[0].expression.getText());
               }
             }
 
@@ -1093,7 +1088,7 @@ export class StmtParser {
             let members = n.members.map(parseTypeMember);
             let objT = new ObjectType(members); //todo: handle inheritance
             return EP.alongWith(
-              new TypeAliasStmt(n.name.text, tVars, objT, parseModifiers(n.modifiers), superType));
+              new TypeAliasStmt(n.name.text, tVars, objT, parseModifiers(n.modifiers), superTypes));
           }
           case SyntaxKind.TypeAliasDeclaration: {
             let n = node as ts.TypeAliasDeclaration;
@@ -1104,7 +1099,7 @@ export class StmtParser {
                 tVars,
                 parseTypeNode(n.type),
                 parseModifiers(n.modifiers),
-                null));
+                []));
           }
           case SyntaxKind.TryStatement: {
             let n = node as ts.TryStatement;

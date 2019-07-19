@@ -75,7 +75,7 @@ object PLang {
       name: Symbol,
       classNode: PNode,
       thisNode: PNode,
-      superType: Option[Symbol] = None,
+      superTypes: Set[Symbol],
       vars: Map[Symbol, PNode],
       funcDefs: Vector[FuncDef],
       exportLevel: ExportLevel.Value,
@@ -93,6 +93,7 @@ object PLang {
   case class TypeAliasStmt(
       name: Symbol,
       node: PNode,
+      superTypes: Set[Symbol],
       exportLevel: ExportLevel.Value,
   ) extends PStmt
 
@@ -188,11 +189,11 @@ object PLangTranslation {
               ),
               exportLevel,
             )
-          case Surface.TypeAliasStmt(name, tyVars, ty, exportLevel) =>
+          case Surface.TypeAliasStmt(name, tyVars, ty, exportLevel, superTypes) =>
             val newTyVars: Set[Symbol] = outerTyVars ++ tyVars
             val newTy = monotype(ty)(newTyVars)
             val node = allocate(Some(name), Annot.Fixed(newTy), isTerm = false)
-            TypeAliasStmt(name, node, exportLevel)
+            TypeAliasStmt(name, node, superTypes, exportLevel)
           // uninteresting cases
           case Surface.IfStmt(cond, branch1, branch2) =>
             IfStmt(cond, translateStmt(branch1), translateStmt(branch2))

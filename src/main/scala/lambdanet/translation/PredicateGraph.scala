@@ -345,7 +345,7 @@ object PredicateGraphTranslation {
             add(DefineRel(f.funcNode, f.pType))
             encodeStmt(f.body)
           case c: ClassDef =>
-            c.superType.foreach(
+            c.superTypes.foreach(
               tv => add(InheritanceRel(c.classNode, tv.node)),
             )
             add(DefineRel(c.classNode, c.pType))

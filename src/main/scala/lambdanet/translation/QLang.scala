@@ -59,7 +59,7 @@ object QLang {
 
   case class ClassDef(
       classNode: PNode,
-      superType: Option[PTyVar],
+      superTypes: Set[PTyVar],
       vars: Map[Symbol, PNode],
       funcDefs: Map[Symbol, FuncDef],
   ) extends QStmt
@@ -427,7 +427,7 @@ object QLangTranslation {
                 _,
                 classNode,
                 thisNode,
-                superType,
+                superTypes,
                 vars,
                 funcDefs,
                 _,
@@ -451,7 +451,7 @@ object QLangTranslation {
               Vector(
                 ClassDef(
                   classNode,
-                  superType.map(
+                  superTypes.map(
                     t => resolveType(TyVar(t)).asInstanceOf[PTyVar],
                   ),
                   vars,
@@ -460,7 +460,12 @@ object QLangTranslation {
               )
             case a: PLang.TypeAliasStmt =>
               mapNode(a.node)
-              Vector()
+              if(a.superTypes.nonEmpty){
+                val superTypes = a.superTypes.map(
+                  t => resolveType(TyVar(t)).asInstanceOf[PTyVar],
+                )
+                Vector(ClassDef(a.node, superTypes, Map(), Map()))
+              }else Vector()
             case PLang.Namespace(name, block, _) =>
               val ctx1 = ctx |+| ctx.internalSymbols(name).namespace.get
               block.stmts.flatMap(s => translateStmt(s)(ctx1))

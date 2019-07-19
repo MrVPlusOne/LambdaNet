@@ -127,9 +127,15 @@ object QLangDisplay {
             ) ++
               rec(indent, makeSureInBlockQ(bd))
           case ClassDef(n, superType, vars, funcDefs) =>
-            val superPart = superType
-              .map(t => code(key(" extends "), t.toString))
-              .getOrElse(code(""))
+            val superPart =
+              if (superType.nonEmpty)
+                mkSpan(
+                  superType.map(_.toString: Output).toVector,
+                  " extends ",
+                  " with ",
+                  "",
+                )
+              else code("")
             Vector(
               indent -> code(key("class "), n, superPart, "{"),
             ) ++
@@ -207,7 +213,8 @@ object QLangDisplay {
       }
 
     val f = pwd / RelPath("data/toy")
-    val (g, qModules, annts) = prepareProject(libDefs, f, skipSet = Set(), useInferred = false)
+    val (g, qModules, annts) =
+      prepareProject(libDefs, f, skipSet = Set(), useInferred = false)
 
     val groundTruth = annts.map { case (k, v) => k.n -> v }
     val prediction = groundTruth.updated(

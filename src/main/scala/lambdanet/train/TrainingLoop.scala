@@ -29,7 +29,7 @@ import scala.language.reflectiveCalls
 
 object TrainingLoop {
   val toyMod: Boolean = false
-  val taskName = "simpleFunction"
+  val taskName = "extendsAlias"
   val resultsDir = {
     import ammonite.ops._
     pwd / "running-result" / taskName
@@ -141,7 +141,7 @@ object TrainingLoop {
               checkShouldStop(epoch)
               architecture.dropoutStorage = Some(new ParamCollection())
               for {
-                (loss, fwd, pred) <- forward(datum).tap(
+                (loss, fwd, _) <- forward(datum).tap(
                   _.foreach(r => printResult(r._2)),
                 )
                 _ = checkShouldStop(epoch)

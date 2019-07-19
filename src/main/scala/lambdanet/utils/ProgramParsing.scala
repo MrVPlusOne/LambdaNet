@@ -538,10 +538,12 @@ case class ProgramParsing(useInferred: Boolean) {
             aliases(a.name) = a
           case a: TypeAliasStmt =>
             // merge interfaces
-            val o1 = aliases(a.name).ty.asInstanceOf[ObjectType]
+            val old = aliases(a.name)
+            val o1 = old.ty.asInstanceOf[ObjectType]
             val o2 = a.ty.asInstanceOf[ObjectType]
             aliases(a.name) =
-              TypeAliasStmt(a.name, a.tyVars, o1.merge(o2), a.exportLevel)
+              TypeAliasStmt(a.name, a.tyVars, o1.merge(o2), a.exportLevel,
+                old.superTypes ++ a.superTypes)
           case BlockStmt(s2) =>
             stmts1 ++= mergeInterfaces(s2)
           case Namespace(symbol, block, exportLevel) =>
@@ -628,10 +630,11 @@ case class ProgramParsing(useInferred: Boolean) {
           val tyVars = asVector(map("tyVars")).map(asSymbol)
           val ty = parseType(map("type"))
           val ms = parseModifiers(map("modifiers"))
-          Vector(TypeAliasStmt(name, tyVars, ty, ms.exportLevel))
+          val superTypes = asArray(map("superTypes")).map(asSymbol).toSet
+          Vector(TypeAliasStmt(name, tyVars, ty, ms.exportLevel, superTypes))
         case "ClassDef" =>
           val name = asSymbol(map("name"))
-          val superType = asOptionSymbol(map("superType"))
+          val superTypes = asArray(map("superTypes")).map(asSymbol).toSet
           val ms = parseModifiers(map("modifiers"))
           val tyVars = asVector(map("tyVars")).map(asSymbol)
           val vars = asVector(map("vars")).map { v1 =>
@@ -740,7 +743,7 @@ case class ProgramParsing(useInferred: Boolean) {
             ClassDef(
               name,
               tyVars,
-              superType,
+              superTypes,
               instanceVars.toMap,
               instanceMethods,
               ms.exportLevel,
