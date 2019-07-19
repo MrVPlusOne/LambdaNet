@@ -44,6 +44,14 @@ object DataSet {
             SM.readObjectFromFile[ParsedRepos](parsedRepoPath.toIO)
           }
 
+      val funcTypeNode = libDefs.baseCtx.internalSymbols('Function).ty.get
+      val objTypeNode = libDefs.baseCtx.internalSymbols('Object).ty.get
+      def nonGenerify(ty: PType): PType = ty match {
+        case _: PFuncType => PTyVar(funcTypeNode)
+        case _: PObjectType => PTyVar(objTypeNode)
+        case _ => ty
+      }
+
       def libNodeType(n: LibNode) =
         libDefs
           .nodeMapping(n.n)
@@ -77,7 +85,8 @@ object DataSet {
                 nameEncoder.encode,
                 taskSupport,
               )
-            Datum(path, annotations, qModules, predictor)
+            val annots1 = annotations.mapValuesNow{ nonGenerify }
+            Datum(path, annots1, qModules, predictor)
               .tap(printResult)
         }
 

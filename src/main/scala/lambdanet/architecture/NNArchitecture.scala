@@ -155,12 +155,12 @@ abstract class NNArchitecture(
     val inputs1 = singleLayer(
       'similarityInputs,
       inputMatrix,
-      useDropout = dropoutStorage.nonEmpty,
+//      useDropout = dropoutStorage.nonEmpty,
     )
     val candidates1 = singleLayer(
       'similarityCandidates,
       candidateMatrix,
-      useDropout = dropoutStorage.nonEmpty,
+//      useDropout = dropoutStorage.nonEmpty,
     )
     inputs1.dot(candidates1.t) / dimMessage
   }
