@@ -29,7 +29,7 @@ import scala.language.reflectiveCalls
 
 object TrainingLoop {
   val toyMod: Boolean = false
-  val taskName = "annotated"
+  val taskName = "lastDropout"
   val resultsDir = {
     import ammonite.ops._
     pwd / "running-result" / taskName

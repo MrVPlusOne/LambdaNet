@@ -152,8 +152,16 @@ abstract class NNArchitecture(
       inputMatrix: CompNode,
       candidateMatrix: CompNode,
   ): CompNode = {
-    val inputs1 = singleLayer('similarityInputs, inputMatrix)
-    val candidates1 = singleLayer('similarityCandidates, candidateMatrix)
+    val inputs1 = singleLayer(
+      'similarityInputs,
+      inputMatrix,
+      useDropout = dropoutStorage.nonEmpty,
+    )
+    val candidates1 = singleLayer(
+      'similarityCandidates,
+      candidateMatrix,
+      useDropout = dropoutStorage.nonEmpty,
+    )
     inputs1.dot(candidates1.t) / dimMessage
   }
 
@@ -263,7 +271,11 @@ abstract class NNArchitecture(
   }
 
   val singleLayerModel = "2 FCs"
-  def singleLayer(path: SymbolPath, input: CompNode): CompNode = {
+  def singleLayer(
+      path: SymbolPath,
+      input: CompNode,
+      useDropout: Boolean = false,
+  ): CompNode = {
     def oneLayer(name: Symbol)(input: CompNode) = {
       val p = path / name
       val r = linear(p, dimMessage)(input) ~> relu
@@ -280,7 +292,9 @@ abstract class NNArchitecture(
       r
     }
 
-    input ~> oneLayer('L1) ~> oneLayer('L2)
+    if (useDropout)
+      input ~> oneLayer('L1) ~> dropout(0.75) ~> oneLayer('L2) ~> dropout(0.5)
+    else input ~> oneLayer('L1) ~> oneLayer('L2)
   }
 
   val encodePosition = {
