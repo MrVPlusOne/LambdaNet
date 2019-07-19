@@ -127,7 +127,7 @@ object TensorExtension {
     def requireNonZero(tolerance: Double = zeroTolerance): Unit = {
       if (checkNaN) {
         require(
-          data.data.forall(x => math.abs(x) >= tolerance),
+          (ns.abs(data) >= tolerance).forall,
           s"Tensor contains zero element: $data",
         )
       }
@@ -139,7 +139,7 @@ object TensorExtension {
     ): Unit = {
       if (checkNaN) {
         require(
-          ns.sum(data > tolerance) == data.shape.sizes.product,
+          (data > tolerance).forall,
           s"Tensor contains negative element: $data. $info",
         )
       }

@@ -186,7 +186,8 @@ package object numsca {
   def transpose(x: Tensor): Tensor = x.transpose()
   def transpose(x: Tensor, axes: Array[Int]): Tensor = x.transpose(axes: _*)
 
-  def arrayEqual(t1: Tensor, t2: Tensor): Boolean = numsca.prod(t1 == t2) == 1
+  def arrayEqual(t1: Tensor, t2: Tensor): Boolean =
+    numsca.prod((t1 == t2).boolToFloating) == 1
 
   def any(x: Tensor): Boolean = {
     require(x.isBoolean)

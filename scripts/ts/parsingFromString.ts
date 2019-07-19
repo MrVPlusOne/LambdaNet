@@ -11,11 +11,13 @@ let program = ts.createProgram([], {
   target: ts.ScriptTarget.ES2018,
   module: ts.ModuleKind.CommonJS
 });
-let checker = program.getTypeChecker();
+
+const checker = program.getTypeChecker();
+program.getSemanticDiagnostics();
 
 let out: GStmt[] = [];
 
-let parser = new parsing.StmtParser();
+let parser = new parsing.StmtParser(checker);
 
 source.statements.forEach(s => {
   let r = parser.parseStmt(s);

@@ -76,9 +76,9 @@ class Tensor(val array: INDArray, val isBoolean: Boolean = false)
   def /(other: Tensor): Tensor = Ops.div(this, other)
   def %(other: Tensor): Tensor = Ops.mod(this, other)
   def >(other: Tensor): Tensor = Ops.gt(this, other)
-  def >=(other: Tensor): Tensor = Ops.gte(this, other)
+//  def >=(other: Tensor): Tensor = Ops.gte(this, other)
   def <(other: Tensor): Tensor = Ops.lt(this, other)
-  def <=(other: Tensor): Tensor = Ops.lte(this, other)
+//  def <=(other: Tensor): Tensor = Ops.lte(this, other)
   def ==(other: Tensor): Tensor = Ops.eq(this, other)
   def !=(other: Tensor): Tensor = Ops.neq(this, other)
 
@@ -92,12 +92,25 @@ class Tensor(val array: INDArray, val isBoolean: Boolean = false)
     new Tensor(Transforms.max(this.array.add(other.array), 1.0), true)
   }
 
+  def forall: Boolean = array.all()
+
+  def any: Boolean = array.any()
+
   /**
     * broadcast argument tensor with shape of this tensor
     */
   private def bc(t: Tensor): INDArray = {
     if (t.shape == this.shape) t.array
-    else t.array.broadcast(shape.sizes: _*)
+    else {
+      val rankDiff = this.shape.rank - t.shape.rank
+      if(rankDiff > 0){
+        val fill = Vector.fill(rankDiff)(1L)
+        val s1 = t.shape.sizes ++ fill
+        t.array.reshape(s1 :_*).broadcast(shape.sizes: _*)
+      }else {
+        t.array.broadcast(shape.sizes: _*)
+      }
+    }
   }
 
   def +=(t: Tensor): Unit = array addi bc(t)

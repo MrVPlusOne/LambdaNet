@@ -147,7 +147,7 @@ class ParserTests extends WordSpec with MyTest {
 //        """".stripMargin
       ).mkString("\n")
 
-    val stmts = ProgramParsing(useInferred = true).parseContent(content)
+    val stmts = ProgramParsing(useInferred = false).parseContent(content)
     stmts.foreach(println)
   }
 

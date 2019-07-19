@@ -233,16 +233,18 @@ class GradientMatrixTest extends TestUtils {
 
     unaryOps.foreach {
       case (name, op) =>
+        println(s"In $name")
         val a = const(ns.randn(unaryTestInputShape: _*))
         nOpGradientCheck(f = {
           case Seq(x1) => op(x1)
         }, IS(a), name)
+
     }
   }
 
   "Softmax with masked logits" should "has the same value" in {
     val x = ns.randn(20, 10)
-    val mask = ns.randn(20, 10) > 0
+    val mask = (ns.randn(20, 10) > 0).boolToFloating
 
     val original = {
       val y = ns.softmax(x) * mask

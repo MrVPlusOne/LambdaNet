@@ -155,7 +155,7 @@ object DiffFunc {
         : Tensor = ns.maximum(x1.value, 0.0) + ns.minimum(x1.value, 0.0) * slope
 
     def backprop1(grad: Gradient): Gradient = {
-      grad * ((x1.value > 0) + (x1.value < 0) * slope)
+      grad * ((x1.value > 0).boolToFloating + (x1.value < 0).boolToFloating * slope)
     }
 
     def name: String = s"leakyRelu{slope=$slope}"
@@ -281,7 +281,7 @@ object DiffFunc {
 
     def backProp2(grad: Gradient): (Gradient, Gradient) = {
       val dx1 = (grad / x2.value).unbroadcast(x1.shape)
-      val dx2 = (-grad * x1.value / (x2.value ** 2)).unbroadcast(x2.shape)
+      val dx2 = (-grad * x1.value / (x2.value * x2.value)).unbroadcast(x2.shape)
       (dx1, dx2)
     }
 
@@ -329,8 +329,8 @@ object DiffFunc {
     val value: Tensor = ns.maximum(x1.value, x2.value)
 
     def backProp2(grad: Gradient): (Gradient, Gradient) = {
-      (grad * (x1.value >= x2.value)).unbroadcast(x1.shape) ->
-        (grad * (x1.value <= x2.value)).unbroadcast(x2.shape)
+      (grad * (x1.value > x2.value).boolToFloating).unbroadcast(x1.shape) ->
+        (grad * (x1.value < x2.value).boolToFloating).unbroadcast(x2.shape)
     }
 
     def name: String = "maxBinary"

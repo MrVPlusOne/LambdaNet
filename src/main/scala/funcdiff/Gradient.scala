@@ -45,7 +45,7 @@ sealed trait Gradient {
   def subGradient(subRegion: Seq[Range]): Gradient
 
   def toTensor(): Tensor = {
-    val r = numsca.zeros(shape)
+    val r = numsca.zeros(shape())
     addToTensor(r)
     r
   }

@@ -30,7 +30,7 @@ trait TestUtils extends FlatSpec with Matchers with LazyLogging {
       f: Tensor => Tensor,
       x: Tensor,
       df: Tensor,
-      h: Double = 1e-5,
+      h: Double = 1e-6,
   ): Tensor = {
     val grad = ns.zeros(x.shape)
 
@@ -109,7 +109,7 @@ trait TestUtils extends FlatSpec with Matchers with LazyLogging {
     for (dOut <- Seq(zeroGrad, denseGrad, inflatedGrad)) {
       val testName = s"$name(${dOut.getClass.getSimpleName})"
 
-      val s = dOut.shape
+      val s = dOut.shape()
       val t = ns.rand(s)
       assert(
         relError((dOut * t).toTensor(), dOut.toTensor() * t) < 1e-5,

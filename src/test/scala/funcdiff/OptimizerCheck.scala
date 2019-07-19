@@ -5,14 +5,14 @@ import funcdiff.Optimizer._
 
 class OptimizerCheck extends TestUtils {
   val optimizers =
-    Seq[Optimizer](SGD(learningRate = 0.25), Adam(learningRate = 0.1))
+    Seq[Optimizer](SGD(learningRate = 0.3), Adam(learningRate = 0.1))
 
   "All Optimizers" should "be able to solve this linear regression problem" in {
 
     for (optimizer <- optimizers) {
       val pc = ParamCollection()
 
-      ns.rand.setSeed(1)
+      ns.rand.setSeed(2)
 
       val data = ns.randn(3, 3)
       val w1 = ns.randn(3, 3)
