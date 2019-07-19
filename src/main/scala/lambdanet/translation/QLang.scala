@@ -65,6 +65,8 @@ object QLang {
   ) extends QStmt
 
   sealed trait QExpr {
+    var tyAnnot: PAnnot = _
+
     override def toString: String = this match {
       case Var(n) => n.toString
       case FuncCall(f, args) =>
@@ -266,7 +268,7 @@ object QLangTranslation {
               }
             }
 
-            expr match {
+            (expr match {
               case Surface.Var(s) =>
                 val nd = ctx.internalSymbols.getOrElse(s, {
                   printWarning(
@@ -323,6 +325,12 @@ object QLangTranslation {
                     asTerm(rec(e2, canBeNamespace = false)),
                   ),
                 )
+            }).tap {
+              case Right(e) =>
+                e.tyAnnot = expr.tyAnnot
+                  .getOrElse(Annot.Missing)
+                  .map(resolveType(_))
+              case _ =>
             }
           }
 

@@ -41,7 +41,6 @@ object Surface {
     *
     *  where x, l are [[Symbol]],
     *        t is [[GType]],
-    *        α is [[GTMark]]
     */
   // @formatter:on
   sealed trait GExpr {
@@ -58,6 +57,8 @@ object Surface {
     def prettyPrint: String = GExpr.prettyPrint(this)
 
     override def toString: String = prettyPrint
+
+    var tyAnnot: Option[TyAnnot] = None
   }
 
   case class Var(name: Symbol) extends GExpr

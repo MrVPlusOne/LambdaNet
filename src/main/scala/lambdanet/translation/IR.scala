@@ -179,14 +179,15 @@ object IR {
 }
 
 class IRTranslation(allocator: PNodeAllocator) {
-  val mapping: mutable.HashMap[PNode, PAnnot] = mutable.HashMap()
+  private val mapping: mutable.HashMap[PNode, PAnnot] = mutable.HashMap()
 
   def fromQModule(module: QModule): IRModule = {
+    mapping.clear()
     val stmts1 = module.stmts.flatMap(translateStmt)
-    IRModule(module.path, stmts1, module.mapping)
+    IRModule(module.path, stmts1, module.mapping ++ mapping)
   }
 
-  def translateStmt(s: QStmt): Vector[IRStmt] = {
+  private def translateStmt(s: QStmt): Vector[IRStmt] = {
     def translateFunc(f: QLang.FuncDef): FuncDef = {
       val body1 = makeSureInBlock(translateStmt(f.body))
       FuncDef(f.funcNode, f.args, f.returnType, body1)
@@ -254,8 +255,11 @@ class IRTranslation(allocator: PNodeAllocator) {
 
     def rec(expr: QExpr): W[IRExpr] = {
       def asVar(expr: QExpr): W[PNode] = {
-        rec(expr).flatMap { expr =>
-          val (stmts, v) = exprAsPNode(expr)
+        rec(expr).flatMap { e =>
+          val (stmts, v) = exprAsPNode(e)
+          if(v.fromProject) {
+            mapping(v) = expr.tyAnnot
+          }
           v.writer(stmts)
         }
       }
@@ -273,8 +277,10 @@ class IRTranslation(allocator: PNodeAllocator) {
           } yield IR.FuncCall(fV, argsV)
         case QLang.Cast(e, ty) =>
           val node = allocator.newNode(None, isType = false)
-          mapping(node) = Annot.Fixed(ty)
-          asVar(e).map(v => Cast(v, node))
+          asVar(e).map{v =>
+            mapping(node) = Annot.Fixed(ty)
+            Cast(v, node)
+          }
         case QLang.ObjLiteral(fields) =>
           fields.toVector
             .map { case (k, e) => asVar(e).map(k -> _) }

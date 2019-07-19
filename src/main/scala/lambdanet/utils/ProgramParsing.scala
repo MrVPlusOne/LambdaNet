@@ -273,42 +273,6 @@ object ProgramParsing {
     t
   }
 
-  private def parseGExpr(v: Js.Val): GExpr = {
-    val map = asObj(v)
-    asString(map("category")) match {
-      case "FuncCall" =>
-        val f = parseGExpr(map("f"))
-        val args = asArray(map("args")).map(parseGExpr)
-        FuncCall(f, args)
-
-      case "Var" =>
-        val name = asSymbol(map("name"))
-        Var(name)
-      case "Const" =>
-        val ty = parseType(map("ty")).asInstanceOf[GroundType]
-        val value = asString(map("value"))
-        val c = Const(value, ty)
-        c.line = asNumber(map("line")).toInt
-        c
-      case "ObjLiteral" =>
-        val obj = arrayToMap(map("fields"))
-        val objMap = obj.map { case (x, y) => (Symbol(x), parseGExpr(y)) }
-        ObjLiteral(objMap)
-      case "Access" =>
-        val expr = parseGExpr(map("expr"))
-        val field = asSymbol(map("field"))
-        Access(expr, field)
-      case "IfExpr" =>
-        val cond = parseGExpr(map("cond"))
-        val e1 = parseGExpr(map("e1"))
-        val e2 = parseGExpr(map("e2"))
-        //        val resultType = parseType(map("resultType"))
-        IfExpr(cond, e1, e2)
-
-      case cat => throw new Error(s"Unhandled GExpr case: $cat")
-    }
-  }
-
   private case class DefModifiers(
       isConst: Boolean,
       exportLevel: ExportLevel.Value,
@@ -549,11 +513,11 @@ case class ProgramParsing(useInferred: Boolean) {
           GModule(path, ms.toVector.flatMap(_.stmts), isIndex)
       }
       .toVector
-      .tap { _ =>
-        printResult(
-          s"Annotated: $numAnnotated, Inferred: $numInferred, Missing: $numMissing",
-        )
-      }
+//      .tap { _ =>
+//        printResult(
+//          s"Annotated: $numAnnotated, Inferred: $numInferred, Missing: $numMissing",
+//        )
+//      }
   }
 
   private def parseGModule(v: Js.Val): GModule = {
@@ -810,6 +774,42 @@ case class ProgramParsing(useInferred: Boolean) {
   private def parseArgList(value: Js.Val): Vector[(Symbol, GTMark)] = {
     val list = asVector(value)
     list.map(parseArgPair)
+  }
+
+  private def parseGExpr(v: Js.Val): GExpr = {
+    val map = asObj(v)
+    (asString(map("category")) match {
+      case "FuncCall" =>
+        val f = parseGExpr(map("f"))
+        val args = asArray(map("args")).map(parseGExpr)
+        FuncCall(f, args)
+      case "Var" =>
+        val name = asSymbol(map("name"))
+        Var(name)
+      case "Const" =>
+        val ty = parseType(map("ty")).asInstanceOf[GroundType]
+        val value = asString(map("value"))
+        val c = Const(value, ty)
+        c.line = asNumber(map("line")).toInt
+        c
+      case "ObjLiteral" =>
+        val obj = arrayToMap(map("fields"))
+        val objMap = obj.map { case (x, y) => (Symbol(x), parseGExpr(y)) }
+        ObjLiteral(objMap)
+      case "Access" =>
+        val expr = parseGExpr(map("expr"))
+        val field = asSymbol(map("field"))
+        Access(expr, field)
+      case "IfExpr" =>
+        val cond = parseGExpr(map("cond"))
+        val e1 = parseGExpr(map("e1"))
+        val e2 = parseGExpr(map("e2"))
+        IfExpr(cond, e1, e2)
+
+      case cat => throw new Error(s"Unhandled GExpr case: $cat")
+    }).tap{ e =>
+      e.tyAnnot = Some(parseGTMark(map("mark")))
+    }
   }
 
   var numAnnotated, numInferred, numMissing = 0

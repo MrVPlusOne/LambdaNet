@@ -253,10 +253,12 @@ class NamedValue<V> {
 
 interface GExpr {
   category: string
+  mark: GMark
 }
 
 class Var implements GExpr {
   category: string = "Var";
+  mark: GMark = "missing";
 
   constructor(public name: string) {
     mustExist(name);
@@ -265,30 +267,32 @@ class Var implements GExpr {
 
 class Const implements GExpr {
   category: string = "Const";
+  mark: GMark;
 
   constructor(public value: string, public ty: GType, public line: number) {
     mustExist(value);
+    this.mark = new Inferred(ty);
   }
 }
 
 class FuncCall implements GExpr {
   category: string = "FuncCall";
 
-  constructor(public f: GExpr, public args: GExpr[]) {
+  constructor(public f: GExpr, public args: GExpr[], public mark: GMark) {
   }
 }
 
 class ObjLiteral implements GExpr {
   category: string = "ObjLiteral";
 
-  constructor(public fields: NamedValue<GExpr>[]) {
+  constructor(public fields: NamedValue<GExpr>[], public mark: GMark) {
   }
 }
 
 class Access implements GExpr {
   category: string = "Access";
 
-  constructor(public expr: GExpr, public field: string) {
+  constructor(public expr: GExpr, public field: string, public mark: GMark) {
     mustExist(field);
   }
 }
@@ -296,7 +300,7 @@ class Access implements GExpr {
 class IfExpr implements GExpr {
   category: string = "IfExpr";
 
-  constructor(public cond: GExpr, public e1: GExpr, public e2: GExpr) {
+  constructor(public cond: GExpr, public e1: GExpr, public e2: GExpr, public mark: GMark) {
   }
 }
 
@@ -368,7 +372,8 @@ class ExportStmt implements GStmt {
 class TypeAliasStmt implements GStmt {
   category: string = "TypeAliasStmt";
 
-  constructor(public name: string, public tyVars: string[], public type: GType, public modifiers: string[]) {
+  constructor(public name: string, public tyVars: string[], public type: GType,
+              public modifiers: string[], public superType: string | null) {
     mustExist(name);
     mustExist(tyVars);
     mustExist(type);
@@ -480,11 +485,16 @@ type SpecialExpressions =
   JsxExpressions
 
 export function parseExpr(node: ts.Expression,
-                          allocateLambda: (f: ts.FunctionLikeDeclaration) => Var): GExpr {
+                          allocateLambda: (f: ts.FunctionLikeDeclaration) => Var,
+                          checker: ts.TypeChecker): GExpr {
 
   function rec(node: ts.Expression): GExpr {
     const n = node as SupportedExpression;
     mustExist(n);
+
+    function infer() {
+      return parseGMark(undefined, node, checker);
+    }
 
     switch (n.kind) {
       case SyntaxKind.Identifier: {
@@ -498,12 +508,12 @@ export function parseExpr(node: ts.Expression,
       case SyntaxKind.CallExpression: {
         let f = rec(n.expression);
         let args = n.arguments.map(rec);
-        return new FuncCall(f, args);
+        return new FuncCall(f, args, infer());
       }
       case SyntaxKind.NewExpression: {
         let args = n.arguments ? n.arguments.map(rec) : [];
-        let f = new Access(rec(n.expression), "CONSTRUCTOR");
-        return new FuncCall(f, args);
+        let f = new Access(rec(n.expression), "CONSTRUCTOR", "missing"); //todo: check this constructor thing
+        return new FuncCall(f, args, infer());
       }
       case SyntaxKind.ObjectLiteralExpression: {
         const fields = flatMap(n.properties, (p: ts.ObjectLiteralElementLike) => {
@@ -514,22 +524,22 @@ export function parseExpr(node: ts.Expression,
             return []; //todo: other cases
           }
         });
-        return new ObjLiteral(fields);
+        return new ObjLiteral(fields, infer());
       }
       case SyntaxKind.PropertyAccessExpression: {
         let lhs = rec(n.expression);
-        return new Access(lhs, n.name.text);
+        return new Access(lhs, n.name.text, infer());
       }
       case ts.SyntaxKind.ElementAccessExpression: {
         let thing = rec(n.expression);
         let index = rec(n.argumentExpression);
-        return new FuncCall(new Access(thing, "access"), [index]);
+        return new FuncCall(new Access(thing, "access", "missing"), [index], infer());
       }
       case ts.SyntaxKind.ConditionalExpression: {
         let cond = rec(n.condition);
         let e1 = rec(n.whenTrue);
         let e2 = rec(n.whenFalse);
-        return new IfExpr(cond, e1, e2);
+        return new IfExpr(cond, e1, e2, infer());
       }
       case ts.SyntaxKind.ParenthesizedExpression: {
         return rec(n.expression);
@@ -554,7 +564,7 @@ export function parseExpr(node: ts.Expression,
       case SyntaxKind.ArrayLiteralExpression: {
         const a = node as ts.ArrayLiteralExpression;
         const exs = a.elements.map(rec);
-        return new FuncCall(new Var("Array"), exs);
+        return new FuncCall(new Var("Array"), exs, infer());
       }
 
       // operators
@@ -563,14 +573,14 @@ export function parseExpr(node: ts.Expression,
         let r = rec(n.right);
         let opp = n.operatorToken.kind;
 
-        return new FuncCall(new Access(l, ts.SyntaxKind[opp]), [r]);
+        return new FuncCall(new Access(l, ts.SyntaxKind[opp], "missing"), [r], infer());
       }
       case SyntaxKind.PrefixUnaryExpression:
       case SyntaxKind.PostfixUnaryExpression: {
         let opName = ts.SyntaxKind[n["operator"]];
         let fixity = (node.kind == SyntaxKind.PrefixUnaryExpression) ? "" : "POST_";
         let arg = rec(n["operand"]);
-        return new FuncCall(new Var(fixity + opName), [arg]);
+        return new FuncCall(new Var(fixity + opName), [arg], infer());
       }
       case SyntaxKind.ArrowFunction:
       case SyntaxKind.FunctionExpression: {
@@ -583,10 +593,10 @@ export function parseExpr(node: ts.Expression,
 
       // Special treatments:
       case SyntaxKind.SpreadElement: {
-        return new FuncCall(SpecialVars.spread, [rec(n.expression)]);
+        return new FuncCall(SpecialVars.spread, [rec(n.expression)], infer());
       }
       case SyntaxKind.TypeOfExpression: {
-        return new FuncCall(SpecialVars.typeOf, [rec(n.expression)]);
+        return new FuncCall(SpecialVars.typeOf, [rec(n.expression)], infer());
       }
       case SyntaxKind.TaggedTemplateExpression:
       case SyntaxKind.NoSubstitutionTemplateLiteral:
@@ -594,13 +604,13 @@ export function parseExpr(node: ts.Expression,
         return constExpr("string");
       }
       case SyntaxKind.DeleteExpression: {
-        return new FuncCall(SpecialVars.DELETE, [rec(n.expression)]);
+        return new FuncCall(SpecialVars.DELETE, [rec(n.expression)], infer());
       }
       case SyntaxKind.YieldExpression: {
-        return new FuncCall(SpecialVars.YIELD, [rec(mustExist(n.expression))]);
+        return new FuncCall(SpecialVars.YIELD, [rec(mustExist(n.expression))], infer());
       }
       case SyntaxKind.AwaitExpression: {
-        return new FuncCall(SpecialVars.AWAIT, [rec(n.expression)]);
+        return new FuncCall(SpecialVars.AWAIT, [rec(n.expression)], infer());
       }
       case SyntaxKind.NonNullExpression: {
         return rec(n.expression);
@@ -706,7 +716,7 @@ export class StmtParser {
           return new Var(name);
         }
 
-        return parseExpr(e, allocateLambda);
+        return parseExpr(e, allocateLambda, checker);
       }
 
       alongWith(...stmts: GStmt[]): StmtsHolder {
@@ -815,11 +825,11 @@ export class StmtParser {
                 case SyntaxKind.ObjectBindingPattern:
                   return flatMap(lhs.elements, (e: ts.BindingElement) => {
                     const fieldName = e.propertyName ? e.propertyName : e.name;
-                    const access = new Access(rhs, (fieldName as ts.Identifier).text);
+                    const access = new Access(rhs, (fieldName as ts.Identifier).text, "missing");
                     return parseBindingName(e.name, access);
                   });
                 case SyntaxKind.ArrayBindingPattern: {
-                  let arrayAccessed = new FuncCall(SpecialVars.ArrayAccess, [rhs]);
+                  let arrayAccessed = new FuncCall(SpecialVars.ArrayAccess, [rhs], "missing");
                   return flatMap(lhs.elements, (e: ts.ArrayBindingElement) => {
                     if (e.kind == SyntaxKind.OmittedExpression) {
                       return [];
@@ -936,7 +946,7 @@ export class StmtParser {
             const name = n.name ? n.name.text : "DefaultClass";
 
             let superType: string | null = null;
-            if (n.heritageClauses != undefined) {
+            if (n.heritageClauses) {
               let clauses = n.heritageClauses;
               for (const c of clauses) {
                 if (c.token == ts.SyntaxKind.ExtendsKeyword) {
@@ -998,7 +1008,7 @@ export class StmtParser {
           case SyntaxKind.SwitchStatement: {
             let n = node as ts.SwitchStatement;
 
-            let switchCall = new FuncCall(SpecialVars.SWITCH, [EP.processExpr(n.expression)]);
+            let switchCall = new FuncCall(SpecialVars.SWITCH, [EP.processExpr(n.expression)], "missing");
 
             let clauses = flatMap(
               n.caseBlock.clauses,
@@ -1006,7 +1016,7 @@ export class StmtParser {
                 let body = flatMap(c.statements, (s: ts.Statement) => rec(s).stmts);
                 switch (c.kind) {
                   case SyntaxKind.CaseClause:
-                    let f = new FuncCall(SpecialVars.CASE, [EP.processExpr((c as ts.CaseClause).expression)]);
+                    let f = new FuncCall(SpecialVars.CASE, [EP.processExpr((c as ts.CaseClause).expression)], "missing");
                     let all = [new ExprStmt(f, false) as GStmt].concat(body);
                     return EP.alongWithMany(all).stmts;
                   case SyntaxKind.DefaultClause:
@@ -1058,21 +1068,32 @@ export class StmtParser {
               return new NamedValue(vName,
                 new Const("ENUM", enumEquiv, getLineNumber(n)));
             });
-            const rhs = new ObjLiteral(vars);
+            const rhs = new ObjLiteral(vars, "missing");
             const mds = parseModifiers(n.modifiers);
             return EP.alongWithMany([
               new VarDef(n.name.text, "missing", rhs,
                 true, mds),
-              new TypeAliasStmt(n.name.text, [], enumEquiv, mds)
+              new TypeAliasStmt(n.name.text, [], enumEquiv, mds, null)
             ]);
           }
           case SyntaxKind.InterfaceDeclaration: {
             let n = node as ts.InterfaceDeclaration;
+
+            let superType: string | null = null;
+            if (n.heritageClauses) {
+              let clauses = n.heritageClauses;
+              for (const c of clauses) {
+                if (c.token == ts.SyntaxKind.ExtendsKeyword) {
+                  superType = c.types[0].expression.getText(); //todo: handle more cases
+                }
+              }
+            }
+
             let tVars = parseTVars(n);
             let members = n.members.map(parseTypeMember);
             let objT = new ObjectType(members); //todo: handle inheritance
             return EP.alongWith(
-              new TypeAliasStmt(n.name.text, tVars, objT, parseModifiers(n.modifiers)));
+              new TypeAliasStmt(n.name.text, tVars, objT, parseModifiers(n.modifiers), superType));
           }
           case SyntaxKind.TypeAliasDeclaration: {
             let n = node as ts.TypeAliasDeclaration;
@@ -1082,7 +1103,8 @@ export class StmtParser {
                 n.name.text,
                 tVars,
                 parseTypeNode(n.type),
-                parseModifiers(n.modifiers)));
+                parseModifiers(n.modifiers),
+                null));
           }
           case SyntaxKind.TryStatement: {
             let n = node as ts.TryStatement;
