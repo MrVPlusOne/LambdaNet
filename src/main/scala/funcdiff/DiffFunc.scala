@@ -329,7 +329,7 @@ object DiffFunc {
     val value: Tensor = ns.maximum(x1.value, x2.value)
 
     def backProp2(grad: Gradient): (Gradient, Gradient) = {
-      (grad * (x1.value > x2.value).boolToFloating).unbroadcast(x1.shape) ->
+      (grad * (1.0 - (x1.value < x2.value).boolToFloating)).unbroadcast(x1.shape) ->
         (grad * (x1.value < x2.value).boolToFloating).unbroadcast(x2.shape)
     }
 
