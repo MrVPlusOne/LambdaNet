@@ -114,7 +114,7 @@ object QLangTranslation {
       .map(f => f.relativeTo(root))
     val allStmts =
       ProgramParsing
-        .parseGModulesFromFiles(files, root)
+        .parseGModulesFromFiles(files, root, useInferred = true)
         .map(_.stmts)
         .reduce(_ ++ _)
     val m =

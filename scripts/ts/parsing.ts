@@ -19,7 +19,21 @@ export function mustExist<T>(v?: T, msg?: string): T {
 }
 
 // ASTs
-type GMark = GType | null;
+type GMark = UserAnnot | Inferred | "missing";
+
+class UserAnnot {
+  public readonly category = "UserAnnot";
+
+  constructor(public ty: GType) {
+  }
+}
+
+class Inferred {
+  public readonly category = "Inferred";
+
+  constructor(public ty: GType) {
+  }
+}
 
 
 type GType = TVar | AnyType | FuncType | ObjectType
@@ -58,15 +72,17 @@ class ObjectType {
 
 export const anyType = AnyType.instance;
 
-let basicTypes = new Set<SyntaxKind>();
-basicTypes.add(SyntaxKind.BooleanKeyword);
-basicTypes.add(SyntaxKind.NumberKeyword);
-basicTypes.add(SyntaxKind.StringKeyword);
-basicTypes.add(SyntaxKind.SymbolKeyword);
-basicTypes.add(SyntaxKind.EnumKeyword);
-basicTypes.add(SyntaxKind.VoidKeyword);
-basicTypes.add(SyntaxKind.ObjectKeyword);
-basicTypes.add(SyntaxKind.BigIntKeyword);
+let basicTypes = new Map<SyntaxKind, string>();
+basicTypes.set(SyntaxKind.BooleanKeyword, "boolean");
+basicTypes.set(SyntaxKind.TrueKeyword, "boolean");
+basicTypes.set(SyntaxKind.FalseKeyword, "boolean");
+basicTypes.set(SyntaxKind.NumberKeyword, "number");
+basicTypes.set(SyntaxKind.StringKeyword, "string");
+basicTypes.set(SyntaxKind.SymbolKeyword, "Symbol");
+basicTypes.set(SyntaxKind.EnumKeyword, "Enum");
+basicTypes.set(SyntaxKind.VoidKeyword, "void");
+basicTypes.set(SyntaxKind.ObjectKeyword, "object");
+basicTypes.set(SyntaxKind.BigIntKeyword, "BigInt");
 
 let ignoredTypes = new Set<SyntaxKind>();
 ignoredTypes.add(SyntaxKind.MappedType);
@@ -108,12 +124,25 @@ function eliminateTypeVars(ty: GType, tVars: string[]): GType {
   }
 }
 
-function parseSignatureType(sig: ts.SignatureDeclarationBase) {
+function parseSignatureType(sig: ts.SignatureDeclarationBase): FuncType {
   let tVars = parseTVars(sig);
   let argTypes = sig.parameters.map(p =>
-    p.type ? eliminateTypeVars(parseType(mustExist(p.type)), tVars) : anyType);
-  let retType = sig.type ? eliminateTypeVars(parseType(sig.type), tVars) : new TVar("void");
+    p.type ? eliminateTypeVars(parseTypeNode(mustExist(p.type)), tVars) : anyType);
+  let retType = sig.type ? eliminateTypeVars(parseTypeNode(sig.type), tVars) : new TVar("void");
   return new FuncType(argTypes, retType);
+}
+
+function parseDeclarationName(n: ts.DeclarationName): string  {
+  switch(n.kind){
+    case SyntaxKind.Identifier:
+      return n.text;
+    case SyntaxKind.StringLiteral:
+      return n.text;
+    case SyntaxKind.NumericLiteral:
+      return n.text;
+    default:
+      return "UnhandledDeclarationName";
+  }
 }
 
 function parseTypeMember(member: ts.NamedDeclaration): NamedValue<GType> {
@@ -121,11 +150,11 @@ function parseTypeMember(member: ts.NamedDeclaration): NamedValue<GType> {
     if (SyntaxKind.PropertyDeclaration == member.kind || SyntaxKind.PropertySignature == member.kind) {
       const x = (member as ts.PropertyDeclaration | ts.PropertySignature);
 
-      return (new NamedValue(x.name.getText(), x.type ? parseType(x.type) : anyType));
+      return (new NamedValue(parseDeclarationName(x.name), x.type ? parseTypeNode(x.type) : anyType));
     } else if (SyntaxKind.MethodSignature == member.kind || SyntaxKind.MethodDeclaration == member.kind) {
       const x = (member as ts.MethodSignature | ts.MethodDeclaration);
       return (new NamedValue(
-        x.name.getText(),
+        parseDeclarationName(x.name),
         parseSignatureType(x as ts.MethodSignature)));
     } else {
       throw new Error("Unknown type member kind: " + SyntaxKind[member.kind]);
@@ -142,21 +171,31 @@ function parseTypeMember(member: ts.NamedDeclaration): NamedValue<GType> {
   }
 }
 
-function parseType(node: ts.TypeNode): GType {
-  if (node.kind == SyntaxKind.AnyKeyword) {
+
+function parseEntityName(n: ts.EntityName): string {
+  if(n.kind == SyntaxKind.Identifier){
+    return n.text;
+  }else {
+    return parseEntityName(n.left) + "." + n.right.text;
+  }
+}
+
+// todo: differential testing with parseType
+function parseTypeNode(node: ts.TypeNode): GType {
+  if (node.kind == SyntaxKind.AnyKeyword || node.kind == SyntaxKind.ThisKeyword) {
     return anyType;
   } else if (ts.isTypeReferenceNode(node)) {
     let n = node as ts.TypeReferenceNode;
-    return new TVar(n.typeName.getText());
+    return new TVar(parseEntityName(n.typeName));
   } else if (basicTypes.has(node.kind)) {
-    return new TVar(node.getText());
+    return new TVar(basicTypes.get(node.kind)!);
   } else if (node.kind == SyntaxKind.ArrayType) {
     return new TVar("Array");
   } else if (node.kind == SyntaxKind.FunctionType || node.kind == SyntaxKind.ConstructorType) {
     let n = node as ts.FunctionOrConstructorTypeNode;
-    let ret: GType = parseType(n.type);
+    let ret: GType = parseTypeNode(n.type);
     let args: GType[] = n.parameters.map(p => {
-      return p.type ? parseType(p.type) : anyType;
+      return p.type ? parseTypeNode(p.type) : anyType;
     });
 
     return eliminateTypeVars(new FuncType(args, ret), parseTVars(n));
@@ -167,9 +206,10 @@ function parseType(node: ts.TypeNode): GType {
   } else if (node.kind == SyntaxKind.UnionType) {
     let n = node as ts.UnionTypeNode;
     if (n.types.length == 2) {
-      let second = n.types[1].getText();
-      if (second == "null" || second == "undefined") {
-        return parseType(n.types[0]);
+      let second = parseTypeNode(n.types[1]);
+      if (second.category == "TVar" &&
+        (second.name == "null" || second.name == "undefined")) {
+        return parseTypeNode(n.types[0]);
       } else {
         return anyType;
       }
@@ -194,8 +234,8 @@ function parseType(node: ts.TypeNode): GType {
     return anyType;
   } else if (node.kind == SyntaxKind.ParenthesizedType) {
     let n = node as ts.ParenthesizedTypeNode;
-    return parseType(n.type);
-  } else if (node.kind == SyntaxKind.FirstTypeNode) {
+    return parseTypeNode(n.type);
+  } else if (node.kind == SyntaxKind.FirstTypeNode || node.kind == SyntaxKind.LastTypeNode) {
     return new TVar("boolean");
   } else if (node.kind == SyntaxKind.TupleType) {
     return new TVar("Array");
@@ -205,15 +245,6 @@ function parseType(node: ts.TypeNode): GType {
     throw new Error("Unknown Type Kind: " + ts.SyntaxKind[node.kind]);
   }
 }
-
-export function parseMark(node?: ts.TypeNode): GMark {
-  if (!node) {
-    return null;
-  } else {
-    return parseType(node);
-  }
-}
-
 
 class NamedValue<V> {
   constructor(public name: string, public value: V) {
@@ -374,7 +405,8 @@ class FuncDef implements GStmt {
   constructor(public name: string, public args: NamedValue<GMark>[], public returnType: GMark,
               public body: GStmt, public modifiers: string[], public tyVars: string[]) {
     mustExist(name);
-    if ((name == "Constructor") && returnType && (returnType as TVar).name != 'void') {
+    if ((name == "Constructor") && returnType &&
+      ((returnType as UserAnnot).ty as TVar).name != 'void') {
       throw new Error("Wrong return type for constructor. Got: " + returnType);
     }
   }
@@ -519,7 +551,7 @@ export function parseExpr(node: ts.Expression,
         return constExpr("void", "void");
       }
 
-      case SyntaxKind.ArrayLiteralExpression:{
+      case SyntaxKind.ArrayLiteralExpression: {
         const a = node as ts.ArrayLiteralExpression;
         const exs = a.elements.map(rec);
         return new FuncCall(new Var("Array"), exs);
@@ -583,8 +615,8 @@ export function parseExpr(node: ts.Expression,
         return rec(n.expression);
       }
       case SyntaxKind.ImportKeyword:
-      case SyntaxKind.ClassExpression:{
-        return undefinedValue //todo: properly handle
+      case SyntaxKind.ClassExpression: {
+        return undefinedValue; //todo: properly handle
       }
 
       default: {
@@ -612,10 +644,41 @@ export function parseExpr(node: ts.Expression,
 
 export const undefinedValue = new Var("undefined");
 
+export function parseGMark(tyNode: ts.TypeNode | undefined,
+                           node: ts.Node | undefined,
+                           checker: ts.TypeChecker): GMark {
+  if (!tyNode) {
+    if (node) {
+      const ty = checker.getTypeAtLocation(node);
+      const n = checker.typeToTypeNode(ty);
+      const t = n ? parseTypeNode(n) : anyType;
+      if (t.category == "AnyType") {
+        return "missing";
+      } else {
+        return new Inferred(t);
+      }
+    } else {
+      return "missing";
+    }
+  } else {
+    return new UserAnnot(parseTypeNode(tyNode));
+  }
+}
+
 export class StmtParser {
   public nLambda: [number] = [0];
 
+  constructor(public checker: ts.TypeChecker) {
+  }
+
   parseStmt(node: ts.Node): GStmt[] {
+    const checker = this.checker;
+
+    function parseMark(tyNode: ts.TypeNode | undefined,
+                       node: ts.Node | undefined) {
+      return parseGMark(tyNode, node, checker);
+    }
+
     let getNLambda = this.nLambda;
 
     class StmtsHolder {
@@ -659,10 +722,26 @@ export class StmtParser {
      * returns the parsed FuncDef along with arguments that are marked
      * with 'public' (for constructors)
      */
-    function parseFunction(name: string, n: ts.FunctionLikeDeclaration | ts.IndexSignatureDeclaration, modifiers: string[]): FuncDef {
+    function parseFunction(name: string,
+                           n: ts.FunctionLikeDeclaration | ts.IndexSignatureDeclaration,
+                           modifiers: string[]): FuncDef {
+      function inferRetType(){
+        if(n.type) {
+          return parseMark(n.type, undefined);
+        }
+
+        const tNode = checker.typeToTypeNode(checker.getTypeAtLocation(n));
+        if(tNode) {
+          const t = parseTypeNode(tNode);
+          if(t.category == "FuncType"){
+            return new Inferred(t.to);
+          }
+        }
+        return "missing";
+      }
+
       const isConstructor = ts.isConstructorDeclaration(n);
-      let retType = isConstructor ? new TVar("void") :
-        parseMark(n.type);
+      const retType = isConstructor ? new UserAnnot(new TVar("void")) : inferRetType();
 
       let publicArgs: string[] = [];
 
@@ -679,7 +758,7 @@ export class StmtParser {
         if (parseModifiers(p.modifiers).includes("public")) {
           publicArgs.push(name);
         }
-        return new NamedValue(name, parseMark(p.type));
+        return new NamedValue(name, parseMark(p.type, undefined));
       });
 
       let body: StmtsHolder;
@@ -720,8 +799,8 @@ export class StmtParser {
             let isConst = (node.flags & ts.NodeFlags.Const) != 0;
 
             function parseVarDec(dec: ts.VariableDeclaration): VarDef[] {
-              const rhs = dec.initializer ? EP.processExpr(dec.initializer): undefinedValue;
-              return parseBindingName(dec.name, rhs, dec.type)
+              const rhs = dec.initializer ? EP.processExpr(dec.initializer) : undefinedValue;
+              return parseBindingName(dec.name, rhs, dec.type);
             }
 
             function parseBindingName(lhs: ts.BindingName, rhs: GExpr, ty?: ts.TypeNode): VarDef[] {
@@ -729,13 +808,13 @@ export class StmtParser {
                 case SyntaxKind.Identifier:
                   return [new VarDef(
                     lhs.text,
-                    parseMark(ty),
+                    parseMark(ty, lhs),
                     rhs,
                     isConst,
                     modifiers)];
                 case SyntaxKind.ObjectBindingPattern:
                   return flatMap(lhs.elements, (e: ts.BindingElement) => {
-                    const fieldName = e.propertyName ? e.propertyName: e.name;
+                    const fieldName = e.propertyName ? e.propertyName : e.name;
                     const access = new Access(rhs, (fieldName as ts.Identifier).text);
                     return parseBindingName(e.name, access);
                   });
@@ -883,7 +962,7 @@ export class StmtParser {
                 const init = v1.initializer ? ep.processExpr(v1.initializer) : undefinedValue;
                 vars.push(new NamedValue(
                   getPropertyName(v1.name),
-                  [parseMark(v1.type), init, staticQ]
+                  [parseMark(v1.type, v1), init, staticQ]
                 ));
               } else if (ts.isMethodDeclaration(v) || ts.isAccessor(v)) {
                 funcDefs.push([getSingleton(rec(v).stmts) as FuncDef, staticQ]);
@@ -963,7 +1042,7 @@ export class StmtParser {
               const text = `export default ${(e as Var).name}`;
               return EP.alongWith(new ExportStmt(text));
             } else {
-              return EP.alongWith(new VarDef("defaultVar", null, e, true,
+              return EP.alongWith(new VarDef("defaultVar", parseMark(undefined, n.expression), e, true,
                 ["export", "default"]));
             }
           }
@@ -982,7 +1061,7 @@ export class StmtParser {
             const rhs = new ObjLiteral(vars);
             const mds = parseModifiers(n.modifiers);
             return EP.alongWithMany([
-              new VarDef(n.name.text, null, rhs,
+              new VarDef(n.name.text, "missing", rhs,
                 true, mds),
               new TypeAliasStmt(n.name.text, [], enumEquiv, mds)
             ]);
@@ -1002,7 +1081,7 @@ export class StmtParser {
               new TypeAliasStmt(
                 n.name.text,
                 tVars,
-                parseType(n.type),
+                parseTypeNode(n.type),
                 parseModifiers(n.modifiers)));
           }
           case SyntaxKind.TryStatement: {
@@ -1038,7 +1117,7 @@ export class StmtParser {
           }
           case SyntaxKind.LabeledStatement: {
             const n = node as ts.LabeledStatement;
-            return rec(n.statement)
+            return rec(n.statement);
           }
 
           //todo: support these
@@ -1135,13 +1214,6 @@ export function forNode<T>(node: ts.Node, action: () => T): T {
   }
 }
 
-export function astPath(n: ts.Node): string[] {
-  const p = n.parent;
-  const path = p ? astPath(p) : [];
-  path.unshift(SyntaxKind[n.kind]);
-  return path;
-}
-
 export function getLineNumber(node: ts.Node): number {
   const src = node.getSourceFile();
   let {line} = src.getLineAndCharacterOfPosition(node.getStart());
@@ -1153,15 +1225,15 @@ export function parseFiles(sources: string[], libraryFiles: string[]): GModule[]
     target: ts.ScriptTarget.ES2015,
     module: ts.ModuleKind.CommonJS
   });
-  // program.getSemanticDiagnostics(null, null); //call this to store type info into nodes
+  program.getSemanticDiagnostics(undefined, undefined); //call this to store type info into nodes
 
-  program.getTypeChecker(); // must call this to link source files to nodes todo: try something faster
+  const checker = program.getTypeChecker(); // must call this to link source files to nodes todo: try something faster
 
   let sFiles: ts.SourceFile[] = sources.map(file => mustExist(program.getSourceFile(file),
     "getSourceFile failed for: " + file));
   mustExist(sFiles);
 
-  let parser = new StmtParser();
+  let parser = new StmtParser(checker);
 
   return sFiles.map((src, index) => {
     let stmts: GStmt[] = [];
@@ -1179,17 +1251,21 @@ export function parseFiles(sources: string[], libraryFiles: string[]): GModule[]
 }
 
 function handleError<T>(node: ts.Node, thunk: () => T): T {
-  try {
-    return thunk();
-  } catch (e) {
-    const line = getLineNumber(node);
-    console.log(`Failure occurred at line ${line}: ${node.getText()}`);
-    console.log(`Error message: ${e.message}`);
-    throw e;
-  }
+  return thunk();
+  // try {
+  //   return thunk();
+  // } catch (e) {
+  //   const line = getLineNumber(node);
+  //   console.log(`Failure occurred at line ${line}: ${node.getText()}`);
+  //   console.log(`Error message: ${e.message}`);
+  //   throw e;
+  // }
 }
 
-function useOrElse<T,G>(v: T|undefined|null, f: (_:T) => G, backup: G): G {
-  if(v) return f(v);
-  else return backup;
+function useOrElse<T, G>(v: T | undefined | null, f: (_: T) => G, backup: G): G {
+  if (v) {
+    return f(v);
+  } else {
+    return backup;
+  }
 }

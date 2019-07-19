@@ -49,26 +49,30 @@ object PrepareRepos {
     }
 
     val random = new Random(1)
-    def fromDir(dir: Path, maxNum: Int) =
+    def fromDir(dir: Path, maxNum: Int, useInferred: Boolean) =
       (ls ! dir)
         .filter(f => f.isDir)
         .pipe(random.shuffle(_))
         .take(maxNum)
         .par
         .map { f =>
-          val (a, b, c) = prepareProject(libDefs, f)
+          val (a, b, c) = prepareProject(libDefs, f, useInferred)
           ParsedProject(f.relativeTo(dir), a, b, c)
         }
         .toList
 
-    ParsedRepos(libDefs, fromDir(trainSetDir, 1000), fromDir(devSetDir, 1000))
+    ParsedRepos(
+      libDefs,
+      fromDir(trainSetDir, 1000, useInferred = true),
+      fromDir(devSetDir, 1000, useInferred = false),
+    )
   }
 
   def main(args: Array[String]): Unit = {
     val trainSetDir: Path = pwd / up / "lambda-repos" / "trainSet"
     val devSetDir: Path = pwd / up / "lambda-repos" / "devSet"
     val parsed = announced("parsePredGraphs")(
-      parseRepos(trainSetDir, devSetDir, loadFromFile = false),
+      parseRepos(trainSetDir, devSetDir, loadFromFile = true),
     )
     val stats = repoStatistics(parsed.trainSet ++ parsed.devSet)
     printResult(stats.headers.zip(stats.average).toString())
@@ -142,7 +146,11 @@ object PrepareRepos {
     println("parsing library modules...")
     val GProject(_, modules, mapping, subProjects, devDependencies) =
       ProgramParsing
-        .parseGProjectFromRoot(declarationsDir, declarationFileMod = true)
+        .parseGProjectFromRoot(
+          declarationsDir,
+          declarationFileMod = true,
+          useInferred = true,
+        )
 
     println("parsing PModules...")
     val pModules =
@@ -246,6 +254,7 @@ object PrepareRepos {
   def prepareProject(
       libDefs: LibDefs,
       root: Path,
+      useInferred: Boolean,
       skipSet: Set[String] = Set("dist", "__tests__", "test", "tests"),
   ): (PredicateGraph, Vector[QModule], Map[ProjNode, PType]) =
     SimpleMath.withErrorMessage(s"In project: $root") {
@@ -255,7 +264,11 @@ object PrepareRepos {
         path.segments.forall(!skipSet.contains(_))
       }
 
-      val p = ProgramParsing.parseGProjectFromRoot(root, filter = filterTests)
+      val p = ProgramParsing.parseGProjectFromRoot(
+        root,
+        useInferred,
+        filter = filterTests,
+      )
       val allocator = new PNodeAllocator(forLib = false)
       val irTranslator = new IRTranslation(allocator)
 

@@ -10,6 +10,7 @@ import lambdanet.translation.ImportsResolution.PathMapping
 import lambdanet.translation.makeSureInBlockSurface
 
 import scala.collection.mutable
+import ProgramParsing._
 
 /** Parsing Typescript into the surface language */
 object ProgramParsing {
@@ -61,6 +62,7 @@ object ProgramParsing {
 
   def parseGProjectFromRoot(
       root: Path,
+      useInferred: Boolean,
       declarationFileMod: Boolean = false,
       filter: Path => Boolean = _ => true,
   ): GProject = {
@@ -147,23 +149,11 @@ object ProgramParsing {
 
     GProject(
       root,
-      ProgramParsing.parseGModulesFromFiles(sources, root),
+      ProgramParsing.parseGModulesFromFiles(sources, root, useInferred),
       mapping,
       subProjects,
       devDependencies,
     )
-  }
-
-  def parseContent(content: String): Vector[GStmt] = {
-    SimpleMath.withErrorMessage(
-      "failed when parsing content: \n" + content,
-    ) {
-      val r = %%('node, "./parsingFromString.js", content)(pwd / 'scripts / 'ts)
-      val json = ProgramParsing.parseJson(r.out.string).asInstanceOf[Js.Arr]
-      json.value.toVector.flatMap {
-        parseGStmt
-      }
-    }
   }
 
   def parseJson(text: String): Js.Val = {
@@ -193,6 +183,7 @@ object ProgramParsing {
   def parseGModulesFromFiles(
       srcFiles: Seq[RelPath],
       projectRoot: Path,
+      useInferred: Boolean,
   ): Vector[GModule] = {
     val r = %%(
       'node,
@@ -207,21 +198,7 @@ object ProgramParsing {
       throw new Error(s"TS compiler parsing failed: ${r.out.string}")
     }
     val parsedJson = r.out.string
-    parseGModulesFromJson(parsedJson)
-  }
-
-  /** Parses a sequence of [[GModule]] from Json string. These strings can be
-    * generated through [[parseGModulesFromFiles]] when writeToFile is set to none-empty. */
-  def parseGModulesFromJson(parsedJson: String): Vector[GModule] = {
-    val modules = ProgramParsing.parseJson(parsedJson).asInstanceOf[Js.Arr]
-    modules.value
-      .map(parseGModule)
-      .groupBy(m => (m.isDeclarationFile, m.path))
-      .map {
-        case ((isIndex, path), ms) =>
-          GModule(path, ms.toVector.flatMap(_.stmts), isIndex)
-      }
-      .toVector
+    ProgramParsing(useInferred).parseGModulesFromJson(parsedJson)
   }
 
   def asString(v: Js.Val): String = v.asInstanceOf[Str].value
@@ -296,24 +273,6 @@ object ProgramParsing {
     t
   }
 
-  private def parseArgPair(value: Js.Val): (Symbol, GTMark) = {
-    val (name, v) = parseNamedValue(value)
-    val ty = parseGTMark(v)
-    (Symbol(name), ty)
-  }
-
-  private def parseArgList(value: Js.Val): Vector[(Symbol, GTMark)] = {
-    val list = asVector(value)
-    list.map(parseArgPair)
-  }
-
-  private def parseGTMark(v: Js.Val): GTMark = {
-    v match {
-      case Null => Annot.Missing
-      case _    => Annot.User(parseType(v))
-    }
-  }
-
   private def parseGExpr(v: Js.Val): GExpr = {
     val map = asObj(v)
     asString(map("category")) match {
@@ -370,6 +329,278 @@ object ProgramParsing {
     val isSetter = modifiers.contains("set")
     val isAbstract = modifiers.contains("abstract")
     DefModifiers(isConst, exportLevel, isGetter, isSetter, isAbstract)
+  }
+
+  def isDeclarationFileName(name: String): Boolean = {
+    name.endsWith(".d.ts")
+  }
+
+  import fastparse.JavaWhitespace._
+  import fastparse.Parsed.{Failure, Success}
+  import fastparse._
+  import lambdanet.ImportStmt._
+
+  object ImportPattern {
+    sealed trait ImportClause
+    case class Default(s: Symbol) extends ImportClause
+    case class Singles(symbols: Vector[(Symbol, Symbol)]) extends ImportClause
+    case class Module(newName: Symbol) extends ImportClause
+
+    def unapply(v: Js.Val): Option[Vector[ImportStmt]] = {
+      val map = asObj(v)
+      asString(map("category")) match {
+        case "ImportStmt" =>
+          val importString = StringContext.treatEscapes(asString(map("text")))
+          Some(parseImports(importString))
+        case _ => None
+      }
+    }
+
+    //  def spaceSep[_: P]: P[Unit] = P(CharsWhileIn(" \r\n", 1))
+
+    def identifier[_: P]: P[String] = CharsWhileIn("a-zA-Z0-9$_").!
+
+    def path[_: P]: P[ReferencePath] =
+      P(JsonParsing.string | JsonParsing.singleQuoteString)
+        .map { s =>
+          val str = s.value
+          val isRelative = str.startsWith(".")
+          ReferencePath(RelPath(str), isRelative)
+        }
+
+    def parseImports(importText: String): Vector[ImportStmt] = {
+
+      def importDefault[_: P]: P[Default] = P(identifier).map { name =>
+        Default(Symbol(name))
+      }
+
+      def importModule[_: P]: P[Module] =
+        P("*" ~/ "as" ~ identifier).map { name =>
+          Module(Symbol(name))
+        }
+
+      def clause[_: P]: P[(String, Option[String])] =
+        P(identifier ~ ("as" ~/ identifier).?)
+
+      def importSingles[_: P]: P[Singles] =
+        P("{" ~/ clause.rep(min = 1, sep = ",") ~ ",".? ~ "}")
+          .map { clauses =>
+            Singles(clauses.map {
+              case (oldName, newNameOpt) =>
+                val newName = Symbol(newNameOpt.getOrElse(oldName))
+                (Symbol(oldName), newName)
+            }.toVector)
+          }
+
+      def parseImportClause[_: P]: P[ImportClause] = {
+        importSingles | importModule | importDefault
+      }
+
+      def parseImportEquals[_: P]: P[ImportStmt] = {
+        P(
+          "import" ~ identifier ~ "=" ~/ "require(" ~/ path ~ ")" ~ (";" | End),
+        ).map {
+          case (name, path: ReferencePath) =>
+            ImportSingle(Symbol("$ExportEquals"), path, Symbol(name))
+        }
+      }
+
+      def stmt[_: P]: P[Vector[ImportStmt]] = {
+        def normalImports =
+          P(
+            "import" ~ parseImportClause
+              .rep(min = 1, sep = ",") ~/ "from" ~ path ~ (";" | End),
+          ).map {
+            case (clauses, p) =>
+              clauses.toVector.flatMap {
+                case Default(s) => Vector(ImportDefault(p, s))
+                case Singles(pairs) =>
+                  pairs.map {
+                    case (oldName, newName) => ImportSingle(oldName, p, newName)
+                  }
+                case Module(n) => Vector(ImportModule(p, n))
+              }
+          }
+        def importForSideEffects =
+          P("import" ~ path ~ (";" | End)).map(_ => Vector())
+
+        parseImportEquals.map(Vector(_)) | normalImports | importForSideEffects
+      }
+
+      parse(importText, stmt(_)) match {
+        case Success(value, _) => value
+        case f: Failure =>
+          throw new Error(
+            s"Failed to parse import statement: '$importText', errors: ${f.trace().longMsg}",
+          )
+      }
+    }
+  }
+
+  object ExportPattern {
+    import lambdanet.ExportStmt._
+
+    def unapply(v: Js.Val): Option[Vector[ExportStmt]] = {
+      val map = asObj(v)
+      asString(map("category")) match {
+        case "ExportStmt" =>
+          val str = StringContext.treatEscapes(asString(map("text")))
+          Some(parseExports(str))
+        //      case "TypeAliasStmt" =>
+        //        val name = Symbol(asString(map("name")))
+        //        val tVars = asVector(map("tyVars")).map(asSymbol)
+        //        val `type` = ProgramParsing.parseType(map("type"))
+        //        Some(Vector(ExportTypeAlias(name, tVars, `type`)))
+        case _ => None
+      }
+    }
+
+    def parseExports(str: String): Vector[ExportStmt] = {
+      import ImportPattern.{identifier, path}
+
+      type Creator = Option[ReferencePath] => Vector[ExportStmt]
+
+      def exportDefault[_: P]: P[Creator] =
+        P("{" ~ "default" ~/ ("as" ~/ identifier).? ~ "}").map {
+          newNameOpt => p =>
+            Vector(ExportDefault(newNameOpt.map(Symbol.apply), p))
+        }
+
+      def exportDefault2[_: P]: P[Creator] =
+        P("default" ~ identifier)
+          .map(n => p => Vector(ExportDefault(Some(Symbol(n)), p)))
+
+      def exportSingles[_: P]: P[Creator] =
+        P(
+          "{" ~ (identifier ~/ ("as" ~/ identifier).?)
+            .rep(min = 1, sep = ",") ~ ",".? ~ "}",
+        ).map { clauses => p =>
+          clauses.toVector.map {
+            case (oldName, newNameOpt) =>
+              ExportSingle(
+                Symbol(oldName),
+                Symbol(newNameOpt.getOrElse(oldName)),
+                p,
+              )
+          }
+        }
+
+      def exportFromOther[_: P]: P[Creator] = {
+        P("*").map(
+          _ => p => Vector(ExportOtherModule(p.get)),
+        )
+      }
+
+      def exportNamespace[_: P]: P[Vector[ExportStmt]] =
+        P(
+          "export" ~ "as" ~ "namespace" ~/ identifier,
+        ).map { name =>
+          val s = Symbol(name)
+          Vector(ExportSingle(s, s, None))
+        }
+
+//      def exportAssign[_: P] =
+//        P("export" ~ "=" ~/ identifier).map { name =>
+//          Vector(ExportDefault(name, None))
+//        }
+
+      def exportRest[_: P] =
+        P(
+          "export" ~/ (exportFromOther | exportDefault | exportDefault2 | exportSingles)
+            ~ ("from" ~/ path).?,
+        ).map { case (creator, p) => creator(p) }
+
+      def stmt[_: P]: P[Vector[ExportStmt]] =
+        (exportNamespace | exportRest) ~ ";".?
+
+      parse(str, stmt(_)) match {
+        case Success(value, _) => value
+        case f: Failure =>
+          throw new Error(
+            s"Failed to parse export statement: '$str', errors: ${f.trace().longMsg}",
+          )
+      }
+    }
+  }
+}
+
+case class ProgramParsing(useInferred: Boolean) {
+  def parseContent(content: String): Vector[GStmt] = {
+    SimpleMath.withErrorMessage(
+      "failed when parsing content: \n" + content,
+    ) {
+      val r = %%('node, "./parsingFromString.js", content)(pwd / 'scripts / 'ts)
+      val json = ProgramParsing.parseJson(r.out.string).asInstanceOf[Js.Arr]
+      json.value.toVector.flatMap {
+        parseGStmt
+      }
+    }
+  }
+
+  /** Parses a sequence of [[GModule]] from Json string. These strings can be
+    * generated through [[parseGModulesFromFiles]] when writeToFile is set to none-empty. */
+  def parseGModulesFromJson(parsedJson: String): Vector[GModule] = {
+    val modules = ProgramParsing.parseJson(parsedJson).asInstanceOf[Js.Arr]
+    modules.value
+      .map(parseGModule)
+      .groupBy(m => (m.isDeclarationFile, m.path))
+      .map {
+        case ((isIndex, path), ms) =>
+          GModule(path, ms.toVector.flatMap(_.stmts), isIndex)
+      }
+      .toVector
+      .tap { _ =>
+        printResult(
+          s"Annotated: $numAnnotated, Inferred: $numInferred, Missing: $numMissing",
+        )
+      }
+  }
+
+  private def parseGModule(v: Js.Val): GModule = {
+    def removeSuffix(name: String, ext: String): String = {
+      if (name.endsWith(ext)) name.dropRight(ext.length)
+      else name
+    }
+
+    val obj = asObj(v)
+    val name = asString(obj("name"))
+
+    SimpleMath.withErrorMessage(s"Error when parsing module: $name") {
+      def mergeInterfaces(stmts: Vector[GStmt]): Vector[GStmt] = {
+        val aliases = mutable.HashMap[Symbol, TypeAliasStmt]()
+        var stmts1 = Vector[GStmt]()
+        stmts.foreach {
+          case a: TypeAliasStmt if !aliases.contains(a.name) =>
+            aliases(a.name) = a
+          case a: TypeAliasStmt =>
+            // merge interfaces
+            val o1 = aliases(a.name).ty.asInstanceOf[ObjectType]
+            val o2 = a.ty.asInstanceOf[ObjectType]
+            aliases(a.name) =
+              TypeAliasStmt(a.name, a.tyVars, o1.merge(o2), a.exportLevel)
+          case BlockStmt(s2) =>
+            stmts1 ++= mergeInterfaces(s2)
+          case Namespace(symbol, block, exportLevel) =>
+            val block1 = BlockStmt(mergeInterfaces(block.stmts))
+            stmts1 :+= Namespace(symbol, block1, exportLevel)
+          case other => stmts1 :+= other // I'm just lazy
+        }
+        aliases.values.toVector ++ stmts1
+      }
+
+      val stmts1 =
+        SimpleMath.withErrorMessage(s"Error when parsing module: $name") {
+          asVector(obj("stmts")).flatMap(parseGStmt)
+        }
+      val stmts2 = mergeInterfaces(stmts1)
+
+      val modulePath = RelPath(
+        Seq(".d.ts", ".tsx", ".ts").foldLeft(name)(
+          (n, ext) => removeSuffix(n, ext),
+        ),
+      )
+      GModule(modulePath, stmts2, isDeclarationFileName(name))
+    }
   }
 
   private def parseGStmt(v: Js.Val): Vector[GStmt] =
@@ -570,251 +801,33 @@ object ProgramParsing {
       }
     }
 
-  private def parseGModule(v: Js.Val): GModule = {
-    def removeSuffix(name: String, ext: String): String = {
-      if (name.endsWith(ext)) name.dropRight(ext.length)
-      else name
-    }
-
-    val obj = asObj(v)
-    val name = asString(obj("name"))
-
-    SimpleMath.withErrorMessage(s"Error when parsing module: $name") {
-      def mergeInterfaces(stmts: Vector[GStmt]): Vector[GStmt] = {
-        val aliases = mutable.HashMap[Symbol, TypeAliasStmt]()
-        var stmts1 = Vector[GStmt]()
-        stmts.foreach {
-          case a: TypeAliasStmt if !aliases.contains(a.name) =>
-            aliases(a.name) = a
-          case a: TypeAliasStmt =>
-            // merge interfaces
-            val o1 = aliases(a.name).ty.asInstanceOf[ObjectType]
-            val o2 = a.ty.asInstanceOf[ObjectType]
-            aliases(a.name) =
-              TypeAliasStmt(a.name, a.tyVars, o1.merge(o2), a.exportLevel)
-          case BlockStmt(s2) =>
-            stmts1 ++= mergeInterfaces(s2)
-          case Namespace(symbol, block, exportLevel) =>
-            val block1 = BlockStmt(mergeInterfaces(block.stmts))
-            stmts1 :+= Namespace(symbol, block1, exportLevel)
-          case other => stmts1 :+= other // I'm just lazy
-        }
-        aliases.values.toVector ++ stmts1
-      }
-
-      val stmts1 =
-        SimpleMath.withErrorMessage(s"Error when parsing module: $name") {
-          asVector(obj("stmts")).flatMap(parseGStmt)
-        }
-      val stmts2 = mergeInterfaces(stmts1)
-
-      val modulePath = RelPath(
-        Seq(".d.ts", ".tsx", ".ts").foldLeft(name)(
-          (n, ext) => removeSuffix(n, ext),
-        ),
-      )
-      GModule(modulePath, stmts2, isDeclarationFileName(name))
-    }
+  private def parseArgPair(value: Js.Val): (Symbol, GTMark) = {
+    val (name, v) = parseNamedValue(value)
+    val ty = parseGTMark(v)
+    (Symbol(name), ty)
   }
 
-  def isDeclarationFileName(name: String): Boolean = {
-    name.endsWith(".d.ts")
+  private def parseArgList(value: Js.Val): Vector[(Symbol, GTMark)] = {
+    val list = asVector(value)
+    list.map(parseArgPair)
   }
 
-  import fastparse.JavaWhitespace._
-  import fastparse.Parsed.{Failure, Success}
-  import fastparse._
-  import lambdanet.ImportStmt._
-
-  object ImportPattern {
-    sealed trait ImportClause
-    case class Default(s: Symbol) extends ImportClause
-    case class Singles(symbols: Vector[(Symbol, Symbol)]) extends ImportClause
-    case class Module(newName: Symbol) extends ImportClause
-
-    def unapply(v: Js.Val): Option[Vector[ImportStmt]] = {
-      val map = asObj(v)
+  var numAnnotated, numInferred, numMissing = 0
+  private def parseGTMark(v: Js.Val): GTMark = (v: @unchecked) match {
+    case Str("missing") =>
+      numMissing += 1
+      Annot.Missing
+    case Obj(map) =>
       asString(map("category")) match {
-        case "ImportStmt" =>
-          val importString = StringContext.treatEscapes(asString(map("text")))
-          Some(parseImports(importString))
-        case _ => None
+        case "UserAnnot" =>
+          numAnnotated += 1
+          Annot.User(parseType(map("ty")))
+        case "Inferred" if useInferred =>
+          numInferred += 1
+          Annot.User(parseType(map("ty")))
+        case "Inferred" if !useInferred =>
+          numMissing += 1
+          Annot.Missing
       }
-    }
-
-    //  def spaceSep[_: P]: P[Unit] = P(CharsWhileIn(" \r\n", 1))
-
-    def identifier[_: P]: P[String] = CharsWhileIn("a-zA-Z0-9$_").!
-
-    def path[_: P]: P[ReferencePath] =
-      P(JsonParsing.string | JsonParsing.singleQuoteString)
-        .map { s =>
-          val str = s.value
-          val isRelative = str.startsWith(".")
-          ReferencePath(RelPath(str), isRelative)
-        }
-
-    def parseImports(importText: String): Vector[ImportStmt] = {
-
-      def importDefault[_: P]: P[Default] = P(identifier).map { name =>
-        Default(Symbol(name))
-      }
-
-      def importModule[_: P]: P[Module] =
-        P("*" ~/ "as" ~ identifier).map { name =>
-          Module(Symbol(name))
-        }
-
-      def clause[_: P]: P[(String, Option[String])] =
-        P(identifier ~ ("as" ~/ identifier).?)
-
-      def importSingles[_: P]: P[Singles] =
-        P("{" ~/ clause.rep(min = 1, sep = ",") ~ ",".? ~ "}")
-          .map { clauses =>
-            Singles(clauses.map {
-              case (oldName, newNameOpt) =>
-                val newName = Symbol(newNameOpt.getOrElse(oldName))
-                (Symbol(oldName), newName)
-            }.toVector)
-          }
-
-      def parseImportClause[_: P]: P[ImportClause] = {
-        importSingles | importModule | importDefault
-      }
-
-      def parseImportEquals[_: P]: P[ImportStmt] = {
-        P(
-          "import" ~ identifier ~ "=" ~/ "require(" ~/ path ~ ")" ~ (";" | End),
-        ).map {
-          case (name, path: ReferencePath) =>
-            ImportSingle(Symbol("$ExportEquals"), path, Symbol(name))
-        }
-      }
-
-      def stmt[_: P]: P[Vector[ImportStmt]] = {
-        def normalImports =
-          P(
-            "import" ~ parseImportClause
-              .rep(min = 1, sep = ",") ~/ "from" ~ path ~ (";" | End),
-          ).map {
-            case (clauses, p) =>
-              clauses.toVector.flatMap {
-                case Default(s) => Vector(ImportDefault(p, s))
-                case Singles(pairs) =>
-                  pairs.map {
-                    case (oldName, newName) => ImportSingle(oldName, p, newName)
-                  }
-                case Module(n) => Vector(ImportModule(p, n))
-              }
-          }
-        def importForSideEffects =
-          P("import" ~ path ~ (";" | End)).map(_ => Vector())
-
-        parseImportEquals.map(Vector(_)) | normalImports | importForSideEffects
-      }
-
-      parse(importText, stmt(_)) match {
-        case Success(value, _) => value
-        case f: Failure =>
-          throw new Error(
-            s"Failed to parse import statement: '$importText', errors: ${f.trace().longMsg}",
-          )
-      }
-    }
-  }
-
-  object ExportPattern {
-    import lambdanet.ExportStmt._
-
-    def unapply(v: Js.Val): Option[Vector[ExportStmt]] = {
-      val map = asObj(v)
-      asString(map("category")) match {
-        case "ExportStmt" =>
-          val str = StringContext.treatEscapes(asString(map("text")))
-          Some(parseExports(str))
-        //      case "TypeAliasStmt" =>
-        //        val name = Symbol(asString(map("name")))
-        //        val tVars = asVector(map("tyVars")).map(asSymbol)
-        //        val `type` = ProgramParsing.parseType(map("type"))
-        //        Some(Vector(ExportTypeAlias(name, tVars, `type`)))
-        case _ => None
-      }
-    }
-
-    def parseExports(str: String): Vector[ExportStmt] = {
-      import ImportPattern.{identifier, path}
-
-      type Creator = Option[ReferencePath] => Vector[ExportStmt]
-
-      def exportDefault[_: P]: P[Creator] =
-        P("{" ~ "default" ~/ ("as" ~/ identifier).? ~ "}").map {
-          newNameOpt => p =>
-            Vector(ExportDefault(newNameOpt.map(Symbol.apply), p))
-        }
-
-      def exportDefault2[_: P]: P[Creator] =
-        P("default" ~ identifier)
-          .map(n => p => Vector(ExportDefault(Some(Symbol(n)), p)))
-
-      def exportSingles[_: P]: P[Creator] =
-        P(
-          "{" ~ (identifier ~/ ("as" ~/ identifier).?)
-            .rep(min = 1, sep = ",") ~ ",".? ~ "}",
-        ).map { clauses => p =>
-          clauses.toVector.map {
-            case (oldName, newNameOpt) =>
-              ExportSingle(
-                Symbol(oldName),
-                Symbol(newNameOpt.getOrElse(oldName)),
-                p,
-              )
-          }
-        }
-
-      def exportFromOther[_: P]: P[Creator] = {
-        P("*").map(
-          _ => p => Vector(ExportOtherModule(p.get)),
-        )
-      }
-
-      def exportNamespace[_: P]: P[Vector[ExportStmt]] =
-        P(
-          "export" ~ "as" ~ "namespace" ~/ identifier,
-        ).map { name =>
-          val s = Symbol(name)
-          Vector(ExportSingle(s, s, None))
-        }
-
-//      def exportAssign[_: P] =
-//        P("export" ~ "=" ~/ identifier).map { name =>
-//          Vector(ExportDefault(name, None))
-//        }
-
-      def exportRest[_: P] =
-        P(
-          "export" ~/ (exportFromOther | exportDefault | exportDefault2 | exportSingles)
-            ~ ("from" ~/ path).?,
-        ).map { case (creator, p) => creator(p) }
-
-      def stmt[_: P]: P[Vector[ExportStmt]] =
-        (exportNamespace | exportRest) ~ ";".?
-
-      parse(str, stmt(_)) match {
-        case Success(value, _) => value
-        case f: Failure =>
-          throw new Error(
-            s"Failed to parse export statement: '$str', errors: ${f.trace().longMsg}",
-          )
-      }
-    }
-  }
-
-  def main(args: Array[String]): Unit = {
-    val jValue = parseJsonFromFile(
-      pwd / up / 'DeepTypeTS / 'output / "foo.json",
-    )
-    //    println(jValue)
-
-    asArray(jValue).map(parseGStmt).foreach(println)
   }
 }

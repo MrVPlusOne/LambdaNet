@@ -7,14 +7,8 @@ import org.scalacheck.Gen
 
 import scala.language.implicitConversions
 
-/** A gradual type annotation, either a [[GType]] or a [[GTHole]] */
-@deprecated
-sealed trait GTMark
-
 /** An annotation hole that needs to be inferred. */
-class GTHole(protected val id: Int, val annotation: TyAnnot)
-    extends GTMark
-    with IdEquality {
+class GTHole(protected val id: Int, val annotation: TyAnnot) extends IdEquality {
   override def toString: String = {
     s"#$id{$annotation}"
   }
@@ -33,7 +27,7 @@ class GTHole(protected val id: Int, val annotation: TyAnnot)
   *
   * where x, l is [[scala.Symbol]]
   */
-sealed trait GType extends GTMark {
+sealed trait GType {
   override def toString: String = prettyPrint
 
   def prettyPrint: String = pPrint(0)
