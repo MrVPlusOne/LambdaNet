@@ -1249,7 +1249,7 @@ export function parseFiles(sources: string[], libraryFiles: string[]): GModule[]
   });
   program.getSemanticDiagnostics(undefined, undefined); //call this to store type info into nodes
 
-  const checker = program.getTypeChecker(); // must call this to link source files to nodes todo: try something faster
+  const checker = program.getTypeChecker(); // must call this to link source files to nodes
 
   let sFiles: ts.SourceFile[] = sources.map(file => mustExist(program.getSourceFile(file),
     "getSourceFile failed for: " + file));

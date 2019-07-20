@@ -193,7 +193,6 @@ object ProgramParsing {
       "--lib",
       srcFiles.toList.map(_.toString()),
     )(projectRoot)
-    // fixme: this never fires
     if (r.exitCode != 0) {
       throw new Error(s"TS compiler parsing failed: ${r.out.string}")
     }

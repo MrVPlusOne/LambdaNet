@@ -217,7 +217,6 @@ abstract class NNArchitecture(
 //          val values = concatN(axis = 0)(ms.toVector)
 //          val keys = singleLayer(name / 'mergeMsgs / 'transKey, values)
 //
-//          //todo: check other kinds of attentions
 //          val attention = softmax(keys.dot(n1.t).t / dimMessage)
 //          n -> attention.dot(values)
           n -> total(ms.toVector)

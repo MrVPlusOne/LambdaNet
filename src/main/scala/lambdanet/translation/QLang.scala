@@ -221,13 +221,13 @@ object QLangTranslation {
       allocator.newDef,
     )
 
+    val projectCtx = baseCtx |+| dExports
     modules1.map { m =>
       SimpleMath.withErrorMessage {
         val gm = modules.find(_.path == m.path).get
         s"GModule source code:\n ${gm.prettyPrint}"
       } {
-        //todo: move ctx computation upward
-        fromPModule(m, baseCtx |+| dExports |+| exports(m.path))
+        fromPModule(m, projectCtx |+| exports(m.path))
       }
     }
   }
