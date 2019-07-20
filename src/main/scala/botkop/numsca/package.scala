@@ -265,24 +265,24 @@ package object numsca {
       new Tensor(ba1.gt(ba2), true)
     }
 
-    def gte(t1: Tensor, t2: Tensor): Tensor = {
-      val Seq(ba1, ba2) = tbc(t1, t2)
-      val d = ba1.dup()
-      Nd4j.getExecutioner.exec(new GreaterThanOrEqual(Array(d, ba2), Array(d))) //todo: check
-      new Tensor(d, true)
-    }
+//    def gte(t1: Tensor, t2: Tensor): Tensor = {
+//      val Seq(ba1, ba2) = tbc(t1, t2)
+//      val d = ba1.dup()
+//      Nd4j.getExecutioner.exec(new GreaterThanOrEqual(Array(d, ba2), Array(d)))
+//      new Tensor(d, true)
+//    }
 
     def lt(t1: Tensor, t2: Tensor): Tensor = {
       val Seq(ba1, ba2) = tbc(t1, t2)
       new Tensor(ba1.lt(ba2), true)
     }
 
-    def lte(t1: Tensor, t2: Tensor): Tensor = {
-      val Seq(ba1, ba2) = tbc(t1, t2)
-      val d = ba1.dup()
-      Nd4j.getExecutioner.exec(new LessThanOrEqual(Array(d, ba2), Array(d))) //todo: check
-      new Tensor(d, true)
-    }
+//    def lte(t1: Tensor, t2: Tensor): Tensor = {
+//      val Seq(ba1, ba2) = tbc(t1, t2)
+//      val d = ba1.dup()
+//      Nd4j.getExecutioner.exec(new LessThanOrEqual(Array(d, ba2), Array(d)))
+//      new Tensor(d, true)
+//    }
 
     def eq(t1: Tensor, t2: Tensor): Tensor = {
       val Seq(ba1, ba2) = tbc(t1, t2)

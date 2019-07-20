@@ -75,7 +75,9 @@ object PrepareRepos {
       parseRepos(trainSetDir, devSetDir, loadFromFile = false),
     )
     val stats = repoStatistics(parsed.trainSet ++ parsed.devSet)
-    printResult(stats.headers.zip(stats.average).toString())
+    val avgStats = stats.headers.zip(stats.average).toString()
+    printResult(avgStats)
+    write.over(parsedRepoPath / up / "stats.txt", avgStats)
 
     announced(s"save data set to file: $parsedRepoPath") {
       SM.saveObjectToFile(parsedRepoPath.toIO)(parsed)

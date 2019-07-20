@@ -180,7 +180,6 @@ function parseEntityName(n: ts.EntityName): string {
   }
 }
 
-// todo: differential testing with parseType
 function parseTypeNode(node: ts.TypeNode): GType {
   if (node.kind == SyntaxKind.AnyKeyword || node.kind == SyntaxKind.ThisKeyword) {
     return anyType;
@@ -228,7 +227,7 @@ function parseTypeNode(node: ts.TypeNode): GType {
       case SyntaxKind.NumericLiteral:
         return new TVar("number");
       default:
-        return anyType; //todo: support more literal types
+        return anyType;
     }
   } else if (node.kind == SyntaxKind.IntersectionType) {
     return anyType;
@@ -512,7 +511,7 @@ export function parseExpr(node: ts.Expression,
       }
       case SyntaxKind.NewExpression: {
         let args = n.arguments ? n.arguments.map(rec) : [];
-        let f = new Access(rec(n.expression), "CONSTRUCTOR", "missing"); //todo: check this constructor thing
+        let f = new Access(rec(n.expression), "CONSTRUCTOR", "missing");
         return new FuncCall(f, args, infer());
       }
       case SyntaxKind.ObjectLiteralExpression: {
@@ -804,13 +803,13 @@ export class StmtParser {
 
         let EP = new ExprProcessor();
 
-        function parseVarDecList(node: ts.VariableDeclarationList, modifiers: string[]): VarDef[] {
+        function parseVarDecList(node: ts.VariableDeclarationList, modifiers: string[], rhs?: GExpr): VarDef[] {
           return handleError(node, () => {
             let isConst = (node.flags & ts.NodeFlags.Const) != 0;
 
-            function parseVarDec(dec: ts.VariableDeclaration): VarDef[] {
-              const rhs = dec.initializer ? EP.processExpr(dec.initializer) : undefinedValue;
-              return parseBindingName(dec.name, rhs, dec.type);
+            function parseVarDec(dec: ts.VariableDeclaration, rhs?: GExpr): VarDef[] {
+              const rhs1 = rhs ? rhs : (dec.initializer ? EP.processExpr(dec.initializer) : undefinedValue);
+              return parseBindingName(dec.name, rhs1, dec.type);
             }
 
             function parseBindingName(lhs: ts.BindingName, rhs: GExpr, ty?: ts.TypeNode): VarDef[] {
@@ -842,7 +841,7 @@ export class StmtParser {
             }
 
             let dec = node.declarations;
-            return flatMap(dec, parseVarDec);
+            return flatMap(dec, (x: ts.VariableDeclaration) => parseVarDec(x, rhs));
           });
         }
 
@@ -901,26 +900,35 @@ export class StmtParser {
             let stmts = flatMap(n.statements, (x: ts.Node) => rec(x).stmts);
             return EP.alongWith(new BlockStmt(stmts));
           }
-          case ts.SyntaxKind.ForStatement: {
-            let n = node as ts.ForStatement;
-            let cond = n.condition ? EP.processExpr(n.condition) :
-              new Const("true", new TVar("boolean"), getLineNumber(n));
+
+          case SyntaxKind.ForOfStatement:
+          case SyntaxKind.ForInStatement:
+          case SyntaxKind.ForStatement: {
+            let n = node as ts.ForStatement | ts.ForInOrOfStatement;
+            let cond: GExpr= new Const("true", new TVar("boolean"), getLineNumber(n));
+            let incr: GStmt[] = [];
+            let expression: GExpr|undefined = undefined;
+            if(n.kind == SyntaxKind.ForStatement) {
+              if(n.condition){
+                cond = EP.processExpr(n.condition);
+              }
+              if(n.incrementor){
+                incr = [new ExprStmt(EP.processExpr(n.incrementor), false)];
+              }
+            }else {
+              const rhs = EP.processExpr(n.expression);
+              expression = new FuncCall(SpecialVars.ArrayAccess, [rhs], "missing")
+            }
             let init = n.initializer;
             let outerBlock = new BlockStmt([]);
 
             if (init && ts.isVariableDeclarationList(init)) {
-              outerBlock.stmts = parseVarDecList(init, []);
+              outerBlock.stmts = parseVarDecList(init, [], expression);
             } else if (init) {
               outerBlock.stmts.push(new ExprStmt(EP.processExpr(init as ts.Expression), false));
             }
-
-            let incr = n.incrementor ? [new ExprStmt(EP.processExpr(n.incrementor), false)] : [];
             let bodyStmts: GStmt[] = rec(n.statement).stmts.concat(incr);
-
-            outerBlock.stmts.push(new WhileStmt(
-              cond,
-              flattenBlock(bodyStmts)
-            ));
+            outerBlock.stmts.push(new WhileStmt(cond, flattenBlock(bodyStmts)));
             return EP.alongWith(outerBlock);
           }
           case SyntaxKind.FunctionDeclaration:
@@ -1086,7 +1094,7 @@ export class StmtParser {
 
             let tVars = parseTVars(n);
             let members = n.members.map(parseTypeMember);
-            let objT = new ObjectType(members); //todo: handle inheritance
+            let objT = new ObjectType(members);
             return EP.alongWith(
               new TypeAliasStmt(n.name.text, tVars, objT, parseModifiers(n.modifiers), superTypes));
           }
@@ -1137,9 +1145,6 @@ export class StmtParser {
             return rec(n.statement);
           }
 
-          //todo: support these
-          case SyntaxKind.ForOfStatement:
-          case SyntaxKind.ForInStatement:
           // ignored statements:
           case SyntaxKind.BreakStatement:
           case SyntaxKind.ContinueStatement:
