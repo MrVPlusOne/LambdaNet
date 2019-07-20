@@ -39,7 +39,7 @@ object TrainingLoop {
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
   def scaleLearningRate(epoch: Int): Double = {
-    math.max(1.0 / (9.0 * epoch / 100 + 1.0), 0.1)
+    SimpleMath.linearInterpolate(1.0, 0.1)(epoch.toDouble/300).max(0.1)
   }
 
   def main(args: Array[String]): Unit = {
@@ -158,7 +158,7 @@ object TrainingLoop {
                     pc.allParams,
                     backPropInParallel =
                       Some(parallelCtx -> Timeouts.optimizationTimeout),
-                    gradientTransform = _.clipNorm(1 * factor),
+                    gradientTransform = _.clipNorm(2 * factor),
                     scaleLearningRate = scaleLearningRate(epoch)
                   )
                 }
