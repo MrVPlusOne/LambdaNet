@@ -25,6 +25,7 @@ trait Optimizer extends Serializable {
       weightDecay: Option[Double] = None,
       gradientTransform: Gradient => Gradient = identity,
       backPropInParallel: Option[(ExecutionContext, Duration)] = None,
+      scaleLearningRate: Double = 1.0
   ): OptimizeStats = {
 
     if (warnEmptyUpdates && params.isEmpty) {
@@ -51,7 +52,7 @@ trait Optimizer extends Serializable {
     val deltas = for {
       (path, g) <- transformed
       p <- paramMap.get(path)
-      delta = parameterChangeAmount(p, g)
+      delta = parameterChangeAmount(p, g) * scaleLearningRate
     } yield {
       if (newlyCreated contains p.node) {
         delta.addToTensor(p.node.value)
@@ -76,6 +77,7 @@ trait Optimizer extends Serializable {
       weightDecay: Option[Double] = None,
       gradientTransform: Gradient => Gradient = identity,
       backPropInParallel: Option[(ExecutionContext, Duration)] = None,
+      scaleLearningRate: Double = 1.0
   ): OptimizeStats = {
     maximize(
       -objective,
@@ -83,6 +85,7 @@ trait Optimizer extends Serializable {
       weightDecay,
       gradientTransform,
       backPropInParallel,
+      scaleLearningRate,
     )
   }
 }

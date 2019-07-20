@@ -29,7 +29,7 @@ import scala.language.reflectiveCalls
 
 object TrainingLoop {
   val toyMod: Boolean = false
-  val taskName = "withForIn"
+  val taskName = "changeLR"
   val resultsDir = {
     import ammonite.ops._
     pwd / "running-result" / taskName
@@ -37,6 +37,10 @@ object TrainingLoop {
   val fileLogger =
     new FileLogger(resultsDir / "console.txt", printToConsole = true)
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
+
+  def scaleLearningRate(epoch: Int): Double = {
+    math.max(1.0 / (9.0 * epoch / 100 + 1.0), 0.1)
+  }
 
   def main(args: Array[String]): Unit = {
     Tensor.floatingDataType = DataType.DOUBLE
@@ -155,6 +159,7 @@ object TrainingLoop {
                     backPropInParallel =
                       Some(parallelCtx -> Timeouts.optimizationTimeout),
                     gradientTransform = _.clipNorm(1 * factor),
+                    scaleLearningRate = scaleLearningRate(epoch)
                   )
                 }
 
