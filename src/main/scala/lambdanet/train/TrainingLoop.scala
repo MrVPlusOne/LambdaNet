@@ -39,7 +39,8 @@ object TrainingLoop {
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
   def scaleLearningRate(epoch: Int): Double = {
-    SimpleMath.linearInterpolate(1.0, 0.1)(epoch.toDouble/300).max(0.1)
+    val min = 0.4
+    SimpleMath.linearInterpolate(1.0, min)(epoch.toDouble/300).max(min)
   }
 
   def main(args: Array[String]): Unit = {
