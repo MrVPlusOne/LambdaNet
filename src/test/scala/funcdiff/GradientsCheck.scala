@@ -126,7 +126,7 @@ class GradientMatrixTest extends TestUtils {
 
     val state: CompNode = ns.ones(restGate.shape)
 
-    state * restGate * ((1: CompNode) - updateGate)
+    state * restGate * ((-updateGate) + (1: CompNode))
   }
 
   def sharedWeights(x: CompNode, y: CompNode): CompNode = {
@@ -140,6 +140,7 @@ class GradientMatrixTest extends TestUtils {
     _ / _,
     (x1, x2) => x1.concat(x2, axis = 0),
     (x1, x2) => x1.t.concat(x2.t, axis = 1),
+    (x1, x2) => concatN(axis = 1)(Vector(x1.t, x2.t, x1.t)),
     (x1, x2) => x1.concat(x2, axis = 0).slice(1 :> 3, 3 :>),
     (x1, x2) => x1.concat(x2, axis = 0).slice(4 :> 5, 3 :>),
     (x1, x2) => x1.concat(x2, axis = 0).slice(1 :> 5, 3 :> 6),
@@ -156,15 +157,9 @@ class GradientMatrixTest extends TestUtils {
         val a = const(ns.randn(4, 6))
         val b = const(ns.randn(4, 6))
 
-        val b1 = const(ns.randn(1, 6))
-
         nOpGradientCheck(f = {
           case Seq(n1, n2) => op(n1, n2)
         }, IS(a, b), s"Binary case $i A")
-
-        nOpGradientCheck(f = {
-          case Seq(n1, n2) => op(n1, n2)
-        }, IS(a, b1), s"Binary case $i B")
     }
   }
 

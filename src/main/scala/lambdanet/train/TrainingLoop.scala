@@ -298,7 +298,7 @@ object TrainingLoop {
           import cats.implicits._
           val combined = gs.toVector.map { g =>
             val t = g.toTensor()
-            Counted(t.elements, sum(square(t)))
+            Counted(t.elements.toInt, sum(square(t)))
           }.combineAll
           math.sqrt(combined.value / nonZero(combined.count))
         }

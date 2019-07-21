@@ -42,8 +42,8 @@ case class EmailService(userEmail: String, password: String) {
       )
     } catch {
       case _: TimeoutException =>
-        throw new Exception(
-          s"send mail {subject: '$subject', msg: '$msg'} time out.",
+        Console.err.println(
+          s"send mail timed out: {subject: '$subject', msg: '$msg'}.",
         )
     }
   }

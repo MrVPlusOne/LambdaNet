@@ -98,11 +98,11 @@ private[funcdiff] object DiffFunc {
   }
 
   case class Mean(x1: CompNode) extends UnaryFunc {
-    require(x1.shape.product > 0)
+    require(x1.shape.elements > 0)
     val value: Tensor = numsca.mean(x1.value)
 
     def backprop1(grad: Gradient): Gradient = {
-      val n = x1.shape.product
+      val n = x1.shape.elements
       require(n > 0)
       (grad / n).broadcast(x1.shape)
     }
@@ -112,7 +112,7 @@ private[funcdiff] object DiffFunc {
 
   case class MeanByAxis(x1: CompNode, axis: Int, keepDim: Boolean = true)
       extends UnaryFunc {
-    require(x1.shape.product > 0)
+    require(x1.shape.elements > 0)
     val value: Tensor = numsca.meanAxis(x1.value, axis, keepDim)
 
     def backprop1(grad: Gradient): Gradient = {
@@ -277,26 +277,13 @@ private[funcdiff] object DiffFunc {
   }
 
   case class Plus(x1: CompNode, x2: CompNode) extends BinaryFunc {
-    val value: Tensor = {
-      if(x2.shape.rank == 2 && x2.shape(0) == 1) x1.value.plusRow(x2.value)
-      else x1.value + x2.value
-    }
+    val value: Tensor = x1.value + x2.value
 
     def backProp2(grad: Gradient): (Gradient, Gradient) = {
       (grad.unbroadcast(x1.shape), grad.unbroadcast(x2.shape))
     }
 
     def name: String = "plus"
-  }
-
-  case class Minus(x1: CompNode, x2: CompNode) extends BinaryFunc {
-    val value: Tensor = x1.value - x2.value
-
-    def backProp2(grad: Gradient): (Gradient, Gradient) = {
-      (grad.unbroadcast(x1.shape), -grad.unbroadcast(x2.shape))
-    }
-
-    def name: String = "minus"
   }
 
   case class Divide(x1: CompNode, x2: CompNode) extends BinaryFunc {
@@ -353,7 +340,8 @@ private[funcdiff] object DiffFunc {
     val value: Tensor = ns.maximum(x1.value, x2.value)
 
     def backProp2(grad: Gradient): (Gradient, Gradient) = {
-      (grad * (1.0 - (x1.value < x2.value).boolToFloating)).unbroadcast(x1.shape) ->
+      (grad * (1.0 - (x1.value < x2.value).boolToFloating))
+        .unbroadcast(x1.shape) ->
         (grad * (x1.value < x2.value).boolToFloating).unbroadcast(x2.shape)
     }
 
@@ -366,7 +354,7 @@ private[funcdiff] object DiffFunc {
     private val shape = args.head.shape
     require(args.forall(_.shape == shape))
 
-    val value: Tensor =  {
+    val value: Tensor = {
       val acc = ns.zeros(shape)
       args.foreach(a => acc.array.addi(a.value.array))
       acc
@@ -375,12 +363,18 @@ private[funcdiff] object DiffFunc {
     def name: String = "total"
 
     def backProp(grad: Gradient): IS[Gradient] = {
-      args.map { _ => grad}
+      args.map { _ =>
+        grad
+      }
     }
   }
 
-  case class ConcatN(args: IS[CompNode], axis: Int) extends DiffFunc {
-    val value: Tensor = ns.concat(args.map(_.value), axis)
+  case class ConcatN(args: IS[CompNode], axis: Int, fromRows: Boolean)
+      extends DiffFunc {
+
+    val value: Tensor =
+      if (fromRows) ns.fromRows(args.map(_.value), axis)
+      else ns.concat(args.map(_.value), axis)
 
     val name: String = s"concatN{axis=$axis}"
 
@@ -422,11 +416,11 @@ private[funcdiff] object DiffFunc {
       val x = logits.value - baseline
       val denum = ns.sumAxis(ns.exp(x), axis = 1)
       val y = ns.exp(x) / denum
-      y -> ns.sumAxis((ns.log(denum) - x) * targets.value, axis = 1)
+      y -> ns.sumAxis(((-x) + ns.log(denum)) * targets.value, axis = 1)
     }
 
     def backprop1(grad: Gradient): Gradient = {
-      grad * (y - targets.value)
+      (y - targets.value) * grad
     }
 
     def name: String = {

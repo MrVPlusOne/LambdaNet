@@ -165,10 +165,10 @@ object NewInference {
           .pipe(parallelize)
           .map(encodeSignature)
           .toVector
-          .pipe(concatN(axis = 0))
+          .pipe(concatN(axis = 0, fromRows = true))
         val inputs = nodesToPredict
           .map(embedding.vars.apply)
-          .pipe(concatN(axis = 0))
+          .pipe(concatN(axis = 0, fromRows = true))
 
         architecture.similarity(inputs, candidates)
       }

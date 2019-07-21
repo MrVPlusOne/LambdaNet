@@ -23,6 +23,8 @@ sealed trait Gradient {
 
   def *(t: Tensor): Gradient
 
+  def timesBy(t: Tensor): Gradient
+
   def /(t: Tensor): Gradient
 
   def /(d: Real): Gradient = {
@@ -93,6 +95,8 @@ case class ZeroGradient(shape: Shape) extends Gradient {
 
   def *(t: Tensor): Gradient = this
 
+  def timesBy(tensor: Tensor): Gradient = this
+
   def splitAlongAxis(axis: Int, splitAt: Int): (Gradient, Gradient) = {
     (
       ZeroGradient(shape.updated(axis, splitAt)),
@@ -140,6 +144,8 @@ case class DenseGradient(value: Tensor) extends Gradient {
   }
 
   def *(t: Tensor): Gradient = DenseGradient(value * t)
+
+  def timesBy(t: Tensor): Gradient = DenseGradient(t * value)
 
   def splitAlongAxis(axis: Int, splitAt: Int): (Gradient, Gradient) = {
     val (g1, g2) = value.splitAlongAxis(axis, splitAt)
@@ -222,6 +228,8 @@ case class InflatedGradient(
   def *(t: Tensor): Gradient = {
     transformCore(t, _ * _)
   }
+
+  def timesBy(t: Tensor): Gradient = transformCore(t, (a, b) => b * a)
 
   def /(t: Tensor): Gradient = {
     transformCore(t, _ / _)

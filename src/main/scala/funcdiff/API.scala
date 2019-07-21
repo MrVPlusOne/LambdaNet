@@ -68,8 +68,8 @@ trait APITrait {
   def totalSafe(xs: IS[CompNode], whenEmpty: => CompNode) =
     if (xs.isEmpty) whenEmpty else total(xs)
 
-  def concatN(axis: Int)(xs: IS[CompNode]): CompNode =
-    funcNode(ConcatN(xs, axis))
+  def concatN(axis: Int, fromRows: Boolean = false)(xs: IS[CompNode]): CompNode =
+    funcNode(ConcatN(xs, axis, fromRows))
 
   def crossEntropy(prediction: CompNode, targets: Tensor): CompNode =
     -sum(log(prediction + 1e-7) * targets, axis = 1)
@@ -149,7 +149,7 @@ trait APITrait {
 
     def +(x2: CompNode): CompNode = funcNode(Plus(x1, x2))
 
-    def -(x2: CompNode): CompNode = funcNode(Minus(x1, x2))
+    def -(x2: CompNode): CompNode = this + (-x2)
 
     def *(x2: CompNode): CompNode = funcNode(Times(x1, x2))
 

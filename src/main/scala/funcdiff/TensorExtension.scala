@@ -91,8 +91,11 @@ object TensorExtension {
 
   implicit class TensorWrapper(data: Tensor) {
     def unbroadcast(oldShape: Shape): Tensor = {
-      val axes = broadcastAxes(oldShape, data.shape)
-      sumAlongAxes(axes)
+      if(oldShape.elements == 1) Tensor(ns.sum(data))
+      else {
+        val axes = broadcastAxes(oldShape, data.shape)
+        sumAlongAxes(axes)
+      }
     }
 
     def sumAlongAxes(axes: Seq[Int]): Tensor = {
@@ -100,7 +103,7 @@ object TensorExtension {
     }
 
     def broadcast(newShape: Shape): Tensor = {
-      new Tensor(data.array.broadcast(newShape.sizes: _*), data.isBoolean)
+      new Tensor(data.array.broadcast(newShape.sizes: _*))
     }
 
     def splitAlongAxis(axis: Int, splitAt: Long): (Tensor, Tensor) = {

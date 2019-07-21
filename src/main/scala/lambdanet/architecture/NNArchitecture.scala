@@ -94,7 +94,7 @@ abstract class NNArchitecture(
                   case Labeled(n1, n2, label) =>
                     val pos = label.asInstanceOf[Label.Position].get
                     val lEmbed = encodePosition(pos)
-                    val input = concatN(axis = 1)(
+                    val input = concatN(axis = 1, fromRows = true)(
                       Vector(encodeNode(n1), encodeNode(n2), lEmbed),
                     )
                     (n1, n2, input)
@@ -113,7 +113,7 @@ abstract class NNArchitecture(
                 .map {
                   case Labeled(n1, n2, label) =>
                     val f = label.asInstanceOf[Label.Field].get
-                    val input = concatN(axis = 1)(
+                    val input = concatN(axis = 1, fromRows = true)(
                       Vector(
                         encodeNode(n1),
                         encodeNode(n2),
@@ -171,7 +171,7 @@ abstract class NNArchitecture(
         case (a, i) =>
           a.concat(encodePosition(i), axis = 1)
       }
-      .pipe(concatN(axis = 0))
+      .pipe(concatN(axis = 0, fromRows = true))
       .pipe(singleLayer('encodeFunction, _))
       .pipe(sum(_, axis = 0))
   }
@@ -184,7 +184,7 @@ abstract class NNArchitecture(
         .map {
           case (v1, v2) => v1.concat(v2, axis = 1)
         }
-        .pipe(concatN(axis = 0))
+        .pipe(concatN(axis = 0, fromRows = true))
         .pipe(singleLayer('encodeObject, _))
         .pipe(sum(_, axis = 0))
     }
@@ -241,7 +241,7 @@ abstract class NNArchitecture(
 
     val (nodes, vectors) = inputs.unzip
 
-    val stacked = concatN(axis = 0)(vectors)
+    val stacked = concatN(axis = 0, fromRows = true)(vectors)
     val output = transformation(stacked)
     nodes.zipWithIndex.map {
       case (n, i) =>
@@ -260,8 +260,8 @@ abstract class NNArchitecture(
     val (nodes, vectors) = inputs.unzip
     val (l, r) = vectors.unzip
 
-    val l1 = concatN(axis = 0)(l)
-    val r1 = concatN(axis = 0)(r)
+    val l1 = concatN(axis = 0, fromRows = true)(l)
+    val r1 = concatN(axis = 0, fromRows = true)(r)
     val output = transformation(l1, r1)
     nodes.zipWithIndex.map {
       case (n, i) =>

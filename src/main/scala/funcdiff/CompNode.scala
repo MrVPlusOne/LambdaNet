@@ -8,7 +8,7 @@ import SimpleMath.Extensions._
 import scala.concurrent._
 
 class CompNode(val func: DiffFunc) {
-  def value: Tensor = func.value
+  val value: Tensor = func.value
 
   def toDouble: Real = value.squeeze()
 

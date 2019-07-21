@@ -129,7 +129,7 @@ case class LayerFactory(
     }
 
     val hHat = tanh(input.dot(Wh) + (state * restGate).dot(Uh) + bh)
-    updateGate * hHat + state * ((1: CompNode) - updateGate)
+    updateGate * hHat + state * (-updateGate + 1 )
   }
 
   /**
@@ -222,7 +222,7 @@ case class LayerFactory(
       val valueDim = ys.head._2.shape(1)
       val sqrtN = math.sqrt(keyDim)
       val weightLogits = {
-        val originalKeys = concatN(axis = 0)(ys.map(_._1))
+        val originalKeys = concatN(axis = 0, fromRows = true)(ys.map(_._1))
         val keys =
           if (transformKey)
             linear(name / 'keyTransform2, keyDim, useBias = false)(originalKeys)
@@ -232,7 +232,7 @@ case class LayerFactory(
       val aWeights = softmax(weightLogits / sqrtN)
 
       assert(aWeights.shape.head == 1)
-      val yOrigin = concatN(axis = 0)(ys.map(_._2))
+      val yOrigin = concatN(axis = 0, fromRows = true)(ys.map(_._2))
       val yMat =
         if (transformValue)
           relu(linear(name / 'valueTransform, valueDim)(yOrigin))

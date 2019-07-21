@@ -10,8 +10,9 @@ import org.nd4j.linalg.api.ops.impl.transforms.custom.{
 }
 import org.nd4j.linalg.api.ops.random.impl.Choice
 import org.nd4j.linalg.api.rng
-import org.nd4j.linalg.factory.Nd4j
+import org.nd4j.linalg.factory.{NDArrayFactory, Nd4j}
 import org.nd4j.linalg.factory.Nd4j.PadMode
+import org.nd4j.linalg.indexing.{INDArrayIndex, NDArrayIndex}
 import org.nd4j.linalg.ops.transforms.Transforms
 
 import scala.collection.JavaConverters._
@@ -178,11 +179,52 @@ package object numsca {
 
   def clip(t: Tensor, min: Double, max: Double): Tensor = t.clip(min, max)
 
+  /** only works for 2D Tensors for performance reason */
   def concat(ts: Seq[Tensor], axis: Int): Tensor = {
     require(ts.nonEmpty)
-    val arrays = ts.map(_.array)
-    val r = Nd4j.concat(axis, arrays: _*)
-    new Tensor(r, ts.head.isBoolean)
+    val shapes = ts.map(_.shape)
+    val sumAxis = shapes.map(s => s(axis)).sum
+    val first = ts.head
+    val newShape = if (axis == 0) {
+      Array(sumAxis, first.shape(1))
+    } else {
+      assert(axis == 1)
+      Array(first.shape(0), sumAxis)
+    }
+    val ordering = if (axis == 0) NDArrayFactory.C else NDArrayFactory.FORTRAN
+    val newArray =
+      Nd4j.createUninitialized(first.array.dataType(), newShape, ordering)
+    var pos = 0L
+    ts.foreach { t =>
+      val nextPos = pos + t.shape(axis)
+      val inter = NDArrayIndex.interval(pos, nextPos)
+      if (axis == 0)
+        newArray.put(Array(inter, NDArrayIndex.all()), t.array)
+      else newArray.put(Array(NDArrayIndex.all(), inter), t.array)
+      pos = nextPos
+    }
+
+//    val newArray = Nd4j.concat(axis, ts.map(_.array): _*)
+    new Tensor(newArray)
+  }
+
+  def fromRows(rows: Seq[Tensor], axis: Int): Tensor = {
+    require(axis == 0 || axis == 1)
+    val first = rows.head
+    assert(first.shape(0) == 1, s"shape = ${first.shape}")
+    val columns = first.shape(1)
+    val n = rows.length
+//    val data = Nd4j.createUninitialized(Array(columns * n), NDArrayFactory.C)
+//    var pos = 0L
+//    rows.foreach { r =>
+//      val nextPos = pos + columns
+//      data.put(Array(NDArrayIndex.interval(pos, nextPos)), r.array)
+//      pos = nextPos
+//    }
+    val data = Nd4j.create(rows.toArray.flatMap(_.data), NDArrayFactory.C)
+    val r =
+      if (axis == 0) data.reshape(n, columns) else data.reshape(1, n * columns)
+    new Tensor(r)
   }
 
   def reshape(x: Tensor, shape: Shape): Tensor = x.reshape(shape)
@@ -192,28 +234,6 @@ package object numsca {
 
   def arrayEqual(t1: Tensor, t2: Tensor): Boolean =
     numsca.prod((t1 == t2).boolToFloating) == 1
-
-  def any(x: Tensor): Boolean = {
-    require(x.isBoolean)
-    sum(x) > 0
-  }
-
-  /*
-  def any(x: Tensor, axis: Int): Tensor = {
-    throw new NotImplementedError()
-  }
-   */
-
-  def all(x: Tensor): Boolean = {
-    require(x.isBoolean)
-    prod(x) > 0
-  }
-
-  /*
-  def all(x: Tensor, axis: Int): Tensor = {
-    throw new NotImplementedError()
-  }
-   */
 
   def choice(a: Tensor, p: Tensor, size: Option[Array[Int]] = None): Tensor = {
     val z = Nd4j.zeros(a.shape.ints: _*)
@@ -228,7 +248,9 @@ package object numsca {
   // ops between 2 tensors, with broadcasting
   object Ops {
 
-    def binOp(op: (INDArray, INDArray) => INDArray)(t1: Tensor, t2: Tensor): Tensor = {
+    def binOp(
+        op: (INDArray, INDArray) => INDArray,
+    )(t1: Tensor, t2: Tensor): Tensor = {
       new Tensor(op(t1.array, t2.array))
     }
 
