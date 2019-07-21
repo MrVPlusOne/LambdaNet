@@ -62,7 +62,6 @@ object ProgramParsing {
 
   def parseGProjectFromRoot(
       root: Path,
-      useInferred: Boolean,
       declarationFileMod: Boolean = false,
       filter: Path => Boolean = _ => true,
   ): GProject = {
@@ -149,7 +148,7 @@ object ProgramParsing {
 
     GProject(
       root,
-      ProgramParsing.parseGModulesFromFiles(sources, root, useInferred),
+      ProgramParsing.parseGModulesFromFiles(sources, root),
       mapping,
       subProjects,
       devDependencies,
@@ -183,7 +182,6 @@ object ProgramParsing {
   def parseGModulesFromFiles(
       srcFiles: Seq[RelPath],
       projectRoot: Path,
-      useInferred: Boolean,
   ): Vector[GModule] = {
     val r = %%(
       'node,
@@ -197,7 +195,7 @@ object ProgramParsing {
       throw new Error(s"TS compiler parsing failed: ${r.out.string}")
     }
     val parsedJson = r.out.string
-    ProgramParsing(useInferred).parseGModulesFromJson(parsedJson)
+    ProgramParsing().parseGModulesFromJson(parsedJson)
   }
 
   def asString(v: Js.Val): String = v.asInstanceOf[Str].value
@@ -487,7 +485,7 @@ object ProgramParsing {
   }
 }
 
-case class ProgramParsing(useInferred: Boolean) {
+case class ProgramParsing() {
   def parseContent(content: String): Vector[GStmt] = {
     SimpleMath.withErrorMessage(
       "failed when parsing content: \n" + content,
@@ -823,13 +821,10 @@ case class ProgramParsing(useInferred: Boolean) {
       asString(map("category")) match {
         case "UserAnnot" =>
           numAnnotated += 1
-          Annot.User(parseType(map("ty")))
-        case "Inferred" if useInferred =>
+          Annot.User(parseType(map("ty")), inferred = false)
+        case "Inferred"  =>
           numInferred += 1
-          Annot.User(parseType(map("ty")))
-        case "Inferred" if !useInferred =>
-          numMissing += 1
-          Annot.Missing
+          Annot.User(parseType(map("ty")), inferred = true)
       }
   }
 }

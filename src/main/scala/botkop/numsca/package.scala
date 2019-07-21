@@ -178,8 +178,12 @@ package object numsca {
 
   def clip(t: Tensor, min: Double, max: Double): Tensor = t.clip(min, max)
 
-  def concatenate(ts: Seq[Tensor], axis: Int = 0): Tensor =
-    new Tensor(Nd4j.concat(axis, ts.map(_.array): _*))
+  def concat(ts: Seq[Tensor], axis: Int): Tensor = {
+    require(ts.nonEmpty)
+    val arrays = ts.map(_.array)
+    val r = Nd4j.concat(axis, arrays: _*)
+    new Tensor(r, ts.head.isBoolean)
+  }
 
   def reshape(x: Tensor, shape: Shape): Tensor = x.reshape(shape)
 
@@ -224,84 +228,16 @@ package object numsca {
   // ops between 2 tensors, with broadcasting
   object Ops {
 
-    def add(t1: Tensor, t2: Tensor): Tensor = {
-      val Seq(ba1, ba2) = tbc(t1, t2)
-      new Tensor(ba1.add(ba2))
-    }
-
-    def sub(t1: Tensor, t2: Tensor): Tensor = {
-      val Seq(ba1, ba2) = tbc(t1, t2)
-      new Tensor(ba1.sub(ba2))
-    }
-
-    def mul(t1: Tensor, t2: Tensor): Tensor = {
-      val Seq(ba1, ba2) = tbc(t1, t2)
-      new Tensor(ba1.mul(ba2))
-    }
-
-    def div(t1: Tensor, t2: Tensor): Tensor = {
-      val Seq(ba1, ba2) = tbc(t1, t2)
-      new Tensor(ba1.div(ba2))
-    }
-
-    /* does not work in nd4j 0.9.1
-    def pow(t1: Tensor, t2: Tensor): Tensor = {
-      val Seq(ba1, ba2) = tbc(t1, t2)
-      // there is a bug in nd4j:
-      // c = a ** b
-      // updates a, so that a == c
-      // therefore we make a copy of a before executing pow
-      new Tensor(Transforms.pow(ba1.dup(), ba2))
-    }
-     */
-
-    def mod(t1: Tensor, t2: Tensor): Tensor = {
-      val Seq(ba1, ba2) = tbc(t1, t2)
-      new Tensor(ba1.fmod(ba2))
-    }
-
-    def gt(t1: Tensor, t2: Tensor): Tensor = {
-      val Seq(ba1, ba2) = tbc(t1, t2)
-      new Tensor(ba1.gt(ba2), true)
-    }
-
-//    def gte(t1: Tensor, t2: Tensor): Tensor = {
-//      val Seq(ba1, ba2) = tbc(t1, t2)
-//      val d = ba1.dup()
-//      Nd4j.getExecutioner.exec(new GreaterThanOrEqual(Array(d, ba2), Array(d)))
-//      new Tensor(d, true)
-//    }
-
-    def lt(t1: Tensor, t2: Tensor): Tensor = {
-      val Seq(ba1, ba2) = tbc(t1, t2)
-      new Tensor(ba1.lt(ba2), true)
-    }
-
-//    def lte(t1: Tensor, t2: Tensor): Tensor = {
-//      val Seq(ba1, ba2) = tbc(t1, t2)
-//      val d = ba1.dup()
-//      Nd4j.getExecutioner.exec(new LessThanOrEqual(Array(d, ba2), Array(d)))
-//      new Tensor(d, true)
-//    }
-
-    def eq(t1: Tensor, t2: Tensor): Tensor = {
-      val Seq(ba1, ba2) = tbc(t1, t2)
-      new Tensor(ba1.eq(ba2), true)
-    }
-
-    def neq(t1: Tensor, t2: Tensor): Tensor = {
-      val Seq(ba1, ba2) = tbc(t1, t2)
-      new Tensor(ba1.neq(ba2), true)
+    def binOp(op: (INDArray, INDArray) => INDArray)(t1: Tensor, t2: Tensor): Tensor = {
+      new Tensor(op(t1.array, t2.array))
     }
 
     def max(t1: Tensor, t2: Tensor): Tensor = {
-      val Seq(ba1, ba2) = tbc(t1, t2)
-      new Tensor(Transforms.max(ba1, ba2))
+      binOp(Transforms.max)(t1, t2)
     }
 
     def min(t1: Tensor, t2: Tensor): Tensor = {
-      val Seq(ba1, ba2) = tbc(t1, t2)
-      new Tensor(Transforms.min(ba1, ba2))
+      binOp(Transforms.min)(t1, t2)
     }
 
     def prepareShapesForBroadcast(sa: Seq[INDArray]): Seq[INDArray] = {
@@ -325,6 +261,7 @@ package object numsca {
     }
 
     /** make two tensors have the same shape, broadcast them if necessary */
+    @deprecated("because of bad performance")
     def broadcast2(t1: Tensor, t2: Tensor): Seq[INDArray] = {
 
       val rank = t1.shape.rank.max(t2.shape.rank)
@@ -352,7 +289,6 @@ package object numsca {
 
 //    def tbc(ts: Tensor*): Seq[INDArray] =
 //      broadcastArrays(ts.map(_.array))
-    def tbc(t1: Tensor, t2: Tensor): Seq[INDArray] = broadcast2(t1, t2)
 
   }
 

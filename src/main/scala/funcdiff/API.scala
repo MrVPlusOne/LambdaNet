@@ -8,6 +8,8 @@ import scala.language.{implicitConversions, reflectiveCalls}
 
 trait APITrait {
 
+  var debugOpTime = true
+
   implicit def symbol2Path(symbol: Symbol): SymbolPath =
     SymbolPath(Vector(symbol))
 
@@ -19,8 +21,12 @@ trait APITrait {
     new ParamNode(value, path)
   }
 
-  def funcNode(func: DiffFunc, name: String = "func"): CompNode = {
-    new CompNode(func)
+  def funcNode(func: => DiffFunc): CompNode = {
+    if(debugOpTime){
+      DebugTime.logTime(func.shortName){ new CompNode(func)}
+    } else {
+      new CompNode(func)
+    }
   }
 
   def exp(x1: CompNode): CompNode = funcNode(Exp(x1))

@@ -14,7 +14,7 @@ class ParserTests extends WordSpec with MyTest {
     val (lines0, cls) = pairs.unzip
     val lines = lines0.toArray
     val parsed =
-      ProgramParsing(useInferred = true).parseContent(lines.mkString("\n"))
+      ProgramParsing().parseContent(lines.mkString("\n"))
     parsed.zip(cls).zipWithIndex.foreach {
       case ((r, c), i) =>
 //        assert(
@@ -38,7 +38,6 @@ class ParserTests extends WordSpec with MyTest {
     val modules = ProgramParsing.parseGModulesFromFiles(
       files,
       projectRoot,
-      useInferred = true,
     )
     modules.foreach { module =>
       println(s"=== module: '${module.moduleName}' ===")
@@ -148,7 +147,7 @@ class ParserTests extends WordSpec with MyTest {
 //        """".stripMargin
       ).mkString("\n")
 
-    val stmts = ProgramParsing(useInferred = false).parseContent(content)
+    val stmts = ProgramParsing().parseContent(content)
     stmts.foreach(println)
   }
 
@@ -219,7 +218,6 @@ class ParserTests extends WordSpec with MyTest {
     val modules = parser.parseGModulesFromFiles(
       sources,
       root,
-      useInferred = true,
     )
 
 //    QLangTranslation.fromProject(modules, )
@@ -240,7 +238,7 @@ class ParserTests extends WordSpec with MyTest {
 
     val f = pwd / RelPath("data/tests/import-unknowns")
     val (g, qModules, annts) =
-      prepareProject(libDefs, f, skipSet = Set(), useInferred = true)
+      prepareProject(libDefs, f, skipSet = Set())
     g.predicates.foreach(println)
     g.predicates.collect {
       case DefineRel(p, expr) if p.nameOpt.contains('a) =>
@@ -258,7 +256,7 @@ class ParserTests extends WordSpec with MyTest {
 
     val dir = pwd / RelPath("data/tests/forIn")
     val (g, qModules, annts) =
-      prepareProject(libDefs, dir, skipSet = Set(), useInferred = true)
+      prepareProject(libDefs, dir, skipSet = Set())
     qModules.foreach(
       m =>
         QLangDisplay.renderModuleToDirectory(m, annts.map {

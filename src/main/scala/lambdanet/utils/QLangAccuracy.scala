@@ -52,9 +52,10 @@ object QLangAccuracy {
       occurrenceMap(m.stmts)
     }
 
+    /** non-inferred project node annotations (only library types) */
     val annots = modules.flatMap {
       _.mapping.collect {
-        case (k, Annot.User(t)) if k.fromProject && t.madeFromLibTypes => k -> t
+        case (k, Annot.User(t, false)) if k.fromProject && t.madeFromLibTypes => k -> t
       }
     }.toMap
 

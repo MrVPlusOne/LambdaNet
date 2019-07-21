@@ -10,19 +10,24 @@ import org.nd4j.linalg.factory.Nd4j
 trait DiffFunc {
   def name: String
 
+  def shortName: String = name
+
   def args: IS[CompNode]
 
   def value: Tensor
 
   def backProp(grad: Gradient): IS[Gradient]
+
 }
 
-object DiffFunc {
+private[funcdiff] object DiffFunc {
 
   case class ConstFunc(value: Tensor) extends DiffFunc {
     def name: String = {
       s"const{shape=${value.shape}}"
     }
+
+    override def shortName: String = "const"
 
     def args: IS[CompNode] = IS()
 
@@ -117,6 +122,9 @@ object DiffFunc {
     }
 
     def name: String = s"mean{axis=$axis}"
+
+    override def shortName: String = "meanByAxis"
+
   }
 
   case class Sum(x1: CompNode) extends UnaryFunc {
@@ -138,6 +146,9 @@ object DiffFunc {
     }
 
     def name: String = s"sum{axis=$axis}"
+
+    override def shortName: String = "sumByAxis"
+
   }
 
   case class Threshold(x1: CompNode, threshold: Double) extends UnaryFunc {
@@ -148,6 +159,8 @@ object DiffFunc {
     }
 
     def name: String = s"threshold{t=$threshold}"
+
+    override def shortName: String = "threshold"
   }
 
   case class LeakyRelu(x1: CompNode, slope: Double) extends UnaryFunc {
@@ -159,6 +172,9 @@ object DiffFunc {
     }
 
     def name: String = s"leakyRelu{slope=$slope}"
+
+    override def shortName: String = "leakyRelu"
+
   }
 
   case class Slice(x1: CompNode, ranges: Seq[NumscaRange]) extends UnaryFunc {
@@ -175,6 +191,9 @@ object DiffFunc {
     }
 
     def name: String = s"slice{ranges=${TensorExtension.showRanges(ranges)}}"
+
+    override def shortName: String = "slice"
+
   }
 
   case class Transpose(x1: CompNode) extends UnaryFunc {
@@ -196,6 +215,8 @@ object DiffFunc {
     }
 
     def name: String = s"power{p=$power}"
+
+    override def shortName: String = "power"
   }
 
   /** softmax along the last dimension */
@@ -256,7 +277,10 @@ object DiffFunc {
   }
 
   case class Plus(x1: CompNode, x2: CompNode) extends BinaryFunc {
-    val value: Tensor = x1.value + x2.value
+    val value: Tensor = {
+      if(x2.shape.rank == 2 && x2.shape(0) == 1) x1.value.plusRow(x2.value)
+      else x1.value + x2.value
+    }
 
     def backProp2(grad: Gradient): (Gradient, Gradient) = {
       (grad.unbroadcast(x1.shape), grad.unbroadcast(x2.shape))
@@ -302,7 +326,7 @@ object DiffFunc {
 
   case class Concat(x1: CompNode, x2: CompNode, axis: Int) extends BinaryFunc {
 
-    val value: Tensor = numsca.concatenate(Seq(x1.value, x2.value), axis)
+    val value: Tensor = numsca.concat(Seq(x1.value, x2.value), axis)
 
     def backProp2(grad: Gradient): (Gradient, Gradient) = {
       grad.splitAlongAxis(axis, x1.shape(axis).toInt)
@@ -339,22 +363,24 @@ object DiffFunc {
   // ================ N-nary functions ==================
   case class Total(args: IS[CompNode]) extends DiffFunc {
     require(args.nonEmpty)
+    private val shape = args.head.shape
+    require(args.forall(_.shape == shape))
 
-    val value: Tensor = args.map(_.value).reduce(_ + _)
+    val value: Tensor =  {
+      val acc = ns.zeros(shape)
+      args.foreach(a => acc.array.addi(a.value.array))
+      acc
+    }
 
     def name: String = "total"
 
     def backProp(grad: Gradient): IS[Gradient] = {
-      args.map { x =>
-        grad.unbroadcast(x.shape)
-      }
+      args.map { _ => grad}
     }
   }
 
   case class ConcatN(args: IS[CompNode], axis: Int) extends DiffFunc {
-    require(args.nonEmpty)
-
-    val value: Tensor = ns.concatenate(args.map(_.value), axis)
+    val value: Tensor = ns.concat(args.map(_.value), axis)
 
     val name: String = s"concatN{axis=$axis}"
 

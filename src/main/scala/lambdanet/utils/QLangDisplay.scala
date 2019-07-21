@@ -62,7 +62,7 @@ object QLangDisplay {
 
       def showAnnot(x: PNode): Output = {
         truth(x) match {
-          case Annot.User(t) =>
+          case Annot.User(t, _) =>
             prediction.get(x) match {
               case None => warning(s": [miss]$t")
               case Some(p) =>
@@ -177,7 +177,7 @@ object QLangDisplay {
       .map {
         Impl.show(_, m.mapping, prediction, predSpace)
       }
-    val annots = m.mapping.collect { case (k, Annot.User(t)) => k -> t }
+    val annots = m.mapping.collect { case (k, Annot.User(t, _)) => k -> t }
 
     val libAccStr = {
       val (acc, yes, total) =
@@ -214,7 +214,7 @@ object QLangDisplay {
 
     val f = pwd / RelPath("data/toy")
     val (g, qModules, annts) =
-      prepareProject(libDefs, f, skipSet = Set(), useInferred = false)
+      prepareProject(libDefs, f, skipSet = Set())
 
     val groundTruth = annts.map { case (k, v) => k.n -> v }
     val prediction = groundTruth.updated(

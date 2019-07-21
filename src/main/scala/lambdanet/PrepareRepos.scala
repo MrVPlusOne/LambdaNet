@@ -49,22 +49,22 @@ object PrepareRepos {
     }
 
     val random = new Random(1)
-    def fromDir(dir: Path, maxNum: Int, useInferred: Boolean) =
+    def fromDir(dir: Path, maxNum: Int) =
       (ls ! dir)
         .filter(f => f.isDir)
         .pipe(random.shuffle(_))
         .take(maxNum)
         .par
         .map { f =>
-          val (a, b, c) = prepareProject(libDefs, f, useInferred)
+          val (a, b, c) = prepareProject(libDefs, f)
           ParsedProject(f.relativeTo(dir), a, b, c)
         }
         .toList
 
     ParsedRepos(
       libDefs,
-      fromDir(trainSetDir, 1000, useInferred = true),
-      fromDir(devSetDir, 1000, useInferred = false),
+      fromDir(trainSetDir, 1000),
+      fromDir(devSetDir, 1000),
     )
   }
 
@@ -151,7 +151,6 @@ object PrepareRepos {
         .parseGProjectFromRoot(
           declarationsDir,
           declarationFileMod = true,
-          useInferred = true,
         )
 
     println("parsing PModules...")
@@ -256,7 +255,6 @@ object PrepareRepos {
   def prepareProject(
       libDefs: LibDefs,
       root: Path,
-      useInferred: Boolean,
       skipSet: Set[String] = Set("dist", "__tests__", "test", "tests"),
   ): (PredicateGraph, Vector[QModule], Map[ProjNode, PType]) =
     SimpleMath.withErrorMessage(s"In project: $root") {
@@ -268,7 +266,6 @@ object PrepareRepos {
 
       val p = ProgramParsing.parseGProjectFromRoot(
         root,
-        useInferred,
         filter = filterTests,
       )
       val allocator = new PNodeAllocator(forLib = false)
@@ -292,7 +289,7 @@ object PrepareRepos {
       val allAnnots = irModules.flatMap(_.mapping).toMap
       val fixedAnnots = allAnnots.collect { case (n, Annot.Fixed(t)) => n -> t }
       val userAnnots = allAnnots.collect {
-        case (n, Annot.User(t)) => ProjNode(n) -> t
+        case (n, Annot.User(t, _)) => ProjNode(n) -> t
       }
 
       val graph0 =
