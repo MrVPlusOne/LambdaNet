@@ -197,7 +197,7 @@ abstract class NNArchitecture(
   ): CompNode = {
     singleLayer(
       'encodeLibTerm,
-      concatN(axis=1, fromRows = true)(Vector(experience, signature, name))
+      concatN(axis = 1, fromRows = true)(Vector(experience, signature, name)),
     )
   }
 

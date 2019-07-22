@@ -189,7 +189,13 @@ object PLangTranslation {
               ),
               exportLevel,
             )
-          case Surface.TypeAliasStmt(name, tyVars, ty, exportLevel, superTypes) =>
+          case Surface.TypeAliasStmt(
+              name,
+              tyVars,
+              ty,
+              exportLevel,
+              superTypes,
+              ) =>
             val newTyVars: Set[Symbol] = outerTyVars ++ tyVars
             val newTy = monotype(ty)(newTyVars)
             val node = allocate(Some(name), Annot.Fixed(newTy), isTerm = false)

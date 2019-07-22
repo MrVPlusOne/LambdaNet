@@ -267,8 +267,8 @@ class IRTranslation(allocator: PNodeAllocator) {
           } yield IR.FuncCall(fV, argsV)
         case QLang.Cast(e, ty) =>
           val node = allocator.newNode(None, isType = false)
-          asVar(e).map{v =>
-            if(v.fromProject) {
+          asVar(e).map { v =>
+            if (v.fromProject) {
               mapping(node) = Annot.Fixed(ty)
             }
             Cast(v, node)
@@ -292,7 +292,7 @@ class IRTranslation(allocator: PNodeAllocator) {
     rec(expr).run
   }
 
-  private def exprAsPNode( qExpr: QExpr): (Vector[IRStmt], PNode) = {
+  private def exprAsPNode(qExpr: QExpr): (Vector[IRStmt], PNode) = {
     val (defs, expr) = translateExpr2(qExpr)
     val (defs2, n) = expr match {
       case v: Var => (Vector(), v.node)

@@ -32,7 +32,7 @@ object NewInference {
     ) {
       import architecture.{Embedding, randomVar}
 
-      def debugEmbeddingKeys(text: String): Unit ={
+      def debugEmbeddingKeys(text: String): Unit = {
 //        printResult(text)
         ()
       }
@@ -43,7 +43,9 @@ object NewInference {
         val initEmbedding: Embedding =
           architecture.initialEmbedding(projectNodes, predicateLabels)
 
-        debugEmbeddingKeys(s"InitEmbedding labels: ${initEmbedding.labels.keySet}")
+        debugEmbeddingKeys(
+          s"InitEmbedding labels: ${initEmbedding.labels.keySet}",
+        )
 
         val encodeLibNode = logTime("encodeLibNode") {
           computeLibNodeEncoding()
@@ -69,9 +71,13 @@ object NewInference {
               encodeLeaf,
               encodeLabel,
               predictionSpace.allTypes,
-            ).tap{ m =>
-              debugEmbeddingKeys(s"Lib SignatureEmbeddingMap: ${m.keySet.filter(_.madeFromLibTypes)}")
-              debugEmbeddingKeys(s"Project SignatureEmbeddingMap: ${m.keySet.filter(! _.madeFromLibTypes)}")
+            ).tap { m =>
+              debugEmbeddingKeys(
+                s"Lib SignatureEmbeddingMap: ${m.keySet.filter(_.madeFromLibTypes)}",
+              )
+              debugEmbeddingKeys(
+                s"Project SignatureEmbeddingMap: ${m.keySet.filter(!_.madeFromLibTypes)}",
+              )
 
             }
           }
@@ -101,7 +107,9 @@ object NewInference {
               .map(n => PTyVar(n.n) -> encodeLibType(n.n))
         }
 
-        debugEmbeddingKeys(s"libSignatureEmbedding: ${libSignatureEmbedding.keySet}")
+        debugEmbeddingKeys(
+          s"libSignatureEmbedding: ${libSignatureEmbedding.keySet}",
+        )
 
         val libTermEmbedding = {
           libraryNodes

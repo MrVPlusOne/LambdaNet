@@ -25,7 +25,7 @@ trait Optimizer extends Serializable {
       weightDecay: Option[Double] = None,
       gradientTransform: Gradient => Gradient = identity,
       backPropInParallel: Option[(ExecutionContext, Duration)] = None,
-      scaleLearningRate: Double = 1.0
+      scaleLearningRate: Double = 1.0,
   ): OptimizeStats = {
 
     if (warnEmptyUpdates && params.isEmpty) {
@@ -77,7 +77,7 @@ trait Optimizer extends Serializable {
       weightDecay: Option[Double] = None,
       gradientTransform: Gradient => Gradient = identity,
       backPropInParallel: Option[(ExecutionContext, Duration)] = None,
-      scaleLearningRate: Double = 1.0
+      scaleLearningRate: Double = 1.0,
   ): OptimizeStats = {
     maximize(
       -objective,

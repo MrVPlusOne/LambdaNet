@@ -129,7 +129,7 @@ case class LayerFactory(
     }
 
     val hHat = tanh(input.dot(Wh) + (state * restGate).dot(Uh) + bh)
-    updateGate * hHat + state * (-updateGate + 1 )
+    updateGate * hHat + state * (-updateGate + 1)
   }
 
   /**

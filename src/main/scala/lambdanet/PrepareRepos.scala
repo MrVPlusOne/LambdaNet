@@ -256,6 +256,7 @@ object PrepareRepos {
       libDefs: LibDefs,
       root: Path,
       skipSet: Set[String] = Set("dist", "__tests__", "test", "tests"),
+      shouldPruneGraph: Boolean = true,
   ): (PredicateGraph, Vector[QModule], Map[ProjNode, PType]) =
     SimpleMath.withErrorMessage(s"In project: $root") {
       import libDefs._
@@ -301,7 +302,10 @@ object PrepareRepos {
         )
       val userTypes =
         graph0.nodes.filter(n => !n.fromLib && n.isType).map(ProjNode)
-      val graph = pruneGraph(graph0, userAnnots.keySet ++ userTypes)
+      val graph =
+        if (shouldPruneGraph)
+          pruneGraph(graph0, userAnnots.keySet ++ userTypes)
+        else graph0
 
       errorHandler.warnErrors()
       printResult(s"Project parsed: '$root'")

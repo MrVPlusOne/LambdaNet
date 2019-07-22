@@ -22,8 +22,8 @@ trait APITrait {
   }
 
   def funcNode(func: => DiffFunc): CompNode = {
-    if(debugOpTime){
-      DebugTime.logTime(func.shortName){ new CompNode(func)}
+    if (debugOpTime) {
+      DebugTime.logTime(func.shortName) { new CompNode(func) }
     } else {
       new CompNode(func)
     }
@@ -68,7 +68,9 @@ trait APITrait {
   def totalSafe(xs: IS[CompNode], whenEmpty: => CompNode) =
     if (xs.isEmpty) whenEmpty else total(xs)
 
-  def concatN(axis: Int, fromRows: Boolean = false)(xs: IS[CompNode]): CompNode =
+  def concatN(axis: Int, fromRows: Boolean = false)(
+      xs: IS[CompNode],
+  ): CompNode =
     funcNode(ConcatN(xs, axis, fromRows))
 
   def crossEntropy(prediction: CompNode, targets: Tensor): CompNode =

@@ -60,8 +60,8 @@ object NamingExperiment {
     val train = repos.trainSet.map(toData).combineAll
     val dev = repos.devSet.map(toData).combineAll
     val dir = pwd / "data" / "name-data"
-    write(dir / "train.csv", showResult(train))
-    write(dir / "test.csv", showResult(dev))
+    write.over(dir / "train.csv", showResult(train))
+    write.over(dir / "test.csv", showResult(dev))
   }
 
 }

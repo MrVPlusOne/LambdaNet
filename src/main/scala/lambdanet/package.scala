@@ -61,21 +61,21 @@ package object lambdanet extends SimpleMath.ExtensionsTrait {
 
   sealed trait Annot[+T] {
     def map[B](f: T => B): Annot[B] = this match {
-      case Annot.User(ty, b)  => Annot.User(f(ty), b)
-      case Annot.Fixed(ty) => Annot.Fixed(f(ty))
-      case Annot.Missing   => Annot.Missing
+      case Annot.User(ty, b) => Annot.User(f(ty), b)
+      case Annot.Fixed(ty)   => Annot.Fixed(f(ty))
+      case Annot.Missing     => Annot.Missing
     }
 
     override def toString: String = this match {
-      case Annot.User(ty, b)  => s"$ty" + (if(b) "[i]" else "")
-      case Annot.Fixed(ty) => s"$ty!"
-      case Annot.Missing   => "?"
+      case Annot.User(ty, b) => s"$ty" + (if (b) "[i]" else "")
+      case Annot.Fixed(ty)   => s"$ty!"
+      case Annot.Missing     => "?"
     }
 
     def typeOpt: Option[T] = this match {
-      case Annot.User(ty, _)  => Some(ty)
-      case Annot.Fixed(ty) => Some(ty)
-      case Annot.Missing   => None
+      case Annot.User(ty, _) => Some(ty)
+      case Annot.Fixed(ty)   => Some(ty)
+      case Annot.Missing     => None
     }
 
     def get: T =

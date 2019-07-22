@@ -40,7 +40,7 @@ object TrainingLoop {
 
   def scaleLearningRate(epoch: Int): Double = {
     val min = 0.4
-    SimpleMath.linearInterpolate(1.0, min)(epoch.toDouble/300).max(min)
+    SimpleMath.linearInterpolate(1.0, min)(epoch.toDouble / 300).max(min)
   }
 
   def main(args: Array[String]): Unit = {
@@ -160,7 +160,7 @@ object TrainingLoop {
                     backPropInParallel =
                       Some(parallelCtx -> Timeouts.optimizationTimeout),
                     gradientTransform = _.clipNorm(2 * factor),
-                    scaleLearningRate = scaleLearningRate(epoch)
+                    scaleLearningRate = scaleLearningRate(epoch),
                   )
                 }
 

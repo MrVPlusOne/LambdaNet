@@ -8,7 +8,8 @@ import org.scalacheck.Gen
 import scala.language.implicitConversions
 
 /** An annotation hole that needs to be inferred. */
-class GTHole(protected val id: Int, val annotation: TyAnnot) extends IdEquality {
+class GTHole(protected val id: Int, val annotation: TyAnnot)
+    extends IdEquality {
   override def toString: String = {
     s"#$id{$annotation}"
   }

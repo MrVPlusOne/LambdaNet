@@ -47,9 +47,9 @@ object DataSet {
       val funcTypeNode = libDefs.baseCtx.internalSymbols('Function).ty.get
       val objTypeNode = libDefs.baseCtx.internalSymbols('Object).ty.get
       def nonGenerify(ty: PType): PType = ty match {
-        case _: PFuncType => PTyVar(funcTypeNode)
+        case _: PFuncType   => PTyVar(funcTypeNode)
         case _: PObjectType => PTyVar(objTypeNode)
-        case _ => ty
+        case _              => ty
       }
 
       def libNodeType(n: LibNode) =
@@ -84,7 +84,7 @@ object DataSet {
                 nameEncoder.encode,
                 taskSupport,
               )
-            val annots1 = annotations.mapValuesNow{ nonGenerify }
+            val annots1 = annotations.mapValuesNow { nonGenerify }
             Datum(path, annots1, qModules, predictor)
               .tap(printResult)
         }

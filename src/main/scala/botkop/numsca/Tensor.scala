@@ -10,8 +10,7 @@ import org.nd4j.linalg.ops.transforms.Transforms
 
 import scala.language.{implicitConversions, postfixOps}
 
-class Tensor(val array: INDArray)
-    extends Serializable {
+class Tensor(val array: INDArray) extends Serializable {
 
   val shape: Shape = Shape.fromArray(array.shape())
 
@@ -78,11 +77,11 @@ class Tensor(val array: INDArray)
   )(other: Tensor): Tensor = {
     val v1 = array
     val v2 = other.array
-    if(rank == 2){
+    if (rank == 2) {
       if (other.elements == 1) return Tensor(scalarOp(v1, other.squeeze()))
-      else  {
-        assert (other.rank == 2)
-        if(other.shape(0) == 1) return Tensor(rowOp(v1, v2))
+      else {
+        assert(other.rank == 2)
+        if (other.shape(0) == 1) return Tensor(rowOp(v1, v2))
         else if (other.shape(1) == 1) return Tensor(colOp(v1, v2))
       }
     }
@@ -91,13 +90,13 @@ class Tensor(val array: INDArray)
   }
 
   def +(other: Tensor): Tensor =
-    selectOp(_ add _, _ addRowVector _, _ addColumnVector _,  _ add _)(other)
+    selectOp(_ add _, _ addRowVector _, _ addColumnVector _, _ add _)(other)
 
   def -(other: Tensor): Tensor = this + (-other)
   def *(other: Tensor): Tensor =
-    selectOp(_ mul _, _ mulRowVector _, _ mulColumnVector _ , _ mul _)(other)
+    selectOp(_ mul _, _ mulRowVector _, _ mulColumnVector _, _ mul _)(other)
   def /(other: Tensor): Tensor =
-    selectOp(_ div _, _ divRowVector _, _ divColumnVector _ , _ div _)(other)
+    selectOp(_ div _, _ divRowVector _, _ divColumnVector _, _ div _)(other)
 
   def >(other: Tensor): Tensor = Ops.binOp(_.gt(_))(this, other)
 //  def >=(other: Tensor): Tensor = Ops.gte(this, other)

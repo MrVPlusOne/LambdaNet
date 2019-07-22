@@ -538,9 +538,13 @@ case class ProgramParsing() {
             val old = aliases(a.name)
             val o1 = old.ty.asInstanceOf[ObjectType]
             val o2 = a.ty.asInstanceOf[ObjectType]
-            aliases(a.name) =
-              TypeAliasStmt(a.name, a.tyVars, o1.merge(o2), a.exportLevel,
-                old.superTypes ++ a.superTypes)
+            aliases(a.name) = TypeAliasStmt(
+              a.name,
+              a.tyVars,
+              o1.merge(o2),
+              a.exportLevel,
+              old.superTypes ++ a.superTypes,
+            )
           case BlockStmt(s2) =>
             stmts1 ++= mergeInterfaces(s2)
           case Namespace(symbol, block, exportLevel) =>
@@ -807,7 +811,7 @@ case class ProgramParsing() {
         IfExpr(cond, e1, e2)
 
       case cat => throw new Error(s"Unhandled GExpr case: $cat")
-    }).tap{ e =>
+    }).tap { e =>
       e.tyAnnot = Some(parseGTMark(map("mark")))
     }
   }
@@ -822,7 +826,7 @@ case class ProgramParsing() {
         case "UserAnnot" =>
           numAnnotated += 1
           Annot.User(parseType(map("ty")), inferred = false)
-        case "Inferred"  =>
+        case "Inferred" =>
           numInferred += 1
           Annot.User(parseType(map("ty")), inferred = true)
       }

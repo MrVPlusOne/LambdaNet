@@ -460,12 +460,12 @@ object QLangTranslation {
               )
             case a: PLang.TypeAliasStmt =>
               mapNode(a.node)
-              if(a.superTypes.nonEmpty){
+              if (a.superTypes.nonEmpty) {
                 val superTypes = a.superTypes.map(
                   t => resolveType(TyVar(t)).asInstanceOf[PTyVar],
                 )
                 Vector(ClassDef(a.node, superTypes, Map(), Map()))
-              }else Vector()
+              } else Vector()
             case PLang.Namespace(name, block, _) =>
               val ctx1 = ctx |+| ctx.internalSymbols(name).namespace.get
               block.stmts.flatMap(s => translateStmt(s)(ctx1))
