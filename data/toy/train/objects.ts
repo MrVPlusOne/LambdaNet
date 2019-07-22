@@ -1,13 +1,13 @@
-class A{
+class A1{
   x1: number = 1;
   x2: string = "a";
-  x3: A = new A();
+  x3: A1 = new A1();
   x4: number;
 }
 
-class B{
+class B1{
   x1: string;
-  x2: B = new B();
+  x2: B1 = new B1();
   x3: string[];
   x4: boolean;
   constructor(){
@@ -21,8 +21,8 @@ class C{
   c2: number;
 }
 
-new A().x4 = 5;
-if(new B().x4){
+new A1().x4 = 5;
+if(new B1().x4){
   new C().c1 = undefined;
   new C().c2 = 5;
 }

@@ -32,11 +32,18 @@ object NewInference {
     ) {
       import architecture.{Embedding, randomVar}
 
+      def debugEmbeddingKeys(text: String): Unit ={
+//        printResult(text)
+        ()
+      }
+
       /** returns softmax logits */
       def result: Vector[CompNode] = {
 
         val initEmbedding: Embedding =
           architecture.initialEmbedding(projectNodes, predicateLabels)
+
+        debugEmbeddingKeys(s"InitEmbedding labels: ${initEmbedding.labels.keySet}")
 
         val encodeLibNode = logTime("encodeLibNode") {
           computeLibNodeEncoding()
@@ -53,7 +60,7 @@ object NewInference {
           val allSignatureEmbeddings = logTime("allSignatureEmbeddings") {
             def encodeLeaf(n: PNode) =
               if (n.fromProject) embed.vars(ProjNode(n))
-              else randomVar('libTypeEmbedding / n.symbol)
+              else encodeLibType(n)
             def encodeLabel(l: Symbol) =
               embed.labels.getOrElse(l, encodeLibLabels(l))
 
@@ -62,7 +69,11 @@ object NewInference {
               encodeLeaf,
               encodeLabel,
               predictionSpace.allTypes,
-            )
+            ).tap{ m =>
+              debugEmbeddingKeys(s"Lib SignatureEmbeddingMap: ${m.keySet.filter(_.madeFromLibTypes)}")
+              debugEmbeddingKeys(s"Project SignatureEmbeddingMap: ${m.keySet.filter(! _.madeFromLibTypes)}")
+
+            }
           }
           logTime("decode") {
             decode(embed, allSignatureEmbeddings)
@@ -70,24 +81,28 @@ object NewInference {
         }
       }
 
-      private def computeLibNodeEncoding(): LibNode => CompNode = {
-        val libTypeEmbedding = {
-          // todo: better encoding? (like using object label set)
-          def encodeLeaf(n: PNode) = {
-            val ex = randomVar('libType / n.symbol)
-//            libNodeType(n) match {
-//              case PObjectType(fields) =>
-//                fields.keys.toVector.map(encodeLabel)
-//            }
-            val name = encodeNameOpt(n.nameOpt)
-            architecture.encodeLibType(ex, name)
-          }
+      // todo: better encoding? (like using object label set)
+      private def encodeLibType(n: PNode) = {
+        assert(n.fromLib)
+        val ex = randomVar('libType / n.symbol)
+        val name = encodeNameOpt(n.nameOpt)
+        architecture.encodeLibType(ex, name)
+      }
 
-          signatureEmbeddingMap(encodeLeaf, encodeLibLabels, allLibSignatures) ++
+      private def computeLibNodeEncoding(): LibNode => CompNode = {
+        val libSignatureEmbedding = {
+          signatureEmbeddingMap(
+            encodeLibType,
+            encodeLibLabels,
+            allLibSignatures,
+          ) ++
             libraryNodes
               .filter(_.n.isType)
-              .map(n => PTyVar(n.n) -> encodeLeaf(n.n))
+              .map(n => PTyVar(n.n) -> encodeLibType(n.n))
         }
+
+        debugEmbeddingKeys(s"libSignatureEmbedding: ${libSignatureEmbedding.keySet}")
+
         val libTermEmbedding = {
           libraryNodes
             .filter(_.n.isTerm)
@@ -95,16 +110,18 @@ object NewInference {
             .pipe(parallelize)
             .map { n =>
               val v1 = randomVar('libNode / n.n.symbol)
-              val v2 = libTypeEmbedding(libNodeType(n))
+              val v2 = libSignatureEmbedding(libNodeType(n))
               val name = encodeNameOpt(n.n.nameOpt)
               LibTermNode(n) -> architecture.encodeLibTerm(v1, v2, name)
             }
             .toMap
         }
 
+        debugEmbeddingKeys(s"libTermEmbedding: ${libTermEmbedding.keySet}")
+
         n: LibNode => {
           assert(graph.nodes.contains(n.n))
-          if (n.n.isType) libTypeEmbedding(PTyVar(n.n))
+          if (n.n.isType) libSignatureEmbedding(PTyVar(n.n))
           else libTermEmbedding(LibTermNode(n))
         }
       }
@@ -206,21 +223,21 @@ object NewInference {
         signatureEmbeddings.toMap
       }
 
-      private val encodeLibLabels = DebugTime.logTime("encodeNames") {
+      private val encodeLibLabels = DebugTime.logTime("encodeLibLabels") {
         labelEncoder(
-          parallelize((allLabels ++ additionalNames).toSeq),
+          parallelize(allNames.toSeq),
         )
       }
 
       private val encodeNames = DebugTime.logTime("encodeNames") {
         nameEncoder(
-          parallelize((allLabels ++ additionalNames).toSeq),
+          parallelize(allNames.toSeq),
         )
       }
 
       def encodeNameOpt(nameOpt: Option[Symbol]): CompNode = {
         nameOpt match {
-          case Some(n) => encodeLibLabels(n)
+          case Some(n) => encodeNames(n)
           case None    => randomVar("nameMissing")
         }
       }
@@ -250,9 +267,10 @@ object NewInference {
       pTypeLabels ++ predicateLabels
     }
 
-    val additionalNames: Set[Symbol] = {
-      val nodes = graph.nodes ++ allLibSignatures.flatMap(_.allNodes)
-      nodes.flatMap(_.nameOpt)
+    val allNames: Set[Symbol] = {
+      val nodes = graph.nodes ++ (allLibSignatures ++ predictionSpace.allTypes)
+        .flatMap(_.allNodes)
+      nodes.flatMap(_.nameOpt) ++ allLabels
     }
 
     type BatchedMsgModels = Map[MessageKind, Vector[MessageModel]]

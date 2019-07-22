@@ -64,7 +64,6 @@ object DataSet {
 
       val labelEncoder = announced("create label encoder") {
         RandomLabelEncoder(architecture)
-//        FiniteRandomLabelEncoder(200, architecture, new Random(1))
       }
       val nameEncoder = announced("create name encoder") {
         SegmentedLabelEncoder(repos, coverageGoal = 0.90, architecture)

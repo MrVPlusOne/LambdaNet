@@ -197,7 +197,7 @@ abstract class NNArchitecture(
   ): CompNode = {
     singleLayer(
       'encodeLibTerm,
-      experience.concat(signature, axis = 1).concat(name, axis = 1),
+      concatN(axis=1, fromRows = true)(Vector(experience, signature, name))
     )
   }
 
