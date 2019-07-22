@@ -61,8 +61,12 @@ object NewInference {
         embeddings.map { embed =>
           val allSignatureEmbeddings = logTime("allSignatureEmbeddings") {
             def encodeLeaf(n: PNode) =
-              if (n.fromProject) embed.vars(ProjNode(n))
-              else encodeLibType(n)
+              if (n.fromProject)
+                architecture.singleLayer(
+                  'transformProjectType,
+                  embed.vars(ProjNode(n)),
+                )
+              else architecture.singleLayer('transformLibType, encodeLibType(n))
             def encodeLabel(l: Symbol) =
               embed.labels.getOrElse(l, encodeLibLabels(l))
 
