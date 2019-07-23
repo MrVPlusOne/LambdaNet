@@ -237,7 +237,7 @@ class ParserTests extends WordSpec with MyTest {
       }
 
     val f = pwd / RelPath("data/tests/import-unknowns")
-    val (g, qModules, annts) =
+    val (g, _, _, _) =
       prepareProject(libDefs, f, skipSet = Set(), shouldPruneGraph = false)
     g.predicates.foreach(println)
     g.predicates.collect {
@@ -255,7 +255,7 @@ class ParserTests extends WordSpec with MyTest {
       }
 
     val dir = pwd / RelPath("data/tests/forIn")
-    val (g, qModules, annts) =
+    val (g, qModules, irModules, annts) =
       prepareProject(libDefs, dir, skipSet = Set())
     qModules.foreach(
       m =>
@@ -263,6 +263,11 @@ class ParserTests extends WordSpec with MyTest {
           case (k, v) => k.n -> v
         }, Set())(dir / m.path),
     )
+
+    irModules.foreach{ m =>
+      SequenceModel.tokenizeModule(m, libDefs)
+        .tap(println)
+    }
 
     g.predicates.foreach(println)
     g.predicates.collect {

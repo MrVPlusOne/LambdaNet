@@ -2,7 +2,7 @@ package lambdanet
 
 import lambdanet.architecture.{NNArchitecture}
 
-object NewInference {
+object NeuralInference {
   import funcdiff._
   import translation.PredicateGraph
   import PredicateGraph._
@@ -31,12 +31,6 @@ object NewInference {
         iterations: Int,
     ) {
       import architecture.{Embedding, randomVar}
-
-      def debugEmbeddingKeys(text: String): Unit = {
-//        printResult(text)
-        ()
-      }
-
       /** returns softmax logits */
       def result: Vector[CompNode] = {
 
@@ -90,6 +84,11 @@ object NewInference {
           }
         }
       }
+
+      private def debugEmbeddingKeys(text: String): Unit = {
+        //        printResult(text)
+      }
+
 
       // todo: better encoding? (like using object label set)
       private def encodeLibType(n: PNode) = {

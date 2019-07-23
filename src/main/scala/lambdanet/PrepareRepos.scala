@@ -2,15 +2,10 @@ package lambdanet
 
 import ammonite.ops._
 import funcdiff.SimpleMath
+import lambdanet.translation.IR.IRModule
 import lambdanet.translation.ImportsResolution.{ErrorHandler, ModuleExports}
 import lambdanet.translation._
-import lambdanet.translation.PredicateGraph.{
-  PNode,
-  PNodeAllocator,
-  PType,
-  ProjNode,
-  TyPredicate,
-}
+import lambdanet.translation.PredicateGraph.{PNode, PNodeAllocator, PType, ProjNode, TyPredicate}
 import lambdanet.translation.QLang.QModule
 import lambdanet.utils.ProgramParsing
 import lambdanet.utils.ProgramParsing.GProject
@@ -56,8 +51,8 @@ object PrepareRepos {
         .take(maxNum)
         .par
         .map { f =>
-          val (a, b, c) = prepareProject(libDefs, f)
-          ParsedProject(f.relativeTo(dir), a, b, c)
+          val (a, b, c, d) = prepareProject(libDefs, f)
+          ParsedProject(f.relativeTo(dir), a, b, c, d)
         }
         .toList
 
@@ -75,7 +70,9 @@ object PrepareRepos {
       parseRepos(trainSetDir, devSetDir, loadFromFile = false),
     )
     val stats = repoStatistics(parsed.trainSet ++ parsed.devSet)
-    val avgStats = stats.headers.zip(stats.average).toString()
+    val avgStats = stats.headers.zip(stats.average).map{
+      case (h, n) => "%s: %.1f".format(h, n)
+    }.mkString(", ")
     printResult(avgStats)
     write.over(parsedRepoPath / up / "stats.txt", avgStats)
 
@@ -89,6 +86,7 @@ object PrepareRepos {
       path: ProjectPath,
       pGraph: PredicateGraph,
       qModules: Vector[QModule],
+      irModules: Vector[IRModule],
       userAnnots: Map[ProjNode, PType],
   )
 
@@ -109,7 +107,7 @@ object PrepareRepos {
     val predicates = 4
 
     val headers: Vector[String] =
-      Vector("libNodes", "projNodes", "annotations", "predicates")
+      Vector("libNodes", "projNodes", "libAnnots", "projAnnots", "predicates")
   }
 
   def repoStatistics(results: Seq[ParsedProject]): RepoStats = {
@@ -117,12 +115,13 @@ object PrepareRepos {
 
     val rows = results
       .map {
-        case ParsedProject(path, graph, _, annots) =>
+        case ParsedProject(path, graph, _, _, annots) =>
           val nLib = graph.nodes.count(_.fromLib)
           val nProj = graph.nodes.count(!_.fromLib)
           val nPred = graph.predicates.size
-          val annotations = annots.size
-          path -> Vector(nLib, nProj, annotations, nPred)
+          val libAnnots = annots.count(_._2.madeFromLibTypes)
+          val projAnnots = annots.size - libAnnots
+          path -> Vector(nLib, nProj, libAnnots, projAnnots, nPred)
       }
       .sortBy(_._2.last)
 
@@ -257,7 +256,7 @@ object PrepareRepos {
       root: Path,
       skipSet: Set[String] = Set("dist", "__tests__", "test", "tests"),
       shouldPruneGraph: Boolean = true,
-  ): (PredicateGraph, Vector[QModule], Map[ProjNode, PType]) =
+  ): (PredicateGraph, Vector[QModule], Vector[IRModule], Map[ProjNode, PType]) =
     SimpleMath.withErrorMessage(s"In project: $root") {
       import libDefs._
 
@@ -310,7 +309,7 @@ object PrepareRepos {
       errorHandler.warnErrors()
       printResult(s"Project parsed: '$root'")
 
-      (graph, qModules, userAnnots)
+      (graph, qModules, irModules, userAnnots)
     }
 
 }

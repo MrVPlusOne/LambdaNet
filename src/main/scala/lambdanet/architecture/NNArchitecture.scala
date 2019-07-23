@@ -2,10 +2,9 @@ package lambdanet.architecture
 
 import lambdanet._
 import botkop.numsca
-import botkop.numsca.Tensor
 import cats.data.Chain
 import funcdiff._
-import lambdanet.NewInference.{LabelVector, Message, MessageKind, MessageModel}
+import lambdanet.NeuralInference.{LabelVector, Message, MessageKind, MessageModel}
 import lambdanet.translation.PredicateGraph.{PNode, ProjNode}
 
 import scala.collection.GenSeq
@@ -14,7 +13,7 @@ abstract class NNArchitecture(
     val arcName: String,
     dimMessage: Int,
     pc: ParamCollection,
-) {
+) extends ArchitectureHelper {
 
   /** Store the dropout masks so that they can be reused across a
     * single forward propagation (but should be cleared between iterations) */
@@ -317,24 +316,5 @@ abstract class NNArchitecture(
 
     pos: Int => map.getOrElse(pos, encodePosition(pos))
   }
-
-  private val normalizeFactor = 0.1 / math.sqrt(dimMessage)
-  def randomVec(): Tensor = {
-    numsca.randn(1, dimMessage) * normalizeFactor
-  }
-
-  def randomVar(name: SymbolPath): CompNode = {
-    getVar(name)(randomVec())
-  }
-
-  def randomUnitVec(): Tensor = {
-    TensorExtension.randomUnitVec(dimMessage).reshape(1, dimMessage)
-  }
-
-  def randomUnitVar(name: SymbolPath): CompNode = {
-    getVar(name)(randomUnitVec())
-  }
-
-  def zeroVec() = numsca.zeros(1, dimMessage)
 
 }

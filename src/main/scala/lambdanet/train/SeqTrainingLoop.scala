@@ -16,7 +16,6 @@ import botkop.numsca.Tensor
 import lambdanet.translation.PredicateGraph.{PType, ProjNode}
 import lambdanet.translation.QLang.QModule
 import org.nd4j.linalg.api.buffer.DataType
-
 import scala.collection.parallel.ForkJoinTaskSupport
 import scala.concurrent.{
   Await,
@@ -27,10 +26,15 @@ import scala.concurrent.{
 }
 import scala.language.reflectiveCalls
 
-object TrainingLoop extends TrainingLoopTrait {
+object SeqTrainingLoop {
   val toyMod: Boolean = false
   val taskName = "new-sig-leaf"
-
+  val resultsDir = {
+    import ammonite.ops._
+    pwd / "running-result" / taskName
+  }
+  val fileLogger =
+    new FileLogger(resultsDir / "console.txt", printToConsole = true)
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
   def scaleLearningRate(epoch: Int): Double = {
@@ -489,6 +493,16 @@ object TrainingLoop extends TrainingLoopTrait {
     val parallelCtx: ExecutionContextExecutorService = {
       import ExecutionContext.fromExecutorService
       fromExecutorService(new ForkJoinPool(numOfThreads))
+    }
+  }
+
+  private def readThreadNumber() = {
+    import ammonite.ops._
+    val f = pwd / "configs" / "threads.txt"
+    if (exists(f)) {
+      read(f).trim.toInt
+    } else {
+      Runtime.getRuntime.availableProcessors() / 2
     }
   }
 

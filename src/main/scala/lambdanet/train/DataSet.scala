@@ -2,7 +2,7 @@ package lambdanet.train
 
 import lambdanet._
 import lambdanet.translation.PredicateGraph._
-import NewInference._
+import NeuralInference._
 import lambdanet.PrepareRepos.ParsedRepos
 import lambdanet.architecture.{
   NNArchitecture,
@@ -73,7 +73,7 @@ object DataSet {
 
       val data = (trainSet ++ devSet).toVector
         .map {
-          case ParsedProject(path, g, qModules, annotations) =>
+          case ParsedProject(path, g, qModules, irModules, annotations) =>
             val predictor =
               Predictor(
                 LibTypeNode(LibNode(libDefs.nodeForAny)),

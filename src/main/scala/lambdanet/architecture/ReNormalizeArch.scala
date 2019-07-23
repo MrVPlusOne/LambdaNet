@@ -4,8 +4,8 @@ import botkop.numsca.Shape
 import funcdiff._
 import lambdanet.translation.PredicateGraph
 
-case class ReNormalizeArch(dimMessage: Int, pc: ParamCollection)
-    extends NNArchitecture(s"renorm-$dimMessage", dimMessage, pc) {
+case class ReNormalizeArch(dimEmbedding: Int, pc: ParamCollection)
+    extends NNArchitecture(s"renorm-$dimEmbedding", dimEmbedding, pc) {
   import layerFactory._
 
   def initialEmbedding(

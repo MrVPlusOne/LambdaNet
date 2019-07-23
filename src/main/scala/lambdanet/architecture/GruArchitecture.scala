@@ -4,8 +4,8 @@ import botkop.numsca
 import funcdiff._
 import lambdanet.translation.PredicateGraph.ProjNode
 
-case class GruArchitecture(dimMessage: Int, pc: ParamCollection)
-    extends NNArchitecture(s"gru-$dimMessage", dimMessage, pc) {
+case class GruArchitecture(dimEmbedding: Int, pc: ParamCollection)
+    extends NNArchitecture(s"gru-$dimEmbedding", dimEmbedding, pc) {
 
   def initialEmbedding(
       projectNodes: Set[ProjNode],
