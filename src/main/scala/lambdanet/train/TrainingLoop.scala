@@ -18,12 +18,18 @@ import lambdanet.translation.QLang.QModule
 import org.nd4j.linalg.api.buffer.DataType
 
 import scala.collection.parallel.ForkJoinTaskSupport
-import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutorService, Future, TimeoutException}
+import scala.concurrent.{
+  Await,
+  ExecutionContext,
+  ExecutionContextExecutorService,
+  Future,
+  TimeoutException,
+}
 import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
   val toyMod: Boolean = false
-  val taskName = "seqModelTest"
+  val taskName = "noLibLabel"
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
@@ -53,9 +59,11 @@ object TrainingLoop extends TrainingLoopTrait {
     def result(): Unit = {
       val (state, logger) = loadTrainingState(resultsDir, fileLogger)
       val architecture = GruArchitecture(state.dimMessage, state.pc)
-      val seqArchitecture = SequenceModel.ModelArchitecture(state.dimMessage, state.pc)
+      val seqArchitecture =
+        SequenceModel.ModelArchitecture(state.dimMessage, state.pc)
       val dataSet = DataSet.loadDataSet(taskSupport, architecture)
-      trainOnProjects(dataSet, state, logger, architecture, seqArchitecture).result()
+      trainOnProjects(dataSet, state, logger, architecture, seqArchitecture)
+        .result()
     }
 
     //noinspection TypeAnnotation
@@ -137,7 +145,7 @@ object TrainingLoop extends TrainingLoopTrait {
               checkShouldStop(epoch)
               architecture.dropoutStorage = Some(new ParamCollection())
               for {
-                (loss, fwd, _) <- seqForward(datum).tap(
+                (loss, fwd, _) <- selectForward(datum).tap(
                   _.foreach(r => printResult(r._2)),
                 )
                 _ = checkShouldStop(epoch)
@@ -254,7 +262,7 @@ object TrainingLoop extends TrainingLoopTrait {
           val (stat, fse1Acc, fse5Acc) = testSet.flatMap { datum =>
             checkShouldStop(epoch)
             announced(s"test on $datum") {
-              seqForward(datum).map {
+              selectForward(datum).map {
                 case (_, fwd, pred) =>
                   val pred1 = pred.mapValuesNow { _.head }
                   printQSource(
@@ -304,6 +312,12 @@ object TrainingLoop extends TrainingLoopTrait {
       val lossModel: LossModel = LossModel.EchoLoss
         .tap(m => printResult(s"loss model: ${m.name}"))
 
+      private def selectForward(data: Datum) = {
+        val useSeqModel = false
+        if (useSeqModel) seqForward(data)
+        else forward(data)
+      }
+
       /** Forward propagation for the sequential model */
       private def seqForward(
           datum: Datum,
@@ -323,7 +337,7 @@ object TrainingLoop extends TrainingLoopTrait {
 
           val nonGenerifyIt = DataSet.nonGenerify(predictor.libDefs)
 
-          val groundTruths = nodes.map{
+          val groundTruths = nodes.map {
             case n if n.fromLib =>
               nonGenerifyIt(predictor.libDefs.nodeMapping(n).get)
             case n if n.fromProject =>
@@ -379,13 +393,13 @@ object TrainingLoop extends TrainingLoopTrait {
           (loss, fwd, predictions)
         }
 
-        limitTimeOpt(s"forward: $datum", Timeouts.forwardTimeout){
-          DebugTime.logTime("seqForward"){ result }
+        limitTimeOpt(s"forward: $datum", Timeouts.forwardTimeout) {
+          DebugTime.logTime("seqForward") { result }
         }
       }
       private def forward(
           datum: Datum,
-      ): Option[(Loss, ForwardResult, Map[ProjNode, Vector[PType]])] =
+      ): Option[(Loss, ForwardResult, Map[PNode, Vector[PType]])] =
         limitTimeOpt(s"forward: $datum", Timeouts.forwardTimeout) {
           import datum._
 
@@ -430,7 +444,7 @@ object TrainingLoop extends TrainingLoopTrait {
             distanceCounts,
           )
 
-          val predictions: Map[ProjNode, Vector[PType]] = {
+          val predictions: Map[PNode, Vector[PType]] = {
             import numsca._
             val Shape(Vector(row, _)) = logits.value.shape
             val predVec = (0 until row.toInt).map { r =>
@@ -444,7 +458,7 @@ object TrainingLoop extends TrainingLoopTrait {
                 .toVector
             }
 
-            nodesToPredict.zip(predVec).toMap
+            nodesToPredict.map(_.n).zip(predVec).toMap
           }
 
           (loss, fwd, predictions)

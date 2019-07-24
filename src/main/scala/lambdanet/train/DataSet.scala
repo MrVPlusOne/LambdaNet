@@ -78,18 +78,22 @@ object DataSet {
                 taskSupport,
               )
             val nonGenerifyIt = nonGenerify(libDefs)
-            val annots1 = annotations.mapValuesNow { nonGenerifyIt }
-            val libPredSpace = PredictionSpace(libTypesToPredict.map { n =>
-              PTyVar(n.n.n)
-            } ++ Set(PAny) )
-            val seqPredictor = SeqPredictor(
-              irModules,
-              libDefs,
-              libPredSpace,
-              nameEncoder.encode,
-              taskSupport,
-            )
-            Datum(path, annots1, qModules, predictor, seqPredictor)
+            val annots1 = annotations
+              .mapValuesNow { nonGenerifyIt }
+              .filter{ case (_, ty) => !ty.madeFromLibTypes }
+            val libPredSpace = PredictionSpace(Set(PAny, PredictionSpace.unknownType))
+//            val libPredSpace = PredictionSpace(libTypesToPredict.map { n =>
+//              PTyVar(n.n.n)
+//            } ++ Set(PAny) )
+
+//            val seqPredictor = SeqPredictor(
+//              irModules,
+//              libDefs,
+//              libPredSpace,
+//              nameEncoder.encode,
+//              taskSupport,
+//            )
+            Datum(path, annots1, qModules, predictor, null)
               .tap(printResult)
         }
 
