@@ -16,10 +16,9 @@ case class PredictionSpace(allTypes: Set[PType]) {
   private val indexMap: Map[PType, Int] = {
     typeVector.zipWithIndex.toMap
   }
-  require(indexMap.contains(unknownType))
 
   def indexOfType(ty: PType): Int = {
-    indexMap.getOrElse(ty, indexMap(unknownType))
+    indexMap(ty)
   }
 
   def isLibType(i: Int): Boolean = {

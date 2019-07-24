@@ -29,7 +29,7 @@ import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
   val toyMod: Boolean = false
-  val taskName = "normalLoss-fixedLibLabel"
+  val taskName = "noOOS"
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
@@ -403,8 +403,12 @@ object TrainingLoop extends TrainingLoopTrait {
         limitTimeOpt(s"forward: $datum", Timeouts.forwardTimeout) {
           import datum._
 
-          val nodesToPredict = annotations.keys.toVector
           val predSpace = predictor.predictionSpace
+          val annotsToUse = annotations.filter {
+            case (_, t) => predSpace.allTypes.contains(t)
+          }.toVector
+
+          val nodesToPredict = annotsToUse.map(_._1)
 
           // the logits for very iterations
           val logitsVec = announced("run predictor") {
