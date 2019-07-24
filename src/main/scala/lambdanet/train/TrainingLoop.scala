@@ -29,7 +29,7 @@ import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
   val toyMod: Boolean = false
-  val taskName = "noLibLabel"
+  val taskName = "fixedLibLabel"
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 

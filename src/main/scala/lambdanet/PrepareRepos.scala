@@ -5,7 +5,13 @@ import funcdiff.SimpleMath
 import lambdanet.translation.IR.IRModule
 import lambdanet.translation.ImportsResolution.{ErrorHandler, ModuleExports}
 import lambdanet.translation._
-import lambdanet.translation.PredicateGraph.{PNode, PNodeAllocator, PType, ProjNode, TyPredicate}
+import lambdanet.translation.PredicateGraph.{
+  PNode,
+  PNodeAllocator,
+  PType,
+  ProjNode,
+  TyPredicate,
+}
 import lambdanet.translation.QLang.QModule
 import lambdanet.utils.ProgramParsing
 import lambdanet.utils.ProgramParsing.GProject
@@ -51,7 +57,8 @@ object PrepareRepos {
         .take(maxNum)
         .par
         .map { f =>
-          val (a, b, c, d) = prepareProject(libDefs, f, shouldPruneGraph = false)
+          val (a, b, c, d) =
+            prepareProject(libDefs, f, shouldPruneGraph = false)
           ParsedProject(f.relativeTo(dir), a, b, c, d)
         }
         .toList
@@ -70,9 +77,12 @@ object PrepareRepos {
       parseRepos(trainSetDir, devSetDir, loadFromFile = false),
     )
     val stats = repoStatistics(parsed.trainSet ++ parsed.devSet)
-    val avgStats = stats.headers.zip(stats.average).map{
-      case (h, n) => "%s: %.1f".format(h, n)
-    }.mkString(", ")
+    val avgStats = stats.headers
+      .zip(stats.average)
+      .map {
+        case (h, n) => "%s: %.1f".format(h, n)
+      }
+      .mkString(", ")
     printResult(avgStats)
     write.over(parsedRepoPath / up / "stats.txt", avgStats)
 
@@ -287,9 +297,12 @@ object PrepareRepos {
         )
       val irModules = qModules.map(irTranslator.fromQModule)
       val allAnnots = irModules.flatMap(_.mapping).toMap
-      val fixedAnnots = allAnnots.collect { case (n, Annot.Fixed(t)) => n -> t }
+      val fixedAnnots = allAnnots.collect {
+        case (n, Annot.Fixed(t)) => n -> t
+        case (n, Annot.User(t, _)) if t.madeFromLibTypes => n -> t //fixme
+      }
       val userAnnots = allAnnots.collect {
-        case (n, Annot.User(t, _)) => ProjNode(n) -> t
+        case (n, Annot.User(t, _)) if !t.madeFromLibTypes => ProjNode(n) -> t
       }
 
       val graph0 =

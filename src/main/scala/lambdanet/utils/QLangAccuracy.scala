@@ -79,13 +79,15 @@ object QLangAccuracy {
       nodesToPredict: Map[PNode, PType],
       predictions: Map[PNode, Vector[PType]],
       nodeWeight: PNode => Int,
+      warnMissingPredictions: Boolean = false
   ): Counted[Correct] = {
     val (y1, n1) = nodesToPredict.foldLeft((0, 0)) {
       case ((yes, no), (node, t)) =>
         val rightQ = predictions.get(node) match {
           case Some(t1) => t1.take(n).contains(t)
           case None =>
-            lambdanet.printWarning(s"Prediction missing for $node of type $t")
+            if(warnMissingPredictions)
+              lambdanet.printWarning(s"Prediction missing for $node of type $t")
             false
         }
         val w = nodeWeight(node)

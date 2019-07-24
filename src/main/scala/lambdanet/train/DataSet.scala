@@ -31,7 +31,6 @@ object DataSet {
   ): DataSet =
     announced("loadDataSet") {
       import PrepareRepos._
-      import util.Random
       import ammonite.ops._
       import TrainingLoop.toyMod
 
