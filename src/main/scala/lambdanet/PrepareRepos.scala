@@ -183,7 +183,7 @@ object PrepareRepos {
         devDependencies,
       ),
       errorHandler = handler,
-      libAllocator.newDef,
+      libAllocator.newUnknownDef,
       maxIterations = 5,
     )
 

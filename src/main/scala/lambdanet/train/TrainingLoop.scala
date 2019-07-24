@@ -141,7 +141,7 @@ object TrainingLoop extends TrainingLoopTrait {
             announced(
               s"$GREEN[epoch $epoch](progress: ${i + 1}/${trainSet.size})$BLUE train on $datum",
             ) {
-              println(DebugTime.show)
+//              println(DebugTime.show)
               checkShouldStop(epoch)
               architecture.dropoutStorage = Some(new ParamCollection())
               for {
@@ -351,7 +351,7 @@ object TrainingLoop extends TrainingLoopTrait {
             announced("compute training accuracy") {
               analyzeLogits(
                 logits,
-                targets,
+                groundTruths,
                 predSpace,
                 nodeDistances,
               )
@@ -422,7 +422,7 @@ object TrainingLoop extends TrainingLoopTrait {
             announced("compute training accuracy") {
               analyzeLogits(
                 logits,
-                targets,
+                groundTruths,
                 predSpace,
                 nodeDistances,
               )
@@ -522,7 +522,7 @@ object TrainingLoop extends TrainingLoopTrait {
 
       private def analyzeLogits(
           logits: CompNode,
-          targets: Vector[Int],
+          groundTruths: Vector[PType],
           predictionSpace: PredictionSpace,
           nodeDistances: Vector[Int],
       ): (
@@ -536,8 +536,9 @@ object TrainingLoop extends TrainingLoopTrait {
           .data
           .map(_.toInt)
           .toVector
+        val targets = groundTruths.map(predictionSpace.indexOfType)
         val truthValues = predictions.zip(targets).map { case (x, y) => x == y }
-        val targetFromLibrary = targets.map { predictionSpace.isLibType }
+        val targetFromLibrary = groundTruths.map { _.madeFromLibTypes }
         val zipped = targetFromLibrary.zip(truthValues)
         val libCorrect = zipped.collect {
           case (true, true) => ()

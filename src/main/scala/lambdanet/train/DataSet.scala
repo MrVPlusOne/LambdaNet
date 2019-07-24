@@ -51,8 +51,8 @@ object DataSet {
           .getOrElse(PredictionSpace.unknownType)
 
       val libTypesToPredict: Set[LibTypeNode] =
-        selectLibTypes(repos, coverageGoal = 0.95) +
-          LibTypeNode(LibNode(PredictionSpace.unknownTypeNode))
+//        selectLibTypes(repos, coverageGoal = 0.95) +
+        Set(LibTypeNode(LibNode(PredictionSpace.unknownTypeNode)))
 
       val labelEncoder = announced("create label encoder") {
         RandomLabelEncoder(architecture)
@@ -79,8 +79,8 @@ object DataSet {
             val nonGenerifyIt = nonGenerify(libDefs)
             val annots1 = annotations
               .mapValuesNow { nonGenerifyIt }
-              .filter{ case (_, ty) => !ty.madeFromLibTypes }
-            val libPredSpace = PredictionSpace(Set(PAny, PredictionSpace.unknownType))
+              .filter { case (_, ty) => !ty.madeFromLibTypes }
+//            val libPredSpace = PredictionSpace(Set(PAny, PredictionSpace.unknownType))
 //            val libPredSpace = PredictionSpace(libTypesToPredict.map { n =>
 //              PTyVar(n.n.n)
 //            } ++ Set(PAny) )
@@ -95,6 +95,12 @@ object DataSet {
             Datum(path, annots1, qModules, predictor, null)
               .tap(printResult)
         }
+
+      (data.map { d =>
+        d.annotations.size * d.inPSpaceRatio
+      }.sum / data.map(_.annotations.size.toDouble).sum)
+        .tap{ r => printResult(s"overall InSpaceRatio = $r")}
+      //fixme: figure out why some projects have very low inSpaceRatio
 
       val libAnnots = data.map(_.libAnnots).sum
       val projAnnots = data.map(_.projAnnots).sum
@@ -171,11 +177,17 @@ case class Datum(
   def projAnnots: Int = annotations.count(!_._2.madeFromLibTypes)
 
   def showInline: String = {
-    s"{name: $projectName, " +
+    val info = s"{name: $projectName, " +
       s"annotations: ${annotations.size}(L:$libAnnots/P:$projAnnots), " +
       s"predicates: ${predictor.graph.predicates.size}, " +
       s"predictionSpace: ${predictor.predictionSpace.size}, " +
-      s"inPSpaceRatio: $inPSpaceRatio}"
+      s"inPSpaceRatio: $inPSpaceRatio"
+    val outOfSpaceTypes =
+      annotations.values.toSet.diff(predictor.predictionSpace.allTypes)
+    val extra = if (inPSpaceRatio < 0.5) {
+      s", outOfSpace: $outOfSpaceTypes }"
+    } else "}"
+    info + extra
   }
 
   override def toString: String = {

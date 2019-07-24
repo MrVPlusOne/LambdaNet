@@ -147,7 +147,7 @@ object QLangTranslation {
           devDependencies = Set(),
         ),
         errorHandler = errorHandler,
-        libAllocator.newDef,
+        libAllocator.newUnknownDef,
       )
       .values
       .head
@@ -196,7 +196,7 @@ object QLangTranslation {
         devDependencies,
       ),
       errorHandler = errorHandler,
-      allocator.newDef,
+      allocator.newUnknownDef,
     )(dPath)
 
     // then, make the modules in the .d.ts files available for import
@@ -218,7 +218,7 @@ object QLangTranslation {
         devDependencies,
       ),
       errorHandler = errorHandler,
-      allocator.newDef,
+      allocator.newUnknownDef,
     )
 
     val projectCtx = baseCtx |+| dExports

@@ -95,6 +95,13 @@ object PredicateGraph {
         Some(newNode(nameOpt, isType = true)),
         None,
       )
+
+    def newUnknownDef(nameOpt: Option[Symbol]) =
+      NameDef(
+        Some(newNode(nameOpt, isType = false)),
+        NameDef.unknownDef.ty,
+        None,
+      )
   }
 
   case class ProjNode(n: PNode) {
