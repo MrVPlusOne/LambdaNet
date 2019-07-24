@@ -29,7 +29,7 @@ import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
   val toyMod: Boolean = false
-  val taskName = "fixedLibLabel"
+  val taskName = "normalLoss-fixedLibLabel"
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
@@ -309,7 +309,7 @@ object TrainingLoop extends TrainingLoopTrait {
         (grads, transformed, deltas)
       }
 
-      val lossModel: LossModel = LossModel.EchoLoss
+      val lossModel: LossModel = LossModel.NormalLoss
         .tap(m => printResult(s"loss model: ${m.name}"))
 
       private def selectForward(data: Datum) = {

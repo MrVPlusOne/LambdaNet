@@ -64,4 +64,19 @@ object LossModel {
         .pipe(ls => plusN(ls.toVector) / sum)
     }
   }
+
+  object NormalLoss extends LossModel {
+    def name = "NormalLoss"
+
+    def impl(
+        logitsVec: GenSeq[CompNode],
+        targets: Vector[Int],
+        predSpaceSize: Int,
+    ): Loss = {
+      val loss = logitsVec.last.pipe { l =>
+        crossEntropyLoss(l, targets, predSpaceSize)
+      }
+      loss
+    }
+  }
 }
