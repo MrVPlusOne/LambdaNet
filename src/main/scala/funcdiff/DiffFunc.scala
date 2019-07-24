@@ -349,7 +349,7 @@ private[funcdiff] object DiffFunc {
   }
 
   // ================ N-nary functions ==================
-  case class Total(args: IS[CompNode]) extends DiffFunc {
+  case class PlusN(args: IS[CompNode]) extends DiffFunc {
     require(args.nonEmpty)
     private val shape = args.head.shape
     require(args.forall(_.shape == shape))
@@ -360,7 +360,7 @@ private[funcdiff] object DiffFunc {
       acc
     }
 
-    def name: String = "total"
+    def name: String = "plusN"
 
     def backProp(grad: Gradient): IS[Gradient] = {
       args.map { _ =>

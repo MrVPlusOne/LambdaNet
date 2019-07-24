@@ -1,11 +1,14 @@
 package lambdanet
 
+import cats.data.Chain
 import funcdiff._
 import lambdanet.PrepareRepos.parseRepos
 import lambdanet.architecture.ArchitectureHelper
 import lambdanet.translation.IR._
 import lambdanet.translation.PAnnot
 import lambdanet.translation.PredicateGraph.{PNode, PType}
+
+import scala.collection.GenSeq
 import scala.collection.parallel.ForkJoinTaskSupport
 
 object SequenceModel {
@@ -14,29 +17,42 @@ object SequenceModel {
     import ammonite.ops._
     val repos = parseRepos(pwd / RelPath("data/toy"), pwd / RelPath("data/toy"))
     val libDefs = repos.libDefs
+    val nodeMapping = ???
     val seqs = repos.trainSet.head.pipe { m =>
-      m.irModules.map(tokenizeModule(_, libDefs).tap(println))
+      m.irModules.map(tokenizeModule(_, nodeMapping).tap(println))
     }
     println("Batched")
     batch(seqs).foreach(println)
   }
 
-  case class Predictor(
+  case class SeqPredictor(
       modules: Vector[IRModule],
       libDefs: LibDefs,
       predSpace: PredictionSpace,
-      trainableTokens: Set[Token],
+      encodeNames: GenSeq[Symbol] => Symbol => CompNode,
       taskSupport: Option[ForkJoinTaskSupport],
   ) {
-    private val sentences = modules.par
-      .map(tokenizeModule(_, libDefs))
-      .toVector
+    private val sentences = {
+      val nodeMapping = libDefs.nodeMapping ++ modules.flatMap(_.mapping)
+      modules.par
+        .map(tokenizeModule(_, nodeMapping))
+        .toVector
+    }
     val leftBatched: BatchedSeq = batch(sentences)
     val rightBatched: BatchedSeq = batch(sentences.map(_.reverse))
+    private val allNames = sentences
+      .flatMap(_.collect { case (Name(n), _) => n })
+      .toSet
+      .toSeq
+      .par
 
     def run(architecture: ModelArchitecture): (Vector[PNode], CompNode) = {
+      val encodeName = encodeNames(allNames)
       val (nodes, states) =
-        architecture.aggregate(leftBatched, rightBatched, trainableTokens)
+        architecture
+          .aggregate(leftBatched, rightBatched, encodeName)
+          .toVector
+          .unzip
       val input = concatN(axis = 0, fromRows = true)(states)
       nodes -> architecture.predict(input, predSpace.size)
     }
@@ -65,25 +81,24 @@ object SequenceModel {
     def aggregate(
         leftBatched: BatchedSeq,
         rightBatched: BatchedSeq,
-        trainableTokens: Set[Token],
-    ): (Vector[PNode], Vector[CompNode]) = {
+        encodeName: Symbol => CompNode,
+    ): Map[PNode, CompNode] = {
       import botkop.numsca._
 
       def encodeToken(token: Token): CompNode = {
-        if (trainableTokens contains token) {
-          val path = token match {
-            case Name(name)   => 'Name / name
-            case Keyword(key) => 'Keyword / Symbol(key.id.toString)
-          }
-          randomVar(path)
-        } else randomVar('UnknownToken)
+        token match {
+          case Name(name)   => encodeName(name)
+          case Keyword(key) => randomVar('Keyword / Symbol(key.id.toString))
+        }
       }
 
       /** run rnn from left to right */
       def pass(
           batched: BatchedSeq,
           name: SymbolPath,
-      ): Vector[(PNode, CompNode)] = {
+      ): Map[PNode, CompNode] = {
+        import cats.implicits._
+
         val initVec = randomVar(name / 'initVec)
         val initMat = Vector
           .fill(batched.head.length)(initVec)
@@ -91,49 +106,49 @@ object SequenceModel {
         def iter(
             s0: CompNode,
             input: Vector[(Token, Option[PNode])],
-        ): (CompNode, Vector[(PNode, CompNode)]) = {
+        ): (CompNode, Map[PNode, Chain[CompNode]]) = {
           val n1 = input.length
-          val s1 = s0.slice(0, n1, :>)
+          val s1 = s0.slice(0 :> n1, :>)
           val (tokens, targets) = input.unzip
           val input1 =
             concatN(axis = 0, fromRows = true)(tokens.map(encodeToken))
           val newState = gru(name / 'gru)(s1, input1)
-          val preds = targets.zip(0 until n1).flatMap {
-            case (Some(n), row) => Vector(n -> newState.slice(row, :>))
-            case _              => Vector()
-          }
+          val preds: Map[PNode, Chain[CompNode]] = targets
+            .zip(0 until n1)
+            .map {
+              case (Some(n), row) => Map(n -> Chain(newState.slice(row, :>)))
+              case _              => Map[PNode, Chain[CompNode]]()
+            }
+            .combineAll
           newState -> preds
         }
 
-        var predictions = Vector[(PNode, CompNode)]()
+        var predictions = Map[PNode, Chain[CompNode]]()
         batched.foldLeft(initMat) {
           case (s0, input) =>
             val (s1, preds) = iter(s0, input)
-            predictions ++= preds
+            predictions = predictions.combine(preds)
             s1
         }
-        predictions
+        predictions.mapValuesNow(xs => meanN(xs.toVector))
       }
 
       val out1 = pass(leftBatched, 'aggregate / 'left)
-      val out2 = pass(rightBatched, 'aggregate / 'right).reverse
-      (out1 zip out2).map {
-        case ((n1, s1), (n2, s2)) =>
-          assert(n1 == n2)
-          n1 -> s1.concat(s2, axis = 1)
-      }.unzip
+      val out2 = pass(rightBatched, 'aggregate / 'right)
+      out1.keySet.map { k =>
+        k -> out1(k).concat(out2(k), axis = 1)
+      }.toMap
     }
 
     def predict(states: CompNode, predSpaceSize: Int): CompNode = {
       def singleLayer(name: Symbol, dim: Int)(input: CompNode) = {
         val path = 'predict / name
-        input ~> linear(path, dimEmbedding) ~> relu
+        input ~> linear(path, dim) ~> relu
       }
 
-      states ~> singleLayer('L1, dimEmbedding) ~> singleLayer(
-        'L2,
-        predSpaceSize,
-      )
+      states ~>
+        singleLayer('L1, dimEmbedding) ~>
+        singleLayer('L2, predSpaceSize)
     }
   }
 
@@ -165,9 +180,12 @@ object SequenceModel {
 
   type TokenSeq = Vector[(Token, Target)]
 
-  def tokenizeModule(module: IRModule, libDefs: LibDefs): TokenSeq = {
+  def tokenizeModule(
+      module: IRModule,
+      allNodeMapping: Map[PNode, PAnnot],
+  ): TokenSeq = {
     import Keywords.{beginModule, endModule}
-    val tokenizer = Tokenizer(libDefs.nodeMapping ++ module.mapping)
+    val tokenizer = Tokenizer(allNodeMapping)
     TK(beginModule) ++ module.stmts.flatMap(tokenizer.tokenize) ++ TK(endModule)
   }
 
@@ -231,7 +249,7 @@ object SequenceModel {
     implicit private def tkNode(node: PNode): (Token, Target) = {
       val target = mapping(node) match {
         case Annot.User(t, _) => Some(node -> t)
-        case _                => None
+        case _                      => None
       }
       Name(node.nameOpt.getOrElse(missing)) -> target
     }

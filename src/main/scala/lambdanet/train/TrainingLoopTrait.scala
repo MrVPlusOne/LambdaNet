@@ -4,13 +4,13 @@ import lambdanet.utils.FileLogger
 
 trait TrainingLoopTrait {
 
-  def toyMod: Boolean
-  def taskName: String
-  val resultsDir = {
+  val toyMod: Boolean
+  val taskName: String
+  lazy val resultsDir = {
     import ammonite.ops._
     pwd / "running-result" / taskName
   }
-  val fileLogger =
+  lazy val fileLogger =
     new FileLogger(resultsDir / "console.txt", printToConsole = true)
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 

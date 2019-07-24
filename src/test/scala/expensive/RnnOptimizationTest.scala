@@ -37,7 +37,7 @@ class RnnOptimizationTest extends TestUtils {
             factory.lstm('LSTM)((h, c), input)
         }
         val error = sum(
-          total(states.zip(targets).map {
+          plusN(states.zip(targets).map {
             case ((h, _), t) => square(h - t): CompNode
           }),
         )
@@ -70,7 +70,7 @@ class RnnOptimizationTest extends TestUtils {
             factory.gru('TestGRU)(s, input)
         }
         val error =
-          sum(total(states.zip(targets).map {
+          sum(plusN(states.zip(targets).map {
             case (s, t) => square(s - t): CompNode
           }))
         //      val outputs = states.map{x => x ~> factory.linear('GruOutput, 1) }
@@ -117,7 +117,7 @@ class RnnOptimizationTest extends TestUtils {
       val outputs = states.map { x =>
         x ~> factory.linear('GruOutput, 1)
       }
-      val error = sum(total(outputs.zip(targets).map {
+      val error = sum(plusN(outputs.zip(targets).map {
         case (s, t) =>
           square(s - t): CompNode
       })) / timeSteps
@@ -158,7 +158,7 @@ class RnnOptimizationTest extends TestUtils {
         combiner = (l, r) => factory.linear('Output, 1)(l.concat(r, axis = 1)),
       )(inputs)
 
-      val error = sum(total(outputs.zip(targets).map {
+      val error = sum(plusN(outputs.zip(targets).map {
         case (s, t) =>
           square(s - t): CompNode
       })) / timeSteps

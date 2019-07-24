@@ -218,7 +218,7 @@ abstract class NNArchitecture(
 //
 //          val attention = softmax(keys.dot(n1.t).t / dimMessage)
 //          n -> attention.dot(values)
-          n -> total(ms.toVector)
+          n -> plusN(ms.toVector)
       }
       .seq
       .toMap

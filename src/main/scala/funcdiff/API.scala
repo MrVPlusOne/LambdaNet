@@ -63,10 +63,12 @@ trait APITrait {
 
   def max(x1: CompNode, x2: CompNode): CompNode = funcNode(MaxBinary(x1, x2))
 
-  def total(xs: IS[CompNode]): CompNode = funcNode(Total(xs))
+  def plusN(xs: IS[CompNode]): CompNode = funcNode(PlusN(xs))
+
+  def meanN(xs: IS[CompNode]): CompNode = plusN(xs) / xs.length
 
   def totalSafe(xs: IS[CompNode], whenEmpty: => CompNode) =
-    if (xs.isEmpty) whenEmpty else total(xs)
+    if (xs.isEmpty) whenEmpty else plusN(xs)
 
   def concatN(axis: Int, fromRows: Boolean = false)(
       xs: IS[CompNode],

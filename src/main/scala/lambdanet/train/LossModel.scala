@@ -61,7 +61,7 @@ object LossModel {
       losses
         .zip(weights)
         .map { case (l, w) => l * w }
-        .pipe(ls => total(ls.toVector) / sum)
+        .pipe(ls => plusN(ls.toVector) / sum)
     }
   }
 }

@@ -63,13 +63,12 @@ object QLangAccuracy {
     /** Count top-N correctness */
     def countTopNCorrect(
         n: Int,
-        predictions: Map[ProjNode, Vector[PType]],
+        predictions: Map[PNode, Vector[PType]],
     ): Counted[Correct] = {
-      val preds = predictions.map { case (k, v) => k.n -> v }
       QLangAccuracy.countTopNCorrect(
         n,
         annots,
-        preds,
+        predictions,
         occurrence.getOrElse(_, 0),
       )
     }

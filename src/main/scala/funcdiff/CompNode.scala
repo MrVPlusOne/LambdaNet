@@ -103,16 +103,19 @@ object CompNode {
     import collection.mutable
     val nodeCounters = mutable.HashMap[CompNode, Int]()
 
-    def setupCounter(n: CompNode): Unit = {
-      nodeCounters.get(n) match {
-        case None =>
-          nodeCounters(n) = 1
-          n.func.args.foreach(setupCounter)
-        case Some(c) =>
-          nodeCounters(n) = c + 1
-      }
+    def setupCounter(toVisit: List[CompNode]): Unit = toVisit match {
+      case next :: rest =>
+        nodeCounters.get(next) match {
+          case None =>
+            nodeCounters(next) = 1
+            setupCounter(next.func.args.toList ++ rest)
+          case Some(c) =>
+            nodeCounters(next) = c + 1
+            setupCounter(rest)
+        }
+      case Nil =>
     }
-    nodes.foreach(setupCounter)
+    setupCounter(nodes)
     nodeCounters
   }
 

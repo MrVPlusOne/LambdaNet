@@ -145,7 +145,7 @@ class GradientMatrixTest extends TestUtils {
     (x1, x2) => x1.concat(x2, axis = 0).slice(4 :> 5, 3 :>),
     (x1, x2) => x1.concat(x2, axis = 0).slice(1 :> 5, 3 :> 6),
     max,
-    (x, y) => total(IS(x, y)),
+    (x, y) => plusN(IS(x, y)),
     (x, y) => gruModule(gruModule(x, y), y),
     gateLike,
     sharedWeights,
@@ -211,7 +211,7 @@ class GradientMatrixTest extends TestUtils {
         .slice(1 :> 2, 1 :> 3)),
       "square" -> square,
       "x => sqrt(abs(x) + 0.1)" -> (x => sqrt(abs(x) + 0.1)),
-      "x => total(IS(x,x,x,x))" -> (x => total(IS(x, x, x, x))),
+      "x => total(IS(x,x,x,x))" -> (x => plusN(IS(x, x, x, x))),
       "x => concatN(IS(x,x,x,x), axis = 0)" -> (
           x =>
             concatN(axis = 0)(IS(x, x, x, x)),
@@ -294,7 +294,7 @@ class GradientMatrixTest extends TestUtils {
         case (s, (input, t)) =>
           factory.gru('TestGRU)(s, input)
       }
-      sum(total(states.zip(targets).map {
+      sum(plusN(states.zip(targets).map {
         case (s, t) => square(s - t): CompNode
       }))
     }

@@ -10,26 +10,20 @@ import cats.Monoid
 import funcdiff.{SimpleMath => SM}
 import funcdiff._
 import lambdanet.architecture._
-import lambdanet.utils.{EventLogger, FileLogger, QLangDisplay, ReportFinish}
+import lambdanet.utils.{EventLogger, QLangDisplay, ReportFinish}
 import TrainingState._
 import botkop.numsca.Tensor
-import lambdanet.translation.PredicateGraph.{PType, ProjNode}
+import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 import lambdanet.translation.QLang.QModule
 import org.nd4j.linalg.api.buffer.DataType
 
 import scala.collection.parallel.ForkJoinTaskSupport
-import scala.concurrent.{
-  Await,
-  ExecutionContext,
-  ExecutionContextExecutorService,
-  Future,
-  TimeoutException,
-}
+import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutorService, Future, TimeoutException}
 import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
   val toyMod: Boolean = false
-  val taskName = "new-sig-leaf"
+  val taskName = "seqModelTest"
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
@@ -59,8 +53,9 @@ object TrainingLoop extends TrainingLoopTrait {
     def result(): Unit = {
       val (state, logger) = loadTrainingState(resultsDir, fileLogger)
       val architecture = GruArchitecture(state.dimMessage, state.pc)
+      val seqArchitecture = SequenceModel.ModelArchitecture(state.dimMessage, state.pc)
       val dataSet = DataSet.loadDataSet(taskSupport, architecture)
-      trainOnProjects(dataSet, state, logger, architecture).result()
+      trainOnProjects(dataSet, state, logger, architecture, seqArchitecture).result()
     }
 
     //noinspection TypeAnnotation
@@ -69,6 +64,7 @@ object TrainingLoop extends TrainingLoopTrait {
         trainingState: TrainingState,
         logger: EventLogger,
         architecture: NNArchitecture,
+        seqArchitecture: SequenceModel.ModelArchitecture,
     ) {
       import dataSet._
       import trainingState._
@@ -141,7 +137,7 @@ object TrainingLoop extends TrainingLoopTrait {
               checkShouldStop(epoch)
               architecture.dropoutStorage = Some(new ParamCollection())
               for {
-                (loss, fwd, _) <- forward(datum).tap(
+                (loss, fwd, _) <- seqForward(datum).tap(
                   _.foreach(r => printResult(r._2)),
                 )
                 _ = checkShouldStop(epoch)
@@ -243,13 +239,13 @@ object TrainingLoop extends TrainingLoopTrait {
 
           def printQSource(
               qModules: Vector[QModule],
-              predictions: Map[ProjNode, PType],
+              predictions: Map[PNode, PType],
               predictionSpace: PredictionSpace,
           ) = DebugTime.logTime("printQSource") {
             qModules.par.foreach { m =>
               QLangDisplay.renderModuleToDirectory(
                 m,
-                predictions.map { case (k, v) => k.n -> v },
+                predictions,
                 predictionSpace.allTypes,
               )(predictionDir)
             }
@@ -258,7 +254,7 @@ object TrainingLoop extends TrainingLoopTrait {
           val (stat, fse1Acc, fse5Acc) = testSet.flatMap { datum =>
             checkShouldStop(epoch)
             announced(s"test on $datum") {
-              forward(datum).map {
+              seqForward(datum).map {
                 case (_, fwd, pred) =>
                   val pred1 = pred.mapValuesNow { _.head }
                   printQSource(
@@ -308,6 +304,85 @@ object TrainingLoop extends TrainingLoopTrait {
       val lossModel: LossModel = LossModel.EchoLoss
         .tap(m => printResult(s"loss model: ${m.name}"))
 
+      /** Forward propagation for the sequential model */
+      private def seqForward(
+          datum: Datum,
+      ): Option[(Loss, ForwardResult, Map[PNode, Vector[PType]])] = {
+        def result = {
+          val predictor = datum.seqPredictor
+
+          //          val nodesToPredict = annotations.keys.toVector
+          val predSpace = predictor.predSpace
+
+          // the logits for very iterations
+          val (nodes, logits) = announced("run predictor") {
+            predictor.run(seqArchitecture)
+          }
+          val diff = nodes.toSet.diff(datum.annotations.keySet.map(_.n))
+          assert(diff.isEmpty, s"diff is not empty: $diff")
+
+          val nonGenerifyIt = DataSet.nonGenerify(predictor.libDefs)
+
+          val groundTruths = nodes.map{
+            case n if n.fromLib =>
+              nonGenerifyIt(predictor.libDefs.nodeMapping(n).get)
+            case n if n.fromProject =>
+              datum.annotations(ProjNode(n))
+          }
+
+          val targets = groundTruths.map(predSpace.indexOfType)
+          val nodeDistances = nodes.map(_.pipe(datum.distanceToConsts))
+
+          val (libCounts, projCounts, confMat, distanceCounts) =
+            announced("compute training accuracy") {
+              analyzeLogits(
+                logits,
+                targets,
+                predSpace,
+                nodeDistances,
+              )
+            }
+
+          val loss =
+            lossModel.crossEntropyLoss(
+              logits,
+              targets,
+              predSpace.size,
+            )
+
+          val totalCount = libCounts.count + projCounts.count
+          val fwd = ForwardResult(
+            Counted(totalCount, loss.value.squeeze() * totalCount),
+            libCounts,
+            projCounts,
+            confMat,
+            distanceCounts,
+          )
+
+          val predictions: Map[PNode, Vector[PType]] = {
+            import numsca._
+            val Shape(Vector(row, _)) = logits.value.shape
+            val predVec = (0 until row.toInt).map { r =>
+              logits
+                .value(r, :>)
+                .data
+                .zipWithIndex
+                .sortBy(_._1)
+                .map { case (_, i) => predSpace.typeVector(i) }
+                .reverse
+                .toVector
+            }
+
+            nodes.zip(predVec).toMap
+          }
+
+          (loss, fwd, predictions)
+        }
+
+        limitTimeOpt(s"forward: $datum", Timeouts.forwardTimeout){
+          DebugTime.logTime("seqForward"){ result }
+        }
+      }
       private def forward(
           datum: Datum,
       ): Option[(Loss, ForwardResult, Map[ProjNode, Vector[PType]])] =

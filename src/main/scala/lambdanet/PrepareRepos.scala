@@ -51,7 +51,7 @@ object PrepareRepos {
         .take(maxNum)
         .par
         .map { f =>
-          val (a, b, c, d) = prepareProject(libDefs, f)
+          val (a, b, c, d) = prepareProject(libDefs, f, shouldPruneGraph = false)
           ParsedProject(f.relativeTo(dir), a, b, c, d)
         }
         .toList

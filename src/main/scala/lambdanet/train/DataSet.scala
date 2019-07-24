@@ -4,6 +4,7 @@ import lambdanet._
 import lambdanet.translation.PredicateGraph._
 import NeuralInference._
 import lambdanet.PrepareRepos.ParsedRepos
+import lambdanet.SequenceModel.SeqPredictor
 import lambdanet.architecture.{
   NNArchitecture,
   RandomLabelEncoder,
@@ -44,14 +45,6 @@ object DataSet {
             SM.readObjectFromFile[ParsedRepos](parsedRepoPath.toIO)
           }
 
-      val funcTypeNode = libDefs.baseCtx.internalSymbols('Function).ty.get
-      val objTypeNode = libDefs.baseCtx.internalSymbols('Object).ty.get
-      def nonGenerify(ty: PType): PType = ty match {
-        case _: PFuncType   => PTyVar(funcTypeNode)
-        case _: PObjectType => PTyVar(objTypeNode)
-        case _              => ty
-      }
-
       def libNodeType(n: LibNode) =
         libDefs
           .nodeMapping(n.n)
@@ -84,8 +77,19 @@ object DataSet {
                 nameEncoder.encode,
                 taskSupport,
               )
-            val annots1 = annotations.mapValuesNow { nonGenerify }
-            Datum(path, annots1, qModules, predictor)
+            val nonGenerifyIt = nonGenerify(libDefs)
+            val annots1 = annotations.mapValuesNow { nonGenerifyIt }
+            val libPredSpace = PredictionSpace(libTypesToPredict.map { n =>
+              PTyVar(n.n.n)
+            } ++ Set(PAny) )
+            val seqPredictor = SeqPredictor(
+              irModules,
+              libDefs,
+              libPredSpace,
+              nameEncoder.encode,
+              taskSupport,
+            )
+            Datum(path, annots1, qModules, predictor, seqPredictor)
               .tap(printResult)
         }
 
@@ -129,6 +133,17 @@ object DataSet {
     libTypes.map(_._1).toSet
   }
 
+  def nonGenerify(libDefs: LibDefs): PType => PType = {
+    val funcTypeNode = libDefs.baseCtx.internalSymbols('Function).ty.get
+    val objTypeNode = libDefs.baseCtx.internalSymbols('Object).ty.get
+    def f(ty: PType): PType = ty match {
+      case _: PFuncType   => PTyVar(funcTypeNode)
+      case _: PObjectType => PTyVar(objTypeNode)
+      case _              => ty
+    }
+    f
+  }
+
 }
 
 case class Datum(
@@ -136,6 +151,7 @@ case class Datum(
     annotations: Map[ProjNode, PType],
     qModules: Vector[QModule],
     predictor: Predictor,
+    seqPredictor: SeqPredictor,
 ) {
   val inPSpaceRatio: Double =
     annotations

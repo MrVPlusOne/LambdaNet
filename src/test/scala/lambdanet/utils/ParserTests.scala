@@ -265,7 +265,7 @@ class ParserTests extends WordSpec with MyTest {
     )
 
     irModules.foreach{ m =>
-      SequenceModel.tokenizeModule(m, libDefs)
+      SequenceModel.tokenizeModule(m, libDefs.nodeMapping ++ m.mapping)
         .tap(println)
     }
 

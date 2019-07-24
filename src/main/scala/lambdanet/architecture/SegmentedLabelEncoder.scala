@@ -49,9 +49,10 @@ case class SegmentedLabelEncoder(
   def encode(labels: GenSeq[Symbol]): Symbol => CompNode =
     DebugTime.logTime("encode labels") {
       val zeroVec = architecture.zeroVec()
+      val unknownSegment = architecture.randomVar('segments / 'UNKNOWN)
 
       def encodeSeg(seg: Segment): CompNode = {
-        segmentsMap.getOrElse(seg, architecture.randomUnitVec())
+        segmentsMap.getOrElse(seg, unknownSegment)
       }
 
       labels

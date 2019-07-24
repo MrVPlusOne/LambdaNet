@@ -30,12 +30,13 @@ package object train {
   def nonZero(n: Int): Double = if (n == 0) 1.0 else n.toDouble
 
   def toAccuracy(counts: Counted[Int]): Double = {
-    counts.value.toDouble / nonZero(counts.count)
+    if(counts.count == 0) 1.0
+    else counts.value.toDouble / counts.count
   }
 
   def toAccuracyD(counts: Counted[Double]): Double = {
-    def nonZero(n: Double): Double = if (n == 0) 1.0 else n.toDouble
-    counts.value / nonZero(counts.count)
+    if(counts.count == 0) 1.0
+    else counts.value / counts.count
   }
 
   case class Counted[V](count: Int, value: V)
