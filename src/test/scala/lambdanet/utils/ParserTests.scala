@@ -254,7 +254,7 @@ class ParserTests extends WordSpec with MyTest {
         SimpleMath.readObjectFromFile[LibDefs](libDefsFile.toIO)
       }
 
-    val dir = pwd / RelPath("data/tests/forIn")
+    val dir = pwd / RelPath("data/tests/objects/")
     val (g, qModules, irModules, annts) =
       prepareProject(libDefs, dir, skipSet = Set())
     qModules.foreach(
@@ -269,10 +269,6 @@ class ParserTests extends WordSpec with MyTest {
         .tap(println)
     }
 
-    g.predicates.foreach(println)
-    g.predicates.collect {
-      case DefineRel(p, expr) if p.nameOpt.contains('a) =>
-        assert(expr.asInstanceOf[PNode].fromProject)
-    }
+    g.predicates.toVector.sortBy(_.toString).foreach(println)
   }
 }

@@ -29,7 +29,7 @@ import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
   val toyMod: Boolean = false
-  val taskName = "runSeqModel"
+  val taskName = "12iters"
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
@@ -86,13 +86,12 @@ object TrainingLoop extends TrainingLoopTrait {
         (trainingState.epoch0 + 1 to maxTrainingEpochs).foreach { epoch =>
           announced(s"epoch $epoch") {
             handleExceptions(epoch) {
-              DebugTime.logTime("test-step") {
-                testStep(epoch)
-              }
-
               trainStep(epoch)
               if (epoch % saveInterval == 0) {
                 saveTraining(epoch, s"epoch$epoch")
+              }
+              DebugTime.logTime("test-step") {
+                testStep(epoch)
               }
             }
           }
@@ -310,11 +309,11 @@ object TrainingLoop extends TrainingLoopTrait {
         (grads, transformed, deltas)
       }
 
-      val lossModel: LossModel = LossModel.NormalLoss
+      val lossModel: LossModel = LossModel.EchoLoss
         .tap(m => printResult(s"loss model: ${m.name}"))
 
       private def selectForward(data: Datum) = {
-        val useSeqModel = true
+        val useSeqModel = false
         if (useSeqModel) seqForward(data)
         else forward(data)
       }
