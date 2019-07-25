@@ -28,13 +28,14 @@ object LabelEncoder {
     }
   }
 
-  case class ConstantLabelEncoder(architecture: NNArchitecture) extends LabelEncoder {
+  case class ConstantLabelEncoder(architecture: NNArchitecture)
+      extends LabelEncoder {
     def name: String = "ConstLabelEncoder"
 
     private val zeroVec: Tensor = architecture.zeroVec()
 
     def encode(labels: GenSeq[Symbol]): Symbol => CompNode = s => {
-      zeroVec
+      zeroVec,
     }
   }
 

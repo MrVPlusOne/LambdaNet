@@ -4,7 +4,12 @@ import lambdanet._
 import botkop.numsca
 import cats.data.Chain
 import funcdiff._
-import lambdanet.NeuralInference.{LabelVector, Message, MessageKind, MessageModel}
+import lambdanet.NeuralInference.{
+  LabelVector,
+  Message,
+  MessageKind,
+  MessageModel,
+}
 import lambdanet.translation.PredicateGraph.{PNode, ProjNode}
 
 import scala.collection.GenSeq

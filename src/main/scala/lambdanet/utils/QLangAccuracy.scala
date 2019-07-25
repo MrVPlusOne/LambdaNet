@@ -66,7 +66,7 @@ object QLangAccuracy {
         predictions: Map[PNode, Vector[PType]],
     ): (Counted[Correct], Int) = {
       //todo: filter and return the missing
-      val annots1 = annots.filter{ case (k, _) => predictions.contains(k)}
+      val annots1 = annots.filter { case (k, _) => predictions.contains(k) }
       val missing = annots.size - annots1.size
       QLangAccuracy.countTopNCorrect(
         n,

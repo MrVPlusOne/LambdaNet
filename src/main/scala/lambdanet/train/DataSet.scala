@@ -5,7 +5,10 @@ import lambdanet.translation.PredicateGraph._
 import NeuralInference._
 import lambdanet.PrepareRepos.ParsedRepos
 import lambdanet.SequenceModel.SeqPredictor
-import lambdanet.architecture.LabelEncoder.{ConstantLabelEncoder, RandomLabelEncoder}
+import lambdanet.architecture.LabelEncoder.{
+  ConstantLabelEncoder,
+  RandomLabelEncoder,
+}
 import lambdanet.architecture.NNArchitecture
 import lambdanet.translation.QLang.QModule
 import lambdanet.utils.QLangAccuracy.FseAccuracy
@@ -35,7 +38,10 @@ object DataSet {
 
       val repos @ ParsedRepos(libDefs, trainSet, devSet) =
         if (toyMod)
-          parseRepos(pwd / RelPath("data/toy/trainSet"), pwd / RelPath("data/toy/testSet"))
+          parseRepos(
+            pwd / RelPath("data/toy/trainSet"),
+            pwd / RelPath("data/toy/testSet"),
+          )
         else
           announced(s"read data set from: $parsedRepoPath") {
             SM.readObjectFromFile[ParsedRepos](parsedRepoPath.toIO)

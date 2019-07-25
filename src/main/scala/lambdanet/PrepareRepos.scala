@@ -297,7 +297,7 @@ object PrepareRepos {
         )
       val irModules = qModules.map(irTranslator.fromQModule)
       val allAnnots = irModules.flatMap(_.mapping).toMap
-      val fixedAnnots = allAnnots.collect { case (n, Annot.Fixed(t)) => n -> t}
+      val fixedAnnots = allAnnots.collect { case (n, Annot.Fixed(t)) => n -> t }
       val userAnnots = allAnnots.collect {
         case (n, Annot.User(t, _)) => ProjNode(n) -> t
       }
