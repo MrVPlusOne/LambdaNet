@@ -51,8 +51,7 @@ object DataSet {
           .getOrElse(PredictionSpace.unknownType)
 
       val libTypesToPredict: Set[LibTypeNode] =
-//        selectLibTypes(repos, coverageGoal = 0.95) +
-        Set(LibTypeNode(LibNode(PredictionSpace.unknownTypeNode)))
+        selectLibTypes(repos, coverageGoal = 0.95)
 
       val labelEncoder = announced("create label encoder") {
         RandomLabelEncoder(architecture)
@@ -63,6 +62,7 @@ object DataSet {
 
       printResult(s"Label encoder: ${labelEncoder.name}")
 
+      val trainSetSize = trainSet.length
       val data = (trainSet ++ devSet).toVector
         .map {
           case ParsedProject(path, g, qModules, irModules, annotations) =>
@@ -79,27 +79,27 @@ object DataSet {
             val nonGenerifyIt = nonGenerify(libDefs)
             val annots1 = annotations
               .mapValuesNow { nonGenerifyIt }
-              .filter { case (_, ty) => !ty.madeFromLibTypes }
-//            val libPredSpace = PredictionSpace(Set(PAny, PredictionSpace.unknownType))
-//            val libPredSpace = PredictionSpace(libTypesToPredict.map { n =>
-//              PTyVar(n.n.n)
-//            } ++ Set(PAny) )
+            val libPredSpace = PredictionSpace(
+              libTypesToPredict.map(n => PTyVar(n.n.n)) ++ Set(PAny),
+            )
 
-//            val seqPredictor = SeqPredictor(
-//              irModules,
-//              libDefs,
-//              libPredSpace,
-//              nameEncoder.encode,
-//              taskSupport,
-//            )
-            Datum(path, annots1, qModules, predictor, null)
+            val seqPredictor = SeqPredictor(
+              irModules,
+              libDefs,
+              libPredSpace,
+              nameEncoder.encode,
+              taskSupport,
+            )
+            Datum(path, annots1, qModules, predictor, seqPredictor)
               .tap(printResult)
         }
 
       (data.map { d =>
         d.annotations.size * d.inPSpaceRatio
       }.sum / data.map(_.annotations.size.toDouble).sum)
-        .tap{ r => printResult(s"overall InSpaceRatio = $r")}
+        .tap { r =>
+          printResult(s"overall InSpaceRatio = $r")
+        }
       //fixme: figure out why some projects have very low inSpaceRatio
 
       val libAnnots = data.map(_.libAnnots).sum

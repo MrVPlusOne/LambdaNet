@@ -177,7 +177,9 @@ object QLangDisplay {
       .map {
         Impl.show(_, m.mapping, prediction, predSpace)
       }
-    val annots = m.mapping.collect { case (k, Annot.User(t, _)) => k -> t }
+    val annots = m.mapping.collect {
+      case (k, Annot.User(t, _)) if prediction.contains(k) => k -> t
+    }
 
     val libAccStr = {
       val (acc, yes, total) =
@@ -189,11 +191,12 @@ object QLangDisplay {
         top1Accuracy(annots.filter(!_._2.madeFromLibTypes), prediction, _ => 1)
       s"%.4f=$yes/$total".format(acc)
     }
+    val numMissing = m.mapping.keySet.size - annots.size
 
     val output = html(
       head(
         h2(s"Module: ${m.path}"),
-        h4(s"LibAcc: $libAccStr, ProjAcc: $projAccStr"),
+        h4(s"LibAcc: $libAccStr, ProjAcc: $projAccStr, Missing: $numMissing"),
         meta(charset := "UTF-8"),
       ),
       body(marginLeft := "2rem")(

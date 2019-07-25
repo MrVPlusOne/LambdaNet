@@ -29,7 +29,7 @@ import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
   val toyMod: Boolean = false
-  val taskName = "noOOS"
+  val taskName = "runSeqModel"
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
@@ -86,12 +86,13 @@ object TrainingLoop extends TrainingLoopTrait {
         (trainingState.epoch0 + 1 to maxTrainingEpochs).foreach { epoch =>
           announced(s"epoch $epoch") {
             handleExceptions(epoch) {
+              DebugTime.logTime("test-step") {
+                testStep(epoch)
+              }
+
               trainStep(epoch)
               if (epoch % saveInterval == 0) {
                 saveTraining(epoch, s"epoch$epoch")
-              }
-              DebugTime.logTime("test-step") {
-                testStep(epoch)
               }
             }
           }
@@ -271,8 +272,8 @@ object TrainingLoop extends TrainingLoopTrait {
                     datum.predictor.predictionSpace,
                   )
 
-                  val fse1 = datum.fseAcc.countTopNCorrect(1, pred)
-                  val fse5 = datum.fseAcc.countTopNCorrect(5, pred)
+                  val (fse1, _) = datum.fseAcc.countTopNCorrect(1, pred)
+                  val (fse5, _) = datum.fseAcc.countTopNCorrect(5, pred)
 
                   (fwd, fse1, fse5)
               }.toVector
@@ -313,7 +314,7 @@ object TrainingLoop extends TrainingLoopTrait {
         .tap(m => printResult(s"loss model: ${m.name}"))
 
       private def selectForward(data: Datum) = {
-        val useSeqModel = false
+        val useSeqModel = true
         if (useSeqModel) seqForward(data)
         else forward(data)
       }
@@ -324,16 +325,13 @@ object TrainingLoop extends TrainingLoopTrait {
       ): Option[(Loss, ForwardResult, Map[PNode, Vector[PType]])] = {
         def result = {
           val predictor = datum.seqPredictor
-
-          //          val nodesToPredict = annotations.keys.toVector
           val predSpace = predictor.predSpace
-
           // the logits for very iterations
           val (nodes, logits) = announced("run predictor") {
             predictor.run(seqArchitecture)
           }
-          val diff = nodes.toSet.diff(datum.annotations.keySet.map(_.n))
-          assert(diff.isEmpty, s"diff is not empty: $diff")
+//          val diff = nodes.toSet.diff(datum.annotations.keySet.map(_.n))
+//          assert(diff.isEmpty, s"diff is not empty: $diff")
 
           val nonGenerifyIt = DataSet.nonGenerify(predictor.libDefs)
 

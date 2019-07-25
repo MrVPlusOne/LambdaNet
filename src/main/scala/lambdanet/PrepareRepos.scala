@@ -297,12 +297,9 @@ object PrepareRepos {
         )
       val irModules = qModules.map(irTranslator.fromQModule)
       val allAnnots = irModules.flatMap(_.mapping).toMap
-      val fixedAnnots = allAnnots.collect {
-        case (n, Annot.Fixed(t)) => n -> t
-        case (n, Annot.User(t, _)) if t.madeFromLibTypes => n -> t //fixme
-      }
+      val fixedAnnots = allAnnots.collect { case (n, Annot.Fixed(t)) => n -> t}
       val userAnnots = allAnnots.collect {
-        case (n, Annot.User(t, _)) if !t.madeFromLibTypes => ProjNode(n) -> t
+        case (n, Annot.User(t, _)) => ProjNode(n) -> t
       }
 
       val graph0 =

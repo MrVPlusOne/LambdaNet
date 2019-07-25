@@ -64,13 +64,16 @@ object QLangAccuracy {
     def countTopNCorrect(
         n: Int,
         predictions: Map[PNode, Vector[PType]],
-    ): Counted[Correct] = {
+    ): (Counted[Correct], Int) = {
+      //todo: filter and return the missing
+      val annots1 = annots.filter{ case (k, _) => predictions.contains(k)}
+      val missing = annots.size - annots1.size
       QLangAccuracy.countTopNCorrect(
         n,
-        annots,
+        annots1,
         predictions,
         occurrence.getOrElse(_, 0),
-      )
+      ) -> missing
     }
   }
 
@@ -79,16 +82,14 @@ object QLangAccuracy {
       nodesToPredict: Map[PNode, PType],
       predictions: Map[PNode, Vector[PType]],
       nodeWeight: PNode => Int,
-      warnMissingPredictions: Boolean = false
+      warnMissingPredictions: Boolean = false,
   ): Counted[Correct] = {
     val (y1, n1) = nodesToPredict.foldLeft((0, 0)) {
       case ((yes, no), (node, t)) =>
         val rightQ = predictions.get(node) match {
           case Some(t1) => t1.take(n).contains(t)
           case None =>
-            if(warnMissingPredictions)
-              lambdanet.printWarning(s"Prediction missing for $node of type $t")
-            false
+            throw new Error(s"Prediction missing for $node of type $t")
         }
         val w = nodeWeight(node)
         if (rightQ) (yes + w, no) else (yes, no + w)

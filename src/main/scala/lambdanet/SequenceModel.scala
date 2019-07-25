@@ -18,12 +18,20 @@ object SequenceModel {
     import ammonite.ops._
     val repos = parseRepos(pwd / RelPath("data/toy"), pwd / RelPath("data/toy"))
     val libDefs = repos.libDefs
-    val nodeMapping = ???
+    val nodeMapping =
+      libDefs.nodeMapping ++ repos.trainSet.flatMap(
+        _.irModules.flatMap(_.mapping),
+      )
     val seqs = repos.trainSet.head.pipe { m =>
-      m.irModules.map(tokenizeModule(_, nodeMapping).tap(println))
+      m.irModules.map { m =>
+        tokenizeModule(m, nodeMapping).tap { tks =>
+          println(s"${m.path}: $tks")
+          println(s"ir module:\n${m}")
+        }
+      }
     }
-    println("Batched")
-    batch(seqs).foreach(println)
+//    println("Batched")
+//    batch(seqs).foreach(println)
   }
 
   case class SeqPredictor(
@@ -34,10 +42,19 @@ object SequenceModel {
       taskSupport: Option[ForkJoinTaskSupport],
   ) {
     private val sentences = {
+      def dropOutOfSpace(t: Target): Target = t match {
+        case Some((_, ty)) if !predSpace.allTypes.contains(ty) =>
+          None
+        case _ => t
+      }
+
       val nodeMapping = libDefs.nodeMapping ++ modules.flatMap(_.mapping)
-      modules//.par
+      modules.par
         .map(tokenizeModule(_, nodeMapping))
         .toVector
+        .map { seq =>
+          seq.map { case (k, v) => (k, dropOutOfSpace(v)) }
+        }
     }
     val leftBatched: BatchedSeq = batch(sentences)
     val rightBatched: BatchedSeq = batch(sentences.map(_.reverse))
@@ -174,7 +191,7 @@ object SequenceModel {
     val beginIf, endIf = Value
     val beginWhile, endWhile = Value
     val beginBlock, endBlock = Value
-    val beginFuncDef, endFuncDef = Value
+    val beginFuncDef, endFuncDef, beforeReturn = Value
     val beginClassDef, endClassDef = Value
     val beginModule, endModule = Value
   }
@@ -184,7 +201,7 @@ object SequenceModel {
   def tokenizeModule(
       module: IRModule,
       allNodeMapping: Map[PNode, PAnnot],
-  ): TokenSeq = SM.withErrorMessage(s"In module: ${module.path}"){
+  ): TokenSeq = SM.withErrorMessage(s"In module: ${module.path}") {
     import Keywords.{beginModule, endModule}
     val tokenizer = Tokenizer(allNodeMapping)
     TK(beginModule) ++ module.stmts.flatMap(tokenizer.tokenize) ++ TK(endModule)
@@ -201,58 +218,63 @@ object SequenceModel {
     import Keywords._
     import scala.language.implicitConversions
 
-    def tokenize(stmt: IRStmt): TokenSeq = SM.withErrorMessage(s"In stmt: $stmt"){
-      stmt match {
-        case VarDef(node, rhs, isConst) =>
-          val s3s = rhs match {
-            case Var(n) => Vector(tkNode(n))
-            case FuncCall(f, args) =>
-              TK(beginCall, f) ++ args.map(tkNode) ++ TK(endCall)
-            case ObjLiteral(fields) =>
-              keyword(beginObject) +:
-                fields.toVector.flatMap {
-                  case (s, n) => TK(s, n)
-                } :+ keyword(endObject)
-            case FieldAccess(receiver, label) =>
-              TK(beginAccess, receiver, label, endAccess)
-            case IfExpr(cond, e1, e2) =>
-              TK(beginIfExpr, cond, e1, e2, endIfExpr)
-            case Cast(expr, ty) =>
-              TK(beginCast, expr, ty, endCast)
-          }
-          val s1 = if (isConst) const else let
-          TK(beginVarDef, s1, node) ++ s3s ++ TK(endVarDef)
-        case AssignStmt(lhs, rhs) =>
-          TK(beginAssign, lhs, rhs, endAssign)
-        case ReturnStmt(v, _) =>
-          TK(returnToken, v)
-        case IfStmt(cond, e1, e2) =>
-          TK(beginIf, cond) ++ tokenize(e1) ++ tokenize(e2) ++ TK(endIf)
-        case WhileStmt(cond, body) =>
-          TK(beginWhile, cond) ++ tokenize(body) ++ TK(endWhile)
-        case BlockStmt(stmts) =>
-          keyword(beginBlock) +: stmts.flatMap(tokenize) :+ keyword(endBlock)
-        case FuncDef(funcNode, args, returnType, body) =>
-          TK(beginFuncDef, funcNode) ++ args.map(tkNode) ++ TK(returnType) ++
-            tokenize(body) ++ TK(endFuncDef)
-        case ClassDef(classNode, superTypes, vars, funcDefs) =>
-          TK(beginClassDef, classNode) ++
-            superTypes.toVector.map(v => tkNode(v.node)) ++
-            TK(beginObject) ++
-            vars.toVector.flatMap { case (s, n) => TK(s, n) } ++
-            funcDefs.flatMap(_._2.pipe(tokenize)) ++
-            TK(endObject, endClassDef)
+    def tokenize(stmt: IRStmt): TokenSeq =
+      SM.withErrorMessage(s"In stmt: $stmt") {
+        stmt match {
+          case VarDef(node, rhs, isConst) =>
+            val s3s = rhs match {
+              case Var(n) => Vector(tkNode(n))
+              case FuncCall(f, args) =>
+                TK(beginCall, f) ++ args.map(tkNode) ++ TK(endCall)
+              case ObjLiteral(fields) =>
+                keyword(beginObject) +:
+                  fields.toVector.flatMap {
+                    case (s, n) => TK(s, n)
+                  } :+ keyword(endObject)
+              case FieldAccess(receiver, label) =>
+                TK(beginAccess, receiver, label, endAccess)
+              case IfExpr(cond, e1, e2) =>
+                TK(beginIfExpr, cond, e1, e2, endIfExpr)
+              case Cast(expr, ty) =>
+                TK(beginCast, expr, ty, endCast)
+            }
+            val s1 = if (isConst) const else let
+            TK(beginVarDef, s1, node) ++ s3s ++ TK(endVarDef)
+          case AssignStmt(lhs, rhs) =>
+            TK(beginAssign, lhs, rhs, endAssign)
+          case ReturnStmt(v, _) =>
+            TK(returnToken, v)
+          case IfStmt(cond, e1, e2) =>
+            TK(beginIf, cond) ++ tokenize(e1) ++ tokenize(e2) ++ TK(endIf)
+          case WhileStmt(cond, body) =>
+            TK(beginWhile, cond) ++ tokenize(body) ++ TK(endWhile)
+          case BlockStmt(stmts) =>
+            keyword(beginBlock) +: stmts.flatMap(tokenize) :+ keyword(endBlock)
+          case FuncDef(funcNode, args, returnType, body) =>
+            TK(beginFuncDef, funcNode) ++
+              args.map(tkNode) ++
+              TK(beforeReturn, returnType) ++
+              tokenize(body) ++ TK(endFuncDef)
+          case ClassDef(classNode, superTypes, vars, funcDefs) =>
+            TK(beginClassDef, classNode) ++
+              superTypes.toVector.map(v => tkNode(v.node)) ++
+              TK(beginObject) ++
+              vars.toVector.flatMap { case (s, n) => TK(s, n) } ++
+              funcDefs.toVector.flatMap(_._2.pipe(tokenize)) ++
+              TK(endObject, endClassDef)
+        }
       }
-    }
 
     implicit private def justToken(token: Symbol): (Token, Target) = {
       (Name(token), None)
     }
 
     implicit private def tkNode(node: PNode): (Token, Target) = {
-      val target = mapping(node) match {
-        case Annot.User(t, _) => Some(node -> t)
-        case _                      => None
+      val target = mapping.get(node) match {
+        case Some(Annot.User(t, _)) =>
+          // could missing if this is an unresolved import
+          Some(node -> t)
+        case _ => None
       }
       Name(node.nameOpt.getOrElse(missing)) -> target
     }
