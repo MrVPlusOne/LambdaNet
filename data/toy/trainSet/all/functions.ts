@@ -10,10 +10,16 @@ function f2(y: boolean, x: number, c: Window): string {
   c = window;
   return 'a';
 }
-function f3(c: Window, x: number, y: boolean): void {
+function f3(c: Event, x: number, y: boolean): void {
   x = 5;
   y = true;
-  c = window;
+  c = Event.prototype;
+}
+
+function f4(c: boolean, x: number): Event {
+  c = true;
+  x = 5;
+  return Event.prototype;
 }
 
 let x1: number;
@@ -28,7 +34,7 @@ let r2: string = f2(y2, x2, c2);
 
 let x3: number;
 let y3: boolean;
-let c3: Window;
+let c3: Event;
 let r3: void = f3(c3, x3, y3);
 
 

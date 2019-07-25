@@ -17,14 +17,14 @@ class B1{
 }
 
 class C{
-  c1: any;
-  c2: number;
+  x1: any;
+  x2: number;
 }
 
 new A1().x4 = 5;
 if(new B1().x4){
-  new C().c1 = undefined;
-  new C().c2 = 5;
+  new C().x1 = undefined;
+  new C().x2 = 5;
 }
 
 let x1: number;

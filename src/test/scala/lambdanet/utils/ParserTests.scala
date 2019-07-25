@@ -254,7 +254,7 @@ class ParserTests extends WordSpec with MyTest {
         SimpleMath.readObjectFromFile[LibDefs](libDefsFile.toIO)
       }
 
-    val dir = pwd / RelPath("data/tests/objects/")
+    val dir = pwd / RelPath("data/toy/testSet/all")
     val (g, qModules, irModules, annts) =
       prepareProject(libDefs, dir, skipSet = Set())
     qModules.foreach(

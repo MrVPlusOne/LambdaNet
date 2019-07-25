@@ -5,11 +5,8 @@ import lambdanet.translation.PredicateGraph._
 import NeuralInference._
 import lambdanet.PrepareRepos.ParsedRepos
 import lambdanet.SequenceModel.SeqPredictor
-import lambdanet.architecture.{
-  NNArchitecture,
-  RandomLabelEncoder,
-  SegmentedLabelEncoder,
-}
+import lambdanet.architecture.LabelEncoder.{ConstantLabelEncoder, RandomLabelEncoder}
+import lambdanet.architecture.NNArchitecture
 import lambdanet.translation.QLang.QModule
 import lambdanet.utils.QLangAccuracy.FseAccuracy
 
@@ -38,7 +35,7 @@ object DataSet {
 
       val repos @ ParsedRepos(libDefs, trainSet, devSet) =
         if (toyMod)
-          parseRepos(pwd / RelPath("data/toy"), pwd / RelPath("data/toy"))
+          parseRepos(pwd / RelPath("data/toy/trainSet"), pwd / RelPath("data/toy/testSet"))
         else
           announced(s"read data set from: $parsedRepoPath") {
             SM.readObjectFromFile[ParsedRepos](parsedRepoPath.toIO)
@@ -57,12 +54,12 @@ object DataSet {
         RandomLabelEncoder(architecture)
       }
       val nameEncoder = announced("create name encoder") {
-        SegmentedLabelEncoder(repos, coverageGoal = 0.90, architecture)
+//        SegmentedLabelEncoder(repos, coverageGoal = 0.90, architecture)
+        ConstantLabelEncoder(architecture)
       }
 
       printResult(s"Label encoder: ${labelEncoder.name}")
 
-      val trainSetSize = trainSet.length
       val data = (trainSet ++ devSet).toVector
         .map {
           case ParsedProject(path, g, qModules, irModules, annotations) =>
@@ -83,14 +80,14 @@ object DataSet {
               libTypesToPredict.map(n => PTyVar(n.n.n)) ++ Set(PAny),
             )
 
-            val seqPredictor = SeqPredictor(
-              irModules,
-              libDefs,
-              libPredSpace,
-              nameEncoder.encode,
-              taskSupport,
-            )
-            Datum(path, annots1, qModules, predictor, seqPredictor)
+//            val seqPredictor = SeqPredictor(
+//              irModules,
+//              libDefs,
+//              libPredSpace,
+//              nameEncoder.encode,
+//              taskSupport,
+//            )
+            Datum(path, annots1, qModules, predictor, null)
               .tap(printResult)
         }
 

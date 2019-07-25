@@ -28,8 +28,8 @@ import scala.concurrent.{
 import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
-  val toyMod: Boolean = false
-  val taskName = "12iters"
+  val toyMod: Boolean = true
+  val taskName = "simpleType-3"
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
@@ -406,6 +406,7 @@ object TrainingLoop extends TrainingLoopTrait {
           }.toVector
 
           val nodesToPredict = annotsToUse.map(_._1)
+          assert(nodesToPredict.nonEmpty, predSpace)
 
           // the logits for very iterations
           val logitsVec = announced("run predictor") {

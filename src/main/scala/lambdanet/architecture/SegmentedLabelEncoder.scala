@@ -78,7 +78,7 @@ case class SegmentedLabelEncoder(
           " ",
         )
         .split("\\s+")
-        .map(s => Segment(Symbol(s.toLowerCase)))
+        .map(s => Segment(Symbol(s.toLowerCase.replaceAll("[0-9]", ""))))
         .toVector
     }
 

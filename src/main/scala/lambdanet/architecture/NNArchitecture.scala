@@ -200,9 +200,9 @@ abstract class NNArchitecture(
     )
   }
 
-  def encodeLibType(experience: CompNode, name: CompNode): CompNode = {
-    singleLayer('encodeLibType, experience.concat(name, axis = 1))
-  }
+//  def encodeLibType(experience: CompNode, name: CompNode): CompNode = {
+//    singleLayer('encodeLibType, experience.concat(name, axis = 1))
+//  }
 
   def mergeMessages[K](
       name: SymbolPath,

@@ -31,6 +31,7 @@ object NeuralInference {
         iterations: Int,
     ) {
       import architecture.{Embedding, randomVar}
+
       /** returns softmax logits */
       def result: Vector[CompNode] = {
 
@@ -55,12 +56,8 @@ object NeuralInference {
         embeddings.map { embed =>
           val allSignatureEmbeddings = logTime("allSignatureEmbeddings") {
             def encodeLeaf(n: PNode) =
-              if (n.fromProject)
-                architecture.singleLayer(
-                  'transformProjectType,
-                  embed.vars(ProjNode(n)),
-                )
-              else architecture.singleLayer('transformLibType, encodeLibType(n))
+              if (n.fromProject) embed.vars(ProjNode(n))
+              else encodeLibType(n)
             def encodeLabel(l: Symbol) =
               embed.labels.getOrElse(l, encodeLibLabels(l))
 
@@ -89,13 +86,12 @@ object NeuralInference {
         //        printResult(text)
       }
 
-
       // todo: better encoding? (like using object label set)
       private def encodeLibType(n: PNode) = {
         assert(n.fromLib)
-        val ex = randomVar('libType / n.symbol)
-        val name = encodeNameOpt(n.nameOpt)
-        architecture.encodeLibType(ex, name)
+        randomVar('libType / n.symbol)
+//        val name = encodeNameOpt(n.nameOpt)
+//        architecture.encodeLibType(ex, name)
       }
 
       private def computeLibNodeEncoding(): LibNode => CompNode = {
