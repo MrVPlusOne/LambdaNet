@@ -26,23 +26,17 @@ abstract class NNArchitecture(
 
   case class Embedding(
       vars: Map[ProjNode, CompNode],
-      labels: Map[Symbol, CompNode],
   )
 
-  type UpdateMessages =
-    (Map[ProjNode, Chain[Message]], Map[Symbol, Chain[Message]])
+  type UpdateMessages = Map[ProjNode, Chain[Message]]
 
   def toVars(msg: Map[PNode, Chain[Message]]): UpdateMessages = {
-    val msg1 = msg.collect {
+    msg.collect {
       case (k, v) if k.fromProject => ProjNode(k) -> v
     }
-    (msg1, Map())
   }
 
-  def toLabels(msg: Map[Symbol, Chain[Message]]): UpdateMessages = (Map(), msg)
-
   val layerFactory: LayerFactory = LayerFactory(arcName, pc)
-
   import layerFactory._
 
   def initialEmbedding(
@@ -60,6 +54,22 @@ abstract class NNArchitecture(
     import MessageKind._
     import MessageModel._
     import cats.implicits._
+
+    def bidirectional(
+        name: String,
+        n1s: Vector[PNode],
+        n2s: Vector[PNode],
+        inputs: Vector[CompNode],
+    ) = {
+      toVars(
+        verticalBatching(n1s.zip(inputs), singleLayer(name / 'left, _)) |+|
+          verticalBatching(
+            n2s.zip(inputs),
+            singleLayer(name / 'right, _),
+          ),
+      )
+    }
+
     messages
       .map {
         case (kind, models) =>
@@ -79,13 +89,7 @@ abstract class NNArchitecture(
                   (s.n1, s.n2, merged)
                 }
                 .unzip3
-              toVars(
-                verticalBatching(n1s.zip(inputs), singleLayer(name / 'left, _)) |+|
-                  verticalBatching(
-                    n2s.zip(inputs),
-                    singleLayer(name / 'right, _),
-                  ),
-              )
+              bidirectional(name, n1s, n2s, inputs)
             case KindNaming(name) =>
               val paired = models
                 .asInstanceOf[Vector[Naming]]
@@ -105,13 +109,7 @@ abstract class NNArchitecture(
                     (n1, n2, input)
                 }
                 .unzip3
-              toVars(
-                verticalBatching(n1s.zip(inputs), singleLayer(name / 'left, _)) |+|
-                  verticalBatching(
-                    n2s.zip(inputs),
-                    singleLayer(name / 'right, _),
-                  ),
-              )
+              bidirectional(name, n1s, n2s, inputs)
             case KindBinaryLabeled(name, LabelType.Field) =>
               val (receivers, inputs) = models
                 .asInstanceOf[Vector[Labeled]]
@@ -130,27 +128,10 @@ abstract class NNArchitecture(
                 }
                 .unzip
               val (n1s, n2s, labels) = receivers.unzip3
-              val msgs1 = toVars(
-                verticalBatching(n1s.zip(inputs), singleLayer(name / 'toN1, _)) |+|
-                  verticalBatching(
-                    n2s.zip(inputs),
-                    singleLayer(name / 'toN2, _),
-                  ),
-              )
-              val msgs2 = toLabels(
-                verticalBatching(
-                  labels.zip(inputs),
-                  singleLayer(name / 'toLabel, _),
-                ),
-              )
-              msgs1 |+| msgs2
+              bidirectional(name, n1s, n2s, inputs)
           }
       }
-      .unzip
-      .pipe {
-        case (x, y) =>
-          (x.fold(Map())(_ |+| _), y.fold(Map())(_ |+| _))
-      }
+      .fold(Map())(_ |+| _)
   }
 
   def similarity(
