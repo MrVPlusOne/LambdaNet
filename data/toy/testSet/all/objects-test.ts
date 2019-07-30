@@ -17,14 +17,14 @@ class D{
 class C{
   c2: any;
   c1: number;
-  x4: string;
+  x4: C;
 }
 
 new A1().x2 = true;
 if(new D().x4){
   new C().c1 = 5;
   new C().c2 = undefined;
-  new C().x4 = "";
+  new C().x4 = new C();
 }
 
 let v1: A1 = new A1();

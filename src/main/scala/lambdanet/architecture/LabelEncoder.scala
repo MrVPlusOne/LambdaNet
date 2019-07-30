@@ -35,11 +35,65 @@ object LabelEncoder {
     private val zeroVec: Tensor = architecture.zeroVec()
 
     def encode(labels: GenSeq[Symbol]): Symbol => CompNode = s => {
-      zeroVec,
+      zeroVec
     }
   }
 
   import scala.collection.GenSeq
+
+  case class TrainableLabelEncoder(
+      repos: ParsedRepos,
+      coverageGoal: Double,
+      architecture: NNArchitecture,
+  ) extends LabelEncoder {
+    import cats.implicits._
+    import repos._
+
+    def name: String = "TrainableLabelEncoder"
+
+    private val labelsMap: Map[Symbol, CompNode] = {
+      val totalUsages = trainSet.foldMap { p =>
+        val predsUsage = p.pGraph.predicates.toVector.collect {
+          case DefineRel(_, expr) =>
+            expr.allLabels.toVector.foldMap(nameUsages)
+          case HasName(_, name) =>
+            nameUsages(name)
+        }.combineAll
+
+        val annotsUsage = p.userAnnots.toVector.foldMap {
+          case (_, t) => t.allLabels.toVector.foldMap(nameUsages)
+        }
+
+        Vector(predsUsage, annotsUsage).combineAll
+      }
+
+      val (labels, achieved) =
+        SM.selectBasedOnFrequency(totalUsages.toSeq, coverageGoal)
+      printResult(s"number of labels selected: ${labels.length}")
+      printResult(s"coverage achieved: $achieved")
+      printResult(s"Fist 100 labels: ${labels.take(100)}")
+
+      labels.map {
+        case (s, _) =>
+          s -> architecture.randomVar('label / s)
+      }.toMap
+    }
+
+    def encode(labels: GenSeq[Symbol]): Symbol => CompNode =
+      DebugTime.logTime("encode labels") {
+        val unknownLabel = architecture.randomVar('label / 'UNKNOWN)
+        labels
+          .map { l =>
+            l -> labelsMap.getOrElse(l, unknownLabel)
+          }
+          .toMap
+          .apply
+      }
+
+    private def nameUsages(name: Symbol): Map[Symbol, Int] = {
+      Map(name -> 1)
+    }
+  }
 
   case class SegmentedLabelEncoder(
       repos: ParsedRepos,

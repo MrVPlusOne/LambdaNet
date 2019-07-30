@@ -5,10 +5,7 @@ import lambdanet.translation.PredicateGraph._
 import NeuralInference._
 import lambdanet.PrepareRepos.ParsedRepos
 import lambdanet.SequenceModel.SeqPredictor
-import lambdanet.architecture.LabelEncoder.{
-  ConstantLabelEncoder,
-  RandomLabelEncoder,
-}
+import lambdanet.architecture.LabelEncoder.{ConstantLabelEncoder, RandomLabelEncoder, TrainableLabelEncoder}
 import lambdanet.architecture.NNArchitecture
 import lambdanet.translation.QLang.QModule
 import lambdanet.utils.QLangAccuracy.FseAccuracy
@@ -57,7 +54,7 @@ object DataSet {
         selectLibTypes(repos, coverageGoal = 0.95)
 
       val labelEncoder = announced("create label encoder") {
-        RandomLabelEncoder(architecture)
+        TrainableLabelEncoder(repos, coverageGoal = 0.95, architecture)
       }
       val nameEncoder = announced("create name encoder") {
 //        SegmentedLabelEncoder(repos, coverageGoal = 0.90, architecture)

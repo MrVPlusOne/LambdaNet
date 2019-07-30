@@ -36,7 +36,7 @@ object NeuralInference {
       def result: Vector[CompNode] = {
 
         val initEmbedding: Embedding =
-          architecture.initialEmbedding(projectNodes, predicateLabels)
+          architecture.initialEmbedding(projectNodes, predicateLabels, encodeLibLabels)
 
         debugEmbeddingKeys(
           s"InitEmbedding labels: ${initEmbedding.labels.keySet}",
@@ -231,15 +231,11 @@ object NeuralInference {
       }
 
       private val encodeLibLabels = DebugTime.logTime("encodeLibLabels") {
-        labelEncoder(
-          parallelize(allNames.toSeq),
-        )
+        labelEncoder(parallelize(allNames.toSeq))
       }
 
       private val encodeNames = DebugTime.logTime("encodeNames") {
-        nameEncoder(
-          parallelize(allNames.toSeq),
-        )
+        nameEncoder(parallelize(allNames.toSeq))
       }
 
       def encodeNameOpt(nameOpt: Option[Symbol]): CompNode = {

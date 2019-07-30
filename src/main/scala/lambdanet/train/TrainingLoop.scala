@@ -29,7 +29,7 @@ import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
   val toyMod: Boolean = true
-  val taskName = "simpleType-3"
+  val taskName = "noLibVec1-toy-5"
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 

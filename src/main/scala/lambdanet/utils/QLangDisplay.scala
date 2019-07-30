@@ -191,7 +191,7 @@ object QLangDisplay {
         top1Accuracy(annots.filter(!_._2.madeFromLibTypes), prediction, _ => 1)
       s"%.4f=$yes/$total".format(acc)
     }
-    val numMissing = m.mapping.keySet.size - annots.size
+    val numMissing = annots.size - prediction.size
 
     val output = html(
       head(

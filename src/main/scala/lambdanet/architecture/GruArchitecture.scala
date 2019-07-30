@@ -10,10 +10,11 @@ case class GruArchitecture(dimEmbedding: Int, pc: ParamCollection)
   def initialEmbedding(
       projectNodes: Set[ProjNode],
       labels: Set[Symbol],
+      encodeLibLabel: Symbol => CompNode,
   ): Embedding = {
-    val vec = randomVar('nodeInitVec)
-    val vars = projectNodes.map(_ -> vec).toMap
-    val ls = labels.map(_ -> const(randomUnitVec())).toMap
+    val nodeVec = randomVar('nodeInitVec)
+    val vars = projectNodes.map(_ -> nodeVec).toMap
+    val ls = labels.map(l => l -> encodeLibLabel(l)).toMap
     Embedding(vars, ls)
   }
 

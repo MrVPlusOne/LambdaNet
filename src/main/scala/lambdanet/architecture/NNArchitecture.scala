@@ -48,6 +48,7 @@ abstract class NNArchitecture(
   def initialEmbedding(
       projectNodes: Set[ProjNode],
       labels: Set[Symbol],
+      encodeLibLabel: Symbol => LabelVector,
   ): Embedding
 
   def calculateMessages(
