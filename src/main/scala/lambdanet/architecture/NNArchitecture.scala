@@ -4,12 +4,7 @@ import lambdanet._
 import botkop.numsca
 import cats.data.Chain
 import funcdiff._
-import lambdanet.NeuralInference.{
-  LabelVector,
-  Message,
-  MessageKind,
-  MessageModel,
-}
+import lambdanet.NeuralInference.{LabelUsages, LabelVector, Message, MessageKind, MessageModel}
 import lambdanet.translation.PredicateGraph.{PNode, ProjNode}
 
 import scala.collection.GenSeq
@@ -63,10 +58,7 @@ abstract class NNArchitecture(
     ) = {
       toVars(
         verticalBatching(n1s.zip(inputs), singleLayer(name / 'left, _)) |+|
-          verticalBatching(
-            n2s.zip(inputs),
-            singleLayer(name / 'right, _),
-          ),
+          verticalBatching(n2s.zip(inputs), singleLayer(name / 'right, _)),
       )
     }
 
@@ -97,6 +89,7 @@ abstract class NNArchitecture(
               verticalBatching(paired, singleLayer(name, _))
                 .pipe(toVars)
             case KindBinaryLabeled(name, LabelType.Position) =>
+              //todo: try RNN based embedding
               val (n1s, n2s, inputs) = models
                 .asInstanceOf[Vector[Labeled]]
                 .map {

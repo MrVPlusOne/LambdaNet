@@ -36,11 +36,11 @@ object NeuralInference {
       def result: Vector[CompNode] = {
 
         val initEmbedding: Embedding =
-          architecture.initialEmbedding(projectNodes, predicateLabels, encodeLibLabels)
-
-        debugEmbeddingKeys(
-          s"InitEmbedding labels: ${initEmbedding.labels.keySet}",
-        )
+          architecture.initialEmbedding(
+            projectNodes,
+            predicateLabels,
+            encodeLabels,
+          )
 
         val encodeLibNode = logTime("encodeLibNode") {
           computeLibNodeEncoding()
@@ -58,32 +58,18 @@ object NeuralInference {
             def encodeLeaf(n: PNode) =
               if (n.fromProject) embed.vars(ProjNode(n))
               else encodeLibType(n)
-            def encodeLabel(l: Symbol) =
-              embed.labels.getOrElse(l, encodeLibLabels(l))
 
             // encode all types from the prediction space
             signatureEmbeddingMap(
               encodeLeaf,
-              encodeLabel,
+              encodeLabels,
               predictionSpace.allTypes,
-            ).tap { m =>
-              debugEmbeddingKeys(
-                s"Lib SignatureEmbeddingMap: ${m.keySet.filter(_.madeFromLibTypes)}",
-              )
-              debugEmbeddingKeys(
-                s"Project SignatureEmbeddingMap: ${m.keySet.filter(!_.madeFromLibTypes)}",
-              )
-
-            }
+            )
           }
           logTime("decode") {
             decode(embed, allSignatureEmbeddings)
           }
         }
-      }
-
-      private def debugEmbeddingKeys(text: String): Unit = {
-        //        printResult(text)
       }
 
       // todo: better encoding? (like using object label set)
@@ -94,21 +80,18 @@ object NeuralInference {
 //        architecture.encodeLibType(ex, name)
       }
 
+      // todo: try simpler encoding first
       private def computeLibNodeEncoding(): LibNode => CompNode = {
         val libSignatureEmbedding = {
           signatureEmbeddingMap(
             encodeLibType,
-            encodeLibLabels,
+            encodeLabels,
             allLibSignatures,
           ) ++
             libraryNodes
               .filter(_.n.isType)
               .map(n => PTyVar(n.n) -> encodeLibType(n.n))
         }
-
-        debugEmbeddingKeys(
-          s"libSignatureEmbedding: ${libSignatureEmbedding.keySet}",
-        )
 
         val libTermEmbedding = {
           libraryNodes
@@ -123,8 +106,6 @@ object NeuralInference {
             }
             .toMap
         }
-
-        debugEmbeddingKeys(s"libTermEmbedding: ${libTermEmbedding.keySet}")
 
         n: LibNode => {
           assert(graph.nodes.contains(n.n))
@@ -143,39 +124,25 @@ object NeuralInference {
               if (n.fromProject) embedding.vars(ProjNode(n))
               else encodeLibNode(LibNode(n))
 
-            def encodeLabel(l: Symbol): CompNode = {
-              embedding.labels.getOrElse(l, encodeLibLabels(l))
-            }
-
             architecture.calculateMessages(
               parallelize(batchedMsgModels.toSeq),
               encodeNode,
-              encodeLabel,
+              encodeLabels,
               encodeNames,
             )
           }
 
         val merged = logTime("merge messages") {
-          val (m1, m2) = messages
-          val r1 =
-            architecture.mergeMessages(
-              'vars,
-              parallelize(m1.toSeq),
-              embedding.vars,
-            )
-          val r2 =
-            architecture.mergeMessages(
-              'labels,
-              parallelize(m2.toSeq),
-              embedding.labels,
-            )
-          (r1, r2)
+          architecture.mergeMessages(
+            'vars,
+            parallelize(messages.toSeq),
+            embedding.vars,
+          )
         }
 
         logTime("update embedding") {
           architecture.Embedding(
-            architecture.update('vars, embedding.vars, merged._1),
-            architecture.update('labels, embedding.labels, merged._2),
+            architecture.update('vars, embedding.vars, merged),
           )
         }
       }
@@ -230,7 +197,7 @@ object NeuralInference {
         signatureEmbeddings.toMap
       }
 
-      private val encodeLibLabels = DebugTime.logTime("encodeLibLabels") {
+      private val encodeLabels = DebugTime.logTime("encodeLibLabels") {
         labelEncoder(parallelize(allNames.toSeq))
       }
 
@@ -316,10 +283,23 @@ object NeuralInference {
               val msgs = fields.toVector.map {
                 case (l, v) => Labeled(defined, v, Label.Field(l))
               }
-              Map(KindBinaryLabeled("defineObject", LabelType.Field) -> msgs)
-            case PAccess(obj, l) =>
-              val msg = Vector(Labeled(defined, obj, Label.Field(l)))
-              Map(KindBinaryLabeled("defineAccess", LabelType.Field) -> msg)
+              val fieldMessages = fields.toVector.foldMap {
+                case (label, field) =>
+                  Map(
+                    (KindField(label): MessageKind) ->
+                      Vector[MessageModel](ClassFieldUsage(defined, field)),
+                  )
+              }
+              fieldMessages |+|
+                Map(KindBinaryLabeled("defineObject", LabelType.Field) -> msgs)
+            case PAccess(receiver, label) =>
+              val msg = Vector(Labeled(defined, receiver, Label.Field(label)))
+              Map(
+                KindBinaryLabeled("defineAccess", LabelType.Field) -> msg,
+                KindAccess(label) -> Vector(
+                  AccessFieldUsage(receiver, defined),
+                ),
+              )
           }
       }
 
@@ -354,6 +334,12 @@ object NeuralInference {
 
     case class KindBinaryLabeled(name: String, labelType: LabelType)
         extends MessageKind
+
+    /** All field accesses involving `label` */
+    case class KindAccess(label: Symbol) extends MessageKind
+
+    /** All classes with a field of name `label` */
+    case class KindField(label: Symbol) extends MessageKind
 
     sealed trait LabelType
     object LabelType extends Enumeration {
@@ -390,6 +376,11 @@ object NeuralInference {
       case class Field(get: Symbol) extends Label
     }
   }
+
+  case class ClassFieldUsage(`class`: PNode, field: PNode) extends MessageModel
+
+  case class AccessFieldUsage(receiver: PNode, result: PNode)
+      extends MessageModel
 
   val unknownNodes: Set[LibNode] =
     Set(LibNode(unknownDef.term.get), LibNode(unknownDef.ty.get))
