@@ -26,8 +26,8 @@ import scala.concurrent.{
 import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
-  val toyMod: Boolean = true
-  val taskName = "attention-toy-6"
+  val toyMod: Boolean = false
+  val taskName = "attention-noName-10"
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
@@ -237,25 +237,7 @@ object TrainingLoop extends TrainingLoopTrait {
       def testStep(epoch: Int): Unit =
         if ((epoch - 1) % 5 == 0) announced("test on dev set") {
           import cats.implicits._
-          import ammonite.ops._
-          val predictionDir = resultsDir / "predictions"
-          rm(predictionDir)
-
           architecture.dropoutStorage = None
-
-          def printQSource(
-              qModules: Vector[QModule],
-              predictions: Map[PNode, PType],
-              predictionSpace: PredictionSpace,
-          ) = DebugTime.logTime("printQSource") {
-            qModules.par.foreach { m =>
-              QLangDisplay.renderModuleToDirectory(
-                m,
-                predictions,
-                predictionSpace.allTypes,
-              )(predictionDir)
-            }
-          }
 
           val (stat, fse1Acc, fse5Acc) = testSet.flatMap { datum =>
             checkShouldStop(epoch)
@@ -267,6 +249,7 @@ object TrainingLoop extends TrainingLoopTrait {
                     datum.qModules,
                     pred1,
                     datum.predictor.predictionSpace,
+                    resultsDir / "predictions"
                   )
 
                   val (fse1, _) = datum.fseAcc.countTopNCorrect(1, pred)
@@ -284,7 +267,7 @@ object TrainingLoop extends TrainingLoopTrait {
             "test-confusionMat",
             epoch,
             confusionMatrix.value,
-            2,
+            2
           )
           logger.logScalar("test-fse-top1", epoch, toAccuracy(fse1Acc))
           logger.logScalar("test-fse-top5", epoch, toAccuracy(fse5Acc))
@@ -490,8 +473,26 @@ object TrainingLoop extends TrainingLoopTrait {
         }
       }
 
+      import ammonite.ops._
+
+      private def printQSource(
+          qModules: Vector[QModule],
+          predictions: Map[PNode, PType],
+          predictionSpace: PredictionSpace,
+          predictionDir: Path
+      ) = DebugTime.logTime("printQSource") {
+        rm(predictionDir)
+        qModules.par.foreach { m =>
+          QLangDisplay.renderModuleToDirectory(
+            m,
+            predictions,
+            predictionSpace.allTypes
+          )(predictionDir)
+        }
+      }
+
       private def saveTraining(epoch: Int, dirName: String): Unit = {
-        import ammonite.ops._
+        architecture.dropoutStorage = None
 
         announced(s"save training to $dirName") {
           val saveDir = resultsDir / "saved" / dirName
@@ -500,13 +501,27 @@ object TrainingLoop extends TrainingLoopTrait {
           }
           val savePath = saveDir / "trainingState.serialized"
           TrainingState(epoch, dimMessage, iterationNum, optimizer, pc)
-            .saveToFile(
-              savePath,
-            )
+            .saveToFile(savePath)
           val currentLogFile = resultsDir / "log.txt"
           if (exists(currentLogFile)) {
             cp.over(currentLogFile, saveDir / "log.txt")
           }
+
+          testSet.foreach { datum =>
+            checkShouldStop(epoch)
+            announced(s"test on $datum") {
+              selectForward(datum).map {
+                case (_, fwd, pred) =>
+                  printQSource(
+                    datum.qModules,
+                    pred.mapValuesNow { _.head },
+                    datum.predictor.predictionSpace,
+                    saveDir / "predictions"
+                  )
+              }.toVector
+            }
+          }
+
           val dateTime = Calendar.getInstance().getTime
           write.over(saveDir / "time.txt", dateTime.toString)
         }

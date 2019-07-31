@@ -378,12 +378,12 @@ object NeuralInference {
 
     /** If this is true, then this message model can be discarded */
     def allNodesFromLib: Boolean = this match {
-      case Naming(n, _)       => n.fromLib
-      case Single(n)          => n.fromLib
-      case Binary(n1, n2)     => n1.fromLib && n2.fromLib
-      case Labeled(n1, n2, _) => n1.fromLib && n2.fromLib
+      case Naming(n, _)             => n.fromLib
+      case Single(n)                => n.fromLib
+      case Binary(n1, n2)           => n1.fromLib && n2.fromLib
+      case Labeled(n1, n2, _)       => n1.fromLib && n2.fromLib
       case AccessFieldUsage(n1, n2) => n1.fromLib && n2.fromLib
-      case ClassFieldUsage(n1, n2) => n1.fromLib && n2.fromLib
+      case ClassFieldUsage(n1, n2)  => n1.fromLib && n2.fromLib
     }
   }
 

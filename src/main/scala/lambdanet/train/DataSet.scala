@@ -5,7 +5,11 @@ import lambdanet.translation.PredicateGraph._
 import NeuralInference._
 import lambdanet.PrepareRepos.ParsedRepos
 import lambdanet.SequenceModel.SeqPredictor
-import lambdanet.architecture.LabelEncoder.{ConstantLabelEncoder, RandomLabelEncoder, TrainableLabelEncoder}
+import lambdanet.architecture.LabelEncoder.{
+  ConstantLabelEncoder,
+  RandomLabelEncoder,
+  TrainableLabelEncoder
+}
 import lambdanet.architecture.NNArchitecture
 import lambdanet.translation.QLang.QModule
 import lambdanet.utils.QLangAccuracy.FseAccuracy
@@ -52,15 +56,16 @@ object DataSet {
       val libTypesToPredict: Set[LibTypeNode] =
         selectLibTypes(repos, coverageGoal = 0.95)
 
-      val labelEncoder = announced("create label encoder") {
+      val labelCoverage = announced("create label encoder") {
         TrainableLabelEncoder(repos, coverageGoal = 0.95, architecture)
       }
+      val randomLabelEncoder = RandomLabelEncoder(architecture)
       val nameEncoder = announced("create name encoder") {
 //        SegmentedLabelEncoder(repos, coverageGoal = 0.90, architecture)
         ConstantLabelEncoder(architecture)
       }
 
-      printResult(s"Label encoder: ${labelEncoder.name}")
+      printResult(s"Label encoder: ${labelCoverage.name}")
 
       val data = (trainSet ++ devSet).toVector
         .map {
@@ -71,8 +76,8 @@ object DataSet {
                 g,
                 libTypesToPredict,
                 libNodeType,
-                labelEncoder.encode,
-                labelEncoder.isLibLabel,
+                randomLabelEncoder.encode,
+                labelCoverage.isLibLabel,
                 nameEncoder.encode,
                 taskSupport
               )

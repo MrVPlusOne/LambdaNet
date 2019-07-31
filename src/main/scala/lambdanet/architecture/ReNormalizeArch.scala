@@ -8,7 +8,10 @@ case class ReNormalizeArch(dimEmbedding: Int, pc: ParamCollection)
     extends NNArchitecture(s"renorm-$dimEmbedding", dimEmbedding, pc) {
   import layerFactory._
 
-  def initialEmbedding(projectNodes: Set[PredicateGraph.ProjNode], labels: Set[Symbol]): Embedding = {
+  def initialEmbedding(
+      projectNodes: Set[PredicateGraph.ProjNode],
+      labels: Set[Symbol]
+  ): Embedding = {
     val vec = randomVar('nodeInitVec)
     val vars = projectNodes.map(_ -> vec).toMap
     val ls = labels.map(_ -> const(randomUnitVec())).toMap
