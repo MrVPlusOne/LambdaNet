@@ -27,7 +27,7 @@ import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
   val toyMod: Boolean = false
-  val taskName = "attention-noName-10"
+  val taskName = "attention-10"
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 

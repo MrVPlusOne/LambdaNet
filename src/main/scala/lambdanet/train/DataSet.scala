@@ -5,14 +5,11 @@ import lambdanet.translation.PredicateGraph._
 import NeuralInference._
 import lambdanet.PrepareRepos.ParsedRepos
 import lambdanet.SequenceModel.SeqPredictor
-import lambdanet.architecture.LabelEncoder.{
-  ConstantLabelEncoder,
-  RandomLabelEncoder,
-  TrainableLabelEncoder
-}
-import lambdanet.architecture.NNArchitecture
+import lambdanet.architecture.LabelEncoder.{ConstantLabelEncoder, RandomLabelEncoder, TrainableLabelEncoder}
+import lambdanet.architecture.{NNArchitecture, SegmentedLabelEncoder}
 import lambdanet.translation.QLang.QModule
 import lambdanet.utils.QLangAccuracy.FseAccuracy
+
 import scala.collection.parallel.ForkJoinTaskSupport
 
 case class DataSet(
@@ -61,8 +58,8 @@ object DataSet {
       }
       val randomLabelEncoder = RandomLabelEncoder(architecture)
       val nameEncoder = announced("create name encoder") {
-//        SegmentedLabelEncoder(repos, coverageGoal = 0.90, architecture)
-        ConstantLabelEncoder(architecture)
+        SegmentedLabelEncoder(repos, coverageGoal = 0.90, architecture)
+//        ConstantLabelEncoder(architecture)
       }
 
       printResult(s"Label encoder: ${labelCoverage.name}")
