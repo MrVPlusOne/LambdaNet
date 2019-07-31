@@ -21,6 +21,7 @@ object NeuralInference {
       libraryTypeNodes: Set[LibTypeNode],
       libNodeType: LibNode => PType,
       labelEncoder: GenSeq[Symbol] => Symbol => CompNode,
+      isLibLabel: Symbol => Boolean,
       nameEncoder: GenSeq[Symbol] => Symbol => CompNode,
       taskSupport: Option[ForkJoinTaskSupport],
   ) {
@@ -38,8 +39,7 @@ object NeuralInference {
         val initEmbedding: Embedding =
           architecture.initialEmbedding(
             projectNodes,
-            predicateLabels,
-            encodeLabels,
+            predicateLabels
           )
 
         val encodeLibNode = logTime("encodeLibNode") {
@@ -129,6 +129,8 @@ object NeuralInference {
               encodeNode,
               encodeLabels,
               encodeNames,
+              labelUsages,
+              isLibLabel
             )
           }
 
@@ -243,6 +245,25 @@ object NeuralInference {
       nodes.flatMap(_.nameOpt) ++ allLabels
     }
 
+    val labelUsages: LabelUsages = {
+      import cats.implicits._
+      val classesInvolvingLabel =
+        graph.predicates.toVector.collect {
+          case DefineRel(c, PObject(fields)) =>
+            fields.toVector.foldMap {
+              case (label, field) =>
+                Map(label -> Vector(ClassFieldUsage(c, field)))
+            }
+        }.combineAll
+      val accessesInvolvingLabel =
+        graph.predicates.toVector.collect {
+          case DefineRel(r, PAccess(receiver, label)) =>
+            Map(label -> Vector(AccessFieldUsage(receiver, r)))
+        }.combineAll
+
+      LabelUsages(classesInvolvingLabel, accessesInvolvingLabel)
+    }
+
     type BatchedMsgModels = Map[MessageKind, Vector[MessageModel]]
     val batchedMsgModels: BatchedMsgModels = {
       import cats.implicits._
@@ -265,20 +286,24 @@ object NeuralInference {
         case InheritanceRel(child, parent) =>
           mutual("inheritanceRel", child, parent)
         case DefineRel(defined, expr) =>
+          def positional(
+              name: String,
+              args: Vector[PNode],
+              result: PNode
+          ): BatchedMsgModels = {
+            val msgs = (result +: args).zipWithIndex.map {
+              case (a, i) => Labeled(defined, a, Label.Position(i - 1))
+            }
+            Map(KindBinaryLabeled("defineFunc", LabelType.Position) -> msgs)
+          }
+
           expr match {
             case n: PNode =>
               mutual("defineEqual", defined, n)
-            case PFunc(args, to) =>
-              val msgs = (to +: args).zipWithIndex.map {
-                case (a, i) => Labeled(defined, a, Label.Position(i - 1))
-              }
-              Map(KindBinaryLabeled("defineFunc", LabelType.Position) -> msgs)
-            case PCall(f, args) =>
+            case PFunc(args, to) => positional("defineFunc", args, to)
+            case PCall(f, args)  =>
               // todo: reason about generics
-              val msgs = (defined +: args).zipWithIndex.map {
-                case (a, i) => Labeled(f, a, Label.Position(i - 1))
-              }
-              Map(KindBinaryLabeled("defineCall", LabelType.Position) -> msgs)
+              positional("defineCall", args, f)
             case PObject(fields) =>
               val msgs = fields.toVector.map {
                 case (l, v) => Labeled(defined, v, Label.Field(l))
@@ -287,7 +312,7 @@ object NeuralInference {
                 case (label, field) =>
                   Map(
                     (KindField(label): MessageKind) ->
-                      Vector[MessageModel](ClassFieldUsage(defined, field)),
+                      Vector[MessageModel](ClassFieldUsage(defined, field))
                   )
               }
               fieldMessages |+|
@@ -297,8 +322,8 @@ object NeuralInference {
               Map(
                 KindBinaryLabeled("defineAccess", LabelType.Field) -> msg,
                 KindAccess(label) -> Vector(
-                  AccessFieldUsage(receiver, defined),
-                ),
+                  AccessFieldUsage(receiver, defined)
+                )
               )
           }
       }
@@ -357,6 +382,8 @@ object NeuralInference {
       case Single(n)          => n.fromLib
       case Binary(n1, n2)     => n1.fromLib && n2.fromLib
       case Labeled(n1, n2, _) => n1.fromLib && n2.fromLib
+      case AccessFieldUsage(n1, n2) => n1.fromLib && n2.fromLib
+      case ClassFieldUsage(n1, n2) => n1.fromLib && n2.fromLib
     }
   }
 
@@ -381,6 +408,11 @@ object NeuralInference {
 
   case class AccessFieldUsage(receiver: PNode, result: PNode)
       extends MessageModel
+
+  case class LabelUsages(
+      classesInvolvingLabel: Map[Symbol, Vector[ClassFieldUsage]],
+      accessesInvolvingLabel: Map[Symbol, Vector[AccessFieldUsage]],
+  )
 
   val unknownNodes: Set[LibNode] =
     Set(LibNode(unknownDef.term.get), LibNode(unknownDef.ty.get))

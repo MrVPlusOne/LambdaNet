@@ -13,7 +13,7 @@ object TrainingState {
     val step = map("epoch").asInstanceOf[Int]
     val dimMessage = map("dimMessage").asInstanceOf[Int]
     val optimizer = map("optimizer").asInstanceOf[Optimizer]
-    val iterationNum = map.getOrElse("iterationNum", 10).asInstanceOf[Int]
+    val iterationNum = map("iterationNum").asInstanceOf[Int]
     val pcData = map("pcData")
       .asInstanceOf[ParamCollection.SerializableFormat]
     val pc = ParamCollection.fromSerializable(pcData)
@@ -58,7 +58,7 @@ object TrainingState {
             epoch0 = 0,
             dimMessage = 32,
             optimizer = Optimizer.Adam(learningRate = 1e-3),
-            iterationNum = 5,
+            iterationNum = 6,
             pc = ParamCollection(),
           ) -> mkEventLogger(overrideMode = true)
         }

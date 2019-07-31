@@ -9,7 +9,6 @@ import lambdanet.architecture.LabelEncoder.{ConstantLabelEncoder, RandomLabelEnc
 import lambdanet.architecture.NNArchitecture
 import lambdanet.translation.QLang.QModule
 import lambdanet.utils.QLangAccuracy.FseAccuracy
-
 import scala.collection.parallel.ForkJoinTaskSupport
 
 case class DataSet(
@@ -73,14 +72,15 @@ object DataSet {
                 libTypesToPredict,
                 libNodeType,
                 labelEncoder.encode,
+                labelEncoder.isLibLabel,
                 nameEncoder.encode,
-                taskSupport,
+                taskSupport
               )
             val nonGenerifyIt = nonGenerify(libDefs)
             val annots1 = annotations
               .mapValuesNow { nonGenerifyIt }
             val libPredSpace = PredictionSpace(
-              libTypesToPredict.map(n => PTyVar(n.n.n)) ++ Set(PAny),
+              libTypesToPredict.map(n => PTyVar(n.n.n)) ++ Set(PAny)
             )
 
 //            val seqPredictor = SeqPredictor(

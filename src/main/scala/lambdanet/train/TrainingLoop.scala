@@ -1,10 +1,8 @@
 package lambdanet.train
 
 import java.util.Calendar
-
 import lambdanet._
 import java.util.concurrent.ForkJoinPool
-
 import botkop.numsca
 import cats.Monoid
 import funcdiff.{SimpleMath => SM}
@@ -29,7 +27,7 @@ import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
   val toyMod: Boolean = true
-  val taskName = "noLibVec1-toy-5"
+  val taskName = "attention-toy-6"
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 

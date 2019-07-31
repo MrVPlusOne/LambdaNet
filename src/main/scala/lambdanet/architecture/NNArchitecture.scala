@@ -2,9 +2,18 @@ package lambdanet.architecture
 
 import lambdanet._
 import botkop.numsca
+import botkop.numsca.:>
 import cats.data.Chain
 import funcdiff._
-import lambdanet.NeuralInference.{LabelUsages, LabelVector, Message, MessageKind, MessageModel}
+import lambdanet.NeuralInference.{
+  AccessFieldUsage,
+  ClassFieldUsage,
+  LabelUsages,
+  LabelVector,
+  Message,
+  MessageKind,
+  MessageModel
+}
 import lambdanet.translation.PredicateGraph.{PNode, ProjNode}
 
 import scala.collection.GenSeq
@@ -24,6 +33,7 @@ abstract class NNArchitecture(
   )
 
   type UpdateMessages = Map[ProjNode, Chain[Message]]
+  val emptyMessages: UpdateMessages = Map()
 
   def toVars(msg: Map[PNode, Chain[Message]]): UpdateMessages = {
     msg.collect {
@@ -37,7 +47,6 @@ abstract class NNArchitecture(
   def initialEmbedding(
       projectNodes: Set[ProjNode],
       labels: Set[Symbol],
-      encodeLibLabel: Symbol => LabelVector,
   ): Embedding
 
   def calculateMessages(
@@ -45,6 +54,8 @@ abstract class NNArchitecture(
       encodeNode: PNode => CompNode,
       encodeLabel: Symbol => CompNode,
       encodeName: Symbol => CompNode,
+      labelUsages: LabelUsages,
+      isLibLabel: Symbol => Boolean,
   ): UpdateMessages = {
     import MessageKind._
     import MessageModel._
@@ -54,76 +65,173 @@ abstract class NNArchitecture(
         name: String,
         n1s: Vector[PNode],
         n2s: Vector[PNode],
-        inputs: Vector[CompNode],
-    ) = {
+        inputs: Vector[CompNode]
+    ): UpdateMessages = {
       toVars(
         verticalBatching(n1s.zip(inputs), singleLayer(name / 'left, _)) |+|
-          verticalBatching(n2s.zip(inputs), singleLayer(name / 'right, _)),
+          verticalBatching(n2s.zip(inputs), singleLayer(name / 'right, _))
       )
     }
 
-    messages
-      .map {
-        case (kind, models) =>
-          kind match {
-            case KindSingle(name) =>
-              val paired = models
-                .asInstanceOf[Vector[Single]]
-                .map(s => s.n -> encodeNode(s.n))
-              verticalBatching(paired, singleLayer(name, _))
-                .pipe(toVars)
-            case KindBinary(name) =>
-              val (n1s, n2s, inputs) = models
-                .asInstanceOf[Vector[Binary]]
-                .map { s =>
-                  val merged =
-                    encodeNode(s.n1).concat(encodeNode(s.n2), axis = 1)
-                  (s.n1, s.n2, merged)
-                }
-                .unzip3
-              bidirectional(name, n1s, n2s, inputs)
-            case KindNaming(name) =>
-              val paired = models
-                .asInstanceOf[Vector[Naming]]
-                .map(s => s.n -> encodeName(s.name))
-              verticalBatching(paired, singleLayer(name, _))
-                .pipe(toVars)
-            case KindBinaryLabeled(name, LabelType.Position) =>
-              //todo: try RNN based embedding
-              val (n1s, n2s, inputs) = models
-                .asInstanceOf[Vector[Labeled]]
-                .map {
-                  case Labeled(n1, n2, label) =>
-                    val pos = label.asInstanceOf[Label.Position].get
-                    val lEmbed = encodePosition(pos)
-                    val input = concatN(axis = 1, fromRows = true)(
-                      Vector(encodeNode(n1), encodeNode(n2), lEmbed),
-                    )
-                    (n1, n2, input)
-                }
-                .unzip3
-              bidirectional(name, n1s, n2s, inputs)
-            case KindBinaryLabeled(name, LabelType.Field) =>
-              val (receivers, inputs) = models
-                .asInstanceOf[Vector[Labeled]]
-                .map {
-                  case Labeled(n1, n2, label) =>
-                    val f = label.asInstanceOf[Label.Field].get
-                    val input = concatN(axis = 1, fromRows = true)(
-                      Vector(
-                        encodeNode(n1),
-                        encodeNode(n2),
-                        encodeLabel(f),
-                        encodeName(f),
-                      ),
-                    )
-                    ((n1, n2, f), input)
-                }
-                .unzip
-              val (n1s, n2s, labels) = receivers.unzip3
-              bidirectional(name, n1s, n2s, inputs)
-          }
+    def batchedAttention(
+        inputKeys: Vector[PNode],
+        keys: Vector[PNode],
+        values: Vector[PNode],
+        nodes: Vector[PNode],
+        label: Symbol,
+        name: SymbolPath
+    ): UpdateMessages = {
+      require(inputKeys.nonEmpty)
+      val (exKey, exValue) = {
+        val n = if (isLibLabel(label)) label else '?
+        randomVar(name / 'experienceKey / n) ->
+          randomVar(name / 'experienceValue / n)
       }
+      val (inKeys1, nodes1) =
+        inputKeys.zip(nodes).filter(_._2.fromProject).unzip
+      if (inKeys1.isEmpty) return emptyMessages
+
+      val keys1 = keys.map(encodeNode) :+ exKey
+      val values1 = values.map(encodeNode) :+ exValue
+      val weightedSum =
+        concatN(axis = 0)(inKeys1.map(encodeNode))
+          .dot(concatN(axis = 0)(keys1).t)
+          .pipe(softmax) //todo: sharpen mechanism?
+          .dot(concatN(axis = 0)(values1))
+      val messages =
+        concatN(axis = 0)(nodes1.map(encodeNode))
+          .concat(weightedSum, axis = 1)
+          .pipe(singleLayer(name, _))
+      nodes1.zipWithIndex.map {
+        case (n, i) =>
+          Map(ProjNode(n) -> Chain(messages.slice(i, :>))) //todo: use rows operator
+      }.combineAll
+    }
+
+    def extractMessages(
+        kind: MessageKind,
+        models: Vector[MessageModel]
+    ): UpdateMessages =
+      kind match {
+        case KindSingle(name) =>
+          val paired = models
+            .asInstanceOf[Vector[Single]]
+            .map(s => s.n -> encodeNode(s.n))
+          verticalBatching(paired, singleLayer(name, _))
+            .pipe(toVars)
+        case KindBinary(name) =>
+          val (n1s, n2s, inputs) = models
+            .asInstanceOf[Vector[Binary]]
+            .map { s =>
+              val merged =
+                encodeNode(s.n1).concat(encodeNode(s.n2), axis = 1)
+              (s.n1, s.n2, merged)
+            }
+            .unzip3
+          bidirectional(name, n1s, n2s, inputs)
+        case KindNaming(name) =>
+          val paired = models
+            .asInstanceOf[Vector[Naming]]
+            .map(s => s.n -> encodeName(s.name))
+          verticalBatching(paired, singleLayer(name, _))
+            .pipe(toVars)
+        case KindBinaryLabeled(name, LabelType.Position) =>
+          //todo: try RNN based embedding
+          val (n1s, n2s, inputs) = models
+            .asInstanceOf[Vector[Labeled]]
+            .map {
+              case Labeled(n1, n2, label) =>
+                val pos = label.asInstanceOf[Label.Position].get
+                val lEmbed = encodePosition(pos)
+                val input = concatN(axis = 1, fromRows = true)(
+                  Vector(encodeNode(n1), encodeNode(n2), lEmbed)
+                )
+                (n1, n2, input)
+            }
+            .unzip3
+          bidirectional(name, n1s, n2s, inputs)
+        case KindBinaryLabeled(name, LabelType.Field) =>
+          val (receivers, inputs) = models
+            .asInstanceOf[Vector[Labeled]]
+            .map {
+              case Labeled(n1, n2, label) =>
+                val f = label.asInstanceOf[Label.Field].get
+                val input = concatN(axis = 1, fromRows = true)(
+                  Vector(
+                    encodeNode(n1),
+                    encodeNode(n2),
+                    encodeLabel(f),
+                    encodeName(f)
+                  )
+                )
+                ((n1, n2), input)
+            }
+            .unzip
+          val (n1s, n2s) = receivers.unzip
+          bidirectional(name, n1s, n2s, inputs)
+        case KindAccess(label) =>
+          val (cStack, fStack) = labelUsages.classesInvolvingLabel
+            .getOrElse(label, Vector())
+            .map {
+              case ClassFieldUsage(c, field) => (c, field)
+            }
+            .unzip
+          val (receiverStack, resultStack) = models
+            .asInstanceOf[Vector[AccessFieldUsage]]
+            .map {
+              case AccessFieldUsage(receiver, result) => (receiver, result)
+            }
+            .unzip
+
+          batchedAttention(
+            receiverStack,
+            cStack,
+            fStack,
+            resultStack,
+            label,
+            'AccessAttention / 'toResult
+          ) |+| batchedAttention(
+            resultStack,
+            fStack,
+            cStack,
+            receiverStack,
+            label,
+            'AccessAttention / 'toReceiver
+          )
+        case KindField(label) =>
+          val (receiverStack, resultStack) = labelUsages.accessesInvolvingLabel
+            .getOrElse(label, Vector())
+            .map {
+              case AccessFieldUsage(receiver, result) => (receiver, result)
+            }
+            .unzip
+
+          val (cStack, fStack) = models
+            .asInstanceOf[Vector[ClassFieldUsage]]
+            .map {
+              case ClassFieldUsage(c, field) => (c, field)
+            }
+            .unzip
+
+          batchedAttention(
+            cStack,
+            receiverStack,
+            resultStack,
+            fStack,
+            label,
+            'FieldAttention / 'toField
+          ) |+| batchedAttention(
+            fStack,
+            resultStack,
+            receiverStack,
+            cStack,
+            label,
+            'FieldAttention / 'toClass
+          )
+      }
+
+    messages
+      .map { case (a, b) => extractMessages(a, b) }
       .fold(Map())(_ |+| _)
   }
 
@@ -220,8 +328,7 @@ abstract class NNArchitecture(
 
     val (nodes, vectors) = inputs.unzip
 
-    val stacked = concatN(axis = 0, fromRows = true)(vectors)
-    val output = transformation(stacked)
+    val output = transformation(concatN(axis = 0, fromRows = true)(vectors))
     nodes.zipWithIndex.map {
       case (n, i) =>
         Map(n -> Chain(output.slice(i, :>)))

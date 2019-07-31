@@ -79,9 +79,11 @@ object LabelEncoder {
       }.toMap
     }
 
+    def isLibLabel(label: Symbol): Boolean = labelsMap.contains(label)
+
     def encode(labels: GenSeq[Symbol]): Symbol => CompNode =
       DebugTime.logTime("encode labels") {
-        val unknownLabel = architecture.randomVar('label / 'UNKNOWN)
+        val unknownLabel = architecture.randomVar('label / '?)
         labels
           .map { l =>
             l -> labelsMap.getOrElse(l, unknownLabel)
