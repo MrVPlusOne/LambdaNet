@@ -26,8 +26,8 @@ import scala.concurrent.{
 import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
-  val toyMod: Boolean = true
-  val taskName = "trainableLabel-noName-6"
+  val toyMod: Boolean = false
+  val taskName = "newFunc-6"
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 

@@ -271,6 +271,18 @@ object NeuralInference {
       def mutual(name: String, p1: PNode, p2: PNode): BatchedMsgModels =
         Map(KindBinary(name) -> Vector(Binary(p1, p2)))
 
+      def positional(
+          name: String,
+          f: PNode,
+          args: Vector[PNode],
+          ret: PNode
+      ): BatchedMsgModels = {
+        val msgs = (ret +: args).zipWithIndex.map {
+          case (a, i) => Labeled(f, a, Label.Position(i - 1))
+        }
+        Map(KindBinaryLabeled(name, LabelType.Position) -> msgs)
+      }
+
       def toBatched(pred: TyPredicate): BatchedMsgModels = pred match {
         case HasName(n, name) =>
           Map(KindNaming("hasName") -> Vector(Naming(n, name)))
@@ -284,24 +296,14 @@ object NeuralInference {
         case InheritanceRel(child, parent) =>
           mutual("inheritanceRel", child, parent)
         case DefineRel(defined, expr) =>
-          def positional(
-              name: String,
-              args: Vector[PNode],
-              result: PNode
-          ): BatchedMsgModels = {
-            val msgs = (result +: args).zipWithIndex.map {
-              case (a, i) => Labeled(defined, a, Label.Position(i - 1))
-            }
-            Map(KindBinaryLabeled("defineFunc", LabelType.Position) -> msgs)
-          }
-
           expr match {
             case n: PNode =>
               mutual("defineEqual", defined, n)
-            case PFunc(args, to) => positional("defineFunc", args, to)
+            case PFunc(args, to) =>
+              positional("defineFunc", defined, args, to)
             case PCall(f, args)  =>
               // todo: reason about generics
-              positional("defineCall", args, f)
+              positional("defineCall", f, args, defined)
             case PObject(fields) =>
               val msgs = fields.toVector.map {
                 case (l, v) => Labeled(defined, v, Label.Field(l))

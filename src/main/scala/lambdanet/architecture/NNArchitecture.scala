@@ -268,7 +268,7 @@ abstract class NNArchitecture(
     (to +: args).zipWithIndex
       .map {
         case (a, i) =>
-          a.concat(encodePosition(i), axis = 1)
+          a.concat(encodePosition(i-1), axis = 1)
       }
       .pipe(concatN(axis = 0, fromRows = true))
       .pipe(singleLayer('encodeFunction, _))

@@ -11,7 +11,33 @@ import scala.collection.{GenTraversableOnce, mutable}
 case class PredicateGraph(
     nodes: Set[PNode],
     predicates: Set[TyPredicate],
-) extends Serializable {}
+) extends Serializable {
+  def showSizes: String = s"{nodes = ${nodes.size}, predicates = ${predicates.size}"
+
+  def mergeEqualities: PredicateGraph = {
+    val substitution = predicates
+      .collect {
+        case DefineRel(v, v1: PNode) => (v, v1)
+      }
+      .foldLeft(Map[PNode, PNode]()) { (map, pair) =>
+        val (v0, v1) = pair
+        map.mapValuesNow { v =>
+          if (v == v0) v1 else v
+        } + pair
+      }
+    val equalities = predicates.collect {
+      case d @ DefineRel(_, _: PNode) => d
+    }
+    def substF(n: PNode) = substitution.getOrElse(n, n)
+
+    PredicateGraph(
+      nodes -- substitution.keySet,
+      (predicates -- equalities).map { _.substitute(substF) }
+    ).tap{ p1 =>
+      println(s"before merging equalities: ${this.showSizes}; after: ${p1.showSizes}")
+    }
+  }
+}
 
 object PredicateGraph {
 
@@ -190,6 +216,15 @@ object PredicateGraph {
   @SerialVersionUID(0)
   sealed trait TyPredicate {
     def allNodes: Set[PNode]
+
+    def substitute(f: PNode => PNode): TyPredicate = this match {
+      case HasName(n, name)              => HasName(f(n), name)
+      case SubtypeRel(sub, sup)          => SubtypeRel(f(sub), f(sup))
+      case UsedAsBool(n)                 => UsedAsBool(f(n))
+      case AssignRel(lhs, rhs)           => AssignRel(f(lhs), f(rhs))
+      case InheritanceRel(child, parent) => InheritanceRel(f(child), f(parent))
+      case DefineRel(v, expr)            => DefineRel(f(v), expr.substitute(f))
+    }
   }
 
   case class HasName(n: PNode, name: Symbol) extends TyPredicate {
@@ -231,6 +266,14 @@ object PredicateGraph {
     def allNodes: Set[PNode]
 
     def allLabels: Set[Symbol]
+
+    def substitute(f: PNode => PNode): PExpr = this match {
+      case node: PNode             => f(node)
+      case PFunc(args, returnType) => PFunc(args.map(f), f(returnType))
+      case PCall(f0, args)         => PCall(f(f0), args.map(f))
+      case PObject(fields)         => PObject(fields.mapValuesNow(f))
+      case PAccess(obj, label)     => PAccess(f(obj), label)
+    }
   }
 
   case class PFunc(args: Vector[PNode], returnType: PNode) extends PExpr {
@@ -320,7 +363,7 @@ object PredicateGraphTranslation {
 
             d.rhs match {
               case v1: Var =>
-                define(v1.node)
+                add(AssignRel(lhs, v1.node))
               case FuncCall(f, args) =>
                 define(PCall(f, args))
               case ObjLiteral(fields) =>
@@ -381,8 +424,8 @@ object PredicateGraphTranslation {
 
     PredicateGraph(
       allNodes,
-      predSet,
-    )
+      predSet
+    ).mergeEqualities
   }
 
 }
