@@ -58,8 +58,8 @@ object DataSet {
       }
 //      val randomLabelEncoder = RandomLabelEncoder(architecture)
       val nameEncoder = announced("create name encoder") {
-//        SegmentedLabelEncoder(repos, coverageGoal = 0.90, architecture)
-        ConstantLabelEncoder(architecture)
+        SegmentedLabelEncoder(repos, coverageGoal = 0.90, architecture)
+//        ConstantLabelEncoder(architecture)
       }
 
       printResult(s"Label encoder: ${labelEncoder.name}")
