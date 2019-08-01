@@ -181,6 +181,10 @@ object QLangDisplay {
       case (k, Annot.User(t, _)) if prediction.contains(k) => k -> t
     }
 
+    val numMissing = m.mapping.toSeq.collect {
+      case (k, Annot.User(t, _)) if !prediction.contains(k) => ()
+    }.length
+
     val libAccStr = {
       val (acc, yes, total) =
         top1Accuracy(annots.filter(_._2.madeFromLibTypes), prediction, _ => 1)
@@ -191,7 +195,6 @@ object QLangDisplay {
         top1Accuracy(annots.filter(!_._2.madeFromLibTypes), prediction, _ => 1)
       s"%.4f=$yes/$total".format(acc)
     }
-    val numMissing = annots.size - prediction.size
 
     val output = html(
       head(

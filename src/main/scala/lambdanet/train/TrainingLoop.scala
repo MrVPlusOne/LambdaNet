@@ -26,8 +26,8 @@ import scala.concurrent.{
 import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
-  val toyMod: Boolean = false
-  val taskName = "trainableLabel-6"
+  val toyMod: Boolean = true
+  val taskName = "trainableLabel-noName-6"
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
@@ -249,7 +249,7 @@ object TrainingLoop extends TrainingLoopTrait {
                     datum.qModules,
                     pred1,
                     datum.predictor.predictionSpace,
-                    resultsDir / "predictions"
+                    resultsDir / "predictions" / datum.projectName
                   )
 
                   val (fse1, _) = datum.fseAcc.countTopNCorrect(1, pred)
@@ -516,7 +516,7 @@ object TrainingLoop extends TrainingLoopTrait {
                     datum.qModules,
                     pred.mapValuesNow { _.head },
                     datum.predictor.predictionSpace,
-                    saveDir / "predictions"
+                    saveDir / "predictions" / datum.projectName
                   )
               }.toVector
             }
