@@ -255,9 +255,8 @@ object PrepareRepos {
     }
 
     val newNodes = activeNodes.map(_.n) ++ graph.nodes.filter(_.fromLib)
-    printResult(s"Before pruning: ${graph.nodes.size}")
     PredicateGraph(newNodes, newPredicates).tap { g =>
-      printResult(s"After pruning: ${g.nodes.size}")
+      printResult(s"Before pruning: ${graph.nodes.size}, after: ${g.nodes.size}")
     }
   }
 
@@ -285,22 +284,18 @@ object PrepareRepos {
         ErrorHandler(ErrorHandler.ThrowError, ErrorHandler.StoreError)
 
 //    println(s"LibExports key set: ${libExports.keySet}")
-      val qModules = QLangTranslation
-        .fromProject(
-          p.modules,
-          baseCtx,
-          libExports,
-          allocator,
-          p.pathMapping,
-          p.devDependencies,
-          errorHandler,
-        )
+      val qModules = QLangTranslation.fromProject(
+        p.modules,
+        baseCtx,
+        libExports,
+        allocator,
+        p.pathMapping,
+        p.devDependencies,
+        errorHandler
+      )
       val irModules = qModules.map(irTranslator.fromQModule)
       val allAnnots = irModules.flatMap(_.mapping).toMap
       val fixedAnnots = allAnnots.collect { case (n, Annot.Fixed(t)) => n -> t }
-      val userAnnots = allAnnots.collect {
-        case (n, Annot.User(t, _)) => ProjNode(n) -> t
-      }
 
       val graph0 =
         PredicateGraphTranslation.fromIRModules(
@@ -311,6 +306,10 @@ object PrepareRepos {
         )
       val userTypes =
         graph0.nodes.filter(n => !n.fromLib && n.isType).map(ProjNode)
+
+      val userAnnots = allAnnots.collect {
+        case (n, Annot.User(t, _)) => ProjNode(n) -> t
+      }
       val graph =
         if (shouldPruneGraph)
           pruneGraph(graph0, userAnnots.keySet ++ userTypes)

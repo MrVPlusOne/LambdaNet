@@ -12,9 +12,10 @@ case class PredicateGraph(
     nodes: Set[PNode],
     predicates: Set[TyPredicate],
 ) extends Serializable {
-  def showSizes: String = s"{nodes = ${nodes.size}, predicates = ${predicates.size}"
+  def showSizes: String =
+    s"{nodes = ${nodes.size}, predicates = ${predicates.size}}"
 
-  def mergeEqualities: PredicateGraph = {
+  def mergeEqualities: (PredicateGraph, PNode => PNode) = {
     val substitution = predicates
       .collect {
         case DefineRel(v, v1: PNode) => (v, v1)
@@ -30,12 +31,17 @@ case class PredicateGraph(
     }
     def substF(n: PNode) = substitution.getOrElse(n, n)
 
-    PredicateGraph(
+    val g = PredicateGraph(
       nodes -- substitution.keySet,
       (predicates -- equalities).map { _.substitute(substF) }
-    ).tap{ p1 =>
-      println(s"before merging equalities: ${this.showSizes}; after: ${p1.showSizes}")
+    ).tap { p1 =>
+      val diff = p1.predicates.flatMap(_.allNodes).diff(p1.nodes)
+      assert(diff.isEmpty, s"predicates contain un-captured nodes: $diff")
+      println(
+        s"before merging equalities: ${this.showSizes}; after: ${p1.showSizes}"
+      )
     }
+    (g, substF)
   }
 }
 
@@ -172,9 +178,19 @@ object PredicateGraph {
       }
     }
 
+    def substitute(f: PNode => PNode): PType = this match {
+      case PAny         => PAny
+      case PTyVar(node) => PTyVar(f(node))
+      case PFuncType(args, to) =>
+        PFuncType(args.map(_.substitute(f)), to.substitute(f))
+      case PObjectType(fields) =>
+        PObjectType(fields.mapValuesNow(_.substitute(f)))
+    }
+
     override def toString: String = pPrint(0)
   }
 
+  @SerialVersionUID(0L)
   case object PAny extends PType {
     val madeFromLibTypes = true
 
@@ -183,6 +199,7 @@ object PredicateGraph {
     val allNodes: Set[PNode] = Set()
   }
 
+  @SerialVersionUID(0L)
   case class PTyVar(node: PNode) extends PType {
     assert(node.isType)
 
@@ -193,6 +210,7 @@ object PredicateGraph {
     def allNodes: Set[PNode] = Set(node)
   }
 
+  @SerialVersionUID(0L)
   case class PFuncType(args: Vector[PType], to: PType) extends PType {
     val madeFromLibTypes: Boolean =
       args.forall(_.madeFromLibTypes) && to.madeFromLibTypes
@@ -203,6 +221,7 @@ object PredicateGraph {
     def allNodes: Set[PNode] = to.allNodes ++ args.flatMap((_: PType).allNodes)
   }
 
+  @SerialVersionUID(0L)
   case class PObjectType(fields: Map[Symbol, PType]) extends PType {
     val madeFromLibTypes: Boolean = fields.forall(_._2.madeFromLibTypes)
 
@@ -425,7 +444,7 @@ object PredicateGraphTranslation {
     PredicateGraph(
       allNodes,
       predSet
-    ).mergeEqualities
+    )
   }
 
 }
