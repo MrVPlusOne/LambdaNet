@@ -94,12 +94,12 @@ abstract class NNArchitecture(
       val keys1 = keys.map(encodeNode) :+ exKey
       val values1 = values.map(encodeNode) :+ exValue
       val weightedSum =
-        concatN(axis = 0)(inKeys1.map(encodeNode))
-          .dot(concatN(axis = 0)(keys1).t)
+        concatN(axis = 0, fromRows = true)(inKeys1.map(encodeNode))
+          .dot(concatN(axis = 0, fromRows = true)(keys1).t)
           .pipe(softmax) //todo: sharpen mechanism?
-          .dot(concatN(axis = 0)(values1))
+          .dot(concatN(axis = 0, fromRows = true)(values1))
       val messages =
-        concatN(axis = 0)(nodes1.map(encodeNode))
+        concatN(axis = 0, fromRows = true)(nodes1.map(encodeNode))
           .concat(weightedSum, axis = 1)
           .pipe(singleLayer(name, _))
       nodes1.zipWithIndex.map {
@@ -236,20 +236,32 @@ abstract class NNArchitecture(
   }
 
   def similarity(
-      inputMatrix: CompNode,
-      candidateMatrix: CompNode,
+      inputs: Vector[CompNode],
+      candidates: Vector[CompNode],
   ): CompNode = {
-    val inputs1 = singleLayer(
-      'similarityInputs,
-      inputMatrix,
-//      useDropout = dropoutStorage.nonEmpty,
-    )
-    val candidates1 = singleLayer(
-      'similarityCandidates,
-      candidateMatrix,
-//      useDropout = dropoutStorage.nonEmpty,
-    )
-    inputs1.dot(candidates1.t) / dimMessage
+    val inputs1 =
+      concatN(axis = 0, fromRows = true)(inputs)
+        .pipe(singleLayer('similarityInputs, _))
+    val candidates1 =
+      concatN(axis = 0, fromRows = true)(candidates)
+        .pipe(singleLayer('similarityCandidates, _))
+    val sharpen =
+      linear('sharpening, 1)(inputs1)
+        .pipe(softPlus(_) + 1.0)
+
+    val epsilon: Double = 1e-10
+
+    def normSquared(x1: CompNode): CompNode =
+      sum(square(x1), axis = 1)
+
+    def cosineSimilarity(
+        x1: CompNode,
+        x2: CompNode
+    ): CompNode = {
+      x1.dot(x2.t) / sqrt(normSquared(x1).dot(normSquared(x2).t) + epsilon)
+    }
+
+    cosineSimilarity(inputs1, candidates1) * sharpen
   }
 
   def encodeFunction(args: Vector[CompNode], to: CompNode): CompNode = {
@@ -300,12 +312,18 @@ abstract class NNArchitecture(
     messages
       .map {
         case (n, ms) =>
+//          val init = randomVar(name / 'mergeMsgs / 'init)
+//          n -> ms.foldLeft(init){ (acc, msg) =>
+//            gru(name / 'mergeMsgs / 'gru)(acc, msg)
+//          }
+
 //          val n1 = embedding(n)
-//          val values = concatN(axis = 0)(ms.toVector)
-//          val keys = singleLayer(name / 'mergeMsgs / 'transKey, values)
+//          val values = concatN(axis = 0, fromRows = true)(ms.toVector)
+//          val keys = linear(name / 'mergeMsgs / 'transKey, dimMessage)(values)
 //
 //          val attention = softmax(keys.dot(n1.t).t / dimMessage)
 //          n -> attention.dot(values)
+
           n -> plusN(ms.toVector)
       }
       .seq

@@ -287,7 +287,7 @@ private[funcdiff] object DiffFunc {
   }
 
   case class Divide(x1: CompNode, x2: CompNode) extends BinaryFunc {
-    x2.value.requireNonZero()
+    x2.value.requireNonZero(halfZeroTolerance)
     val value: Tensor = x1.value / x2.value
 
     def backProp2(grad: Gradient): (Gradient, Gradient) = {

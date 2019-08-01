@@ -58,8 +58,8 @@ object TrainingState {
             epoch0 = 0,
             dimMessage = 32,
             optimizer = Optimizer.Adam(learningRate = 1e-3),
-            iterationNum = 10,
-            pc = ParamCollection(),
+            iterationNum = 6,
+            pc = ParamCollection()
           ) -> mkEventLogger(overrideMode = true)
         }
         .tap(println)

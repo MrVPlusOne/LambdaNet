@@ -35,6 +35,8 @@ trait APITrait {
 
   def sigmoid(x1: CompNode): CompNode = funcNode(Sigmoid(x1))
 
+  def softPlus(x1: CompNode): CompNode = log(exp(x1) + 1.0)
+
   def tanh(x1: CompNode): CompNode = funcNode(Tanh(x1))
 
   def mean(x1: CompNode): CompNode = funcNode(Mean(x1))
@@ -72,8 +74,10 @@ trait APITrait {
 
   def concatN(axis: Int, fromRows: Boolean = false)(
       xs: IS[CompNode],
-  ): CompNode =
-    funcNode(ConcatN(xs, axis, fromRows))
+  ): CompNode = {
+    if (xs.length == 1) xs.head
+    else funcNode(ConcatN(xs, axis, fromRows))
+  }
 
   def crossEntropy(prediction: CompNode, targets: Tensor): CompNode =
     -sum(log(prediction + 1e-7) * targets, axis = 1)

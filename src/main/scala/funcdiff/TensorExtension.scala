@@ -25,7 +25,8 @@ object TensorExtension {
 
   /** set this to true to turn on NaN checking */
   var checkNaN = true
-  var zeroTolerance = 1e-8
+  var zeroTolerance = 1e-14
+  val halfZeroTolerance = 1e-7
 
   // ==== basic operations ====
   /** calculates which axes have been broadcasted */
@@ -129,9 +130,10 @@ object TensorExtension {
 
     def requireNonZero(tolerance: Double = zeroTolerance): Unit = {
       if (checkNaN) {
+        val minV = ns.min(ns.abs(data)).squeeze()
         require(
-          (ns.abs(data) >= tolerance).forall,
-          s"Tensor contains zero element: $data",
+          minV >= tolerance,
+          s"Tensor contains zero element: min abs = $minV"
         )
       }
     }

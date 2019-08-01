@@ -53,16 +53,16 @@ object DataSet {
       val libTypesToPredict: Set[LibTypeNode] =
         selectLibTypes(repos, coverageGoal = 0.95)
 
-      val labelCoverage = announced("create label encoder") {
-        TrainableLabelEncoder(repos, coverageGoal = 0.95, architecture)
+      val labelEncoder = announced("create label encoder") {
+        TrainableLabelEncoder(repos, coverageGoal = 0.90, architecture)
       }
-      val randomLabelEncoder = RandomLabelEncoder(architecture)
+//      val randomLabelEncoder = RandomLabelEncoder(architecture)
       val nameEncoder = announced("create name encoder") {
-        SegmentedLabelEncoder(repos, coverageGoal = 0.90, architecture)
-//        ConstantLabelEncoder(architecture)
+//        SegmentedLabelEncoder(repos, coverageGoal = 0.90, architecture)
+        ConstantLabelEncoder(architecture)
       }
 
-      printResult(s"Label encoder: ${labelCoverage.name}")
+      printResult(s"Label encoder: ${labelEncoder.name}")
 
       val data = (trainSet ++ devSet).toVector
         .map {
@@ -73,8 +73,8 @@ object DataSet {
                 g,
                 libTypesToPredict,
                 libNodeType,
-                randomLabelEncoder.encode,
-                labelCoverage.isLibLabel,
+                labelEncoder.encode,
+                labelEncoder.isLibLabel,
                 nameEncoder.encode,
                 taskSupport
               )
