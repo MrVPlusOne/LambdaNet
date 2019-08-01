@@ -27,7 +27,7 @@ import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
   val toyMod: Boolean = false
-  val taskName = "newFunc-6"
+  val taskName = "trainable-position-6"
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 

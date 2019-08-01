@@ -111,7 +111,7 @@ abstract class NNArchitecture(
     def extractMessages(
         kind: MessageKind,
         models: Vector[MessageModel]
-    ): UpdateMessages =
+    ): UpdateMessages = {
       kind match {
         case KindSingle(name) =>
           val paired = models
@@ -229,6 +229,7 @@ abstract class NNArchitecture(
             'FieldAttention / 'toClass
           )
       }
+    }
 
     messages
       .map { case (a, b) => extractMessages(a, b) }
@@ -294,10 +295,12 @@ abstract class NNArchitecture(
       signature: CompNode,
       name: CompNode,
   ): CompNode = {
-    singleLayer(
-      'encodeLibTerm,
-      concatN(axis = 1, fromRows = true)(Vector(experience, signature, name)),
-    )
+//    singleLayer(
+//      'encodeLibTerm,
+//      concatN(axis = 1, fromRows = true)(Vector(experience, signature, name)),
+//    )
+    // todo: see if type signature helps
+    experience
   }
 
 //  def encodeLibType(experience: CompNode, name: CompNode): CompNode = {
@@ -400,26 +403,35 @@ abstract class NNArchitecture(
     else input ~> oneLayer('L1) ~> oneLayer('L2)
   }
 
-  val encodePosition = {
-    def encodePosition(pos: Int): CompNode = {
-      assert(pos >= -1)
-      if (pos == -1) {
-        getVar('position / 'head) { randomVec() }
-      } else {
-        getConst('position / Symbol(pos.toString)) {
-          val phases = (0 until dimMessage / 2).map { dim =>
-            pos / math.pow(1000, 2.0 * dim / dimMessage)
-          }
-          numsca
-            .Tensor(phases.map(math.sin) ++ phases.map(math.cos): _*)
-            .reshape(1, -1)
-        }
-      }
+  def encodePosition(pos: Int): CompNode = {
+    assert(pos >= -1)
+    if (pos == -1) {
+      randomVar('position / 'head)
+    } else {
+      randomVar('position / Symbol(pos.toString))
     }
-    val maxFunctionArity = 100
-    val map = (-1 to maxFunctionArity).map(i => i -> encodePosition(i)).toMap
-
-    pos: Int => map.getOrElse(pos, encodePosition(pos))
   }
+
+//  val encodePosition = {
+//    def encodePosition(pos: Int): CompNode = {
+//      assert(pos >= -1)
+//      if (pos == -1) {
+//        getVar('position / 'head) { randomVec() }
+//      } else {
+//        getConst('position / Symbol(pos.toString)) {
+//          val phases = (0 until dimMessage / 2).map { dim =>
+//            pos / math.pow(1000, 2.0 * dim / dimMessage)
+//          }
+//          numsca
+//            .Tensor(phases.map(math.sin) ++ phases.map(math.cos): _*)
+//            .reshape(1, -1)
+//        }
+//      }
+//    }
+//    val maxFunctionArity = 100
+//    val map = (-1 to maxFunctionArity).map(i => i -> encodePosition(i)).toMap
+//
+//    pos: Int => map.getOrElse(pos, encodePosition(pos))
+//  }
 
 }
