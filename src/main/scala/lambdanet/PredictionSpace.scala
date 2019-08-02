@@ -10,7 +10,10 @@ object PredictionSpace {
 }
 
 case class PredictionSpace(allTypes: Set[PType]) {
-  val typeVector: Vector[PType] = allTypes.toVector
+  val libTypeVec: Vector[PType] = allTypes.filter(_.madeFromLibTypes).toVector
+  val projTypeVec: Vector[PType] = allTypes.filterNot(_.madeFromLibTypes).toVector
+  val typeVector: Vector[PType] = libTypeVec ++ projTypeVec
+
   val size: Int = typeVector.size
 
   private val indexMap: Map[PType, Int] = {

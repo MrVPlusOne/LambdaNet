@@ -25,8 +25,9 @@ object TensorExtension {
 
   /** set this to true to turn on NaN checking */
   var checkNaN = true
-  var zeroTolerance = 1e-14
+  val zeroTolerance = 1e-14
   val halfZeroTolerance = 1e-7
+  val epsilon = 1e-12
 
   // ==== basic operations ====
   /** calculates which axes have been broadcasted */
@@ -92,7 +93,7 @@ object TensorExtension {
 
   implicit class TensorWrapper(data: Tensor) {
     def unbroadcast(oldShape: Shape): Tensor = {
-      if (oldShape.elements == 1) Tensor(ns.sum(data))
+      if (oldShape.elements == 1) Tensor(ns.sum(data)).reshape(oldShape)
       else {
         val axes = broadcastAxes(oldShape, data.shape)
         sumAlongAxes(axes)

@@ -26,8 +26,8 @@ import scala.concurrent.{
 import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
-  val toyMod: Boolean = false
-  val taskName = "trainable-position-6"
+  val toyMod: Boolean = true
+  val taskName = "separate-6"
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
@@ -336,7 +336,7 @@ object TrainingLoop extends TrainingLoopTrait {
             }
 
           val loss =
-            lossModel.crossEntropyLoss(
+            lossModel.crossEntropyWithLogitsLoss(
               logits,
               targets,
               predSpace.size,
@@ -389,13 +389,13 @@ object TrainingLoop extends TrainingLoopTrait {
           val nodesToPredict = annotsToUse.map(_._1)
           assert(nodesToPredict.nonEmpty, predSpace)
 
-          // the logits for very iterations
-          val logitsVec = announced("run predictor") {
+          // the probability for very iterations
+          val probsVec = announced("run predictor") {
             predictor
               .run(architecture, nodesToPredict, iterationNum)
               .result
           }
-          val logits = logitsVec.last
+          val probs = probsVec.last
 
           val groundTruths = nodesToPredict.map(annotations)
           val targets = groundTruths.map(predSpace.indexOfType)
@@ -404,7 +404,7 @@ object TrainingLoop extends TrainingLoopTrait {
           val (libCounts, projCounts, confMat, distanceCounts) =
             announced("compute training accuracy") {
               analyzeLogits(
-                logits,
+                probs,
                 groundTruths,
                 predSpace,
                 nodeDistances,
@@ -413,7 +413,7 @@ object TrainingLoop extends TrainingLoopTrait {
 
           val loss =
             lossModel.predictionLoss(
-              predictor.parallelize(logitsVec),
+              predictor.parallelize(probsVec),
               targets,
               predSpace.size,
             )
@@ -429,9 +429,9 @@ object TrainingLoop extends TrainingLoopTrait {
 
           val predictions: Map[PNode, Vector[PType]] = {
             import numsca._
-            val Shape(Vector(row, _)) = logits.value.shape
+            val Shape(Vector(row, _)) = probs.value.shape
             val predVec = (0 until row.toInt).map { r =>
-              logits
+              probs
                 .value(r, :>)
                 .data
                 .zipWithIndex

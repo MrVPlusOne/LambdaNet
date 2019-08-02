@@ -5,6 +5,7 @@ import botkop.numsca._
 import DiffFunc._
 
 import scala.language.{implicitConversions, reflectiveCalls}
+import TensorExtension.epsilon
 
 trait APITrait {
 
@@ -80,13 +81,23 @@ trait APITrait {
   }
 
   def crossEntropy(prediction: CompNode, targets: Tensor): CompNode =
-    -sum(log(prediction + 1e-7) * targets, axis = 1)
+    -sum(log(prediction + epsilon) * targets, axis = 1)
 
   def crossEntropyOnSoftmax(logits: CompNode, targets: Tensor): CompNode =
     funcNode(CrossEntropyOnSoftmax(logits, targets))
 
   def crossEntropyOnSoftmaxIneff(logits: CompNode, targets: Tensor): CompNode =
-    -sum(log(softmax(logits) + 1e-7) * targets, axis = 1)
+    -sum(log(softmax(logits) + epsilon) * targets, axis = 1)
+
+  def normSquared(x1: CompNode): CompNode =
+    sum(square(x1), axis = 1)
+
+  def cosineSimilarity(
+      x1: CompNode,
+      x2: CompNode
+  ): CompNode = {
+    x1.dot(x2.t) / sqrt(normSquared(x1).dot(normSquared(x2).t) + epsilon)
+  }
 
   def correctWrongSets(
       probabilities: Tensor,
@@ -171,11 +182,6 @@ trait APITrait {
     def dot(x2: CompNode): CompNode = funcNode(Dot(x1, x2))
 
     def ~>[B <: CompNode](f: CompNode => B): B = f(x1)
-
-    def repeat(number: Int, axis: Int): CompNode = {
-      if (number == 1) x1
-      else concatN(axis)(Vector.fill(number)(x1))
-    }
   }
 
 //  /** convenient import for NumscaRange */

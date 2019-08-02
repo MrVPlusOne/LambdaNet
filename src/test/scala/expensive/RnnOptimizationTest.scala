@@ -98,7 +98,7 @@ class RnnOptimizationTest extends TestUtils {
     val collection = new ParamCollection()
 
     val targets = (0 until timeSteps).map { i =>
-      Tensor(math.sin(i * 6 * math.Pi / timeSteps)): CompNode
+      Tensor(math.sin(i * 6 * math.Pi / timeSteps)).reshape(1,1): CompNode
     }
 
     val optimizer = Adam(learningRate = 0.01)

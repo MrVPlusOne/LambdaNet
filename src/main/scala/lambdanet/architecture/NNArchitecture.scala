@@ -239,37 +239,60 @@ abstract class NNArchitecture(
   def similarity(
       inputs: Vector[CompNode],
       candidates: Vector[CompNode],
+      name: SymbolPath,
   ): CompNode = {
     val inputs1 =
       concatN(axis = 0, fromRows = true)(inputs)
-        .pipe(singleLayer('similarityInputs, _))
+        .pipe(singleLayer(name / 'similarityInputs, _))
     val candidates1 =
       concatN(axis = 0, fromRows = true)(candidates)
-        .pipe(singleLayer('similarityCandidates, _))
-    val sharpen =
-      linear('sharpening, 1)(inputs1)
-        .pipe(softPlus(_) + 1.0)
+        .pipe(singleLayer(name / 'similarityCandidates, _))
 
-    val epsilon: Double = 1e-10
+//    val sim = cosineSimilarity(inputs1, candidates1)
+//    val sharpen =
+//      (sim ~> linear('sharpening / 'L1, dimMessage) ~> relu
+//        ~> linear('))
+//      .pipe(sum(_, axis = 1))
+//      .pipe(softPlus(_) + 1.0)
+    val factor = 1.0 / math.sqrt(dimMessage)
+    val sim = inputs1.dot(candidates1.t) * factor
 
-    def normSquared(x1: CompNode): CompNode =
-      sum(square(x1), axis = 1)
+    sim ~> softmax
+  }
 
-    def cosineSimilarity(
-        x1: CompNode,
-        x2: CompNode
-    ): CompNode = {
-      x1.dot(x2.t) / sqrt(normSquared(x1).dot(normSquared(x2).t) + epsilon)
-    }
+  def separatedSimilarity(
+      inputs: Vector[CompNode],
+      libCandidates: Vector[CompNode],
+      projCandidates: Vector[CompNode],
+  ): CompNode = {
+    val inputs1 =
+      concatN(axis = 0, fromRows = true)(inputs)
+//        .pipe(singleLayer('similarityInputs, _))
+//    val candidates1 =
+//      concatN(axis = 0, fromRows = true)(projCandidates)
+//        .pipe(singleLayer('similarityCandidates, _))
 
-    cosineSimilarity(inputs1, candidates1) * sharpen
+    val pIsLib = inputs1 ~>
+      linear('libDecider / 'L1, dimMessage) ~> relu ~>
+      linear('libDecider / 'L2, dimMessage) ~> relu ~>
+      linear('libDecider / 'L3, 1) ~> sigmoid
+
+    val libTypeNum = libCandidates.length
+    val libDistr = inputs1 ~>
+      linear('libDistr / 'L1, dimMessage) ~> relu ~>
+      linear('libDistr / 'L2, dimMessage) ~> relu ~>
+      linear('libDistr / 'L3, libTypeNum) ~> softmax
+//    val libDistr = similarity(inputs, libCandidates, 'libDistr)
+    val projDistr = similarity(inputs, projCandidates, 'projDistr)
+
+    (libDistr * pIsLib).concat(projDistr * (-pIsLib + 1), 1)
   }
 
   def encodeFunction(args: Vector[CompNode], to: CompNode): CompNode = {
     (to +: args).zipWithIndex
       .map {
         case (a, i) =>
-          a.concat(encodePosition(i-1), axis = 1)
+          a.concat(encodePosition(i - 1), axis = 1)
       }
       .pipe(concatN(axis = 0, fromRows = true))
       .pipe(singleLayer('encodeFunction, _))

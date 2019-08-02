@@ -10,10 +10,10 @@
 NotebookFileLineBreakTest
 NotebookFileLineBreakTest
 NotebookDataPosition[       158,          7]
-NotebookDataLength[     30490,        673]
-NotebookOptionsPosition[     28709,        639]
-NotebookOutlinePosition[     29064,        655]
-CellTagsIndexPosition[     29021,        652]
+NotebookDataLength[     31425,        693]
+NotebookOptionsPosition[     29550,        658]
+NotebookOutlinePosition[     29903,        674]
+CellTagsIndexPosition[     29860,        671]
 WindowFrame->Normal*)
 
 (* Beginning of Notebook Content *)
@@ -363,8 +363,7 @@ Cell[BoxData[
           RowBox[{"PlotLabel", "\[Rule]", "name"}]}], "\[IndentingNewLine]", 
          "]"}]}], "]"}]}], "]"}]}], "]"}]}]], "Input",
  CellChangeTimes->{{3.773154110376362*^9, 3.773154155266444*^9}},
- CellLabel->
-  "In[183]:=",ExpressionUUID->"30e0e5e6-a388-48bf-b5c7-f70dc2d3b087"],
+ CellLabel->"In[10]:=",ExpressionUUID->"30e0e5e6-a388-48bf-b5c7-f70dc2d3b087"],
 
 Cell[BoxData[
  RowBox[{
@@ -436,7 +435,7 @@ Cell[BoxData[
    3.7722965910889*^9}, 3.7722967152824717`*^9, 3.7722967652044477`*^9, {
    3.7722968687050133`*^9, 3.7722969266045*^9}, {3.772317173336279*^9, 
    3.7723171744546843`*^9}},
- CellLabel->"In[10]:=",ExpressionUUID->"8eaebe0e-c1fc-4a5d-b1b7-6ae502627527"],
+ CellLabel->"In[11]:=",ExpressionUUID->"8eaebe0e-c1fc-4a5d-b1b7-6ae502627527"],
 
 Cell[BoxData[
  RowBox[{
@@ -561,14 +560,13 @@ Cell[BoxData[
    3.772294778374455*^9}, {3.772295076118802*^9, 3.772295085542048*^9}, {
    3.772295217762693*^9, 3.772295241065091*^9}, {3.77315416629459*^9, 
    3.773154167077194*^9}},
- CellLabel->
-  "In[184]:=",ExpressionUUID->"f17ed66f-751b-4e3f-b3ce-d9caa6ca4efa"],
+ CellLabel->"In[12]:=",ExpressionUUID->"f17ed66f-751b-4e3f-b3ce-d9caa6ca4efa"],
 
 Cell[BoxData[
  RowBox[{
   RowBox[{"SetDirectory", "[", 
    RowBox[{"NotebookDirectory", "[", "]"}], "]"}], ";"}]], "Input",
- CellLabel->"In[12]:=",ExpressionUUID->"6805c100-a6ad-420a-b856-67d855c5aa6b"],
+ CellLabel->"In[13]:=",ExpressionUUID->"6805c100-a6ad-420a-b856-67d855c5aa6b"],
 
 Cell[BoxData[{
  RowBox[{
@@ -619,26 +617,47 @@ running/``-``.txt\>\"", ",", "server", ",", "server", ",",
   3.772157226414977*^9}, {3.77215725684726*^9, 3.772157259740436*^9}, {
   3.7723159314219027`*^9, 3.7723159857471848`*^9}, {3.772374131405843*^9, 
   3.772374177308598*^9}},
- CellLabel->"In[13]:=",ExpressionUUID->"73698989-be54-4b3c-b41e-8db8e339f51a"],
+ CellLabel->"In[14]:=",ExpressionUUID->"73698989-be54-4b3c-b41e-8db8e339f51a"],
 
 Cell[BoxData[
  RowBox[{
   RowBox[{"downloadPredictions", "[", 
-   RowBox[{"server_", ",", "task_"}], "]"}], ":=", "\[IndentingNewLine]", 
+   RowBox[{"server_", ",", "task_", ",", "epoch_"}], "]"}], ":=", 
+  "\[IndentingNewLine]", 
   RowBox[{"Run", "[", 
    RowBox[{"ToString", "@", 
     RowBox[{"StringForm", "[", 
      RowBox[{
-     "\"\<cd ~/Desktop;scp -r ``:~/TypingNet/running-result/``/predictions \
-running/``-``-predictions\>\"", ",", "server", ",", "task", ",", "server", 
-      ",", "task"}], "]"}]}], "]"}]}]], "Input",
+     "\"\<cd ~/Desktop;scp -r \
+``:~/TypingNet/running-result/``/saved/epoch``/predictions \
+running/``-``-pred-epoch``\>\"", ",", "server", ",", "task", ",", "epoch", 
+      ",", "server", ",", "task", ",", "epoch"}], "]"}]}], "]"}]}]], "Input",
  CellChangeTimes->{{3.772808836471108*^9, 3.7728088504512177`*^9}, {
   3.772809042272231*^9, 3.7728090859141006`*^9}, {3.7728092338659763`*^9, 
-  3.772809234550386*^9}},
- CellLabel->"In[15]:=",ExpressionUUID->"7b02550c-3904-470e-9fed-c37f2db65bef"]
+  3.772809234550386*^9}, {3.773658155489213*^9, 3.773658236681694*^9}, {
+  3.7736583439985123`*^9, 3.7736583477080727`*^9}, {3.7736585942546463`*^9, 
+  3.773658594829732*^9}},
+ CellLabel->
+  "In[236]:=",ExpressionUUID->"7b02550c-3904-470e-9fed-c37f2db65bef"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"downloadEverything", "[", 
+   RowBox[{"server_", ",", "task_", ",", "epoch_"}], "]"}], ":=", 
+  "\[IndentingNewLine]", 
+  RowBox[{"Run", "[", 
+   RowBox[{"ToString", "@", 
+    RowBox[{"StringForm", "[", 
+     RowBox[{
+     "\"\<cd ~/Desktop;scp -r ``:~/TypingNet/running-result/``/saved/epoch`` \
+running/``-``-epoch``\>\"", ",", "server", ",", "task", ",", "epoch", ",", 
+      "server", ",", "task", ",", "epoch"}], "]"}]}], "]"}]}]], "Input",
+ CellChangeTimes->{{3.773658536430666*^9, 3.773658556905562*^9}},
+ CellLabel->
+  "In[237]:=",ExpressionUUID->"cee0ac1d-32c8-40a6-b358-950ec8a35725"]
 },
 WindowSize->{1261, 855},
-WindowMargins->{{18, Automatic}, {Automatic, 73}},
+WindowMargins->{{2, Automatic}, {Automatic, 0}},
 FrontEndVersion->"11.3 for Mac OS X x86 (32-bit, 64-bit Kernel) (March 5, \
 2018)",
 StyleDefinitions->"Default.nb"
@@ -668,13 +687,14 @@ Cell[7653, 184, 2421, 53, 262, "Input",ExpressionUUID->"acce1dea-d942-41c8-8fb9-
 Cell[10077, 239, 4535, 96, 472, "Input",ExpressionUUID->"c1caf827-f9db-4da8-ad17-f8d13c077216",
  CellGroupingRules->{"GroupTogetherGrouping", 10000.}]
 }, Open  ]],
-Cell[14627, 338, 1228, 28, 199, "Input",ExpressionUUID->"30e0e5e6-a388-48bf-b5c7-f70dc2d3b087"],
-Cell[15858, 368, 3364, 70, 304, "Input",ExpressionUUID->"8eaebe0e-c1fc-4a5d-b1b7-6ae502627527"],
-Cell[19225, 440, 6488, 124, 443, "Input",ExpressionUUID->"f17ed66f-751b-4e3f-b3ce-d9caa6ca4efa",
+Cell[14627, 338, 1224, 27, 199, "Input",ExpressionUUID->"30e0e5e6-a388-48bf-b5c7-f70dc2d3b087"],
+Cell[15854, 367, 3364, 70, 304, "Input",ExpressionUUID->"8eaebe0e-c1fc-4a5d-b1b7-6ae502627527"],
+Cell[19221, 439, 6484, 123, 409, "Input",ExpressionUUID->"f17ed66f-751b-4e3f-b3ce-d9caa6ca4efa",
  CellGroupingRules->{"GroupTogetherGrouping", 10000.}],
-Cell[25716, 566, 202, 4, 30, "Input",ExpressionUUID->"6805c100-a6ad-420a-b856-67d855c5aa6b"],
-Cell[25921, 572, 2095, 49, 178, "Input",ExpressionUUID->"73698989-be54-4b3c-b41e-8db8e339f51a"],
-Cell[28019, 623, 686, 14, 73, "Input",ExpressionUUID->"7b02550c-3904-470e-9fed-c37f2db65bef"]
+Cell[25708, 564, 202, 4, 30, "Input",ExpressionUUID->"6805c100-a6ad-420a-b856-67d855c5aa6b"],
+Cell[25913, 570, 2095, 49, 178, "Input",ExpressionUUID->"73698989-be54-4b3c-b41e-8db8e339f51a"],
+Cell[28011, 621, 903, 19, 73, "Input",ExpressionUUID->"7b02550c-3904-470e-9fed-c37f2db65bef"],
+Cell[28917, 642, 629, 14, 107, "Input",ExpressionUUID->"cee0ac1d-32c8-40a6-b358-950ec8a35725"]
 }
 ]
 *)

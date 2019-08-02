@@ -67,7 +67,7 @@ object NeuralInference {
             )
           }
           logTime("decode") {
-            decode(embed, allSignatureEmbeddings)
+            decodeSeparate(embed, allSignatureEmbeddings)
           }
         }
       }
@@ -161,7 +161,31 @@ object NeuralInference {
         val inputs = nodesToPredict
           .map(embedding.vars.apply)
 
-        architecture.similarity(inputs, candidates)
+        architecture.similarity(inputs, candidates, 'decode)
+      }
+
+      private def decodeSeparate(
+          embedding: Embedding,
+          encodeSignature: Map[PType, CompNode],
+      ): CompNode = {
+        val inputs = nodesToPredict
+          .map(embedding.vars.apply)
+
+        val projCandidates = predictionSpace.projTypeVec
+          .pipe(parallelize)
+          .map(encodeSignature)
+          .toVector
+
+        val libCandidates = predictionSpace.libTypeVec
+          .pipe(parallelize)
+          .map(encodeSignature)
+          .toVector
+
+        architecture.separatedSimilarity(
+          inputs,
+          libCandidates,
+          projCandidates,
+        )
       }
 
       private def signatureEmbeddingMap(
@@ -301,7 +325,7 @@ object NeuralInference {
               mutual("defineEqual", defined, n)
             case PFunc(args, to) =>
               positional("defineFunc", defined, args, to)
-            case PCall(f, args)  =>
+            case PCall(f, args) =>
               // todo: reason about generics
               positional("defineCall", f, args, defined)
             case PObject(fields) =>

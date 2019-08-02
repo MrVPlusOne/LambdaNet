@@ -33,12 +33,20 @@ trait LossModel {
       }
   }
 
-  def crossEntropyLoss(
+  def crossEntropyWithLogitsLoss(
       logits: CompNode,
       targets: Vector[Int],
       predSpaceSize: Int,
   ): CompNode = {
     mean(crossEntropyOnSoftmax(logits, oneHot(targets, predSpaceSize)))
+  }
+
+  def crossEntropyLoss(
+      probs: CompNode,
+      targets: Vector[Int],
+      predSpaceSize: Int,
+  ): CompNode = {
+    mean(crossEntropy(probs, oneHot(targets, predSpaceSize)))
   }
 }
 
