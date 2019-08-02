@@ -318,12 +318,12 @@ abstract class NNArchitecture(
       signature: CompNode,
       name: CompNode,
   ): CompNode = {
-//    singleLayer(
-//      'encodeLibTerm,
-//      concatN(axis = 1, fromRows = true)(Vector(experience, signature, name)),
-//    )
-    // todo: see if type signature helps
-    experience
+    singleLayer(
+      'encodeLibTerm,
+      concatN(axis = 1, fromRows = true)(Vector(experience, signature, name)),
+    )
+//     todo: see if type signature helps
+//    experience
   }
 
 //  def encodeLibType(experience: CompNode, name: CompNode): CompNode = {

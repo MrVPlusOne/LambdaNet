@@ -22,20 +22,20 @@ function f4(c: boolean, x: number): Event {
   return Event.prototype;
 }
 
-let x1: number;
-let y1: boolean;
-let c1: Window;
-let r1: number[] = f1(x1, y1, c1);
+let a1: number;
+let a2: boolean;
+let a3: Window;
+let a4: number[] = f1(a1, a2, a3);
 
-let x2: number;
-let y2: boolean;
-let c2: Window;
-let r2: string = f2(y2, x2, c2);
+let b1: boolean;
+let b2: number;
+let b3: Window;
+let b4: string = f2(b1, b2, b3);
 
-let x3: number;
-let y3: boolean;
-let c3: Event;
-let r3: void = f3(c3, x3, y3);
+let z1: Event;
+let z2: number;
+let z3: boolean;
+let z4: void = f3(z1, z2, z3);
 
 
 function g1(x: number, y: boolean, c: Window): string {}

@@ -53,9 +53,11 @@ object DataSet {
       val libTypesToPredict: Set[LibTypeNode] =
         selectLibTypes(repos, coverageGoal = 0.95)
 
-      val labelCoverage = TrainableLabelEncoder(repos, coverageGoal = 0.90, architecture)
+      val labelCoverage =
+//        SegmentedLabelEncoder(repos, coverageGoal = 0.90, architecture)
+        TrainableLabelEncoder(repos, coverageGoal = 0.90, architecture)
 
-      val labelEncoder = labelCoverage// RandomLabelEncoder(architecture)
+      val labelEncoder = SegmentedLabelEncoder(repos, coverageGoal = 0.90, architecture)
 
 //      val randomLabelEncoder = RandomLabelEncoder(architecture)
       val nameEncoder = {
