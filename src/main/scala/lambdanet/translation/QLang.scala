@@ -126,7 +126,7 @@ object QLangTranslation {
         Surface.VarDef(
           v,
           Annot.User(t, inferred = false),
-          Surface.Var(undefinedSymbol),
+          None,
           isConst = true,
           ExportLevel.Unspecified,
         )
@@ -378,7 +378,9 @@ object QLangTranslation {
           stmt match {
             case PLang.VarDef(_, node, init, isConst, _) =>
               mapNode(node)
-              Vector(VarDef(node, translateExpr(init), isConst))
+              init.map{ i =>
+                VarDef(node, translateExpr(i), isConst)
+              }.toVector
             case PLang.AssignStmt(lhs, rhs) =>
               Vector(AssignStmt(translateExpr(lhs), translateExpr(rhs)))
             case PLang.ExprStmt(e, isReturn) =>

@@ -267,6 +267,11 @@ object PredicateGraph {
   }
 
   case class DefineRel(v: PNode, expr: PExpr) extends TyPredicate {
+//    expr match {
+//      case n: PNode => assert(v.isType == n.isType)
+//      case _ =>
+//    }
+
     val allNodes: Set[PNode] = expr.allNodes + v
   }
 

@@ -254,7 +254,7 @@ class ParserTests extends WordSpec with MyTest {
         SimpleMath.readObjectFromFile[LibDefs](libDefsFile.toIO)
       }
 
-    val dir = pwd / RelPath("data/toy/testSet/all")
+    val dir = pwd / RelPath("data/tests/simple")
     val (g, qModules, irModules, annts) =
       prepareProject(libDefs, dir, skipSet = Set())
     qModules.foreach(
@@ -271,5 +271,9 @@ class ParserTests extends WordSpec with MyTest {
     }
 
     g.predicates.toVector.sortBy(_.toString).foreach(println)
+
+    println{
+      PredicateGraphVisualization.asMamGraph(libDefs, annts, "\"SpringElectricalEmbedding\"", g)
+    }
   }
 }

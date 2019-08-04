@@ -33,7 +33,10 @@ object TrainingLoop extends TrainingLoopTrait {
 
   def scaleLearningRate(epoch: Int): Double = {
     val min = 0.4
-    SimpleMath.linearInterpolate(1.0, min)(epoch.toDouble / 300).max(min)
+    val epochToSlowDown = if (toyMod) 300 else 200
+    SimpleMath
+      .linearInterpolate(1.0, min)(epoch.toDouble / epochToSlowDown)
+      .max(min)
   }
 
   def main(args: Array[String]): Unit = {

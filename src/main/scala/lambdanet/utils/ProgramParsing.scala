@@ -577,7 +577,7 @@ case class ProgramParsing() {
         case "VarDef" =>
           val name = asString(map("x"))
           val t = parseGTMark(map("mark"))
-          val init = parseGExpr(map("init"))
+          val init = parseGExprOpt(map("init"))
           val ms = parseModifiers(map("modifiers"))
           val b = asBoolean(map("isConst")) || ms.isConst
           Vector(VarDef(Symbol(name), t, init, isConst = b, ms.exportLevel))
@@ -642,7 +642,7 @@ case class ProgramParsing() {
             val (name, v2) = parseNamedValue(v1)
             val List(tyV, initV, isStaticV) = asArray(v2)
             val ty = parseGTMark(tyV)
-            val init = parseGExpr(initV)
+            val init = parseGExprOpt(initV)
             val isStatic = asBoolean(isStaticV)
             (Symbol(name), (ty, init, isStatic))
           }
@@ -652,7 +652,7 @@ case class ProgramParsing() {
               parseGStmt(s).asInstanceOf[Vector[FuncDef]].head -> asBoolean(b)
             }
 
-          val instanceInits = mutable.HashMap[Symbol, GExpr]()
+          val instanceInits = mutable.HashMap[Symbol, Option[GExpr]]()
 
           val (instanceVars, staticVars) = {
             val v1 = vars.groupBy(_._2._3)
@@ -701,7 +701,7 @@ case class ProgramParsing() {
             val thisDef = VarDef(
               thisSymbol,
               Annot.Fixed(TyVar(name)),
-              Var(undefinedSymbol),
+              None,
               isConst = true,
               ExportLevel.Unspecified,
             )
@@ -713,9 +713,10 @@ case class ProgramParsing() {
               .flatMap(parseGStmt)
               .asInstanceOf[Vector[FuncDef]]
             val stmts = makeSureInBlockSurface(Vector(constructor0.body)).stmts
-            val inits = instanceInits.toVector.map {
-              case (s, expr) =>
-                AssignStmt(Access(Var(thisSymbol), s), expr)
+            val inits = instanceInits.toVector.flatMap{
+              case (s, Some(expr)) =>
+                Vector(AssignStmt(Access(Var(thisSymbol), s), expr))
+              case _ => None
             }
             constructor0.copy(
               body = makeSureInBlockSurface(
@@ -778,6 +779,13 @@ case class ProgramParsing() {
   private def parseArgList(value: Js.Val): Vector[(Symbol, GTMark)] = {
     val list = asVector(value)
     list.map(parseArgPair)
+  }
+
+  private def parseGExprOpt(v: Js.Val): Option[GExpr] = {
+    v match {
+      case Null => None
+      case _ => Some(parseGExpr(v))
+    }
   }
 
   private def parseGExpr(v: Js.Val): GExpr = {

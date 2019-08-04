@@ -39,7 +39,7 @@ object PLang {
   case class VarDef(
       name: Symbol,
       node: PNode,
-      init: GExpr,
+      init: Option[GExpr],
       isConst: Boolean,
       exportLevel: ExportLevel.Value,
   ) extends PStmt

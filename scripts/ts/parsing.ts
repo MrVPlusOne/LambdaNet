@@ -312,7 +312,7 @@ class VarDef implements GStmt {
   category: string = "VarDef";
 
   constructor(public x: string, public mark: GMark,
-              public init: GExpr, public isConst: boolean, public modifiers: string[]) {
+              public init: GExpr | null, public isConst: boolean, public modifiers: string[]) {
     mustExist(x);
   }
 }
@@ -431,7 +431,7 @@ class ClassDef implements GStmt {
   constructor(public name: string, public constructor: FuncDef | null,
               public instanceLambdas: FuncDef[],
               public staticLambdas: FuncDef[],
-              public vars: NamedValue<[GMark, GExpr, boolean]>[],
+              public vars: NamedValue<[GMark, GExpr | null, boolean]>[],
               public funcDefs: [FuncDef, boolean][],
               public superTypes: string[], public modifiers: string[],
               public tyVars: string[]) {
@@ -808,11 +808,11 @@ export class StmtParser {
             let isConst = (node.flags & ts.NodeFlags.Const) != 0;
 
             function parseVarDec(dec: ts.VariableDeclaration, rhs?: GExpr): VarDef[] {
-              const rhs1 = rhs ? rhs : (dec.initializer ? EP.processExpr(dec.initializer) : undefinedValue);
+              const rhs1 = rhs ? rhs : (dec.initializer ? EP.processExpr(dec.initializer) : null);
               return parseBindingName(dec.name, rhs1, dec.type);
             }
 
-            function parseBindingName(lhs: ts.BindingName, rhs: GExpr, ty?: ts.TypeNode): VarDef[] {
+            function parseBindingName(lhs: ts.BindingName, rhs: GExpr | null, ty?: ts.TypeNode): VarDef[] {
               switch (lhs.kind) {
                 case SyntaxKind.Identifier:
                   return [new VarDef(
@@ -824,11 +824,11 @@ export class StmtParser {
                 case SyntaxKind.ObjectBindingPattern:
                   return flatMap(lhs.elements, (e: ts.BindingElement) => {
                     const fieldName = e.propertyName ? e.propertyName : e.name;
-                    const access = new Access(rhs, (fieldName as ts.Identifier).text, "missing");
+                    const access = rhs ? new Access(rhs, (fieldName as ts.Identifier).text, "missing") : null;
                     return parseBindingName(e.name, access);
                   });
                 case SyntaxKind.ArrayBindingPattern: {
-                  let arrayAccessed = new FuncCall(SpecialVars.ArrayAccess, [rhs], "missing");
+                  let arrayAccessed = rhs ? new FuncCall(SpecialVars.ArrayAccess, [rhs], "missing") : null;
                   return flatMap(lhs.elements, (e: ts.ArrayBindingElement) => {
                     if (e.kind == SyntaxKind.OmittedExpression) {
                       return [];
@@ -961,7 +961,7 @@ export class StmtParser {
               }
             }
 
-            let vars: NamedValue<[GMark, GExpr, boolean]>[] = [];
+            let vars: NamedValue<[GMark, (GExpr | null), boolean]>[] = [];
             let funcDefs: [FuncDef, boolean][] = [];
             let constructor: Constructor | null = null;
 
@@ -974,7 +974,7 @@ export class StmtParser {
               const ep = staticQ ? staticEp : instanceEp;
               if (ts.isPropertyDeclaration(v)) {
                 let v1 = v as ts.PropertyDeclaration;
-                const init = v1.initializer ? ep.processExpr(v1.initializer) : undefinedValue;
+                const init = v1.initializer ? ep.processExpr(v1.initializer) : null;
                 vars.push(new NamedValue(
                   getPropertyName(v1.name),
                   [parseMark(v1.type, v1), init, staticQ]
@@ -986,8 +986,8 @@ export class StmtParser {
                 c.args
                   .filter(v => c.publicVars.includes(v.name))
                   .forEach(p => vars.push(
-                    new NamedValue<[GMark, GExpr, boolean]>(
-                      p.name, [p.value, undefinedValue, false])));
+                    new NamedValue<[GMark, GExpr | null, boolean]>(
+                      p.name, [p.value, null, false])));
                 constructor = c;
               } else if (ts.isIndexSignatureDeclaration(v)) {
                 const n = v as ts.IndexSignatureDeclaration;

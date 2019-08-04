@@ -1,29 +1,33 @@
 package lambdanet.utils
 
-import lambdanet.translation.PredicateGraph.PNode
-
 import scala.collection.mutable
 
 object GraphVisualization {
+  case class MamElement(content: String){
+    override def toString: String = content
+  }
+
   class LabeledGraph() {
-    case class Edge(from: PNode, to: PNode, info: String)
-    case class Node(name: String, info: String)
+    type N = MamElement
 
-    val nodeInfo = mutable.HashMap[PNode, Node]()
+    case class Edge(from: N, to: N, info: MamElement)
+    case class Node(name: String, info: MamElement)
+
+    val nodeInfo = mutable.HashMap[N, Node]()
     val edges = mutable.ListBuffer[Edge]()
-    val nodeStyleMap = mutable.HashMap[PNode, String]()
+    val nodeStyleMap = mutable.HashMap[N, String]()
 
-    def setNodeStyle(id: PNode, style: String): Unit = {
+    def setNodeStyle(id: N, style: String): Unit = {
       nodeStyleMap(id) = style
     }
 
-    def addNode(id: PNode, name: String, info: String, style: String): Unit = {
+    def addNode(id: N, name: String, info: MamElement, style: String): Unit = {
       nodeInfo(id) = Node(name, info)
       setNodeStyle(id, style)
     }
 
-    def addEdge(from: PNode, to: PNode, info: String): Unit = {
-      edges += Edge(from, to, info: String)
+    def addEdge(from: N, to: N, info: MamElement): Unit = {
+      edges += Edge(from, to, info)
     }
 
     def toMamFormat(graphLayout: String, directed: Boolean): String = {
@@ -39,8 +43,8 @@ object GraphVisualization {
       val edgeList = edges
         .map {
           case Edge(from, to, info) =>
-            if (info.isEmpty) s"$from$arrow$to"
-            else s"""Labeled[$from$arrow$to, $info]"""
+            if (info.content.isEmpty) s"$from$arrow$to"
+            else s"""Labeled[$from$arrow$to, ${info.content}]"""
         }
         .mkString("{", ",", "}")
 
