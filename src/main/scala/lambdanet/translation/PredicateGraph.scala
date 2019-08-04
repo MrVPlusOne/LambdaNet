@@ -15,7 +15,7 @@ case class PredicateGraph(
   def showSizes: String =
     s"{nodes = ${nodes.size}, predicates = ${predicates.size}}"
 
-  def mergeEqualities: (PredicateGraph, PNode => PNode) = {
+  def mergeEqualities: (PredicateGraph, Map[PNode, PNode]) = {
     val substitution = predicates
       .collect {
         case DefineRel(v, v1: PNode) => (v, v1)
@@ -32,7 +32,7 @@ case class PredicateGraph(
     def substF(n: PNode) = substitution.getOrElse(n, n)
 
     val g = PredicateGraph(
-      nodes -- substitution.keySet,
+      nodes.map{substF},
       (predicates -- equalities).map { _.substitute(substF) }
     ).tap { p1 =>
       val diff = p1.predicates.flatMap(_.allNodes).diff(p1.nodes)
@@ -41,7 +41,7 @@ case class PredicateGraph(
         s"before merging equalities: ${this.showSizes}; after: ${p1.showSizes}"
       )
     }
-    (g, substF)
+    (g, substitution)
   }
 }
 

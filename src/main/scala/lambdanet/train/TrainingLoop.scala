@@ -26,8 +26,8 @@ import scala.concurrent.{
 import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
-  val toyMod: Boolean = false
-  val taskName = "separate-segLabels-10"
+  val toyMod: Boolean = true
+  val taskName = "separate-merged-10"
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
@@ -87,12 +87,12 @@ object TrainingLoop extends TrainingLoopTrait {
         (trainingState.epoch0 + 1 to maxTrainingEpochs).foreach { epoch =>
           announced(s"epoch $epoch") {
             handleExceptions(epoch) {
+              DebugTime.logTime("test-step") {
+                testStep(epoch)
+              }
               trainStep(epoch)
               if (epoch % saveInterval == 0) {
                 saveTraining(epoch, s"epoch$epoch")
-              }
-              DebugTime.logTime("test-step") {
-                testStep(epoch)
               }
             }
           }

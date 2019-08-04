@@ -256,7 +256,9 @@ object PrepareRepos {
 
     val newNodes = activeNodes.map(_.n) ++ graph.nodes.filter(_.fromLib)
     PredicateGraph(newNodes, newPredicates).tap { g =>
-      printResult(s"Before pruning: ${graph.nodes.size}, after: ${g.nodes.size}")
+      printResult(
+        s"Before pruning: ${graph.nodes.size}, after: ${g.nodes.size}"
+      )
     }
   }
 
@@ -318,7 +320,17 @@ object PrepareRepos {
       errorHandler.warnErrors()
       printResult(s"Project parsed: '$root'")
 
-      (graph, qModules, irModules, userAnnots)
+      val (graph1, merger) = graph.mergeEqualities
+//      val qModules1 = qModules.map{ _.mapNodes(merger)}
+//      val qModules1 = irModules.map{ _.mapNodes(merger)}
+      val mergerUserKeys = merger.keySet.collect {
+        case k if k.fromProject => ProjNode(k)
+      }
+      val userAnnots1 = (userAnnots.keySet -- mergerUserKeys).map { k =>
+        k -> userAnnots(k).substitute(n => merger.getOrElse(n, n))
+      }.toMap
+
+      (graph1, qModules, irModules, userAnnots1)
     }
 
 }
