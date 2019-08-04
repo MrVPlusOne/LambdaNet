@@ -26,7 +26,7 @@ import scala.concurrent.{
 import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
-  val toyMod: Boolean = true
+  val toyMod: Boolean = false
   val taskName = "separate-merged-10"
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
