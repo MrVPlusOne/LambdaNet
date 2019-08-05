@@ -1,6 +1,8 @@
 package lambdanet
 
-import lambdanet.architecture.{NNArchitecture}
+import lambdanet.architecture.NNArchitecture
+
+import scala.collection.mutable
 
 object NeuralInference {
   import funcdiff._
@@ -16,13 +18,9 @@ object NeuralInference {
     * across multiple training steps for the given [[PredicateGraph]].
     * The actual forward propagation only happens in [[run]]. */
   case class Predictor(
-      nodeForAny: LibTypeNode,
       graph: PredicateGraph,
       libraryTypeNodes: Set[LibTypeNode],
       libNodeType: LibNode => PType,
-      labelEncoder: GenSeq[Symbol] => Symbol => CompNode,
-      isLibLabel: Symbol => Boolean,
-      nameEncoder: GenSeq[Symbol] => Symbol => CompNode,
       taskSupport: Option[ForkJoinTaskSupport],
   ) {
 
@@ -30,6 +28,10 @@ object NeuralInference {
         architecture: NNArchitecture,
         nodesToPredict: Vector[ProjNode],
         iterations: Int,
+        nodeForAny: LibTypeNode,
+        labelEncoder: GenSeq[Symbol] => Symbol => CompNode,
+        isLibLabel: Symbol => Boolean,
+        nameEncoder: GenSeq[Symbol] => Symbol => CompNode,
     ) {
       import architecture.{Embedding, randomVar}
 
@@ -356,6 +358,82 @@ object NeuralInference {
         .map(toBatched)
         .fold[BatchedMsgModels](Map())(_ |+| _)
         .mapValuesNow(_.filterNot(_.allNodesFromLib))
+    }
+
+    def visualizeNeuralGraph: String = {
+      NeuralVisualization.toMamGraph(graph.nodes, batchedMsgModels)
+    }
+
+    private object NeuralVisualization {
+      import lambdanet.utils.GraphVisualization
+      import lambdanet.utils.GraphVisualization._
+
+      def toMamGraph(allNodes: Set[PNode], msgs: BatchedMsgModels): String = {
+        val g = new GraphVisualization.LabeledGraph()
+
+        val mapping = mutable.HashMap[Either[MessageModel, PNode], MamElement]()
+        implicit def convert1(n: PNode): MamElement =
+          mapping.getOrElseUpdate(Right(n), g.newId())
+        implicit def convert2(n: MessageModel): MamElement =
+          mapping.getOrElseUpdate(Left(n), g.newId())
+        implicit def stringElement(s: String): MamElement =
+          MamElement(s""""$s"""")
+
+        allNodes.foreach { n =>
+          val nodeColor = if (n.fromLib) "Orange" else "Green"
+          val nameStr = n.toString
+          g.addNode(n, nameStr, nameStr, nodeColor)
+        }
+
+        def name(kind: MessageKind): String =
+          kind match {
+            case MessageKind.KindSingle(name) =>
+              s"Single:$name"
+            case MessageKind.KindBinary(name) =>
+              s"Binary:$name"
+            case MessageKind.KindNaming(name) =>
+              s"Naming:$name"
+            case MessageKind.KindBinaryLabeled(name, labelType) =>
+              s"Labeled($name, $labelType)"
+            case MessageKind.KindAccess(label) =>
+              s"Access($label)"
+            case MessageKind.KindField(label) =>
+              s"Field($label)"
+          }
+
+        import lambdanet.NeuralInference.MessageKind._
+
+        msgs.foreach {
+          case (kind, msgs) =>
+            msgs.foreach { msg =>
+              val nm = name(kind)
+              g.addNode(msg, nm, s"$nm| $msg", "Blue")
+
+              msg match {
+                case MessageModel.Naming(n, name) =>
+                  g.addEdge(msg, n, "named")
+                case MessageModel.Single(n) =>
+                  g.addEdge(msg, n, "")
+                case MessageModel.Binary(n1, n2) =>
+                  g.addEdge(msg, n1, "n1")
+                  g.addEdge(msg, n2, "n2")
+                case MessageModel.Labeled(n1, n2, label) =>
+                  g.addEdge(msg, n1, "n1")
+                  g.addEdge(msg, n2, "n2")
+                case ClassFieldUsage(c, field) =>
+                  g.addEdge(msg, c, "class")
+                  g.addEdge(msg, field, "field")
+                case AccessFieldUsage(receiver, result) =>
+                  g.addEdge(msg, receiver, "receiver")
+                  g.addEdge(msg, result, "result")
+              }
+            }
+        }
+
+        g.toMamFormat("\"SpringElectricalEmbedding\"", directed = true)
+          .replace("\uD835\uDCDF", "P")
+          .replace("\uD835\uDCDB", "L")
+      }
     }
 
     def parallelize[T](xs: Seq[T]): GenSeq[T] = {

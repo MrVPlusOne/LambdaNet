@@ -5,7 +5,11 @@ import lambdanet.translation.PredicateGraph._
 import NeuralInference._
 import lambdanet.PrepareRepos.ParsedRepos
 import lambdanet.SequenceModel.SeqPredictor
-import lambdanet.architecture.LabelEncoder.{ConstantLabelEncoder, RandomLabelEncoder, TrainableLabelEncoder}
+import lambdanet.architecture.LabelEncoder.{
+  ConstantLabelEncoder,
+  RandomLabelEncoder,
+  TrainableLabelEncoder
+}
 import lambdanet.architecture.{NNArchitecture, SegmentedLabelEncoder}
 import lambdanet.translation.QLang.QModule
 import lambdanet.utils.QLangAccuracy.FseAccuracy
@@ -13,6 +17,7 @@ import lambdanet.utils.QLangAccuracy.FseAccuracy
 import scala.collection.parallel.ForkJoinTaskSupport
 
 case class DataSet(
+    nodeForAny: LibTypeNode,
     trainSet: Vector[Datum],
     testSet: Vector[Datum],
 ) {
@@ -44,43 +49,21 @@ object DataSet {
             SM.readObjectFromFile[ParsedRepos](parsedRepoPath.toIO)
           }
 
-      def libNodeType(n: LibNode) =
-        libDefs
-          .nodeMapping(n.n)
-          .typeOpt
-          .getOrElse(PredictionSpace.unknownType)
-
       val libTypesToPredict: Set[LibTypeNode] =
-        selectLibTypes(repos, coverageGoal = 0.95)
-
-      val labelCoverage =
-//        SegmentedLabelEncoder(repos, coverageGoal = 0.90, architecture)
-        TrainableLabelEncoder(repos, coverageGoal = 0.90, architecture)
-
-      val labelEncoder = SegmentedLabelEncoder(repos, coverageGoal = 0.90, architecture)
-
-//      val randomLabelEncoder = RandomLabelEncoder(architecture)
-      val nameEncoder = {
-//        SegmentedLabelEncoder(repos, coverageGoal = 0.90, architecture)
-        ConstantLabelEncoder(architecture)
-      }
-
-      printResult(s"Label encoder: ${labelEncoder.name}")
-      printResult(s"Name encoder: ${nameEncoder.name}")
-
+        selectLibTypes(
+          libDefs,
+          repos.trainSet.map { _.userAnnots },
+          coverageGoal = 0.95
+        )
 
       val data = (trainSet ++ devSet).toVector
         .map {
           case ParsedProject(path, g, qModules, irModules, annotations) =>
             val predictor =
               Predictor(
-                LibTypeNode(LibNode(libDefs.nodeForAny)),
                 g,
                 libTypesToPredict,
-                libNodeType,
-                labelEncoder.encode,
-                labelCoverage.isLibLabel,
-                nameEncoder.encode,
+                libDefs.libNodeType,
                 taskSupport
               )
             val nonGenerifyIt = nonGenerify(libDefs)
@@ -112,24 +95,27 @@ object DataSet {
       val libAnnots = data.map(_.libAnnots).sum
       val projAnnots = data.map(_.projAnnots).sum
       printResult(
-        s"Train set size: ${trainSet.size}, Dev set size: ${devSet.size}",
+        s"Train set size: ${trainSet.size}, Dev set size: ${devSet.size}"
       )
       printResult(s"$libAnnots library targets, $projAnnots project targets.")
 
-      DataSet(data.take(trainSet.length), data.drop(trainSet.length))
-        .tap(printResult)
+      DataSet(
+        LibTypeNode(LibNode(libDefs.nodeForAny)),
+        data.take(trainSet.length),
+        data.drop(trainSet.length)
+      ).tap(printResult)
     }
 
   def selectLibTypes(
-      repos: ParsedRepos,
+      libDefs: LibDefs,
+      annotations: Seq[Map[ProjNode, PType]],
       coverageGoal: Double,
   ): Set[LibTypeNode] = {
     import cats.implicits._
-    import repos.{libDefs, trainSet}
 
-    val usages: Map[PNode, Int] = trainSet.par
+    val usages: Map[PNode, Int] = annotations.par
       .map { p =>
-        p.userAnnots.collect { case (_, PTyVar(v)) => v -> 1 }
+        p.collect { case (_, PTyVar(v)) => v -> 1 }
       }
       .fold(Map[PNode, Int]())(_ |+| _)
 

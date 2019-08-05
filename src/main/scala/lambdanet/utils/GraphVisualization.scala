@@ -1,5 +1,6 @@
 package lambdanet.utils
 
+import lambdanet._
 import scala.collection.mutable
 
 object GraphVisualization {
@@ -8,6 +9,13 @@ object GraphVisualization {
   }
 
   class LabeledGraph() {
+    var nextId = 0
+    def newId() = {
+      nextId
+        .tap(_ => nextId += 1)
+        .pipe(i => MamElement(i.toString))
+    }
+
     type N = MamElement
 
     case class Edge(from: N, to: N, info: MamElement)

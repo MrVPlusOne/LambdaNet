@@ -6,6 +6,7 @@ import funcdiff.SimpleMath
 import lambdanet.translation.ImportsResolution.NameDef
 
 import scala.collection.{GenTraversableOnce, mutable}
+import lambdanet._
 
 @SerialVersionUID(1)
 case class PredicateGraph(
@@ -31,9 +32,18 @@ case class PredicateGraph(
     }
     def substF(n: PNode) = substitution.getOrElse(n, n)
 
+    val nameList = Set(thisSymbol, superSymbol, 'CONSTRUCTOR)
+    val predicates1 = (predicates -- equalities)
+      .map { _.substitute(substF) }
+      .filter {
+        case HasName(n, name) if nameList contains name =>
+          false
+        case _ => true
+      }
+
     val g = PredicateGraph(
-      nodes.map{substF},
-      (predicates -- equalities).map { _.substitute(substF) }
+      nodes.map { substF },
+      predicates1
     ).tap { p1 =>
       val diff = p1.predicates.flatMap(_.allNodes).diff(p1.nodes)
       assert(diff.isEmpty, s"predicates contain un-captured nodes: $diff")

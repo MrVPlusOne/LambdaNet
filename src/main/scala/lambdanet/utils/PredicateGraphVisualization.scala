@@ -17,18 +17,11 @@ object PredicateGraphVisualization {
   ): String = {
     val g = new GraphVisualization.LabeledGraph()
 
-    var nextId = 0
-    def newId() = {
-      nextId
-        .tap(_ => nextId += 1)
-        .pipe(i => MamElement(i.toString))
-    }
-
     val mapping = mutable.HashMap[Either[TyPredicate, PNode], MamElement]()
     implicit def convert1(n: PNode): MamElement =
-      mapping.getOrElseUpdate(Right(n), newId())
+      mapping.getOrElseUpdate(Right(n), g.newId())
     implicit def convert2(p: TyPredicate): MamElement =
-      mapping.getOrElseUpdate(Left(p), newId())
+      mapping.getOrElseUpdate(Left(p), g.newId())
     implicit def stringElement(s: String): MamElement =
       MamElement(s""""$s"""")
 

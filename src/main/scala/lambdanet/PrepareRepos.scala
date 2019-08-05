@@ -6,11 +6,12 @@ import lambdanet.translation.IR.IRModule
 import lambdanet.translation.ImportsResolution.{ErrorHandler, ModuleExports}
 import lambdanet.translation._
 import lambdanet.translation.PredicateGraph.{
+  LibNode,
   PNode,
   PNodeAllocator,
   PType,
   ProjNode,
-  TyPredicate,
+  TyPredicate
 }
 import lambdanet.translation.QLang.QModule
 import lambdanet.utils.ProgramParsing
@@ -25,7 +26,11 @@ case class LibDefs(
     baseCtx: ModuleExports,
     nodeMapping: Map[PNode, PAnnot],
     libExports: Map[ProjectPath, ModuleExports],
-)
+) {
+  def libNodeType(n: LibNode): PType =
+    nodeMapping(n.n).typeOpt
+      .getOrElse(PredictionSpace.unknownType)
+}
 
 object PrepareRepos {
   val libDefsFile: Path = pwd / up / "lambda-repos" / "libDefs.serialized"

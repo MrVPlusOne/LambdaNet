@@ -5,8 +5,15 @@ import org.scalatest.WordSpec
 import ammonite.ops._
 import ImportStmt._
 import funcdiff.SimpleMath
-import lambdanet.translation.PredicateGraph.{DefineRel, PNode, PNodeAllocator}
-import lambdanet.translation.{QLangTranslation}
+import lambdanet.NeuralInference.Predictor
+import lambdanet.train.DataSet.selectLibTypes
+import lambdanet.translation.PredicateGraph.{
+  DefineRel,
+  LibTypeNode,
+  PNode,
+  PNodeAllocator
+}
+import lambdanet.translation.QLangTranslation
 import lambdanet.utils.ProgramParsing.ImportPattern
 
 class ParserTests extends WordSpec with MyTest {
@@ -255,13 +262,13 @@ class ParserTests extends WordSpec with MyTest {
       }
 
     val dir = pwd / RelPath("data/tests/simple")
-    val (g, qModules, irModules, annts) =
+    val (g, qModules, irModules, annots) =
       prepareProject(libDefs, dir, skipSet = Set())
     qModules.foreach(
       m =>
-        QLangDisplay.renderModuleToDirectory(m, annts.map {
+        QLangDisplay.renderModuleToDirectory(m, annots.map {
           case (k, v) => k.n -> v
-        }, Set())(dir / m.path),
+        }, Set())(dir / m.path)
     )
 
     irModules.foreach { m =>
@@ -272,8 +279,26 @@ class ParserTests extends WordSpec with MyTest {
 
     g.predicates.toVector.sortBy(_.toString).foreach(println)
 
-    println{
-      PredicateGraphVisualization.asMamGraph(libDefs, annts, "\"SpringElectricalEmbedding\"", g)
+    println {
+      PredicateGraphVisualization.asMamGraph(
+        libDefs,
+        annots,
+        "\"SpringElectricalEmbedding\"",
+        g
+      )
     }
+
+    val libTypesToPredict: Set[LibTypeNode] =
+      selectLibTypes(libDefs, Seq(annots), coverageGoal = 0.95)
+
+    println {
+      Predictor(
+        g,
+        libTypesToPredict,
+        libDefs.libNodeType,
+        None
+      ).visualizeNeuralGraph
+    }
+
   }
 }

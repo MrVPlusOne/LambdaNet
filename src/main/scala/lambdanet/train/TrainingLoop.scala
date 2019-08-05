@@ -1,8 +1,10 @@
 package lambdanet.train
 
 import java.util.Calendar
-import lambdanet._
+
+import lambdanet.{printResult, _}
 import java.util.concurrent.ForkJoinPool
+
 import botkop.numsca
 import cats.Monoid
 import funcdiff.{SimpleMath => SM}
@@ -11,6 +13,10 @@ import lambdanet.architecture._
 import lambdanet.utils.{EventLogger, QLangDisplay, ReportFinish}
 import TrainingState._
 import botkop.numsca.Tensor
+import lambdanet.architecture.LabelEncoder.{
+  ConstantLabelEncoder,
+  TrainableLabelEncoder
+}
 import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 import lambdanet.translation.QLang.QModule
 import org.nd4j.linalg.api.buffer.DataType
@@ -21,13 +27,13 @@ import scala.concurrent.{
   ExecutionContext,
   ExecutionContextExecutorService,
   Future,
-  TimeoutException,
+  TimeoutException
 }
 import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
-  val toyMod: Boolean = false
-  val taskName = "separate-merged-10"
+  val toyMod: Boolean = true
+  val taskName = "separate-merged1-10"
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
@@ -77,6 +83,22 @@ object TrainingLoop extends TrainingLoopTrait {
     ) {
       import dataSet._
       import trainingState._
+
+      val labelCoverage =
+        //        SegmentedLabelEncoder(repos, coverageGoal = 0.90, architecture)
+        TrainableLabelEncoder(trainSet, coverageGoal = 0.90, architecture)
+
+      val labelEncoder =
+        SegmentedLabelEncoder(trainSet, coverageGoal = 0.90, architecture)
+
+      //      val randomLabelEncoder = RandomLabelEncoder(architecture)
+      val nameEncoder = {
+        //        SegmentedLabelEncoder(repos, coverageGoal = 0.90, architecture)
+        ConstantLabelEncoder(architecture)
+      }
+
+      printResult(s"Label encoder: ${labelEncoder.name}")
+      printResult(s"Name encoder: ${nameEncoder.name}")
 
       printResult(s"NN Architecture: ${architecture.arcName}")
       printResult(s"Single layer consists of: ${architecture.singleLayerModel}")
@@ -395,7 +417,15 @@ object TrainingLoop extends TrainingLoopTrait {
           // the probability for very iterations
           val probsVec = announced("run predictor") {
             predictor
-              .run(architecture, nodesToPredict, iterationNum)
+              .run(
+                architecture,
+                nodesToPredict,
+                iterationNum,
+                nodeForAny,
+                labelEncoder.encode,
+                labelCoverage.isLibLabel,
+                nameEncoder.encode
+              )
               .result
           }
           val probs = probsVec.last

@@ -6,6 +6,7 @@ import funcdiff._
 import scala.collection.GenSeq
 import lambdanet._
 import lambdanet.PrepareRepos.ParsedRepos
+import lambdanet.train.Datum
 import lambdanet.translation.PredicateGraph._
 
 trait LabelEncoder {
@@ -42,25 +43,24 @@ object LabelEncoder {
   import scala.collection.GenSeq
 
   case class TrainableLabelEncoder(
-      repos: ParsedRepos,
+      trainSet: Vector[Datum],
       coverageGoal: Double,
       architecture: NNArchitecture,
   ) extends LabelEncoder {
     import cats.implicits._
-    import repos._
 
     def name: String = "TrainableLabelEncoder"
 
     private val labelsMap: Map[Symbol, CompNode] = {
       val totalUsages = trainSet.foldMap { p =>
-        val predsUsage = p.pGraph.predicates.toVector.collect {
+        val predsUsage = p.predictor.graph.predicates.toVector.collect {
           case DefineRel(_, expr) =>
             expr.allLabels.toVector.foldMap(nameUsages)
           case HasName(_, name) =>
             nameUsages(name)
         }.combineAll
 
-        val annotsUsage = p.userAnnots.toVector.foldMap {
+        val annotsUsage = p.annotations.toVector.foldMap {
           case (_, t) => t.allLabels.toVector.foldMap(nameUsages)
         }
 
