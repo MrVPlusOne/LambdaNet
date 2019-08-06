@@ -10,7 +10,7 @@ import lambdanet.architecture.LabelEncoder.{
   RandomLabelEncoder,
   TrainableLabelEncoder
 }
-import lambdanet.architecture.{NNArchitecture, SegmentedLabelEncoder}
+import lambdanet.architecture.{NNArchitecture}
 import lambdanet.translation.QLang.QModule
 import lambdanet.utils.QLangAccuracy.FseAccuracy
 

@@ -8,11 +8,17 @@ import lambdanet._
 import lambdanet.PrepareRepos.ParsedRepos
 import lambdanet.train.Datum
 import lambdanet.translation.PredicateGraph._
+import collection.concurrent.TrieMap
 
 trait LabelEncoder {
   def name: String
 
-  def encode(labels: GenSeq[Symbol]): Symbol => CompNode
+  def newEncoder(): Symbol => CompNode = {
+    val map = new TrieMap[Symbol, CompNode]()
+    l: Symbol => map.getOrElseUpdate(l, impl(l))
+  }
+
+  protected def impl(label: Symbol): CompNode
 }
 
 object LabelEncoder {
@@ -21,11 +27,8 @@ object LabelEncoder {
       extends LabelEncoder {
     def name: String = "RandomLabelEncoder"
 
-    def encode(labels: GenSeq[Symbol]): Symbol => CompNode = {
-      val map = labels.map { l =>
-        l -> const(architecture.randomUnitVec())
-      }.toMap
-      map.apply
+    protected def impl(label: Symbol): CompNode = {
+      const(architecture.randomUnitVec())
     }
   }
 
@@ -35,9 +38,7 @@ object LabelEncoder {
 
     private val zeroVec: Tensor = architecture.zeroVec()
 
-    def encode(labels: GenSeq[Symbol]): Symbol => CompNode = s => {
-      zeroVec
-    }
+    protected def impl(label: Symbol): CompNode = zeroVec
   }
 
   import scala.collection.GenSeq
@@ -81,16 +82,9 @@ object LabelEncoder {
 
     def isLibLabel(label: Symbol): Boolean = labelsMap.contains(label)
 
-    def encode(labels: GenSeq[Symbol]): Symbol => CompNode =
-      DebugTime.logTime("encode labels") {
-        val unknownLabel = architecture.randomVar('label / '?)
-        labels
-          .map { l =>
-            l -> labelsMap.getOrElse(l, unknownLabel)
-          }
-          .toMap
-          .apply
-      }
+    protected def impl(label: Symbol): CompNode = {
+      labelsMap.getOrElse(label, architecture.randomVar('label / '?))
+    }
 
     private def nameUsages(name: Symbol): Map[Symbol, Int] = {
       Map(name -> 1)
@@ -98,26 +92,24 @@ object LabelEncoder {
   }
 
   case class SegmentedLabelEncoder(
-      repos: ParsedRepos,
+      trainSet: Vector[Datum],
       coverageGoal: Double,
       architecture: NNArchitecture,
   ) extends LabelEncoder {
     import cats.implicits._
-    import repos._
 
     def name: String = "SegmentedLabelEncoder"
 
     private val segmentsMap: Map[Segment, CompNode] = {
-
       val totalUsages = trainSet.foldMap { p =>
-        val predsUsage = p.pGraph.predicates.toVector.collect {
+        val predsUsage = p.predictor.graph.predicates.toVector.collect {
           case DefineRel(_, expr) =>
             expr.allLabels.toVector.foldMap(nameUsages)
           case HasName(_, name) =>
             nameUsages(name)
         }.combineAll
 
-        val annotsUsage = p.userAnnots.toVector.foldMap {
+        val annotsUsage = p.annotations.toVector.foldMap {
           case (_, t) => t.allLabels.toVector.foldMap(nameUsages)
         }
 
@@ -136,24 +128,16 @@ object LabelEncoder {
       }.toMap
     }
 
-    def encode(labels: GenSeq[Symbol]): Symbol => CompNode =
-      DebugTime.logTime("encode labels") {
-        val zeroVec = architecture.zeroVec()
-        val unknownSegment = architecture.randomVar('segments / 'UNKNOWN)
+    private val zeroVec = architecture.zeroVec()
 
-        def encodeSeg(seg: Segment): CompNode = {
-          segmentsMap.getOrElse(seg, unknownSegment)
-        }
-
-        labels
-          .map { l =>
-            l -> segmentName(l)
-              .map(encodeSeg)
-              .pipe(totalSafe(_, zeroVec))
-          }
-          .toMap
-          .apply
+    protected def impl(l: Symbol): CompNode = {
+      def encodeSeg(seg: Segment): CompNode = {
+        segmentsMap.getOrElse(seg, architecture.randomVar('segments / '?))
       }
+      segmentName(l)
+        .map(encodeSeg)
+        .pipe(totalSafe(_, zeroVec))
+    }
 
     case class Segment(symbol: Symbol)
     def segmentName(symbol: Symbol): Vector[Segment] = {

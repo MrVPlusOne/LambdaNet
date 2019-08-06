@@ -13,26 +13,17 @@ import lambdanet.architecture._
 import lambdanet.utils.{EventLogger, QLangDisplay, ReportFinish}
 import TrainingState._
 import botkop.numsca.Tensor
-import lambdanet.architecture.LabelEncoder.{
-  ConstantLabelEncoder,
-  TrainableLabelEncoder
-}
+import lambdanet.architecture.LabelEncoder.{ConstantLabelEncoder, SegmentedLabelEncoder, TrainableLabelEncoder}
 import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 import lambdanet.translation.QLang.QModule
 import org.nd4j.linalg.api.buffer.DataType
 
 import scala.collection.parallel.ForkJoinTaskSupport
-import scala.concurrent.{
-  Await,
-  ExecutionContext,
-  ExecutionContextExecutorService,
-  Future,
-  TimeoutException
-}
+import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutorService, Future, TimeoutException}
 import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
-  val toyMod: Boolean = false
+  val toyMod: Boolean = true
   val taskName = "noProjType-withName-10"
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
@@ -422,9 +413,9 @@ object TrainingLoop extends TrainingLoopTrait {
                 nodesToPredict,
                 iterationNum,
                 nodeForAny,
-                labelEncoder.encode,
+                labelEncoder,
                 labelCoverage.isLibLabel,
-                nameEncoder.encode
+                nameEncoder
               )
               .result
           }

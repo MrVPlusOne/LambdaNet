@@ -1,6 +1,6 @@
 package lambdanet
 
-import lambdanet.architecture.NNArchitecture
+import lambdanet.architecture.{LabelEncoder, NNArchitecture}
 
 import scala.collection.mutable
 
@@ -29,9 +29,9 @@ object NeuralInference {
         nodesToPredict: Vector[ProjNode],
         iterations: Int,
         nodeForAny: LibTypeNode,
-        labelEncoder: GenSeq[Symbol] => Symbol => CompNode,
+        labelEncoder: LabelEncoder,
         isLibLabel: Symbol => Boolean,
-        nameEncoder: GenSeq[Symbol] => Symbol => CompNode,
+        nameEncoder: LabelEncoder,
     ) {
       import architecture.{Embedding, randomVar}
 
@@ -226,13 +226,9 @@ object NeuralInference {
         signatureEmbeddings.toMap
       }
 
-      private val encodeLabels = DebugTime.logTime("encodeLibLabels") {
-        labelEncoder(parallelize(allNames.toSeq))
-      }
+      private val encodeLabels = labelEncoder.newEncoder()
 
-      private val encodeNames = DebugTime.logTime("encodeNames") {
-        nameEncoder(parallelize(allNames.toSeq))
-      }
+      private val encodeNames = nameEncoder.newEncoder()
 
       def encodeNameOpt(nameOpt: Option[Symbol]): CompNode = {
         nameOpt match {
