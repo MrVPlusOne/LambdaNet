@@ -33,7 +33,7 @@ import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
   val toyMod: Boolean = false
-  val taskName = "noProjType-16"
+  val taskName = "noProjType-6"
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
