@@ -33,7 +33,7 @@ import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
   val toyMod: Boolean = false
-  val taskName = "noProjType-6"
+  val taskName = "noProjType-withName-10"
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
@@ -93,8 +93,8 @@ object TrainingLoop extends TrainingLoopTrait {
 
       //      val randomLabelEncoder = RandomLabelEncoder(architecture)
       val nameEncoder = {
-        //        SegmentedLabelEncoder(repos, coverageGoal = 0.90, architecture)
-        ConstantLabelEncoder(architecture)
+        SegmentedLabelEncoder(trainSet, coverageGoal = 0.90, architecture)
+//        ConstantLabelEncoder(architecture)
       }
 
       printResult(s"Label encoder: ${labelEncoder.name}")
