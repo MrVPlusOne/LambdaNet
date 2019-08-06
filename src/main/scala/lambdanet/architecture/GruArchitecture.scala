@@ -7,10 +7,7 @@ import lambdanet.translation.PredicateGraph.ProjNode
 case class GruArchitecture(dimEmbedding: Int, pc: ParamCollection)
     extends NNArchitecture(s"gru-$dimEmbedding", dimEmbedding, pc) {
 
-  def initialEmbedding(
-      projectNodes: Set[ProjNode],
-      labels: Set[Symbol],
-  ): Embedding = {
+  def initialEmbedding(projectNodes: Set[ProjNode]): Embedding = {
     val nodeVec = randomVar('nodeInitVec)
     val vars = projectNodes.map(_ -> nodeVec).toMap
     Embedding(vars)

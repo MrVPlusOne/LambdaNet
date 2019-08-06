@@ -39,10 +39,7 @@ object NeuralInference {
       def result: Vector[CompNode] = {
 
         val initEmbedding: Embedding =
-          architecture.initialEmbedding(
-            projectNodes,
-            predicateLabels
-          )
+          architecture.initialEmbedding(projectNodes)
 
         val encodeLibNode = logTime("encodeLibNode") {
           computeLibNodeEncoding()
@@ -56,20 +53,26 @@ object NeuralInference {
         }
 
         embeddings.map { embed =>
-          val allSignatureEmbeddings = logTime("allSignatureEmbeddings") {
-            def encodeLeaf(n: PNode) =
-              if (n.fromProject) embed.vars(ProjNode(n))
-              else encodeLibType(n)
-
-            // encode all types from the prediction space
-            signatureEmbeddingMap(
-              encodeLeaf,
-              encodeLabels,
-              predictionSpace.allTypes,
-            )
-          }
+//          val allSignatureEmbeddings = logTime("allSignatureEmbeddings") {
+//            def encodeLeaf(n: PNode) =
+//              if (n.fromProject) embed.vars(ProjNode(n))
+//              else encodeLibType(n)
+//
+//            // encode all types from the prediction space
+//            signatureEmbeddingMap(
+//              encodeLeaf,
+//              encodeLabels,
+//              predictionSpace.allTypes,
+//            )
+//          }
           logTime("decode") {
-            decodeSeparate(embed, allSignatureEmbeddings)
+//            decodeSeparate(embed, allSignatureEmbeddings)
+            val inputs = nodesToPredict
+              .map(embed.vars.apply)
+            architecture.predictProjectTypes(
+              inputs,
+              predictionSpace.libTypeVec.length
+            )
           }
         }
       }
@@ -249,7 +252,7 @@ object NeuralInference {
       projectNodes.filter(n => n.n.isType).map(n => PTyVar(n.n))
     val libraryTypes: Set[PTyVar] = libraryTypeNodes.map(_.n.n.pipe(PTyVar))
     val predictionSpace = PredictionSpace(
-      Set(PAny) ++ libraryTypes ++ projectTypes,
+      Set(PAny) ++ libraryTypes// ++ projectTypes,
     )
     val predicateLabels: Set[Symbol] =
       graph.predicates.flatMap {
@@ -367,6 +370,7 @@ object NeuralInference {
     private object NeuralVisualization {
       import lambdanet.utils.GraphVisualization
       import lambdanet.utils.GraphVisualization._
+      import language.implicitConversions
 
       def toMamGraph(allNodes: Set[PNode], msgs: BatchedMsgModels): String = {
         val g = new GraphVisualization.LabeledGraph()

@@ -44,10 +44,7 @@ abstract class NNArchitecture(
   val layerFactory: LayerFactory = LayerFactory(arcName, pc)
   import layerFactory._
 
-  def initialEmbedding(
-      projectNodes: Set[ProjNode],
-      labels: Set[Symbol],
-  ): Embedding
+  def initialEmbedding(projectNodes: Set[ProjNode]): Embedding
 
   def calculateMessages(
       messages: GenSeq[(MessageKind, Vector[MessageModel])],
@@ -243,10 +240,10 @@ abstract class NNArchitecture(
   ): CompNode = {
     val inputs1 =
       concatN(axis = 0, fromRows = true)(inputs)
-        .pipe(singleLayer(name / 'similarityInputs, _))
+        .pipe(linear(name / 'similarityInputs, dimMessage))
     val candidates1 =
       concatN(axis = 0, fromRows = true)(candidates)
-        .pipe(singleLayer(name / 'similarityCandidates, _))
+        .pipe(linear(name / 'similarityCandidates, dimMessage))
 
 //    val sim = cosineSimilarity(inputs1, candidates1)
 //    val sharpen =
@@ -258,6 +255,16 @@ abstract class NNArchitecture(
     val sim = inputs1.dot(candidates1.t) * factor
 
     sim ~> softmax
+  }
+
+  def predictProjectTypes(
+      inputs: Vector[CompNode],
+      numLibType: Int
+  ): CompNode = {
+    concatN(axis = 0, fromRows = true)(inputs) ~>
+      linear('libDistr / 'L1, dimMessage) ~> relu ~>
+      linear('libDistr / 'L2, dimMessage) ~> relu ~>
+      linear('libDistr / 'L3, numLibType)
   }
 
   def separatedSimilarity(

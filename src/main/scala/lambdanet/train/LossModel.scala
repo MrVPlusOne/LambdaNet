@@ -60,7 +60,7 @@ object LossModel {
         predSpaceSize: Int,
     ): Loss = {
       val losses = logitsVec.map { l =>
-        crossEntropyLoss(l, targets, predSpaceSize)
+        crossEntropyWithLogitsLoss(l, targets, predSpaceSize)
       }
       val len = losses.length
       val weights = (1 to len).map(i => 1.0 / i).reverse
@@ -82,7 +82,7 @@ object LossModel {
         predSpaceSize: Int,
     ): Loss = {
       val loss = logitsVec.last.pipe { l =>
-        crossEntropyLoss(l, targets, predSpaceSize)
+        crossEntropyWithLogitsLoss(l, targets, predSpaceSize)
       }
       loss
     }

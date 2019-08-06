@@ -32,8 +32,8 @@ import scala.concurrent.{
 import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
-  val toyMod: Boolean = true
-  val taskName = "separate-merged1-10"
+  val toyMod: Boolean = false
+  val taskName = "noProjType-10"
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
@@ -412,7 +412,7 @@ object TrainingLoop extends TrainingLoopTrait {
           }.toVector
 
           val nodesToPredict = annotsToUse.map(_._1)
-          assert(nodesToPredict.nonEmpty, predSpace)
+          assert(nodesToPredict.nonEmpty, nodesToPredict)
 
           // the probability for very iterations
           val probsVec = announced("run predictor") {
