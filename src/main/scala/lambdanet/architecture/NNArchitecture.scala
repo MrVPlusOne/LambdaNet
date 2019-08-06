@@ -257,7 +257,7 @@ abstract class NNArchitecture(
     sim ~> softmax
   }
 
-  def predictProjectTypes(
+  def predictLibraryTypes(
       inputs: Vector[CompNode],
       numLibType: Int
   ): CompNode = {

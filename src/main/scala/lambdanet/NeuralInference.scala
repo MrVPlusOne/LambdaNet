@@ -69,7 +69,7 @@ object NeuralInference {
 //            decodeSeparate(embed, allSignatureEmbeddings)
             val inputs = nodesToPredict
               .map(embed.vars.apply)
-            architecture.predictProjectTypes(
+            architecture.predictLibraryTypes(
               inputs,
               predictionSpace.libTypeVec.length
             )

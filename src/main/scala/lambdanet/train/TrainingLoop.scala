@@ -33,13 +33,13 @@ import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
   val toyMod: Boolean = false
-  val taskName = "noProjType-10"
+  val taskName = "noProjType-16"
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
   def scaleLearningRate(epoch: Int): Double = {
-    val min = 0.4
-    val epochToSlowDown = if (toyMod) 300 else 200
+    val min = 0.3
+    val epochToSlowDown = if (toyMod) 300 else 150
     SimpleMath
       .linearInterpolate(1.0, min)(epoch.toDouble / epochToSlowDown)
       .max(min)
