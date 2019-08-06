@@ -23,7 +23,7 @@ import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutorServic
 import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
-  val toyMod: Boolean = true
+  val toyMod: Boolean = false
   val taskName = "noProjType-withName-10"
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
