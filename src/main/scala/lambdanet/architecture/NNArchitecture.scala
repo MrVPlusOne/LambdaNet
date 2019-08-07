@@ -5,18 +5,11 @@ import botkop.numsca
 import botkop.numsca.:>
 import cats.data.Chain
 import funcdiff._
-import lambdanet.NeuralInference.{
-  AccessFieldUsage,
-  ClassFieldUsage,
-  LabelUsages,
-  LabelVector,
-  Message,
-  MessageKind,
-  MessageModel
-}
+import lambdanet.NeuralInference.{AccessFieldUsage, ClassFieldUsage, LabelUsages, LabelVector, Message, MessageKind, MessageModel}
 import lambdanet.translation.PredicateGraph.{PNode, ProjNode}
 
 import scala.collection.GenSeq
+
 
 abstract class NNArchitecture(
     val arcName: String,
@@ -27,10 +20,6 @@ abstract class NNArchitecture(
   /** Store the dropout masks so that they can be reused across a
     * single forward propagation (but should be cleared between iterations) */
   var dropoutStorage: Option[ParamCollection] = None
-
-  case class Embedding(
-      vars: Map[ProjNode, CompNode],
-  )
 
   type UpdateMessages = Map[ProjNode, Chain[Message]]
   val emptyMessages: UpdateMessages = Map()

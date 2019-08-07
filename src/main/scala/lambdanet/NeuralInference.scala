@@ -1,5 +1,6 @@
 package lambdanet
 
+import lambdanet.architecture.Embedding
 import lambdanet.architecture.{LabelEncoder, NNArchitecture}
 
 import scala.collection.mutable
@@ -27,18 +28,19 @@ object NeuralInference {
     case class run(
         architecture: NNArchitecture,
         nodesToPredict: Vector[ProjNode],
+        initEmbedding: Set[ProjNode] => Embedding ,
         iterations: Int,
         nodeForAny: LibTypeNode,
         labelEncoder: LabelEncoder,
         isLibLabel: Symbol => Boolean,
         nameEncoder: LabelEncoder,
     ) {
-      import architecture.{Embedding, randomVar}
+      import architecture.{randomVar}
 
       /** returns softmax logits */
       def result: Vector[CompNode] = {
 
-        val initEmbedding: Embedding =
+        val initEmbedding =
           architecture.initialEmbedding(projectNodes)
 
         val encodeLibNode = logTime("encodeLibNode") {
@@ -147,7 +149,7 @@ object NeuralInference {
         }
 
         logTime("update embedding") {
-          architecture.Embedding(
+          Embedding(
             architecture.update('vars, embedding.vars, merged),
           )
         }

@@ -13,28 +13,19 @@ import lambdanet.architecture._
 import lambdanet.utils.{EventLogger, QLangDisplay, ReportFinish}
 import TrainingState._
 import botkop.numsca.Tensor
-import lambdanet.architecture.LabelEncoder.{
-  ConstantLabelEncoder,
-  SegmentedLabelEncoder,
-  TrainableLabelEncoder
-}
+import lambdanet.architecture.LabelEncoder.{ConstantLabelEncoder, SegmentedLabelEncoder, TrainableLabelEncoder}
+import lambdanet.architecture.Embedding
 import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 import lambdanet.translation.QLang.QModule
 import org.nd4j.linalg.api.buffer.DataType
 
 import scala.collection.parallel.ForkJoinTaskSupport
-import scala.concurrent.{
-  Await,
-  ExecutionContext,
-  ExecutionContextExecutorService,
-  Future,
-  TimeoutException
-}
+import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutorService, Future, TimeoutException}
 import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
   val toyMod: Boolean = false
-  val taskName = "combined-ensemble-6"
+  val taskName = "combined-init-6"
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
@@ -420,12 +411,15 @@ object TrainingLoop extends TrainingLoopTrait {
           import datum._
 
           val predSpace = predictor.predictionSpace
-          val seqLogits = announced("run seq predictor") {
-            seqPredictor.run(
-              seqArchitecture,
-              nameEncoder,
-              nodesToPredict.map(_.n)
-            )
+//          val seqLogits = announced("run seq predictor") {
+//            seqPredictor.run(
+//              seqArchitecture,
+//              nameEncoder,
+//              nodesToPredict.map(_.n)
+//            )
+//          }
+          val seqEmbedding = announced("run seq encoder"){
+            seqPredictor.encode(seqArchitecture, nameEncoder)
           }
 
           // the probability for very iterations
@@ -434,6 +428,7 @@ object TrainingLoop extends TrainingLoopTrait {
               .run(
                 architecture,
                 nodesToPredict,
+                nodeSet => Embedding(nodeSet.map{n => n -> seqEmbedding(n.n)}.toMap),
                 iterationNum,
                 nodeForAny,
                 labelEncoder,
@@ -441,9 +436,9 @@ object TrainingLoop extends TrainingLoopTrait {
                 nameEncoder
               )
               .result
-              .pipe { logitsVec =>
-                logitsVec.map { _ + seqLogits }
-              }
+//              .pipe { logitsVec =>
+//                logitsVec.map { _ + seqLogits }
+//              }
           }
           val probs = probsVec.last
 
