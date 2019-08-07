@@ -33,8 +33,8 @@ import scala.concurrent.{
 import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
-  val toyMod: Boolean = true
-  val taskName = "combined-ensemble-10"
+  val toyMod: Boolean = false
+  val taskName = "combined-ensemble-6"
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
