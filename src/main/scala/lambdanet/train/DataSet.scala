@@ -73,14 +73,13 @@ object DataSet {
               libTypesToPredict.map(n => PTyVar(n.n.n)) ++ Set(PAny)
             )
 
-//            val seqPredictor = SeqPredictor(
-//              irModules,
-//              libDefs,
-//              libPredSpace,
-//              nameEncoder.encode,
-//              taskSupport,
-//            )
-            Datum(path, annots1, qModules, predictor, null)
+            val seqPredictor = SeqPredictor(
+              irModules,
+              libDefs,
+              libPredSpace,
+              taskSupport,
+            )
+            Datum(path, annots1, qModules, predictor, seqPredictor)
               .tap(printResult)
         }
 
@@ -194,4 +193,15 @@ case class Datum(
   }
 
   val fseAcc: FseAccuracy = FseAccuracy(qModules)
+
+  /** Only predict nodes whose type is within the prediction space */
+  val nodesToPredict: Vector[ProjNode] = {
+    val annotsToUse = annotations.filter {
+      case (_, t) => predictor.predictionSpace.allTypes.contains(t)
+    }.toVector
+
+    annotsToUse.map(_._1).tap{ ns =>
+      assert(ns.nonEmpty, ns)
+    }
+  }
 }

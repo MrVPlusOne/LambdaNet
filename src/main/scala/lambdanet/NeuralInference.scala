@@ -123,21 +123,20 @@ object NeuralInference {
           encodeLibNode: LibNode => CompNode,
       )(embedding: Embedding): Embedding = {
 
-        val messages =
-          logTime("compute messages") {
-            def encodeNode(n: PNode): CompNode =
-              if (n.fromProject) embedding.vars(ProjNode(n))
-              else encodeLibNode(LibNode(n))
+        val messages = logTime("compute messages") {
+          def encodeNode(n: PNode): CompNode =
+            if (n.fromProject) embedding.vars(ProjNode(n))
+            else encodeLibNode(LibNode(n))
 
-            architecture.calculateMessages(
-              parallelize(batchedMsgModels.toSeq),
-              encodeNode,
-              encodeLabels,
-              encodeNames,
-              labelUsages,
-              isLibLabel
-            )
-          }
+          architecture.calculateMessages(
+            parallelize(batchedMsgModels.toSeq),
+            encodeNode,
+            encodeLabels,
+            encodeNames,
+            labelUsages,
+            isLibLabel
+          )
+        }
 
         val merged = logTime("merge messages") {
           architecture.mergeMessages(
@@ -248,7 +247,7 @@ object NeuralInference {
       projectNodes.filter(n => n.n.isType).map(n => PTyVar(n.n))
     val libraryTypes: Set[PTyVar] = libraryTypeNodes.map(_.n.n.pipe(PTyVar))
     val predictionSpace = PredictionSpace(
-      Set(PAny) ++ libraryTypes// ++ projectTypes,
+      Set(PAny) ++ libraryTypes // ++ projectTypes,
     )
     val predicateLabels: Set[Symbol] =
       graph.predicates.flatMap {

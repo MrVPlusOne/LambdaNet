@@ -13,18 +13,28 @@ import lambdanet.architecture._
 import lambdanet.utils.{EventLogger, QLangDisplay, ReportFinish}
 import TrainingState._
 import botkop.numsca.Tensor
-import lambdanet.architecture.LabelEncoder.{ConstantLabelEncoder, SegmentedLabelEncoder, TrainableLabelEncoder}
+import lambdanet.architecture.LabelEncoder.{
+  ConstantLabelEncoder,
+  SegmentedLabelEncoder,
+  TrainableLabelEncoder
+}
 import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 import lambdanet.translation.QLang.QModule
 import org.nd4j.linalg.api.buffer.DataType
 
 import scala.collection.parallel.ForkJoinTaskSupport
-import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutorService, Future, TimeoutException}
+import scala.concurrent.{
+  Await,
+  ExecutionContext,
+  ExecutionContextExecutorService,
+  Future,
+  TimeoutException
+}
 import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
   val toyMod: Boolean = false
-  val taskName = "noProjType-withName-10"
+  val taskName = "combined-ensemble-10"
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
@@ -58,7 +68,7 @@ object TrainingLoop extends TrainingLoopTrait {
       val (state, logger) = loadTrainingState(resultsDir, fileLogger)
       val architecture = GruArchitecture(state.dimMessage, state.pc)
       val seqArchitecture =
-        SequenceModel.ModelArchitecture(state.dimMessage, state.pc)
+        SequenceModel.SeqArchitecture(state.dimMessage, state.pc)
       val dataSet = DataSet.loadDataSet(taskSupport, architecture)
       trainOnProjects(dataSet, state, logger, architecture, seqArchitecture)
         .result()
@@ -70,7 +80,7 @@ object TrainingLoop extends TrainingLoopTrait {
         trainingState: TrainingState,
         logger: EventLogger,
         architecture: NNArchitecture,
-        seqArchitecture: SequenceModel.ModelArchitecture,
+        seqArchitecture: SequenceModel.SeqArchitecture,
     ) {
       import dataSet._
       import trainingState._
@@ -323,8 +333,9 @@ object TrainingLoop extends TrainingLoopTrait {
           val predictor = datum.seqPredictor
           val predSpace = predictor.predSpace
           // the logits for very iterations
-          val (nodes, logits) = announced("run predictor") {
-            predictor.run(seqArchitecture)
+          val nodes = datum.nodesToPredict.map { _.n }
+          val logits = announced("run predictor") {
+            predictor.run(seqArchitecture, nameEncoder, nodes)
           }
 //          val diff = nodes.toSet.diff(datum.annotations.keySet.map(_.n))
 //          assert(diff.isEmpty, s"diff is not empty: $diff")
@@ -398,12 +409,13 @@ object TrainingLoop extends TrainingLoopTrait {
           import datum._
 
           val predSpace = predictor.predictionSpace
-          val annotsToUse = annotations.filter {
-            case (_, t) => predSpace.allTypes.contains(t)
-          }.toVector
-
-          val nodesToPredict = annotsToUse.map(_._1)
-          assert(nodesToPredict.nonEmpty, nodesToPredict)
+          val seqLogits = announced("run seq predictor") {
+            seqPredictor.run(
+              seqArchitecture,
+              nameEncoder,
+              nodesToPredict.map(_.n)
+            )
+          }
 
           // the probability for very iterations
           val probsVec = announced("run predictor") {
@@ -418,6 +430,9 @@ object TrainingLoop extends TrainingLoopTrait {
                 nameEncoder
               )
               .result
+              .pipe { logitsVec =>
+                logitsVec.map { _ + seqLogits }
+              }
           }
           val probs = probsVec.last
 

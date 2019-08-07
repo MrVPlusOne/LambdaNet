@@ -3,7 +3,7 @@ package lambdanet
 import cats.data.Chain
 import funcdiff._
 import lambdanet.PrepareRepos.parseRepos
-import lambdanet.architecture.ArchitectureHelper
+import lambdanet.architecture.{ArchitectureHelper, LabelEncoder}
 import lambdanet.translation.IR._
 import lambdanet.translation.PAnnot
 import lambdanet.translation.PredicateGraph.{PNode, PType}
@@ -38,41 +38,41 @@ object SequenceModel {
       modules: Vector[IRModule],
       libDefs: LibDefs,
       predSpace: PredictionSpace,
-      encodeNames: GenSeq[Symbol] => Symbol => CompNode,
       taskSupport: Option[ForkJoinTaskSupport],
   ) {
     private val sentences = {
-      def dropOutOfSpace(t: Target): Target = t match {
-        case Some((_, ty)) if !predSpace.allTypes.contains(ty) =>
-          None
-        case _ => t
-      }
 
       val nodeMapping = libDefs.nodeMapping ++ modules.flatMap(_.mapping)
       modules.par
         .map(tokenizeModule(_, nodeMapping))
         .toVector
-        .map { seq =>
-          seq.map { case (k, v) => (k, dropOutOfSpace(v)) }
-        }
     }
     val leftBatched: BatchedSeq = batch(sentences)
     val rightBatched: BatchedSeq = batch(sentences.map(_.reverse))
-    private val allNames = sentences
-      .flatMap(_.collect { case (Name(n), _) => n })
-      .toSet
-      .toSeq
-      .par
 
-    def run(architecture: ModelArchitecture): (Vector[PNode], CompNode) = {
-      val encodeName = encodeNames(allNames)
-      val (nodes, states) =
-        architecture
-          .aggregate(leftBatched, rightBatched, encodeName)
-          .toVector
-          .unzip
+    def run(
+        architecture: SeqArchitecture,
+        nameEncoder: LabelEncoder,
+        nodesToPredict: Vector[PNode]
+    ): CompNode = {
+      val embedding = encode(architecture, nameEncoder)
+      val missingEmbedding = architecture
+        .randomVar('MissingEmbedding / 'left)
+        .concat(architecture.randomVar('MissingEmbedding / 'right), axis = 1)
+      val states = nodesToPredict.map { n =>
+        embedding.getOrElse(n, missingEmbedding)
+      }
       val input = concatN(axis = 0, fromRows = true)(states)
-      nodes -> architecture.predict(input, predSpace.size)
+      architecture.predict(input, predSpace.size)
+    }
+
+    def encode(
+        architecture: SeqArchitecture,
+        nameEncoder: LabelEncoder
+    ): Map[PNode, CompNode] = {
+      val encodeName = nameEncoder.newEncoder()
+      architecture
+        .aggregate(leftBatched, rightBatched, encodeName)
     }
   }
 
@@ -91,9 +91,9 @@ object SequenceModel {
     }
   }
 
-  case class ModelArchitecture(dimEmbedding: Int, pc: ParamCollection)
+  case class SeqArchitecture(dimEmbedding: Int, pc: ParamCollection)
       extends ArchitectureHelper {
-    val layerFactory = LayerFactory('ModelArchitecture, pc)
+    val layerFactory = LayerFactory('SeqArchitecture, pc)
     import layerFactory._
 
     def aggregate(
