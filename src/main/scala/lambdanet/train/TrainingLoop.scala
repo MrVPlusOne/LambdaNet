@@ -33,7 +33,7 @@ import scala.concurrent.{
 import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
-  val toyMod: Boolean = false
+  val toyMod: Boolean = true
   val taskName = "combined-ensemble-10"
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
@@ -208,23 +208,20 @@ object TrainingLoop extends TrainingLoopTrait {
         val (fws, gs, data) = stats.flatMap(_.toVector).unzip3
 
         fws.combineAll.tap {
-          case ForwardResult(loss, libAcc, projAcc, confMat, distanceAcc) =>
+          case ForwardResult(
+              loss,
+              libAcc,
+              projAcc,
+              confMat,
+              categoricalAcc
+              ) =>
             logger.logScalar("loss", epoch, toAccuracyD(loss))
             logger.logScalar("libAcc", epoch, toAccuracy(libAcc))
             logger.logScalar("projAcc", epoch, toAccuracy(projAcc))
             logger.logConfusionMatrix("confusionMat", epoch, confMat.value, 2)
             logAccuracyDetails(data zip fws, epoch)
-            val disMap = distanceAcc.toVector
-              .sortBy(_._1)
-              .map {
-                case (k, counts) =>
-                  val ks = if (k == Analysis.Inf) "Inf" else k.toString
-                  ks -> toAccuracy(counts)
-              }
-            logger.logMap("distanceAcc", epoch, disMap)
-            printResult("distance counts: " + distanceAcc.map {
-              case (k, c) => k -> c.count
-            })
+
+            logger.logString("typeAcc", epoch, typeAccString(categoricalAcc))
         }
 
         val gradInfo = gs.combineAll
@@ -239,6 +236,19 @@ object TrainingLoop extends TrainingLoopTrait {
         logger.logScalar("iter-time", epoch, timeInSec)
 
         println(DebugTime.show)
+      }
+
+      private def typeAccString(accs: Map[PType, Counted[Correct]]): String ={
+        val (tys, counts) = accs.toVector.sortBy { c =>
+          -c._2.count
+        }.unzip
+        val typeStr = tys
+          .map(t => SM.wrapInQuotes(t.showSimple))
+          .mkString("{", ",", "}")
+        val countStr = counts
+          .map(c => s"{${c.count}, ${c.value}}")
+          .mkString("{", ",", "}")
+        s"{$typeStr,$countStr}"
       }
 
       private def logAccuracyDetails(
@@ -286,7 +296,7 @@ object TrainingLoop extends TrainingLoopTrait {
             }
           }.combineAll
 
-          import stat.{libCorrect, projCorrect, confusionMatrix}
+          import stat.{libCorrect, projCorrect, confusionMatrix, categoricalAcc}
           logger.logScalar("test-libAcc", epoch, toAccuracy(libCorrect))
           logger.logScalar("test-projAcc", epoch, toAccuracy(projCorrect))
           logger.logConfusionMatrix(
@@ -297,6 +307,7 @@ object TrainingLoop extends TrainingLoopTrait {
           )
           logger.logScalar("test-fse-top1", epoch, toAccuracy(fse1Acc))
           logger.logScalar("test-fse-top5", epoch, toAccuracy(fse5Acc))
+          logger.logString("test-typeAcc", epoch, typeAccString(categoricalAcc))
         }
 
       def calcGradInfo(stats: Optimizer.OptimizeStats) = {
@@ -352,7 +363,7 @@ object TrainingLoop extends TrainingLoopTrait {
           val targets = groundTruths.map(predSpace.indexOfType)
           val nodeDistances = nodes.map(_.pipe(datum.distanceToConsts))
 
-          val (libCounts, projCounts, confMat, distanceCounts) =
+          val (libCounts, projCounts, confMat, typeAccs) =
             announced("compute training accuracy") {
               analyzeLogits(
                 logits,
@@ -375,7 +386,7 @@ object TrainingLoop extends TrainingLoopTrait {
             libCounts,
             projCounts,
             confMat,
-            distanceCounts,
+            typeAccs,
           )
 
           val predictions: Map[PNode, Vector[PType]] = {
@@ -440,7 +451,7 @@ object TrainingLoop extends TrainingLoopTrait {
           val targets = groundTruths.map(predSpace.indexOfType)
           val nodeDistances = nodesToPredict.map(_.n.pipe(distanceToConsts))
 
-          val (libCounts, projCounts, confMat, distanceCounts) =
+          val (libCounts, projCounts, confMat, typeAccs) =
             announced("compute training accuracy") {
               analyzeLogits(
                 probs,
@@ -463,7 +474,7 @@ object TrainingLoop extends TrainingLoopTrait {
             libCounts,
             projCounts,
             confMat,
-            distanceCounts,
+            typeAccs,
           )
 
           val predictions: Map[PNode, Vector[PType]] = {
@@ -583,7 +594,7 @@ object TrainingLoop extends TrainingLoopTrait {
           Counted[LibCorrect],
           Counted[ProjCorrect],
           Counted[ConfusionMatrix],
-          Map[Int, Counted[Correct]],
+          Map[PType, Counted[Correct]],
       ) = {
         val predictions = numsca
           .argmaxAxis(logits.value, axis = 1)
@@ -603,13 +614,6 @@ object TrainingLoop extends TrainingLoopTrait {
         val libCounts = Counted(targetFromLibrary.count(identity), libCorrect)
         val projCounts = Counted(targetFromLibrary.count(!_), projCorrect)
 
-        val distMap = nodeDistances
-          .zip(truthValues)
-          .groupBy(_._1)
-          .mapValuesNow { vec =>
-            Counted(vec.length, vec.count(_._2))
-          }
-
         val confMat = {
           def toCat(isLibType: Boolean): Int = if (isLibType) 0 else 1
           val predictionCats = predictions.map { i =>
@@ -620,7 +624,12 @@ object TrainingLoop extends TrainingLoopTrait {
           Counted(predictionCats.length, mat)
         }
 
-        (libCounts, projCounts, confMat, distMap)
+        val typeAccs =
+          groundTruths.zip(truthValues).groupBy(_._1).mapValuesNow { bools =>
+            Counted(bools.length, bools.count(_._2))
+          }
+
+        (libCounts, projCounts, confMat, typeAccs)
       }
 
       private val avgAnnotations =
@@ -641,7 +650,7 @@ object TrainingLoop extends TrainingLoopTrait {
       libCorrect: Counted[LibCorrect],
       projCorrect: Counted[ProjCorrect],
       confusionMatrix: Counted[ConfusionMatrix],
-      distCorrectMap: Map[Int, Counted[Correct]],
+      categoricalAcc: Map[PType, Counted[Correct]]
   ) {
     override def toString: String = {
       s"forward result: {loss: ${toAccuracyD(loss)}, " +

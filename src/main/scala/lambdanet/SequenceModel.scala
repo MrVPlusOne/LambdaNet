@@ -10,6 +10,7 @@ import lambdanet.translation.PredicateGraph.{PNode, PType}
 
 import scala.collection.GenSeq
 import scala.collection.parallel.ForkJoinTaskSupport
+import scala.language.implicitConversions
 
 /** fixme: some PNode type annotations are missing when tokenizing */
 object SequenceModel {

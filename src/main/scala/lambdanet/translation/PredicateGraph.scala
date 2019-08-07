@@ -167,22 +167,22 @@ object PredicateGraph {
 
     def allNodes: Set[PNode]
 
-    def pPrint(envPriority: Int): String = {
+    def pPrint(envPriority: Int, showNode: PNode => String): String = {
       def wrap(priority: Int)(content: String) = {
         if (priority < envPriority) s"($content)" else content
       }
 
       this match {
         case PAny      => "any"
-        case PTyVar(n) => n.toString
+        case PTyVar(n) => showNode(n)
         case PFuncType(from, to) =>
           wrap(0)(
-            from.map(_.pPrint(1)).mkString("(", ",", ")") + "->" + to.pPrint(0),
+            from.map(_.pPrint(1, showNode)).mkString("(", ",", ")") + "->" + to.pPrint(0,showNode),
           )
         case PObjectType(fields) =>
           fields
             .map {
-              case (l, t) => s"${l.name}: ${t.pPrint(0)}"
+              case (l, t) => s"${l.name}: ${t.pPrint(0,showNode)}"
             }
             .mkString("{", ", ", "}")
       }
@@ -197,7 +197,19 @@ object PredicateGraph {
         PObjectType(fields.mapValuesNow(_.substitute(f)))
     }
 
-    override def toString: String = pPrint(0)
+    override def toString: String = pPrint(0, _.toString)
+
+    def showSimple: String = {
+      def showNode(n: PNode): String = {
+        n.nameOpt match {
+          case Some(n) => n.name
+          case None =>
+            val prefix = if(n.fromLib) "L" else "P"
+            s"$prefix${n.getId}"
+        }
+      }
+      pPrint(0, showNode)
+    }
   }
 
   @SerialVersionUID(0L)

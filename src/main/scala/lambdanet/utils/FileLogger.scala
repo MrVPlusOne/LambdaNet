@@ -5,7 +5,8 @@ import ammonite.ops._
 import botkop.numsca.Tensor
 import funcdiff.SimpleMath.prettyPrintTime
 import funcdiff.{SimpleMath, TensorExtension}
-import lambdanet.train.ConfusionMatrix
+import lambdanet.train.{ConfusionMatrix, Correct}
+import lambdanet.translation.PredicateGraph
 
 class FileLogger(val file: Path, printToConsole: Boolean) {
 
