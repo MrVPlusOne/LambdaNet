@@ -35,7 +35,7 @@ import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
   val toyMod: Boolean = false
-  val taskName = s"combined-ensemble-scaled-${TrainingState.iterationNum}"
+  val taskName = s"seqModel-rerun"// s"combined-ensemble-scaled-${TrainingState.iterationNum}"
 
   val labelDropoutProb: Real = 0.0
 
@@ -91,13 +91,11 @@ object TrainingLoop extends TrainingLoopTrait {
       var isTraining = false
 
       val labelCoverage =
-        //        SegmentedLabelEncoder(repos, coverageGoal = 0.90, architecture)
         TrainableLabelEncoder(trainSet, coverageGoal = 0.95, architecture)
 
       val labelEncoder =
         SegmentedLabelEncoder(trainSet, coverageGoal = 0.95, architecture)
 
-      //      val randomLabelEncoder = RandomLabelEncoder(architecture)
       val nameEncoder = {
         SegmentedLabelEncoder(trainSet, coverageGoal = 0.95, architecture)
 //        ConstantLabelEncoder(architecture)
@@ -339,7 +337,7 @@ object TrainingLoop extends TrainingLoopTrait {
         .tap(m => printResult(s"loss model: ${m.name}"))
 
       private def selectForward(data: Datum) = {
-        val useSeqModel = false
+        val useSeqModel = true
         if (useSeqModel) seqForward(data)
         else forward(data)
       }
@@ -361,8 +359,6 @@ object TrainingLoop extends TrainingLoopTrait {
               nameDropout = if (isTraining) labelDropoutProb else 0.0
             )
           }
-//          val diff = nodes.toSet.diff(datum.annotations.keySet.map(_.n))
-//          assert(diff.isEmpty, s"diff is not empty: $diff")
 
           val nonGenerifyIt = DataSet.nonGenerify(predictor.libDefs)
 
