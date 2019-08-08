@@ -8,15 +8,25 @@ import lambdanet._
 import lambdanet.PrepareRepos.ParsedRepos
 import lambdanet.train.Datum
 import lambdanet.translation.PredicateGraph._
+
 import collection.concurrent.TrieMap
+import scala.util.Random
 
 trait LabelEncoder {
   def name: String
 
-  def newEncoder(): Symbol => CompNode = {
+  private val random = new Random()
+
+  def newEncoder(dropoutProb: Double): Symbol => CompNode = {
     val map = new TrieMap[Symbol, CompNode]()
-    l: Symbol => map.getOrElseUpdate(l, impl(l))
+    l: Symbol => {
+      val r = random.synchronized(random.nextDouble())
+      if (r < dropoutProb) dropoutImpl
+      else map.getOrElseUpdate(l, impl(l))
+    }
   }
+
+  protected def dropoutImpl: CompNode
 
   protected def impl(label: Symbol): CompNode
 }
@@ -28,8 +38,11 @@ object LabelEncoder {
     def name: String = "RandomLabelEncoder"
 
     protected def impl(label: Symbol): CompNode = {
-      const(architecture.randomUnitVec())
+      dropoutImpl
     }
+
+    protected def dropoutImpl: CompNode =
+      const(architecture.randomUnitVec())
   }
 
   case class ConstantLabelEncoder(architecture: NNArchitecture)
@@ -39,6 +52,8 @@ object LabelEncoder {
     private val zeroVec: Tensor = architecture.zeroVec()
 
     protected def impl(label: Symbol): CompNode = zeroVec
+
+    protected def dropoutImpl: CompNode = zeroVec
   }
 
   import scala.collection.GenSeq
@@ -83,12 +98,16 @@ object LabelEncoder {
     def isLibLabel(label: Symbol): Boolean = labelsMap.contains(label)
 
     protected def impl(label: Symbol): CompNode = {
-      labelsMap.getOrElse(label, architecture.randomVar('label / '?))
+      labelsMap.getOrElse(label, dropoutImpl)
     }
+
+    protected def dropoutImpl: CompNode =
+      architecture.randomVar('label / '?)
 
     private def nameUsages(name: Symbol): Map[Symbol, Int] = {
       Map(name -> 1)
     }
+
   }
 
   case class SegmentedLabelEncoder(
@@ -132,12 +151,15 @@ object LabelEncoder {
 
     protected def impl(l: Symbol): CompNode = {
       def encodeSeg(seg: Segment): CompNode = {
-        segmentsMap.getOrElse(seg, architecture.randomVar('segments / '?))
+        segmentsMap.getOrElse(seg, dropoutImpl)
       }
       segmentName(l)
         .map(encodeSeg)
         .pipe(totalSafe(_, zeroVec))
     }
+
+    protected def dropoutImpl: CompNode =
+      architecture.randomVar('segments / '?)
 
     case class Segment(symbol: Symbol)
     def segmentName(symbol: Symbol): Vector[Segment] = {

@@ -13,19 +13,29 @@ import lambdanet.architecture._
 import lambdanet.utils.{EventLogger, QLangDisplay, ReportFinish}
 import TrainingState._
 import botkop.numsca.Tensor
-import lambdanet.architecture.LabelEncoder.{ConstantLabelEncoder, SegmentedLabelEncoder, TrainableLabelEncoder}
+import lambdanet.architecture.LabelEncoder.{
+  ConstantLabelEncoder,
+  SegmentedLabelEncoder,
+  TrainableLabelEncoder
+}
 import lambdanet.architecture.Embedding
 import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 import lambdanet.translation.QLang.QModule
 import org.nd4j.linalg.api.buffer.DataType
 
 import scala.collection.parallel.ForkJoinTaskSupport
-import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutorService, Future, TimeoutException}
+import scala.concurrent.{
+  Await,
+  ExecutionContext,
+  ExecutionContextExecutorService,
+  Future,
+  TimeoutException
+}
 import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
   val toyMod: Boolean = false
-  val taskName = s"combined-init-${TrainingState.iterationNum}"
+  val taskName = s"combined-init-labelDropout-${TrainingState.iterationNum}"
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
@@ -76,16 +86,18 @@ object TrainingLoop extends TrainingLoopTrait {
       import dataSet._
       import trainingState._
 
+      var isTraining = false
+
       val labelCoverage =
         //        SegmentedLabelEncoder(repos, coverageGoal = 0.90, architecture)
-        TrainableLabelEncoder(trainSet, coverageGoal = 0.90, architecture)
+        TrainableLabelEncoder(trainSet, coverageGoal = 0.95, architecture)
 
       val labelEncoder =
-        SegmentedLabelEncoder(trainSet, coverageGoal = 0.90, architecture)
+        SegmentedLabelEncoder(trainSet, coverageGoal = 0.95, architecture)
 
       //      val randomLabelEncoder = RandomLabelEncoder(architecture)
       val nameEncoder = {
-        SegmentedLabelEncoder(trainSet, coverageGoal = 0.90, architecture)
+        SegmentedLabelEncoder(trainSet, coverageGoal = 0.95, architecture)
 //        ConstantLabelEncoder(architecture)
       }
 
@@ -146,6 +158,8 @@ object TrainingLoop extends TrainingLoopTrait {
       val random = new util.Random(2)
 
       def trainStep(epoch: Int): Unit = {
+        isTraining = true
+
         DebugTime.logTime("GC") {
           System.gc()
         }
@@ -229,7 +243,7 @@ object TrainingLoop extends TrainingLoopTrait {
         println(DebugTime.show)
       }
 
-      private def typeAccString(accs: Map[PType, Counted[Correct]]): String ={
+      private def typeAccString(accs: Map[PType, Counted[Correct]]): String = {
         val (tys, counts) = accs.toVector.sortBy { c =>
           -c._2.count
         }.unzip
@@ -265,6 +279,7 @@ object TrainingLoop extends TrainingLoopTrait {
         if ((epoch - 1) % 5 == 0) announced("test on dev set") {
           import cats.implicits._
           architecture.dropoutStorage = None
+          isTraining = false
 
           val (stat, fse1Acc, fse5Acc) = testSet.flatMap { datum =>
             checkShouldStop(epoch)
@@ -337,7 +352,12 @@ object TrainingLoop extends TrainingLoopTrait {
           // the logits for very iterations
           val nodes = datum.nodesToPredict.map { _.n }
           val logits = announced("run predictor") {
-            predictor.run(seqArchitecture, nameEncoder, nodes)
+            predictor.run(
+              seqArchitecture,
+              nameEncoder,
+              nodes,
+              nameDropout = if (isTraining) 0.1 else 0.0
+            )
           }
 //          val diff = nodes.toSet.diff(datum.annotations.keySet.map(_.n))
 //          assert(diff.isEmpty, s"diff is not empty: $diff")
@@ -410,6 +430,8 @@ object TrainingLoop extends TrainingLoopTrait {
         limitTimeOpt(s"forward: $datum", Timeouts.forwardTimeout) {
           import datum._
 
+          val labelDropout = if (isTraining) 0.1 else 0.0
+
           val predSpace = predictor.predictionSpace
 //          val seqLogits = announced("run seq predictor") {
 //            seqPredictor.run(
@@ -418,8 +440,8 @@ object TrainingLoop extends TrainingLoopTrait {
 //              nodesToPredict.map(_.n)
 //            )
 //          }
-          val seqEmbedding = announced("run seq encoder"){
-            seqPredictor.encode(seqArchitecture, nameEncoder)
+          val seqEmbedding = announced("run seq encoder") {
+            seqPredictor.encode(seqArchitecture, nameEncoder, labelDropout)
           }
 
           // the probability for very iterations
@@ -428,12 +450,16 @@ object TrainingLoop extends TrainingLoopTrait {
               .run(
                 architecture,
                 nodesToPredict,
-                nodeSet => Embedding(nodeSet.map{n => n -> seqEmbedding(n.n)}.toMap),
+                nodeSet =>
+                  Embedding(nodeSet.map { n =>
+                    n -> seqEmbedding(n.n)
+                  }.toMap),
                 iterationNum,
                 nodeForAny,
                 labelEncoder,
                 labelCoverage.isLibLabel,
-                nameEncoder
+                nameEncoder,
+                labelDropout
               )
               .result
 //              .pipe { logitsVec =>
@@ -537,6 +563,7 @@ object TrainingLoop extends TrainingLoopTrait {
       }
 
       private def saveTraining(epoch: Int, dirName: String): Unit = {
+        isTraining = false
         architecture.dropoutStorage = None
 
         announced(s"save training to $dirName") {

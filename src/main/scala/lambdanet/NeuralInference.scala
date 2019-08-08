@@ -34,6 +34,7 @@ object NeuralInference {
         labelEncoder: LabelEncoder,
         isLibLabel: Symbol => Boolean,
         nameEncoder: LabelEncoder,
+        labelDropout: Double
     ) {
       import architecture.{randomVar}
 
@@ -227,9 +228,9 @@ object NeuralInference {
         signatureEmbeddings.toMap
       }
 
-      private val encodeLabels = labelEncoder.newEncoder()
+      private val encodeLabels = labelEncoder.newEncoder(labelDropout)
 
-      private val encodeNames = nameEncoder.newEncoder()
+      private val encodeNames = nameEncoder.newEncoder(labelDropout)
 
       def encodeNameOpt(nameOpt: Option[Symbol]): CompNode = {
         nameOpt match {

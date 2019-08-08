@@ -54,9 +54,10 @@ object SequenceModel {
     def run(
         architecture: SeqArchitecture,
         nameEncoder: LabelEncoder,
-        nodesToPredict: Vector[PNode]
+        nodesToPredict: Vector[PNode],
+        nameDropout: Double
     ): CompNode = {
-      val embedding = encode(architecture, nameEncoder)
+      val embedding = encode(architecture, nameEncoder, nameDropout)
       val missingEmbedding = architecture
         .randomVar('MissingEmbedding / 'left)
         .concat(architecture.randomVar('MissingEmbedding / 'right), axis = 1)
@@ -69,9 +70,10 @@ object SequenceModel {
 
     def encode(
         architecture: SeqArchitecture,
-        nameEncoder: LabelEncoder
+        nameEncoder: LabelEncoder,
+        nameDropout: Double
     ): Map[PNode, CompNode] = {
-      val encodeName = nameEncoder.newEncoder()
+      val encodeName = nameEncoder.newEncoder(nameDropout)
       architecture
         .aggregate(leftBatched, rightBatched, encodeName)
     }
