@@ -249,7 +249,7 @@ object NeuralInference {
       projectNodes.filter(n => n.n.isType).map(n => PTyVar(n.n))
     val libraryTypes: Set[PTyVar] = libraryTypeNodes.map(_.n.n.pipe(PTyVar))
     val predictionSpace = PredictionSpace(
-      Set(PAny) ++ libraryTypes // ++ projectTypes,
+      libraryTypes ++ Set() // ++ Set(PAny) ++ projectTypes,
     )
     val predicateLabels: Set[Symbol] =
       graph.predicates.flatMap {

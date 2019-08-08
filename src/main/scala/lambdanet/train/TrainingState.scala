@@ -58,7 +58,7 @@ object TrainingState {
             epoch0 = 0,
             dimMessage = 32,
             optimizer = Optimizer.Adam(learningRate = 1e-3),
-            iterationNum = 10,
+            iterationNum = 4,
             pc = ParamCollection()
           ) -> mkEventLogger(overrideMode = true)
         }

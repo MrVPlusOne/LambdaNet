@@ -10,7 +10,8 @@ import lambdanet.architecture.LabelEncoder.{
   RandomLabelEncoder,
   TrainableLabelEncoder
 }
-import lambdanet.architecture.{NNArchitecture}
+import lambdanet.architecture.NNArchitecture
+import lambdanet.translation.ImportsResolution.NameDef
 import lambdanet.translation.QLang.QModule
 import lambdanet.utils.QLangAccuracy.FseAccuracy
 
@@ -49,12 +50,14 @@ object DataSet {
             SM.readObjectFromFile[ParsedRepos](parsedRepoPath.toIO)
           }
 
+      // don't predict unknown and any
+      val typesNotToPredict = Set(NameDef.unknownDef.ty.get, libDefs.nodeForAny)
       val libTypesToPredict: Set[LibTypeNode] =
         selectLibTypes(
           libDefs,
           repos.trainSet.map { _.userAnnots },
           coverageGoal = 0.95
-        )
+        ).filterNot(n => typesNotToPredict.contains(n.n.n))
 
       val data = (trainSet ++ devSet).toVector
         .map {
@@ -200,7 +203,7 @@ case class Datum(
       case (_, t) => predictor.predictionSpace.allTypes.contains(t)
     }.toVector
 
-    annotsToUse.map(_._1).tap{ ns =>
+    annotsToUse.map(_._1).tap { ns =>
       assert(ns.nonEmpty, ns)
     }
   }

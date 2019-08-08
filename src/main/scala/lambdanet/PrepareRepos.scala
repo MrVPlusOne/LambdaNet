@@ -151,7 +151,6 @@ object PrepareRepos {
 
   def parseLibDefs(): LibDefs = {
     import cats.implicits._
-
     val declarationsDir = pwd / up / "lambda-repos" / "declarations"
 
     println("parsing default module...")
