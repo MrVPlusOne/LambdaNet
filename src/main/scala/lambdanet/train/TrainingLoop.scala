@@ -25,7 +25,7 @@ import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
   val toyMod: Boolean = false
-  val taskName = "combined-init-4"
+  val taskName = "combined-init-2"
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
