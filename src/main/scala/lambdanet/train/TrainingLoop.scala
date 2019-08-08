@@ -35,7 +35,9 @@ import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
   val toyMod: Boolean = false
-  val taskName = s"combined-init-labelDropout-${TrainingState.iterationNum}"
+  val taskName = s"combined-ensemble-scaled-${TrainingState.iterationNum}"
+
+  val labelDropoutProb: Real = 0.0
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
@@ -356,7 +358,7 @@ object TrainingLoop extends TrainingLoopTrait {
               seqArchitecture,
               nameEncoder,
               nodes,
-              nameDropout = if (isTraining) 0.1 else 0.0
+              nameDropout = if (isTraining) labelDropoutProb else 0.0
             )
           }
 //          val diff = nodes.toSet.diff(datum.annotations.keySet.map(_.n))
@@ -430,19 +432,50 @@ object TrainingLoop extends TrainingLoopTrait {
         limitTimeOpt(s"forward: $datum", Timeouts.forwardTimeout) {
           import datum._
 
-          val labelDropout = if (isTraining) 0.1 else 0.0
+          val labelDropout = if (isTraining) labelDropoutProb else 0.0
 
           val predSpace = predictor.predictionSpace
-//          val seqLogits = announced("run seq predictor") {
-//            seqPredictor.run(
-//              seqArchitecture,
-//              nameEncoder,
-//              nodesToPredict.map(_.n)
-//            )
-//          }
-          val seqEmbedding = announced("run seq encoder") {
-            seqPredictor.encode(seqArchitecture, nameEncoder, labelDropout)
+
+          sealed trait SeqModelMode {
+            def transformLogits(logitsVec: Vector[CompNode]): Vector[CompNode]
+
+            def initEmbedding(nodeSet: Set[ProjNode]): Embedding
           }
+
+          /** Use the Seq model to generate the init node embedding for GNN */
+          case object InitMode extends SeqModelMode {
+            val seqEmbedding = announced("run seq encoder") {
+              seqPredictor.encode(seqArchitecture, nameEncoder, labelDropout)
+            }
+
+            def initEmbedding(nodeSet: Set[ProjNode]): Embedding =
+              Embedding(nodeSet.map { n =>
+                n -> seqEmbedding(n.n)
+              }.toMap)
+
+            def transformLogits(logitsVec: Vector[CompNode]): Vector[CompNode] =
+              logitsVec
+          }
+
+          case object EnsembleMode extends SeqModelMode {
+            val scale = architecture.layerFactory.getVar('EnsembleModeScale)(Tensor(1.0))
+            val seqLogits = announced("run seq predictor") {
+              seqPredictor.run(
+                seqArchitecture,
+                nameEncoder,
+                nodesToPredict.map(_.n),
+                labelDropout
+              ) * scale
+            }
+
+            def initEmbedding(nodeSet: Set[ProjNode]): Embedding =
+              architecture.initialEmbedding(nodeSet)
+
+            def transformLogits(logitsVec: Vector[CompNode]): Vector[CompNode] =
+              logitsVec.map { _ + seqLogits }
+          }
+
+          val seqMode: SeqModelMode = EnsembleMode
 
           // the probability for very iterations
           val probsVec = announced("run predictor") {
@@ -450,10 +483,7 @@ object TrainingLoop extends TrainingLoopTrait {
               .run(
                 architecture,
                 nodesToPredict,
-                nodeSet =>
-                  Embedding(nodeSet.map { n =>
-                    n -> seqEmbedding(n.n)
-                  }.toMap),
+                seqMode.initEmbedding,
                 iterationNum,
                 nodeForAny,
                 labelEncoder,
@@ -462,9 +492,7 @@ object TrainingLoop extends TrainingLoopTrait {
                 labelDropout
               )
               .result
-//              .pipe { logitsVec =>
-//                logitsVec.map { _ + seqLogits }
-//              }
+              .pipe(seqMode.transformLogits)
           }
           val probs = probsVec.last
 

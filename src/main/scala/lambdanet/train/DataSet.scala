@@ -72,14 +72,11 @@ object DataSet {
             val nonGenerifyIt = nonGenerify(libDefs)
             val annots1 = annotations
               .mapValuesNow { nonGenerifyIt }
-            val libPredSpace = PredictionSpace(
-              libTypesToPredict.map(n => PTyVar(n.n.n)) ++ Set(PAny)
-            )
 
             val seqPredictor = SeqPredictor(
               irModules,
               libDefs,
-              libPredSpace,
+              predictor.predictionSpace,
               taskSupport,
             )
             Datum(path, annots1, qModules, predictor, seqPredictor)
