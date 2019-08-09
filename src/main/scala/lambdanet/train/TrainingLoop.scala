@@ -35,7 +35,7 @@ import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
   val toyMod: Boolean = false
-  val taskName = s"combined-init-independent-${TrainingState.iterationNum}"
+  val taskName = s"real-combined-${TrainingState.iterationNum}"
 
   val labelDropoutProb: Real = 0.0
 

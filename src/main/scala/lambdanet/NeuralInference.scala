@@ -28,7 +28,7 @@ object NeuralInference {
     case class run(
         architecture: NNArchitecture,
         nodesToPredict: Vector[ProjNode],
-        initEmbedding: Set[ProjNode] => Embedding ,
+        initEmbedding: Set[ProjNode] => Embedding,
         iterations: Int,
         nodeForAny: LibTypeNode,
         labelEncoder: LabelEncoder,
@@ -40,17 +40,16 @@ object NeuralInference {
 
       /** returns softmax logits */
       def result: Vector[CompNode] = {
-
-        val initEmbedding =
-          architecture.initialEmbedding(projectNodes)
-
         val encodeLibNode = logTime("encodeLibNode") {
           computeLibNodeEncoding()
         }
 
+        /** When set to false, each message passing has independent parameters */
+        val fixBetweenIteration = true
+
         val embeddings = logTime("iterate") {
-          (0 until iterations).scanLeft(initEmbedding){ (embed, i) =>
-            updateEmbedding(encodeLibNode)(embed, i)
+          (0 until iterations).scanLeft(initEmbedding(projectNodes)){ (embed, i) =>
+            updateEmbedding(encodeLibNode)(embed, if(fixBetweenIteration) 0 else i)
           }.toVector
         }
 
