@@ -49,10 +49,9 @@ object NeuralInference {
         }
 
         val embeddings = logTime("iterate") {
-          Vector
-            .iterate(initEmbedding, iterations + 1)(
-              updateEmbedding(encodeLibNode),
-            )
+          (0 until iterations).scanLeft(initEmbedding){ (embed, i) =>
+            updateEmbedding(encodeLibNode)(embed, i)
+          }.toVector
         }
 
         embeddings.map { embed =>
@@ -124,7 +123,7 @@ object NeuralInference {
 
       private def updateEmbedding(
           encodeLibNode: LibNode => CompNode,
-      )(embedding: Embedding): Embedding = {
+      )(embedding: Embedding, iteration: Int): Embedding = {
 
         val messages = logTime("compute messages") {
           def encodeNode(n: PNode): CompNode =
@@ -132,6 +131,7 @@ object NeuralInference {
             else encodeLibNode(LibNode(n))
 
           architecture.calculateMessages(
+            iteration,
             parallelize(batchedMsgModels.toSeq),
             encodeNode,
             encodeLabels,
@@ -143,7 +143,7 @@ object NeuralInference {
 
         val merged = logTime("merge messages") {
           architecture.mergeMessages(
-            'vars,
+            'mergeMessages / Symbol(s"iter-$iteration"),
             parallelize(messages.toSeq),
             embedding.vars,
           )

@@ -36,6 +36,7 @@ abstract class NNArchitecture(
   def initialEmbedding(projectNodes: Set[ProjNode]): Embedding
 
   def calculateMessages(
+      iteration: Int,
       messages: GenSeq[(MessageKind, Vector[MessageModel])],
       encodeNode: PNode => CompNode,
       encodeLabel: Symbol => CompNode,
@@ -47,12 +48,15 @@ abstract class NNArchitecture(
     import MessageModel._
     import cats.implicits._
 
+    val iterSymbol = Symbol(s"iter-$iteration")
+
     def bidirectional(
-        name: String,
+        name0: SymbolPath,
         n1s: Vector[PNode],
         n2s: Vector[PNode],
         inputs: Vector[CompNode]
     ): UpdateMessages = {
+      val name = name0 / iterSymbol
       toVars(
         verticalBatching(n1s.zip(inputs), singleLayer(name / 'left, _)) |+|
           verticalBatching(n2s.zip(inputs), singleLayer(name / 'right, _))
@@ -65,9 +69,11 @@ abstract class NNArchitecture(
         values: Vector[PNode],
         nodes: Vector[PNode],
         label: Symbol,
-        name: SymbolPath
+        name0: SymbolPath
     ): UpdateMessages = {
       require(inputKeys.nonEmpty)
+
+      val name = name0 / iterSymbol
       val (exKey, exValue) = {
         val n = if (isLibLabel(label)) label else '?
         randomVar(name / 'experienceKey / n) ->
@@ -103,7 +109,7 @@ abstract class NNArchitecture(
           val paired = models
             .asInstanceOf[Vector[Single]]
             .map(s => s.n -> encodeNode(s.n))
-          verticalBatching(paired, singleLayer(name, _))
+          verticalBatching(paired, singleLayer(name / iterSymbol, _))
             .pipe(toVars)
         case KindBinary(name) =>
           val (n1s, n2s, inputs) = models
@@ -119,7 +125,7 @@ abstract class NNArchitecture(
           val paired = models
             .asInstanceOf[Vector[Naming]]
             .map(s => s.n -> encodeName(s.name))
-          verticalBatching(paired, singleLayer(name, _))
+          verticalBatching(paired, singleLayer(name / iterSymbol, _))
             .pipe(toVars)
         case KindBinaryLabeled(name, LabelType.Position) =>
           //todo: try RNN based embedding

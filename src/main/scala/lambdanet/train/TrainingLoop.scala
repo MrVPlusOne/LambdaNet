@@ -35,7 +35,7 @@ import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
   val toyMod: Boolean = false
-  val taskName = s"seqModel-rerun"// s"combined-ensemble-scaled-${TrainingState.iterationNum}"
+  val taskName = s"combined-init-independent-${TrainingState.iterationNum}"
 
   val labelDropoutProb: Real = 0.0
 
@@ -471,7 +471,7 @@ object TrainingLoop extends TrainingLoopTrait {
               logitsVec.map { _ + seqLogits }
           }
 
-          val seqMode: SeqModelMode = EnsembleMode
+          val seqMode: SeqModelMode = InitMode
 
           // the probability for very iterations
           val probsVec = announced("run predictor") {

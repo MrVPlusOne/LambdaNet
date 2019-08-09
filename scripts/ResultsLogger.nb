@@ -10,10 +10,10 @@
 NotebookFileLineBreakTest
 NotebookFileLineBreakTest
 NotebookDataPosition[       158,          7]
-NotebookDataLength[     35672,        791]
-NotebookOptionsPosition[     33605,        754]
-NotebookOutlinePosition[     33957,        770]
-CellTagsIndexPosition[     33914,        767]
+NotebookDataLength[     36040,        799]
+NotebookOptionsPosition[     33973,        762]
+NotebookOutlinePosition[     34325,        778]
+CellTagsIndexPosition[     34282,        775]
 WindowFrame->Normal*)
 
 (* Beginning of Notebook Content *)
@@ -535,8 +535,8 @@ Cell[BoxData[
        "data", ",", "lossGraph", ",", "trainAccGraph", ",", "accDetailGraph", 
         ",", "distAccGraph", ",", "testAccGraph", ",", "timeGraph", ",", 
         "gradsGraph", ",", "fseAccGraph", ",", "trainConfPlot", ",", 
-        "testConfPlot", ",", "typeAccPlot"}], "}"}], ",", 
-      "\[IndentingNewLine]", 
+        "testConfPlot", ",", "typeAccPlot", ",", "testTypeAccPlot"}], "}"}], 
+      ",", "\[IndentingNewLine]", 
       RowBox[{
        RowBox[{"data", "=", 
         RowBox[{"readLog", "[", "path", "]"}]}], ";", "\[IndentingNewLine]", 
@@ -611,6 +611,10 @@ Cell[BoxData[
         RowBox[{"drawTypeAcc", "[", 
          RowBox[{"\"\<typeAcc\>\"", ",", "data"}], "]"}]}], ";", 
        "\[IndentingNewLine]", 
+       RowBox[{"testTypeAccPlot", "=", 
+        RowBox[{"drawTypeAcc", "[", 
+         RowBox[{"\"\<test-typeAcc\>\"", ",", "data"}], "]"}]}], ";", 
+       "\[IndentingNewLine]", 
        RowBox[{"Column", "[", 
         RowBox[{"{", "\[IndentingNewLine]", 
          RowBox[{
@@ -623,9 +627,12 @@ Cell[BoxData[
              RowBox[{"{", 
               RowBox[{"gradsGraph", ",", "testAccGraph", ",", "timeGraph"}], 
               "}"}]}], "}"}], "]"}], ",", "\[IndentingNewLine]", 
-          "typeAccPlot"}], "\[IndentingNewLine]", "}"}], "]"}]}]}], 
-     "\[IndentingNewLine]", "]"}], ",", "\[IndentingNewLine]", 
-    "\"\<Log file missing\>\""}], "\[IndentingNewLine]", "]"}]}]], "Input",
+          RowBox[{"Row", "[", 
+           RowBox[{"{", 
+            RowBox[{"typeAccPlot", ",", "testTypeAccPlot"}], "}"}], "]"}]}], 
+         "\[IndentingNewLine]", "}"}], "]"}]}]}], "\[IndentingNewLine]", 
+     "]"}], ",", "\[IndentingNewLine]", "\"\<Log file missing\>\""}], 
+   "\[IndentingNewLine]", "]"}]}]], "Input",
  CellGroupingRules->{"GroupTogetherGrouping", 10000.},
  CellChangeTimes->{{3.770855557073517*^9, 3.770855558549551*^9}, {
    3.7708562063188753`*^9, 3.7708562675336533`*^9}, {3.770856677983963*^9, 
@@ -657,8 +664,9 @@ Cell[BoxData[
    3.773154167077194*^9}, {3.7741920051821337`*^9, 3.7741920614097853`*^9}, {
    3.774192143137559*^9, 3.7741921580012217`*^9}, {3.774192227466753*^9, 
    3.7741922289172087`*^9}, {3.774204631230043*^9, 3.774204633677491*^9}, {
-   3.774204771358102*^9, 3.774204807792047*^9}},
- CellLabel->"In[74]:=",ExpressionUUID->"f17ed66f-751b-4e3f-b3ce-d9caa6ca4efa"],
+   3.774204771358102*^9, 3.774204807792047*^9}, {3.774281987811211*^9, 
+   3.774282022385248*^9}},
+ CellLabel->"In[92]:=",ExpressionUUID->"f17ed66f-751b-4e3f-b3ce-d9caa6ca4efa"],
 
 Cell[BoxData[
  RowBox[{
@@ -787,12 +795,12 @@ Cell[13495, 325, 4535, 96, 472, "Input",ExpressionUUID->"c1caf827-f9db-4da8-ad17
  CellGroupingRules->{"GroupTogetherGrouping", 10000.}],
 Cell[18033, 423, 1224, 27, 199, "Input",ExpressionUUID->"30e0e5e6-a388-48bf-b5c7-f70dc2d3b087"],
 Cell[19260, 452, 3364, 70, 304, "Input",ExpressionUUID->"8eaebe0e-c1fc-4a5d-b1b7-6ae502627527"],
-Cell[22627, 524, 7141, 136, 590, "Input",ExpressionUUID->"f17ed66f-751b-4e3f-b3ce-d9caa6ca4efa",
+Cell[22627, 524, 7509, 144, 598, "Input",ExpressionUUID->"f17ed66f-751b-4e3f-b3ce-d9caa6ca4efa",
  CellGroupingRules->{"GroupTogetherGrouping", 10000.}],
-Cell[29771, 662, 202, 4, 30, "Input",ExpressionUUID->"6805c100-a6ad-420a-b856-67d855c5aa6b"],
-Cell[29976, 668, 2095, 49, 304, "Input",ExpressionUUID->"73698989-be54-4b3c-b41e-8db8e339f51a"],
-Cell[32074, 719, 899, 18, 136, "Input",ExpressionUUID->"7b02550c-3904-470e-9fed-c37f2db65bef"],
-Cell[32976, 739, 625, 13, 136, "Input",ExpressionUUID->"cee0ac1d-32c8-40a6-b358-950ec8a35725"]
+Cell[30139, 670, 202, 4, 30, "Input",ExpressionUUID->"6805c100-a6ad-420a-b856-67d855c5aa6b"],
+Cell[30344, 676, 2095, 49, 304, "Input",ExpressionUUID->"73698989-be54-4b3c-b41e-8db8e339f51a"],
+Cell[32442, 727, 899, 18, 136, "Input",ExpressionUUID->"7b02550c-3904-470e-9fed-c37f2db65bef"],
+Cell[33344, 747, 625, 13, 136, "Input",ExpressionUUID->"cee0ac1d-32c8-40a6-b358-950ec8a35725"]
 }
 ]
 *)
