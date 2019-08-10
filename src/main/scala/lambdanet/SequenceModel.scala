@@ -162,14 +162,10 @@ object SequenceModel {
     }
 
     def predict(states: CompNode, predSpaceSize: Int): CompNode = {
-      def singleLayer(name: Symbol, dim: Int)(input: CompNode) = {
-        val path = 'predict / name
-        input ~> linear(path, dim) ~> relu
-      }
-
       states ~>
-        singleLayer('L1, dimEmbedding) ~>
-        singleLayer('L2, predSpaceSize)
+        linear('predict / 'L1, dimEmbedding) ~> relu ~>
+        linear('predict / 'L2, dimEmbedding) ~> relu ~>
+        linear('predict / 'L3, predSpaceSize)
     }
   }
 

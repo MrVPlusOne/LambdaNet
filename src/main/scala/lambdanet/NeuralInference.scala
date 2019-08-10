@@ -48,9 +48,15 @@ object NeuralInference {
         val fixBetweenIteration = true
 
         val embeddings = logTime("iterate") {
-          (0 until iterations).scanLeft(initEmbedding(projectNodes)){ (embed, i) =>
-            updateEmbedding(encodeLibNode)(embed, if(fixBetweenIteration) 0 else i)
-          }.toVector
+          (0 until iterations)
+            .scanLeft(initEmbedding(projectNodes)) { (embed, i) =>
+              updateEmbedding(encodeLibNode)(
+                embed,
+                if (fixBetweenIteration) 0
+                else i
+              )
+            }
+            .toVector
         }
 
         embeddings.map { embed =>
@@ -68,8 +74,7 @@ object NeuralInference {
 //          }
           logTime("decode") {
 //            decodeSeparate(embed, allSignatureEmbeddings)
-            val inputs = nodesToPredict
-              .map(embed.vars.apply)
+            val inputs = nodesToPredict.map(embed.vars.apply)
             architecture.predictLibraryTypes(
               inputs,
               predictionSpace.libTypeVec.length

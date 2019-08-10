@@ -35,9 +35,9 @@ import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
   val toyMod: Boolean = false
-  val taskName = s"realCombined-init-labelDropout-${TrainingState.iterationNum}"
+  val taskName = s"onlyGNN-${TrainingState.iterationNum}"
 
-  val labelDropoutProb: Real = 0.1
+  val labelDropoutProb: Real = 0.0
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
@@ -471,7 +471,14 @@ object TrainingLoop extends TrainingLoopTrait {
               logitsVec.map { _ + seqLogits }
           }
 
-          val seqMode: SeqModelMode = InitMode
+          case object GnnModel extends SeqModelMode{
+            def transformLogits(logitsVec: Vector[Loss]): Vector[Loss] = logitsVec
+
+            def initEmbedding(nodeSet: Set[ProjNode]): Embedding =
+              architecture.initialEmbedding(nodeSet)
+          }
+
+          val seqMode: SeqModelMode = GnnModel
 
           // the probability for very iterations
           val probsVec = announced("run predictor") {
