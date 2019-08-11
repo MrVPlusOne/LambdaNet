@@ -35,12 +35,12 @@ import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
   val toyMod: Boolean = false
-  val useSeqModel = false
+  val onlySeqModel = false
   val taskName =
-    if (useSeqModel) "seqModel"
-    else s"onlyGNN-withDropout-${TrainingState.iterationNum}"
+    if (onlySeqModel) "seqModel"
+    else s"onlyGNN-${TrainingState.iterationNum}"
 
-  val labelDropoutProb: Real = 0.1
+  val labelDropoutProb: Real = 0.0
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
@@ -340,7 +340,7 @@ object TrainingLoop extends TrainingLoopTrait {
         .tap(m => printResult(s"loss model: ${m.name}"))
 
       private def selectForward(data: Datum) = {
-        if (useSeqModel) seqForward(data)
+        if (onlySeqModel) seqForward(data)
         else forward(data)
       }
 
