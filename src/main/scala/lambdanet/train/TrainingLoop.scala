@@ -35,7 +35,10 @@ import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
   val toyMod: Boolean = false
-  val taskName = s"onlyGNN-${TrainingState.iterationNum}"
+  val useSeqModel = false
+  val taskName =
+    if (useSeqModel) "seqModel"
+    else s"combined-ensemble-${TrainingState.iterationNum}"
 
   val labelDropoutProb: Real = 0.0
 
@@ -337,7 +340,6 @@ object TrainingLoop extends TrainingLoopTrait {
         .tap(m => printResult(s"loss model: ${m.name}"))
 
       private def selectForward(data: Datum) = {
-        val useSeqModel = true
         if (useSeqModel) seqForward(data)
         else forward(data)
       }
@@ -351,7 +353,7 @@ object TrainingLoop extends TrainingLoopTrait {
           val predSpace = predictor.predSpace
           // the logits for very iterations
           val nodes = datum.nodesToPredict.map { _.n }
-          val logits = announced("run predictor") {
+          val logits = announced("run seq predictor") {
             predictor.run(
               seqArchitecture,
               nameEncoder,
@@ -439,7 +441,7 @@ object TrainingLoop extends TrainingLoopTrait {
           }
 
           /** Use the Seq model to generate the init node embedding for GNN */
-          case object InitMode extends SeqModelMode {
+          object InitMode extends SeqModelMode {
             val seqEmbedding = announced("run seq encoder") {
               seqPredictor.encode(seqArchitecture, nameEncoder, labelDropout)
             }
@@ -453,8 +455,9 @@ object TrainingLoop extends TrainingLoopTrait {
               logitsVec
           }
 
-          case object EnsembleMode extends SeqModelMode {
-            val scale = architecture.layerFactory.getVar('EnsembleModeScale)(Tensor(1.0))
+          object EnsembleMode extends SeqModelMode {
+            val scale =
+              architecture.layerFactory.getVar('EnsembleModeScale)(Tensor(1.0))
             val seqLogits = announced("run seq predictor") {
               seqPredictor.run(
                 seqArchitecture,
@@ -471,14 +474,15 @@ object TrainingLoop extends TrainingLoopTrait {
               logitsVec.map { _ + seqLogits }
           }
 
-          case object GnnModel extends SeqModelMode{
-            def transformLogits(logitsVec: Vector[Loss]): Vector[Loss] = logitsVec
+          object GnnModel extends SeqModelMode {
+            def transformLogits(logitsVec: Vector[Loss]): Vector[Loss] =
+              logitsVec
 
             def initEmbedding(nodeSet: Set[ProjNode]): Embedding =
               architecture.initialEmbedding(nodeSet)
           }
 
-          val seqMode: SeqModelMode = GnnModel
+          val seqMode: SeqModelMode = EnsembleMode
 
           // the probability for very iterations
           val probsVec = announced("run predictor") {

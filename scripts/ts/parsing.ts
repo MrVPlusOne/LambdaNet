@@ -132,8 +132,8 @@ function parseSignatureType(sig: ts.SignatureDeclarationBase): FuncType {
   return new FuncType(argTypes, retType);
 }
 
-function parseDeclarationName(n: ts.DeclarationName): string  {
-  switch(n.kind){
+function parseDeclarationName(n: ts.DeclarationName): string {
+  switch (n.kind) {
     case SyntaxKind.Identifier:
       return n.text;
     case SyntaxKind.StringLiteral:
@@ -173,9 +173,9 @@ function parseTypeMember(member: ts.NamedDeclaration): NamedValue<GType> {
 
 
 function parseEntityName(n: ts.EntityName): string {
-  if(n.kind == SyntaxKind.Identifier){
+  if (n.kind == SyntaxKind.Identifier) {
     return n.text;
-  }else {
+  } else {
     return parseEntityName(n.left) + "." + n.right.text;
   }
 }
@@ -345,26 +345,52 @@ class WhileStmt implements GStmt {
   }
 }
 
-class ImportStmt implements GStmt {
-  category: string = "ImportStmt";
+type ImportStmt = ImportSingle | ImportDefault | ImportModule
 
-  constructor(public text: string) {
-    mustExist(text);
+class ImportSingle {
+  category: "ImportSingle" = "ImportSingle";
+
+  constructor(public oldName: string, public newName: string, public path: string) {
   }
 }
+
+class ImportDefault{
+  category: "ImportDefault" = "ImportDefault";
+
+  constructor(public newName: string, public path: string){}
+}
+
+class ImportModule {
+  category: "ImportModule" = "ImportModule";
+  constructor(newName: string, public path: string) {}
+}
+
+type ExportStmt = ExportSingle | ExportDefault | ExportModule
+
+class ExportSingle{
+  category: "ExportSingle" = "ExportSingle";
+
+  constructor(oldName: string, newName: string, from: string | null){}
+}
+
+class ExportDefault{
+  category: "ExportDefault" = "ExportDefault";
+
+  constructor(newName: string | null, from: string | null) {}
+}
+
+class ExportModule{
+  category: "ExportOtherModule" = "ExportOtherModule";
+
+  constructor(from: string) {}
+}
+
+
 
 class NamespaceAliasStmt implements GStmt {
   category: string = "NamespaceAliasStmt";
 
   constructor(public name: string, public rhs: string) {
-  }
-}
-
-class ExportStmt implements GStmt {
-  category: string = "ExportStmt";
-
-  constructor(public text: string) {
-    mustExist(text);
   }
 }
 
@@ -604,7 +630,7 @@ export function parseExpr(node: ts.Expression,
       }
       case SyntaxKind.TemplateExpression: {
         const spans = n.templateSpans.map(sp => rec(sp.expression));
-        return new FuncCall(SpecialVars.Template,spans, infer());
+        return new FuncCall(SpecialVars.Template, spans, infer());
       }
       case SyntaxKind.NoSubstitutionTemplateLiteral:
         return constExpr("string");
@@ -740,15 +766,15 @@ export class StmtParser {
     function parseFunction(name: string,
                            n: ts.FunctionLikeDeclaration | ts.IndexSignatureDeclaration,
                            modifiers: string[]): FuncDef {
-      function inferRetType(){
-        if(n.type) {
+      function inferRetType() {
+        if (n.type) {
           return parseMark(n.type, undefined);
         }
 
         const tNode = checker.typeToTypeNode(checker.getTypeAtLocation(n));
-        if(tNode) {
+        if (tNode) {
           const t = parseTypeNode(tNode);
-          if(t.category == "FuncType"){
+          if (t.category == "FuncType") {
             return new Inferred(t.to);
           }
         }
@@ -911,19 +937,19 @@ export class StmtParser {
           case SyntaxKind.ForInStatement:
           case SyntaxKind.ForStatement: {
             let n = node as ts.ForStatement | ts.ForInOrOfStatement;
-            let cond: GExpr= new Const("true", new TVar("boolean"), getLineNumber(n));
+            let cond: GExpr = new Const("true", new TVar("boolean"), getLineNumber(n));
             let incr: GStmt[] = [];
-            let expression: GExpr|undefined = undefined;
-            if(n.kind == SyntaxKind.ForStatement) {
-              if(n.condition){
+            let expression: GExpr | undefined = undefined;
+            if (n.kind == SyntaxKind.ForStatement) {
+              if (n.condition) {
                 cond = EP.processExpr(n.condition);
               }
-              if(n.incrementor){
+              if (n.incrementor) {
                 incr = [new ExprStmt(EP.processExpr(n.incrementor), false)];
               }
-            }else {
+            } else {
               const rhs = EP.processExpr(n.expression);
-              expression = new FuncCall(SpecialVars.ArrayAccess, [rhs], "missing")
+              expression = new FuncCall(SpecialVars.ArrayAccess, [rhs], "missing");
             }
             let init = n.initializer;
             let outerBlock = new BlockStmt([]);
@@ -1048,8 +1074,29 @@ export class StmtParser {
           }
           case SyntaxKind.ImportDeclaration: {
             const n = node as ts.ImportDeclaration;
-            n.importClause; //todo
-            return EP.alongWith(new ImportStmt(node.getText()));
+            const path = n.moduleSpecifier.getText();
+            if(n.importClause){
+              if(n.importClause.name){
+                return EP.alongWith(new ImportDefault(n.importClause.name.text, path));
+              }
+              if(n.importClause.namedBindings){
+                const bindings = n.importClause.namedBindings;
+                if (bindings.kind == SyntaxKind.NamespaceImport) {
+                  return EP.alongWith(new ImportModule(bindings.name.text, path));
+                } else {
+                  const imports = bindings.elements.map(s => {
+                    const newName = s.name.text;
+                    if(s.propertyName){
+                      return new ImportSingle(s.propertyName.text, newName, path)
+                    }else {
+                      return new ImportSingle(newName, newName, path)
+                    }
+                  });
+                  return EP.alongWithMany(imports);
+                }
+              }
+            }
+            throw new Error(`Empty import clause. Import full text: ${n.getText()}`);
           }
           case SyntaxKind.ExportAssignment: {
             const n = node as ts.ExportAssignment;
