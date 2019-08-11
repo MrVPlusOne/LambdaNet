@@ -38,9 +38,9 @@ object TrainingLoop extends TrainingLoopTrait {
   val useSeqModel = false
   val taskName =
     if (useSeqModel) "seqModel"
-    else s"onlyGNN-${TrainingState.iterationNum}"
+    else s"onlyGNN-withDropout-${TrainingState.iterationNum}"
 
-  val labelDropoutProb: Real = 0.0
+  val labelDropoutProb: Real = 0.1
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
