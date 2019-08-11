@@ -118,7 +118,7 @@ object ProgramParsing {
       val aliases: Map[ProjectPath, ProjectPath] =
         (for {
           f <- ls.rec(root) if f.isSymLink
-          pointsTo = f.tryFollowLinks.get
+          pointsTo <- f.tryFollowLinks
         } yield f.relativeTo(root) -> pointsTo.relativeTo(root)).toMap
     }
 
@@ -129,9 +129,9 @@ object ProgramParsing {
         val name = f.last
         if (declarationFileMod) name.endsWith(".d.ts")
         else
-          name.endsWith(".ts") || name.endsWith(".d.ts") || name.endsWith(
-            ".tsx",
-          )
+          name.endsWith(".ts") ||
+            name.endsWith(".d.ts") ||
+            name.endsWith(".tsx")
       }
       .map(_.relativeTo(root))
 
@@ -344,8 +344,9 @@ object ProgramParsing {
         P(identifier ~ ("as" ~/ identifier).?)
 
       def importSingles[_: P]: P[Singles] =
-        P("{" ~/ clause.rep(min = 1, sep = ",") ~ ",".? ~ "}")
-          .map { clauses =>
+        P("{" ~ clause.rep(min = 1, sep = ",").? ~ ",".? ~ "}")
+          .map { clausesOpt =>
+            val clauses = clausesOpt.getOrElse(Seq())
             Singles(clauses.map {
               case (oldName, newNameOpt) =>
                 val newName = Symbol(newNameOpt.getOrElse(oldName))
@@ -434,9 +435,9 @@ object ProgramParsing {
       def exportSingles[_: P]: P[Creator] =
         P(
           "{" ~ (identifier ~/ ("as" ~/ identifier).?)
-            .rep(min = 1, sep = ",") ~ ",".? ~ "}",
-        ).map { clauses => p =>
-          clauses.toVector.map {
+            .rep(min = 1, sep = ",").? ~ ",".? ~ "}",
+        ).map { clausesOpt => p =>
+          clausesOpt.getOrElse(Seq.empty).toVector.map {
             case (oldName, newNameOpt) =>
               ExportSingle(
                 Symbol(oldName),

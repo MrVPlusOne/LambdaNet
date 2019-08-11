@@ -181,6 +181,10 @@ class ParserTests extends WordSpec with MyTest {
       Vector(ImportModule(relPath("./ZipCodeValidator"), 'pkg)),
     )
     test(
+      """import { ISessionEvent } from "../eme/session";""",
+      Vector(ImportSingle('ISessionEvent, relPath("../eme/session") ,'ISessionEvent))
+    )
+    test(
       """import {A,
         |B as B1} from "./ZipCodeValidator";""".stripMargin,
       Vector(

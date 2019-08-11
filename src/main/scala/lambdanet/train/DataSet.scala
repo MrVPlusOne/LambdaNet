@@ -42,8 +42,10 @@ object DataSet {
       val repos @ ParsedRepos(libDefs, trainSet, devSet) =
         if (toyMod)
           parseRepos(
-            pwd / RelPath("data/toy/trainSet"),
-            pwd / RelPath("data/toy/testSet"),
+            Seq(
+              pwd / RelPath("data/toy/trainSet"),
+              pwd / RelPath("data/toy/testSet")
+            )
           )
         else
           announced(s"read data set from: $parsedRepoPath") {

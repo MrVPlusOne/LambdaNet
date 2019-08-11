@@ -511,6 +511,8 @@ object QLangTranslation {
             printWarning(s"Unable to resolve type: ${n.name}")
             NameDef.unknownDef
           }
+          if(n.name == "...") // some weird corner case
+            return PAny
 
           val nameSegs = n.name.split("\\.").map(Symbol.apply).toVector
           val tyOpt = if (nameSegs.length == 1) {

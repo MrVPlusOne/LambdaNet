@@ -47,6 +47,7 @@ object JSExamples {
     '$ArrayAccess -> (List(anyArray) -: any),
     '$Yield -> (List(any) -: generator),
     '$Await -> (List('Promise) -: void),
+    '$Template -> (List(any) -: string),
     // operators
     'MinusToken -> (List(number) -: number),
     'PlusToken -> (List(number) -: number),

@@ -17,13 +17,12 @@ object SequenceModel {
 
   def main(args: Array[String]): Unit = {
     import ammonite.ops._
-    val repos = parseRepos(pwd / RelPath("data/toy"), pwd / RelPath("data/toy"))
-    val libDefs = repos.libDefs
+    val (libDefs, Seq(trainSet, testSet)) = parseRepos(Seq(pwd / RelPath("data/toy"), pwd / RelPath("data/toy")))
     val nodeMapping =
-      libDefs.nodeMapping ++ repos.trainSet.flatMap(
-        _.irModules.flatMap(_.mapping),
+      libDefs.nodeMapping ++ trainSet.flatMap(
+        _.irModules.flatMap(_.mapping)
       )
-    val seqs = repos.trainSet.head.pipe { m =>
+    val seqs = trainSet.head.pipe { m =>
       m.irModules.map { m =>
         tokenizeModule(m, nodeMapping).tap { tks =>
           println(s"${m.path}: $tks")

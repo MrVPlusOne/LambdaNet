@@ -36,11 +36,17 @@ object PrepareRepos {
   val libDefsFile: Path = pwd / up / "lambda-repos" / "libDefs.serialized"
   val parsedRepoPath: Path = pwd / "data" / "predicateGraphs.serialized"
 
+  def main(args: Array[String]): Unit = {
+    parseTestSet()
+  }
+
   def parseRepos(
-      trainSetDir: Path,
-      devSetDir: Path,
+      dataSetDirs: Seq[Path],
       loadFromFile: Boolean = true,
-  ): ParsedRepos = {
+      inParallel: Boolean = true,
+      maxNum: Int = 1000,
+      moveParsedTo: Option[Path] = None,
+  ): (LibDefs, Seq[List[ParsedProject]]) = {
     lambdanet.shouldWarn = false
 
     val libDefs = if (loadFromFile) {
@@ -58,30 +64,39 @@ object PrepareRepos {
     def fromDir(dir: Path, maxNum: Int) =
       (ls ! dir)
         .filter(f => f.isDir)
-        .pipe(random.shuffle(_))
+//        .pipe(random.shuffle(_))
         .take(maxNum)
-        .par
+        .pipe(x => if (inParallel) x.par else x)
         .map { f =>
           val (a, b, c, d) =
             prepareProject(libDefs, f, shouldPruneGraph = false)
+          moveParsedTo.foreach{ path =>
+            mv(f, path / f.last)
+          }
           ParsedProject(f.relativeTo(dir), a, b, c, d)
         }
         .toList
 
-    ParsedRepos(
-      libDefs,
-      fromDir(trainSetDir, 1000),
-      fromDir(devSetDir, 1000),
+    dataSetDirs.map(fromDir(_, maxNum))
+    libDefs ->
+      dataSetDirs.map { fromDir(_, maxNum) }
+  }
+
+  def parseTestSet(): Unit = {
+    val trainSetDir: Path = pwd / up / "lambda-repos" / "allRepos"
+    val parsed = announced("parsePredGraphs")(
+      parseRepos(Seq(trainSetDir), inParallel = false,
+        moveParsedTo = Some(trainSetDir / up / "allRepos-parsed"))
     )
   }
 
-  def main(args: Array[String]): Unit = {
+  def parseDataSet(): Unit = {
     val trainSetDir: Path = pwd / up / "lambda-repos" / "trainSet"
     val devSetDir: Path = pwd / up / "lambda-repos" / "devSet"
-    val parsed = announced("parsePredGraphs")(
-      parseRepos(trainSetDir, devSetDir, loadFromFile = false),
+    val (libDefs, Seq(trainSet, devSet)) = announced("parsePredGraphs")(
+      parseRepos(Seq(trainSetDir, devSetDir), loadFromFile = false)
     )
-    val stats = repoStatistics(parsed.trainSet ++ parsed.devSet)
+    val stats = repoStatistics(trainSet ++ devSet)
     val avgStats = stats.headers
       .zip(stats.average)
       .map {
@@ -92,7 +107,9 @@ object PrepareRepos {
     write.over(parsedRepoPath / up / "stats.txt", avgStats)
 
     announced(s"save data set to file: $parsedRepoPath") {
-      SM.saveObjectToFile(parsedRepoPath.toIO)(parsed)
+      SM.saveObjectToFile(parsedRepoPath.toIO)(
+        ParsedRepos(libDefs, trainSet, devSet)
+      )
     }
   }
 
@@ -281,13 +298,13 @@ object PrepareRepos {
 
       val p = ProgramParsing.parseGProjectFromRoot(
         root,
-        filter = filterTests,
+        filter = filterTests
       )
       val allocator = new PNodeAllocator(forLib = false)
       val irTranslator = new IRTranslation(allocator)
 
       val errorHandler =
-        ErrorHandler(ErrorHandler.ThrowError, ErrorHandler.StoreError)
+        ErrorHandler(ErrorHandler.StoreError, ErrorHandler.StoreError)
 
 //    println(s"LibExports key set: ${libExports.keySet}")
       val qModules = QLangTranslation.fromProject(

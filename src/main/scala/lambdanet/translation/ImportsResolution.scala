@@ -493,12 +493,14 @@ object ImportsResolution {
                   ModuleExports(publicSymbols = toExport)
                 case ExportDefault(newName, Some(s)) =>
                   val defs = resolvePath(s).defaultDefs
-                  newName match {
-                    case Some(n) =>
-                      ModuleExports(publicSymbols = Map(n -> defs))
-                    case None =>
-                      ModuleExports(defaultDefs = defs)
-                  }
+                  if (defs.nonEmpty) {
+                    newName match {
+                      case Some(n) =>
+                        ModuleExports(publicSymbols = Map(n -> defs))
+                      case None =>
+                        ModuleExports(defaultDefs = defs)
+                    }
+                  } else ModuleExports.empty
                 case ExportDefault(newName, None) =>
                   val name = newName.get
                   thisExports.internalSymbols

@@ -465,8 +465,7 @@ type LiteralExpression =
   ts.NullLiteral |
   ts.VoidExpression |
   ts.ArrayLiteralExpression |
-  ts.NoSubstitutionTemplateLiteral |
-  ts.TaggedTemplateExpression
+  ts.NoSubstitutionTemplateLiteral
 
 type JsxExpressions = ts.JsxElement | ts.JsxSelfClosingElement
 
@@ -474,6 +473,7 @@ type SpecialExpressions =
   ts.SpreadElement |
   ts.TypeOfExpression |
   ts.TemplateExpression |
+  ts.TaggedTemplateExpression |
   ts.DeleteExpression |
   ts.YieldExpression |
   ts.AsExpression |
@@ -597,11 +597,17 @@ export function parseExpr(node: ts.Expression,
       case SyntaxKind.TypeOfExpression: {
         return new FuncCall(SpecialVars.typeOf, [rec(n.expression)], infer());
       }
-      case SyntaxKind.TaggedTemplateExpression:
-      case SyntaxKind.NoSubstitutionTemplateLiteral:
-      case SyntaxKind.TemplateExpression: {
-        return constExpr("string");
+      case SyntaxKind.TaggedTemplateExpression: {
+        const tagE = rec(n.tag);
+        const temp = rec(n.template);
+        return new FuncCall(tagE, [temp], infer());
       }
+      case SyntaxKind.TemplateExpression: {
+        const spans = n.templateSpans.map(sp => rec(sp.expression));
+        return new FuncCall(SpecialVars.Template,spans, infer());
+      }
+      case SyntaxKind.NoSubstitutionTemplateLiteral:
+        return constExpr("string");
       case SyntaxKind.DeleteExpression: {
         return new FuncCall(SpecialVars.DELETE, [rec(n.expression)], infer());
       }
@@ -1220,6 +1226,7 @@ class SpecialVars {
   static ArrayAccess = new Var("$ArrayAccess");
   static YIELD = new Var("$Yield");
   static AWAIT = new Var("$Await");
+  static Template = new Var("$Template");
 }
 
 // utilities
@@ -1273,15 +1280,15 @@ export function parseFiles(sources: string[], libraryFiles: string[]): GModule[]
 }
 
 function handleError<T>(node: ts.Node, thunk: () => T): T {
-  return thunk();
-  // try {
-  //   return thunk();
-  // } catch (e) {
-  //   const line = getLineNumber(node);
-  //   console.log(`Failure occurred at line ${line}: ${node.getText()}`);
-  //   console.log(`Error message: ${e.message}`);
-  //   throw e;
-  // }
+  // return thunk();
+  try {
+    return thunk();
+  } catch (e) {
+    const line = getLineNumber(node);
+    console.log(`Failure occurred at line ${line}: ${node.getText()}`);
+    console.log(`Error message: ${e.message}`);
+    throw e;
+  }
 }
 
 function useOrElse<T, G>(v: T | undefined | null, f: (_: T) => G, backup: G): G {
