@@ -38,7 +38,7 @@ object TrainingLoop extends TrainingLoopTrait {
   val useSeqModel = false
   val taskName =
     if (useSeqModel) "seqModel"
-    else s"combined-ensemble-${TrainingState.iterationNum}"
+    else s"combined-init-${TrainingState.iterationNum}"
 
   val labelDropoutProb: Real = 0.0
 
@@ -482,7 +482,7 @@ object TrainingLoop extends TrainingLoopTrait {
               architecture.initialEmbedding(nodeSet)
           }
 
-          val seqMode: SeqModelMode = EnsembleMode
+          val seqMode: SeqModelMode = InitMode
 
           // the probability for very iterations
           val probsVec = announced("run predictor") {
