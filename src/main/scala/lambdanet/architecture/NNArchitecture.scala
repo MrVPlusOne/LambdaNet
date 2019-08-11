@@ -5,16 +5,23 @@ import botkop.numsca
 import botkop.numsca.:>
 import cats.data.Chain
 import funcdiff._
-import lambdanet.NeuralInference.{AccessFieldUsage, ClassFieldUsage, LabelUsages, LabelVector, Message, MessageKind, MessageModel}
+import lambdanet.NeuralInference.{
+  AccessFieldUsage,
+  ClassFieldUsage,
+  LabelUsages,
+  LabelVector,
+  Message,
+  MessageKind,
+  MessageModel
+}
 import lambdanet.translation.PredicateGraph.{PNode, ProjNode}
 
 import scala.collection.GenSeq
 
-
 abstract class NNArchitecture(
     val arcName: String,
     dimMessage: Int,
-    pc: ParamCollection,
+    pc: ParamCollection
 ) extends ArchitectureHelper {
 
   /** Store the dropout masks so that they can be reused across a
@@ -42,7 +49,7 @@ abstract class NNArchitecture(
       encodeLabel: Symbol => CompNode,
       encodeName: Symbol => CompNode,
       labelUsages: LabelUsages,
-      isLibLabel: Symbol => Boolean,
+      isLibLabel: Symbol => Boolean
   ): UpdateMessages = {
     import MessageKind._
     import MessageModel._
@@ -231,7 +238,7 @@ abstract class NNArchitecture(
   def similarity(
       inputs: Vector[CompNode],
       candidates: Vector[CompNode],
-      name: SymbolPath,
+      name: SymbolPath
   ): CompNode = {
     val inputs1 =
       concatN(axis = 0, fromRows = true)(inputs)
@@ -265,7 +272,7 @@ abstract class NNArchitecture(
   def separatedSimilarity(
       inputs: Vector[CompNode],
       libCandidates: Vector[CompNode],
-      projCandidates: Vector[CompNode],
+      projCandidates: Vector[CompNode]
   ): CompNode = {
     val inputs1 =
       concatN(axis = 0, fromRows = true)(inputs)
@@ -318,11 +325,11 @@ abstract class NNArchitecture(
   def encodeLibTerm(
       experience: CompNode,
       signature: CompNode,
-      name: CompNode,
+      name: CompNode
   ): CompNode = {
     singleLayer(
       'encodeLibTerm,
-      concatN(axis = 1, fromRows = true)(Vector(experience, signature, name)),
+      concatN(axis = 1, fromRows = true)(Vector(experience, signature, name))
     )
 //     todo: see if type signature helps
 //    experience
@@ -335,7 +342,7 @@ abstract class NNArchitecture(
   def mergeMessages[K](
       name: SymbolPath,
       messages: GenSeq[(K, Chain[Message])],
-      embedding: K => CompNode,
+      embedding: K => CompNode
   ): Map[K, Message] = {
     messages
       .map {
@@ -361,13 +368,13 @@ abstract class NNArchitecture(
   def update[K](
       name: SymbolPath,
       embedding: Map[K, CompNode],
-      messages: Map[K, CompNode],
+      messages: Map[K, CompNode]
   ): Map[K, CompNode]
 
   /** stack inputs vertically (axis=0) for batching */
   def verticalBatching[K](
       inputs: Vector[(K, CompNode)],
-      transformation: CompNode => CompNode,
+      transformation: CompNode => CompNode
   ): Map[K, Chain[CompNode]] = {
     import cats.implicits._
     import numsca.:>
@@ -384,7 +391,7 @@ abstract class NNArchitecture(
   /** stack inputs vertically (axis=0) for batching */
   def verticalBatching2[K](
       inputs: Vector[(K, (CompNode, CompNode))],
-      transformation: (CompNode, CompNode) => CompNode,
+      transformation: (CompNode, CompNode) => CompNode
   ): Map[K, Chain[CompNode]] = {
     import cats.implicits._
     import numsca.:>
@@ -405,7 +412,7 @@ abstract class NNArchitecture(
   def singleLayer(
       path: SymbolPath,
       input: CompNode,
-      useDropout: Boolean = false,
+      useDropout: Boolean = false
   ): CompNode = {
     def oneLayer(name: Symbol)(input: CompNode) = {
       val p = path / name

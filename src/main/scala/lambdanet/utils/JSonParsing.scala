@@ -33,7 +33,7 @@ object JsonParsing {
 
   def CommentChunk[_: P]: P[Unit] =
     P(
-      CharsWhile(c => c != '/' && c != '*') | MultilineComment | !"*/" ~ AnyChar,
+      CharsWhile(c => c != '/' && c != '*') | MultilineComment | !"*/" ~ AnyChar
     )
   def MultilineComment[_: P]: P[Unit] = P("/*" ~/ CommentChunk.rep ~ "*/")
 
@@ -42,7 +42,7 @@ object JsonParsing {
   def space[_: P]: P[Unit] =
     P(
       (MultilineComment | singleLineComment | CharsWhileIn(" \r\n\t", 1))
-        .rep(0),
+        .rep(0)
     )
   def digits[_: P]: P[Unit] = P(CharsWhileIn("0-9"))
   def exponent[_: P]: P[Unit] = P(CharIn("eE") ~ CharIn("+\\-").? ~ digits)
@@ -51,7 +51,7 @@ object JsonParsing {
 
   def number[_: P]: P[Js.Num] =
     P(CharIn("+\\-").? ~ integral ~ fractional.? ~ exponent.?).!.map(
-      x => Js.Num(x.toDouble),
+      x => Js.Num(x.toDouble)
     )
 
   def `null`[_: P]: P[Js.Null.type] = P("null").map(_ => Js.Null)
@@ -70,7 +70,7 @@ object JsonParsing {
   def singleQuoteStringChars(c: Char): Boolean = c != '\'' && c != '\\'
   def singleQuoteString[_: P]: P[Js.Str] =
     P(
-      space ~ "'" ~/ (P(CharsWhile(singleQuoteStringChars)) | escape).rep.! ~ "'",
+      space ~ "'" ~/ (P(CharsWhile(singleQuoteStringChars)) | escape).rep.! ~ "'"
     ).map(Js.Str)
 
   def array[_: P]: P[Js.Arr] =
@@ -85,6 +85,6 @@ object JsonParsing {
       .map(ps => Js.Obj(ps.toMap))
 
   def jsonExpr[_: P]: P[Js.Val] = P(
-    space ~ (obj | array | string | `true` | `false` | `null` | number) ~ space,
+    space ~ (obj | array | string | `true` | `false` | `null` | number) ~ space
   )
 }

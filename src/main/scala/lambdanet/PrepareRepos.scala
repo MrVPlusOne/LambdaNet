@@ -25,7 +25,7 @@ case class LibDefs(
     nodeForAny: PNode,
     baseCtx: ModuleExports,
     nodeMapping: Map[PNode, PAnnot],
-    libExports: Map[ProjectPath, ModuleExports],
+    libExports: Map[ProjectPath, ModuleExports]
 ) {
   def libNodeType(n: LibNode): PType =
     nodeMapping(n.n).typeOpt
@@ -45,7 +45,7 @@ object PrepareRepos {
       loadFromFile: Boolean = true,
       inParallel: Boolean = true,
       maxNum: Int = 1000,
-      moveParsedTo: Option[Path] = None,
+      moveParsedTo: Option[Path] = None
   ): (LibDefs, Seq[List[ParsedProject]]) = {
     lambdanet.shouldWarn = false
 
@@ -70,7 +70,7 @@ object PrepareRepos {
         .map { f =>
           val (a, b, c, d) =
             prepareProject(libDefs, f, shouldPruneGraph = false)
-          moveParsedTo.foreach{ path =>
+          moveParsedTo.foreach { path =>
             mv(f, path / f.last)
           }
           ParsedProject(f.relativeTo(dir), a, b, c, d)
@@ -85,8 +85,11 @@ object PrepareRepos {
   def parseTestSet(): Unit = {
     val trainSetDir: Path = pwd / up / "lambda-repos" / "allRepos"
     val parsed = announced("parsePredGraphs")(
-      parseRepos(Seq(trainSetDir), inParallel = false,
-        moveParsedTo = Some(trainSetDir / up / "allRepos-parsed"))
+      parseRepos(
+        Seq(trainSetDir),
+        inParallel = false,
+        moveParsedTo = Some(trainSetDir / up / "allRepos-parsed")
+      )
     )
   }
 
@@ -119,19 +122,19 @@ object PrepareRepos {
       pGraph: PredicateGraph,
       qModules: Vector[QModule],
       irModules: Vector[IRModule],
-      userAnnots: Map[ProjNode, PType],
+      userAnnots: Map[ProjNode, PType]
   )
 
   @SerialVersionUID(1)
   case class ParsedRepos(
       libDefs: LibDefs,
       trainSet: List[ParsedProject],
-      devSet: List[ParsedProject],
+      devSet: List[ParsedProject]
   )
 
   case class RepoStats(
       average: Vector[Double],
-      data: Map[ProjectPath, Vector[Int]],
+      data: Map[ProjectPath, Vector[Int]]
   ) {
     val libNodes = 1
     val projNodes = 2
@@ -180,7 +183,7 @@ object PrepareRepos {
       ProgramParsing
         .parseGProjectFromRoot(
           declarationsDir,
-          declarationFileMod = true,
+          declarationFileMod = true
         )
 
     println("parsing PModules...")
@@ -201,11 +204,11 @@ object PrepareRepos {
         resolved1,
         mapping,
         defaultPublicMode = true,
-        devDependencies,
+        devDependencies
       ),
       errorHandler = handler,
       libAllocator.newUnknownDef,
-      maxIterations = 5,
+      maxIterations = 5
     )
 
     val baseCtx1 = baseCtx
@@ -224,11 +227,11 @@ object PrepareRepos {
           exports.getOrElse(
             path / "index", {
               Console.err.println(
-                s"Couldn't find Exports located at $path for $name, ignore this named project.",
+                s"Couldn't find Exports located at $path for $name, ignore this named project."
               )
               ModuleExports.empty
-            },
-          ),
+            }
+          )
         )
     }
     handler.warnErrors()
@@ -250,7 +253,7 @@ object PrepareRepos {
 
   def pruneGraph(
       graph: PredicateGraph,
-      needed: Set[ProjNode],
+      needed: Set[ProjNode]
   ): PredicateGraph = {
     val predicates: Map[PNode, Set[TyPredicate]] = {
       graph.predicates
@@ -287,7 +290,7 @@ object PrepareRepos {
       libDefs: LibDefs,
       root: Path,
       skipSet: Set[String] = Set("dist", "__tests__", "test", "tests"),
-      shouldPruneGraph: Boolean = true,
+      shouldPruneGraph: Boolean = true
   ): (PredicateGraph, Vector[QModule], Vector[IRModule], Map[ProjNode, PType]) =
     SimpleMath.withErrorMessage(s"In project: $root") {
       import libDefs._
@@ -325,7 +328,7 @@ object PrepareRepos {
           fixedAnnots,
           allocator,
           nodeForAny,
-          irModules,
+          irModules
         )
       val userTypes =
         graph0.nodes.filter(n => !n.fromLib && n.isType).map(ProjNode)

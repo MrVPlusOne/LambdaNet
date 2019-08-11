@@ -8,7 +8,7 @@ object ReportFinish {
 
     emailService.sendMail(emailService.userEmail)(
       s"TypingNet: Training process on $name has stopped",
-      "The training process has stopped.",
+      "The training process has stopped."
     )
   }
 

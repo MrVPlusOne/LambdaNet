@@ -61,7 +61,7 @@ object LabelEncoder {
   case class TrainableLabelEncoder(
       trainSet: Vector[Datum],
       coverageGoal: Double,
-      architecture: NNArchitecture,
+      architecture: NNArchitecture
   ) extends LabelEncoder {
     import cats.implicits._
 
@@ -113,7 +113,7 @@ object LabelEncoder {
   case class SegmentedLabelEncoder(
       trainSet: Vector[Datum],
       coverageGoal: Double,
-      architecture: NNArchitecture,
+      architecture: NNArchitecture
   ) extends LabelEncoder {
     import cats.implicits._
 
@@ -169,9 +169,9 @@ object LabelEncoder {
               "%s|%s|%s",
               "(?<=[A-Z])(?=[A-Z][a-z])",
               "(?<=[^A-Z])(?=[A-Z])",
-              "(?<=[A-Za-z])(?=[^A-Za-z])",
+              "(?<=[A-Za-z])(?=[^A-Za-z])"
             ),
-            " ",
+            " "
           )
           .split("\\s+")
           .map(s => Segment(Symbol(s.toLowerCase.replaceAll("[0-9]", ""))))

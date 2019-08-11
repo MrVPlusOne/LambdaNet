@@ -25,7 +25,7 @@ trait Optimizer extends Serializable {
       weightDecay: Option[Double] = None,
       gradientTransform: Gradient => Gradient = identity,
       backPropInParallel: Option[(ExecutionContext, Duration)] = None,
-      scaleLearningRate: Double = 1.0,
+      scaleLearningRate: Double = 1.0
   ): OptimizeStats = {
 
     if (warnEmptyUpdates && params.isEmpty) {
@@ -77,7 +77,7 @@ trait Optimizer extends Serializable {
       weightDecay: Option[Double] = None,
       gradientTransform: Gradient => Gradient = identity,
       backPropInParallel: Option[(ExecutionContext, Duration)] = None,
-      scaleLearningRate: Double = 1.0,
+      scaleLearningRate: Double = 1.0
   ): OptimizeStats = {
     maximize(
       -objective,
@@ -85,7 +85,7 @@ trait Optimizer extends Serializable {
       weightDecay,
       gradientTransform,
       backPropInParallel,
-      scaleLearningRate,
+      scaleLearningRate
     )
   }
 }
@@ -94,7 +94,7 @@ object Optimizer {
   case class OptimizeStats(
       gradients: Map[SymbolPath, Gradient],
       transformedGrads: Map[SymbolPath, Gradient],
-      deltas: Map[SymbolPath, Gradient],
+      deltas: Map[SymbolPath, Gradient]
   )
 
   @SerialVersionUID(0)
@@ -117,7 +117,7 @@ object Optimizer {
       beta1: Double = 0.9,
       beta2: Double = 0.999,
       epsilon: Double = 1e-8,
-      momenta: mutable.HashMap[SymbolPath, Momentum] = mutable.HashMap(),
+      momenta: mutable.HashMap[SymbolPath, Momentum] = mutable.HashMap()
   ) extends Optimizer {
 
     override def toString: String =
@@ -127,7 +127,7 @@ object Optimizer {
       val mem @ Momentum(m, v, _) =
         momenta.getOrElse(
           p.path,
-          Momentum(ns.zeros(g.shape()), ns.zeros(g.shape())),
+          Momentum(ns.zeros(g.shape()), ns.zeros(g.shape()))
         )
       momenta(p.path) = mem
       mem.t += 1

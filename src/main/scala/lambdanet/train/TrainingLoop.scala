@@ -56,13 +56,13 @@ object TrainingLoop extends TrainingLoopTrait {
     Tensor.floatingDataType = DataType.DOUBLE
     run(
       maxTrainingEpochs = 5000,
-      numOfThreads = readThreadNumber(),
+      numOfThreads = readThreadNumber()
     ).result()
   }
 
   case class run(
       maxTrainingEpochs: Int,
-      numOfThreads: Int,
+      numOfThreads: Int
   ) {
 
 //    Nd4j.setNumThreads(numOfThreads)
@@ -86,7 +86,7 @@ object TrainingLoop extends TrainingLoopTrait {
         trainingState: TrainingState,
         logger: EventLogger,
         architecture: NNArchitecture,
-        seqArchitecture: SequenceModel.SeqArchitecture,
+        seqArchitecture: SequenceModel.SeqArchitecture
     ) {
       import dataSet._
       import trainingState._
@@ -130,7 +130,7 @@ object TrainingLoop extends TrainingLoopTrait {
         saveTraining(maxTrainingEpochs, "finished")
         emailService.sendMail(emailService.userEmail)(
           s"TypingNet: Training finished on $machineName!",
-          "Training finished!",
+          "Training finished!"
         )
       }
 
@@ -143,11 +143,11 @@ object TrainingLoop extends TrainingLoopTrait {
             val errorName = if (isTimeout) "timeout" else "stopped"
             emailService.sendMail(emailService.userEmail)(
               s"TypingNet: $errorName on $machineName at epoch $epoch",
-              s"Details:\n" + ex.getMessage,
+              s"Details:\n" + ex.getMessage
             )
             if (isTimeout && Timeouts.restartOnTimeout) {
               printWarning(
-                "Timeout... training restarted (skip one training epoch)...",
+                "Timeout... training restarted (skip one training epoch)..."
               )
             } else {
               if (!ex.isInstanceOf[StopException]) {
@@ -171,14 +171,14 @@ object TrainingLoop extends TrainingLoopTrait {
           case (datum, i) =>
             import Console.{GREEN, BLUE}
             announced(
-              s"$GREEN[epoch $epoch](progress: ${i + 1}/${trainSet.size})$BLUE train on $datum",
+              s"$GREEN[epoch $epoch](progress: ${i + 1}/${trainSet.size})$BLUE train on $datum"
             ) {
 //              println(DebugTime.show)
               checkShouldStop(epoch)
               architecture.dropoutStorage = Some(new ParamCollection())
               for {
                 (loss, fwd, _) <- selectForward(datum).tap(
-                  _.foreach(r => printResult(r._2)),
+                  _.foreach(r => printResult(r._2))
                 )
                 _ = checkShouldStop(epoch)
               } yield {
@@ -191,13 +191,13 @@ object TrainingLoop extends TrainingLoopTrait {
                     backPropInParallel =
                       Some(parallelCtx -> Timeouts.optimizationTimeout),
                     gradientTransform = _.clipNorm(2 * factor),
-                    scaleLearningRate = scaleLearningRate(epoch),
+                    scaleLearningRate = scaleLearningRate(epoch)
                   )
                 }
 
                 val gradInfo = limitTimeOpt(
                   s"optimization: $datum",
-                  Timeouts.optimizationTimeout,
+                  Timeouts.optimizationTimeout
                 ) {
                   announced("optimization") {
                     val stats = DebugTime.logTime("optimization") {
@@ -261,7 +261,7 @@ object TrainingLoop extends TrainingLoopTrait {
 
       private def logAccuracyDetails(
           stats: Vector[(Datum, ForwardResult)],
-          epoch: Int,
+          epoch: Int
       ) = {
         import cats.implicits._
         val str = stats
@@ -269,7 +269,7 @@ object TrainingLoop extends TrainingLoopTrait {
             case (d, f) =>
               val size = d.predictor.graph.predicates.size
               val acc = toAccuracy(
-                f.libCorrect.combine(f.projCorrect),
+                f.libCorrect.combine(f.projCorrect)
               )
               val name = d.projectName
               s"""{$size, $acc, "$name"}"""
@@ -346,7 +346,7 @@ object TrainingLoop extends TrainingLoopTrait {
 
       /** Forward propagation for the sequential model */
       private def seqForward(
-          datum: Datum,
+          datum: Datum
       ): Option[(Loss, ForwardResult, Map[PNode, Vector[PType]])] = {
         def result = {
           val predictor = datum.seqPredictor
@@ -380,7 +380,7 @@ object TrainingLoop extends TrainingLoopTrait {
                 logits,
                 groundTruths,
                 predSpace,
-                nodeDistances,
+                nodeDistances
               )
             }
 
@@ -388,7 +388,7 @@ object TrainingLoop extends TrainingLoopTrait {
             lossModel.crossEntropyWithLogitsLoss(
               logits,
               targets,
-              predSpace.size,
+              predSpace.size
             )
 
           val totalCount = libCounts.count + projCounts.count
@@ -397,7 +397,7 @@ object TrainingLoop extends TrainingLoopTrait {
             libCounts,
             projCounts,
             confMat,
-            typeAccs,
+            typeAccs
           )
 
           val predictions: Map[PNode, Vector[PType]] = {
@@ -425,7 +425,7 @@ object TrainingLoop extends TrainingLoopTrait {
         }
       }
       private def forward(
-          datum: Datum,
+          datum: Datum
       ): Option[(Loss, ForwardResult, Map[PNode, Vector[PType]])] =
         limitTimeOpt(s"forward: $datum", Timeouts.forwardTimeout) {
           import datum._
@@ -526,7 +526,7 @@ object TrainingLoop extends TrainingLoopTrait {
                 probs,
                 groundTruths,
                 predSpace,
-                nodeDistances,
+                nodeDistances
               )
             }
 
@@ -534,7 +534,7 @@ object TrainingLoop extends TrainingLoopTrait {
             lossModel.predictionLoss(
               predictor.parallelize(probsVec),
               targets,
-              predSpace.size,
+              predSpace.size
             )
 
           val totalCount = libCounts.count + projCounts.count
@@ -543,7 +543,7 @@ object TrainingLoop extends TrainingLoopTrait {
             libCounts,
             projCounts,
             confMat,
-            typeAccs,
+            typeAccs
           )
 
           val predictions: Map[PNode, Vector[PType]] = {
@@ -574,7 +574,7 @@ object TrainingLoop extends TrainingLoopTrait {
 
       private def limitTimeOpt[A](
           name: String,
-          timeLimit: Timeouts.Duration,
+          timeLimit: Timeouts.Duration
       )(f: => A): Option[A] = {
         try {
           Some(limitTime(timeLimit)(f))
@@ -585,7 +585,7 @@ object TrainingLoop extends TrainingLoopTrait {
             emailService.atFirstTime {
               emailService.sendMail(emailService.userEmail)(
                 s"TypingNet: timeout on $machineName during $name",
-                s"Details:\n" + msg,
+                s"Details:\n" + msg
               )
             }
             None
@@ -659,12 +659,12 @@ object TrainingLoop extends TrainingLoopTrait {
           logits: CompNode,
           groundTruths: Vector[PType],
           predictionSpace: PredictionSpace,
-          nodeDistances: Vector[Int],
+          nodeDistances: Vector[Int]
       ): (
           Counted[LibCorrect],
           Counted[ProjCorrect],
           Counted[ConfusionMatrix],
-          Map[PType, Counted[Correct]],
+          Map[PType, Counted[Correct]]
       ) = {
         val predictions = numsca
           .argmaxAxis(logits.value, axis = 1)

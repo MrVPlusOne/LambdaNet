@@ -8,7 +8,9 @@ case class ReNormalizeArch(dimEmbedding: Int, pc: ParamCollection)
     extends NNArchitecture(s"renorm-$dimEmbedding", dimEmbedding, pc) {
   import layerFactory._
 
-  def initialEmbedding(projectNodes: Set[PredicateGraph.ProjNode]): Embedding = {
+  def initialEmbedding(
+      projectNodes: Set[PredicateGraph.ProjNode]
+  ): Embedding = {
     val vec = randomVar('nodeInitVec)
     val vars = projectNodes.map(_ -> vec).toMap
     Embedding(vars)
@@ -19,7 +21,7 @@ case class ReNormalizeArch(dimEmbedding: Int, pc: ParamCollection)
   def update[K](
       name: SymbolPath,
       embedding: Map[K, CompNode],
-      messages: Map[K, CompNode],
+      messages: Map[K, CompNode]
   ): Map[K, CompNode] = {
     val inputs = embedding.toVector.map {
       case (k, v) =>
@@ -27,7 +29,7 @@ case class ReNormalizeArch(dimEmbedding: Int, pc: ParamCollection)
     }
     verticalBatching(
       inputs,
-      stacked => singleLayer('updateEmbedding, stacked) ~> renormalize,
+      stacked => singleLayer('updateEmbedding, stacked) ~> renormalize
     ).map {
       case (k, chain) =>
         val Vector(x) = chain.toVector

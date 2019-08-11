@@ -20,11 +20,11 @@ object TrainingState {
     TrainingState(step, dimMessage, iterationNum, optimizer, pc)
   }
 
-  val iterationNum: Int = 2
+  val iterationNum: Int = 6
 
   def loadTrainingState(
       resultsDir: Path,
-      logger: FileLogger,
+      logger: FileLogger
   ): (TrainingState, EventLogger) = {
     import ammonite.ops._
     import logger._
@@ -33,7 +33,7 @@ object TrainingState {
       new EventLogger(
         loggerFile,
         printToConsole = true,
-        overrideMode = overrideMode,
+        overrideMode = overrideMode
       )
     }
 
@@ -53,7 +53,7 @@ object TrainingState {
           val resultsDirEmpty = ls(resultsDir) == Seq(logger.file)
           require(
             resultsDirEmpty,
-            s"directory $resultsDir is not empty. Clear or remove it first.",
+            s"directory $resultsDir is not empty. Clear or remove it first."
           )
           mkdir(resultsDir / "control")
           TrainingState(
@@ -75,7 +75,7 @@ case class TrainingState(
     dimMessage: Int,
     iterationNum: Int,
     optimizer: Optimizer,
-    pc: ParamCollection,
+    pc: ParamCollection
 ) {
   def saveToFile(file: Path): Unit = {
     val toSave =
@@ -84,7 +84,7 @@ case class TrainingState(
         "dimMessage" -> dimMessage,
         "iterationNum" -> iterationNum,
         "optimizer" -> optimizer,
-        "pcData" -> pc.toSerializable,
+        "pcData" -> pc.toSerializable
       )
     SM.saveObjectToFile(file.toIO)(toSave)
   }

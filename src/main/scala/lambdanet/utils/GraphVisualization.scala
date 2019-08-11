@@ -4,7 +4,7 @@ import lambdanet._
 import scala.collection.mutable
 
 object GraphVisualization {
-  case class MamElement(content: String){
+  case class MamElement(content: String) {
     override def toString: String = content
   }
 

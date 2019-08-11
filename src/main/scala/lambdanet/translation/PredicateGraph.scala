@@ -11,7 +11,7 @@ import lambdanet._
 @SerialVersionUID(1)
 case class PredicateGraph(
     nodes: Set[PNode],
-    predicates: Set[TyPredicate],
+    predicates: Set[TyPredicate]
 ) extends Serializable {
   def showSizes: String =
     s"{nodes = ${nodes.size}, predicates = ${predicates.size}}"
@@ -67,7 +67,7 @@ object PredicateGraph {
         id: Int,
         nameOpt: Option[Symbol],
         isType: Boolean,
-        fromLib: Boolean,
+        fromLib: Boolean
     ): PNode = { new PNode(id, nameOpt, isType, fromLib) }
 
     def unapply(n: PNode): Option[(Int, Option[Symbol], Boolean, Boolean)] = {
@@ -81,7 +81,7 @@ object PredicateGraph {
       protected val id: Int,
       val nameOpt: Option[Symbol],
       val isType: Boolean,
-      val fromLib: Boolean,
+      val fromLib: Boolean
   ) extends PExpr
       with Serializable {
     def isTerm: Boolean = !isType
@@ -126,7 +126,7 @@ object PredicateGraph {
 
     def newNode(
         nameOpt: Option[Symbol],
-        isType: Boolean,
+        isType: Boolean
     ): PNode = {
       useNewId(id => new PNode(id, nameOpt, isType, forLib))
     }
@@ -135,14 +135,14 @@ object PredicateGraph {
       NameDef(
         Some(newNode(nameOpt, isType = false)),
         Some(newNode(nameOpt, isType = true)),
-        None,
+        None
       )
 
     def newUnknownDef(nameOpt: Option[Symbol]) =
       NameDef(
         Some(newNode(nameOpt, isType = false)),
         NameDef.unknownDef.ty,
-        None,
+        None
       )
   }
 
@@ -177,12 +177,13 @@ object PredicateGraph {
         case PTyVar(n) => showNode(n)
         case PFuncType(from, to) =>
           wrap(0)(
-            from.map(_.pPrint(1, showNode)).mkString("(", ",", ")") + "->" + to.pPrint(0,showNode),
+            from.map(_.pPrint(1, showNode)).mkString("(", ",", ")") + "->" + to
+              .pPrint(0, showNode)
           )
         case PObjectType(fields) =>
           fields
             .map {
-              case (l, t) => s"${l.name}: ${t.pPrint(0,showNode)}"
+              case (l, t) => s"${l.name}: ${t.pPrint(0, showNode)}"
             }
             .mkString("{", ", ", "}")
       }
@@ -204,7 +205,7 @@ object PredicateGraph {
         n.nameOpt match {
           case Some(n) => n.name
           case None =>
-            val prefix = if(n.fromLib) "L" else "P"
+            val prefix = if (n.fromLib) "L" else "P"
             s"$prefix${n.getId}"
         }
       }
@@ -364,7 +365,7 @@ object PredicateGraphTranslation {
       fixedAnnotations: Map[PNode, PType],
       allocator: PNodeAllocator,
       nodeForAny: PNode,
-      modules: Vector[IRModule],
+      modules: Vector[IRModule]
   ): PredicateGraph = {
     val predicates = mutable.Set[TyPredicate]()
     val typeMap = mutable.HashMap[PType, PNode]()
@@ -394,7 +395,7 @@ object PredicateGraphTranslation {
             val n = allocator.newNode(None, isType = true)
             add(DefineRel(n, PObject(fields1)))
             n
-        },
+        }
       )
 
     def encodeStmt(stmt: IRStmt): Unit =
@@ -442,7 +443,7 @@ object PredicateGraphTranslation {
             encodeStmt(f.body)
           case c: ClassDef =>
             c.superTypes.foreach(
-              tv => add(InheritanceRel(c.classNode, tv.node)),
+              tv => add(InheritanceRel(c.classNode, tv.node))
             )
             add(DefineRel(c.classNode, c.pType))
             c.funcDefs.values.foreach(encodeStmt)

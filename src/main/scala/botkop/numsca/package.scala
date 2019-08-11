@@ -6,7 +6,7 @@ import org.nd4j.linalg.api.ndarray.INDArray
 import org.nd4j.linalg.api.ops.impl.indexaccum.{IMax, IMin}
 import org.nd4j.linalg.api.ops.impl.transforms.custom.{
   GreaterThanOrEqual,
-  LessThanOrEqual,
+  LessThanOrEqual
 }
 import org.nd4j.linalg.api.ops.random.impl.Choice
 import org.nd4j.linalg.api.rng
@@ -79,7 +79,7 @@ package object numsca {
   def uniform(
       low: Double = 0.0,
       high: Double = 1.0,
-      shape: Array[Int],
+      shape: Array[Int]
   ): Tensor =
     (new Tensor(Nd4j.randn(shape)) - low) / (high - low)
 
@@ -250,7 +250,7 @@ package object numsca {
   object Ops {
 
     def binOp(
-        op: (INDArray, INDArray) => INDArray,
+        op: (INDArray, INDArray) => INDArray
     )(t1: Tensor, t2: Tensor): Tensor = {
       new Tensor(op(t1.array, t2.array))
     }
@@ -306,7 +306,7 @@ package object numsca {
         else t1.array,
         if (t2.shape.sizes != newShape)
           t2.array.reshape(s2: _*).broadcast(newShape: _*)
-        else t2.array,
+        else t2.array
       )
     }
 

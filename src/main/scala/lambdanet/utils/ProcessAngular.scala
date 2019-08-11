@@ -25,7 +25,7 @@ object ProcessAngular {
 
   def main(args: Array[String]): Unit = {
     process(
-      Path("/Users/weijiayi/Programming/lambda-repos/declarations/angular"),
+      Path("/Users/weijiayi/Programming/lambda-repos/declarations/angular")
     )
   }
 

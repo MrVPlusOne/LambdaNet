@@ -13,7 +13,7 @@ import lambdanet.{
   ProjectPath,
   TyAnnot,
   TyVar,
-  Surface,
+  Surface
 }
 import lambdanet.Surface.{GExpr, GModule}
 import lambdanet.translation.PLang._
@@ -29,7 +29,7 @@ object PLang {
   case class PModule(
       path: ProjectPath,
       stmts: Vector[PStmt],
-      mapping: Map[PNode, TyAnnot],
+      mapping: Map[PNode, TyAnnot]
   ) {
     val moduleName: String = path.toString()
   }
@@ -41,7 +41,7 @@ object PLang {
       node: PNode,
       init: Option[GExpr],
       isConst: Boolean,
-      exportLevel: ExportLevel.Value,
+      exportLevel: ExportLevel.Value
   ) extends PStmt
 
   case class AssignStmt(lhs: GExpr, rhs: GExpr) extends PStmt
@@ -62,7 +62,7 @@ object PLang {
       args: Vector[(Symbol, PNode)],
       returnType: PNode,
       body: PStmt,
-      exportLevel: ExportLevel.Value,
+      exportLevel: ExportLevel.Value
   ) extends PStmt {
     @throws[NoSuchElementException]
     def functionType(implicit mapping: NodeMapping): FuncType = {
@@ -78,13 +78,13 @@ object PLang {
       superTypes: Set[Symbol],
       vars: Map[Symbol, PNode],
       funcDefs: Vector[FuncDef],
-      exportLevel: ExportLevel.Value,
+      exportLevel: ExportLevel.Value
   ) extends PStmt {
     @throws[NoSuchElementException]
     def objectType(implicit mapping: NodeMapping): ObjectType = {
       ObjectType(
         vars.mapValuesNow(x => mapping(x).get) ++
-          funcDefs.map(fd => fd.name -> fd.functionType),
+          funcDefs.map(fd => fd.name -> fd.functionType)
       )
     }
 
@@ -94,7 +94,7 @@ object PLang {
       name: Symbol,
       node: PNode,
       superTypes: Set[Symbol],
-      exportLevel: ExportLevel.Value,
+      exportLevel: ExportLevel.Value
   ) extends PStmt
 
   case class Namespace(name: Symbol, block: BlockStmt, level: ExportLevel.Value)
@@ -114,12 +114,12 @@ object PLangTranslation {
 
   def fromGModule(
       module: GModule,
-      allocator: PNodeAllocator,
+      allocator: PNodeAllocator
   ): PModule = {
     val mapping = mutable.HashMap[PNode, TyAnnot]()
 
     def allocate(nameOpt: Option[Symbol], annot: TyAnnot, isTerm: Boolean)(
-        implicit outerTyVars: Set[Symbol],
+        implicit outerTyVars: Set[Symbol]
     ): PNode = {
       val v = allocator.newNode(nameOpt, !isTerm)
       mapping(v) = annot.map(monotype)
@@ -127,7 +127,7 @@ object PLangTranslation {
     }
 
     def translateStmt(
-        stmt: Surface.GStmt,
+        stmt: Surface.GStmt
     )(implicit outerTyVars: Set[Symbol]): PStmt =
       SimpleMath.withErrorMessage(s"failed to translate stmt: $stmt") {
         stmt match {
@@ -140,7 +140,7 @@ object PLangTranslation {
               args,
               returnType,
               body,
-              exportLevel,
+              exportLevel
               ) =>
             val newTyVars: Set[Symbol] = outerTyVars ++ tyVars
             val funcNode = allocate(Some(name), Annot.Missing, isTerm = true)
@@ -156,7 +156,7 @@ object PLangTranslation {
               argNodes,
               returnNode,
               translateStmt(body)(newTyVars),
-              exportLevel,
+              exportLevel
             )
           case Surface.ClassDef(
               name,
@@ -164,14 +164,14 @@ object PLangTranslation {
               superType,
               vars,
               funcDefs,
-              exportLevel,
+              exportLevel
               ) =>
             val newTyVars: Set[Symbol] = outerTyVars ++ tyVars
             val classNode = allocate(Some(name), Annot.Missing, isTerm = false)
             val thisNode = allocate(
               Some(lambdanet.thisSymbol),
               Annot.Fixed(TyVar(name)),
-              isTerm = true,
+              isTerm = true
             )
             val varNodes = vars.map {
               case (s, annot) =>
@@ -185,16 +185,16 @@ object PLangTranslation {
               superType,
               varNodes,
               funcDefs.map(
-                f => translateStmt(f)(newTyVars).asInstanceOf[FuncDef],
+                f => translateStmt(f)(newTyVars).asInstanceOf[FuncDef]
               ),
-              exportLevel,
+              exportLevel
             )
           case Surface.TypeAliasStmt(
               name,
               tyVars,
               ty,
               exportLevel,
-              superTypes,
+              superTypes
               ) =>
             val newTyVars: Set[Symbol] = outerTyVars ++ tyVars
             val newTy = monotype(ty)(newTyVars)

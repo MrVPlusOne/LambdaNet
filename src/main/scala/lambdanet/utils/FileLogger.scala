@@ -76,7 +76,7 @@ import lambdanet.utils.EventLogger._
 class EventLogger(
     file: Path,
     printToConsole: Boolean,
-    overrideMode: Boolean,
+    overrideMode: Boolean
 ) {
 
   if (exists(file) && overrideMode) {
@@ -86,7 +86,7 @@ class EventLogger(
 
   def logString(name: String, epoch: Double, str: String): Unit = {
     fLogger.println(
-      s"""{"$name", $epoch, $str}""",
+      s"""{"$name", $epoch, $str}"""
     )
     if (printToConsole) {
       println(resultStr(s"[$epoch]$name: $str"))
@@ -100,7 +100,7 @@ class EventLogger(
   def logMap(
       name: String,
       iteration: Int,
-      value: Vector[(String, Double)],
+      value: Vector[(String, Double)]
   ): Unit = {
     log(Event(name, iteration, MapValue(value)))
   }
@@ -109,7 +109,7 @@ class EventLogger(
       name: String,
       epoch: Int,
       confMat: ConfusionMatrix,
-      categories: Int,
+      categories: Int
   ): Unit = {
     val array = Array.fill(categories)(Array.fill(categories)(0))
     confMat.foreach {

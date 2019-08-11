@@ -22,7 +22,7 @@ object NeuralInference {
       graph: PredicateGraph,
       libraryTypeNodes: Set[LibTypeNode],
       libNodeType: LibNode => PType,
-      taskSupport: Option[ForkJoinTaskSupport],
+      taskSupport: Option[ForkJoinTaskSupport]
   ) {
 
     case class run(
@@ -97,7 +97,7 @@ object NeuralInference {
           signatureEmbeddingMap(
             encodeLibType,
             encodeLabels,
-            allLibSignatures,
+            allLibSignatures
           ) ++
             libraryNodes
               .filter(_.n.isType)
@@ -126,7 +126,7 @@ object NeuralInference {
       }
 
       private def updateEmbedding(
-          encodeLibNode: LibNode => CompNode,
+          encodeLibNode: LibNode => CompNode
       )(embedding: Embedding, iteration: Int): Embedding = {
 
         val messages = logTime("compute messages") {
@@ -149,20 +149,20 @@ object NeuralInference {
           architecture.mergeMessages(
             'mergeMessages / Symbol(s"iter-$iteration"),
             parallelize(messages.toSeq),
-            embedding.vars,
+            embedding.vars
           )
         }
 
         logTime("update embedding") {
           Embedding(
-            architecture.update('vars, embedding.vars, merged),
+            architecture.update('vars, embedding.vars, merged)
           )
         }
       }
 
       private def decode(
           embedding: Embedding,
-          encodeSignature: Map[PType, CompNode],
+          encodeSignature: Map[PType, CompNode]
       ): CompNode = {
 
         val candidates = predictionSpace.typeVector
@@ -177,7 +177,7 @@ object NeuralInference {
 
       private def decodeSeparate(
           embedding: Embedding,
-          encodeSignature: Map[PType, CompNode],
+          encodeSignature: Map[PType, CompNode]
       ): CompNode = {
         val inputs = nodesToPredict
           .map(embedding.vars.apply)
@@ -195,14 +195,14 @@ object NeuralInference {
         architecture.separatedSimilarity(
           inputs,
           libCandidates,
-          projCandidates,
+          projCandidates
         )
       }
 
       private def signatureEmbeddingMap(
           leafEmbedding: PNode => CompNode,
           labelEncoding: Symbol => CompNode,
-          signatures: Set[PType],
+          signatures: Set[PType]
       ): Map[PType, CompNode] = {
 
         val signatureEmbeddings =
@@ -224,7 +224,7 @@ object NeuralInference {
                       labelEncoding(label) -> embedSignature(ty)
                   }
                   architecture.encodeObject(fields1)
-              },
+              }
             )
           }
 
@@ -519,7 +519,7 @@ object NeuralInference {
 
   case class LabelUsages(
       classesInvolvingLabel: Map[Symbol, Vector[ClassFieldUsage]],
-      accessesInvolvingLabel: Map[Symbol, Vector[AccessFieldUsage]],
+      accessesInvolvingLabel: Map[Symbol, Vector[AccessFieldUsage]]
   )
 
   val unknownNodes: Set[LibNode] =

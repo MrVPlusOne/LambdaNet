@@ -74,7 +74,7 @@ trait APITrait {
     if (xs.isEmpty) whenEmpty else plusN(xs)
 
   def concatN(axis: Int, fromRows: Boolean = false)(
-      xs: IS[CompNode],
+      xs: IS[CompNode]
   ): CompNode = {
     if (xs.length == 1) xs.head
     else funcNode(ConcatN(xs, axis, fromRows))
@@ -102,7 +102,7 @@ trait APITrait {
   def correctWrongSets(
       probabilities: Tensor,
       targets: Seq[Int],
-      predictionGroupSize: Int,
+      predictionGroupSize: Int
   ): (Set[Int], Set[Int]) = {
     require(probabilities.shape(0) / predictionGroupSize == targets.length)
 
@@ -113,9 +113,9 @@ trait APITrait {
       val groupSum = numsca.sumAxis(
         probabilities(
           i * predictionGroupSize :> (i + 1) * predictionGroupSize,
-          :>,
+          :>
         ),
-        axis = 0,
+        axis = 0
       )
       val prediction = argmaxAxis(groupSum, axis = 1).squeeze()
       if (prediction == targets(i)) {
@@ -131,7 +131,7 @@ trait APITrait {
   def accuracy(
       logits: Tensor,
       targets: Seq[Int],
-      predictionGroupSize: Int = 1,
+      predictionGroupSize: Int = 1
   ): (Double, (Set[Int], Set[Int])) = {
     val effectiveTargets = targets
       .grouped(predictionGroupSize)
@@ -145,7 +145,7 @@ trait APITrait {
       correctWrongSets(
         numsca.softmax(logits),
         effectiveTargets,
-        predictionGroupSize,
+        predictionGroupSize
       )
     (correct.size.toDouble / (correct.size + wrong.size), (correct, wrong))
   }

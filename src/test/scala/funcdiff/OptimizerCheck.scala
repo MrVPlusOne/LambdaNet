@@ -33,7 +33,7 @@ class OptimizerCheck extends TestUtils {
       println(s"Optimizer $optimizer final error: $finalError")
       assert(
         finalError < 1e-3,
-        s"Optimizer $optimizer failed. Final error: $finalError",
+        s"Optimizer $optimizer failed. Final error: $finalError"
       )
     }
   }
@@ -64,7 +64,7 @@ class OptimizerCheck extends TestUtils {
       println(s"Optimizer $optimizer final error: $finalError")
       assert(
         finalError < 1e-3,
-        s"Optimizer $optimizer failed. Final error: $finalError",
+        s"Optimizer $optimizer failed. Final error: $finalError"
       )
     }
   }

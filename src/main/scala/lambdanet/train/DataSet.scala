@@ -20,7 +20,7 @@ import scala.collection.parallel.ForkJoinTaskSupport
 case class DataSet(
     nodeForAny: LibTypeNode,
     trainSet: Vector[Datum],
-    testSet: Vector[Datum],
+    testSet: Vector[Datum]
 ) {
   override def toString: String =
     s"train set size: ${trainSet.size}, " +
@@ -30,7 +30,7 @@ case class DataSet(
 object DataSet {
   def loadDataSet(
       taskSupport: Option[ForkJoinTaskSupport],
-      architecture: NNArchitecture,
+      architecture: NNArchitecture
   ): DataSet =
     announced("loadDataSet") {
       import PrepareRepos._
@@ -79,7 +79,7 @@ object DataSet {
               irModules,
               libDefs,
               predictor.predictionSpace,
-              taskSupport,
+              taskSupport
             )
             Datum(path, annots1, qModules, predictor, seqPredictor)
               .tap(printResult)
@@ -110,7 +110,7 @@ object DataSet {
   def selectLibTypes(
       libDefs: LibDefs,
       annotations: Seq[Map[ProjNode, PType]],
-      coverageGoal: Double,
+      coverageGoal: Double
   ): Set[LibTypeNode] = {
     import cats.implicits._
 
@@ -154,12 +154,12 @@ case class Datum(
     annotations: Map[ProjNode, PType],
     qModules: Vector[QModule],
     predictor: Predictor,
-    seqPredictor: SeqPredictor,
+    seqPredictor: SeqPredictor
 ) {
   val inPSpaceRatio: Double =
     annotations
       .count(
-        _._2.pipe(predictor.predictionSpace.allTypes.contains),
+        _._2.pipe(predictor.predictionSpace.allTypes.contains)
       )
       .toDouble / annotations.size
 

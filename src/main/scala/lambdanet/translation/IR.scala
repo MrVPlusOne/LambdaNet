@@ -7,7 +7,7 @@ import lambdanet.translation.PredicateGraph.{
   PNodeAllocator,
   PObject,
   PTyVar,
-  PType,
+  PType
 }
 import IR._
 import lambdanet.translation.QLang.{QExpr, QModule, QStmt}
@@ -21,7 +21,7 @@ object IR {
   case class IRModule(
       path: ProjectPath,
       stmts: Vector[IRStmt],
-      mapping: Map[PNode, PAnnot],
+      mapping: Map[PNode, PAnnot]
   ) {
     // todo: move this to QLang
 //    def moduleStats: IRModuleStats = {
@@ -60,7 +60,7 @@ object IR {
 
   case class IRModuleStats(
       fieldsUsed: Set[Symbol],
-      fieldsDefined: Set[Symbol],
+      fieldsDefined: Set[Symbol]
   )
 
   // @formatter:off
@@ -145,7 +145,7 @@ object IR {
   case class VarDef(
       node: PNode,
       rhs: IRExpr,
-      isConst: Boolean,
+      isConst: Boolean
   ) extends IRStmt
 
   case class AssignStmt(lhs: PNode, rhs: PNode) extends IRStmt
@@ -162,7 +162,7 @@ object IR {
       funcNode: PNode,
       args: Vector[PNode],
       returnType: PNode,
-      body: BlockStmt,
+      body: BlockStmt
   ) extends IRStmt {
     def pType: PFunc = PFunc(args, returnType)
   }
@@ -171,7 +171,7 @@ object IR {
       classNode: PNode,
       superTypes: Set[PTyVar],
       vars: Map[Symbol, PNode],
-      funcDefs: Map[Symbol, FuncDef],
+      funcDefs: Map[Symbol, FuncDef]
   ) extends IRStmt {
     def pType: PObject = PObject(vars ++ funcDefs.mapValuesNow(_.funcNode))
   }
@@ -231,8 +231,8 @@ class IRTranslation(allocator: PNodeAllocator) {
             classNode,
             superType,
             vars,
-            funcDefs.mapValuesNow(translateFunc),
-          ),
+            funcDefs.mapValuesNow(translateFunc)
+          )
         )
     }
   }
@@ -303,8 +303,8 @@ class IRTranslation(allocator: PNodeAllocator) {
           VarDef(
             v,
             expr,
-            isConst = true,
-          ),
+            isConst = true
+          )
         ) -> v
     }
     (defs ++ defs2, n)

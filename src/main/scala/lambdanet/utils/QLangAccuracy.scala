@@ -63,7 +63,7 @@ object QLangAccuracy {
     /** Count top-N correctness */
     def countTopNCorrect(
         n: Int,
-        predictions: Map[PNode, Vector[PType]],
+        predictions: Map[PNode, Vector[PType]]
     ): (Counted[Correct], Int) = {
       //todo: filter and return the missing
       val annots1 = annots.filter { case (k, _) => predictions.contains(k) }
@@ -72,7 +72,7 @@ object QLangAccuracy {
         n,
         annots1,
         predictions,
-        occurrence.getOrElse(_, 0),
+        occurrence.getOrElse(_, 0)
       ) -> missing
     }
   }
@@ -82,7 +82,7 @@ object QLangAccuracy {
       nodesToPredict: Map[PNode, PType],
       predictions: Map[PNode, Vector[PType]],
       nodeWeight: PNode => Int,
-      warnMissingPredictions: Boolean = false,
+      warnMissingPredictions: Boolean = false
   ): Counted[Correct] = {
     val (y1, n1) = nodesToPredict.foldLeft((0, 0)) {
       case ((yes, no), (node, t)) =>
@@ -101,7 +101,7 @@ object QLangAccuracy {
       n: Int,
       nodesToPredict: Map[PNode, PType],
       predictions: Map[PNode, Vector[PType]],
-      nodeWeight: PNode => Int,
+      nodeWeight: PNode => Int
   ): (Double, Int, Int) = {
     val c = countTopNCorrect(n, nodesToPredict, predictions, nodeWeight)
     (train.toAccuracy(c), c.value, c.count)
@@ -110,7 +110,7 @@ object QLangAccuracy {
   def top1Accuracy(
       nodesToPredict: Map[PNode, PType],
       predictions: Map[PNode, PType],
-      nodeWeight: PNode => Int,
+      nodeWeight: PNode => Int
   ): (Double, Int, Int) = {
     val pred1 = predictions.mapValuesNow(Vector(_))
     val c = countTopNCorrect(1, nodesToPredict, pred1, nodeWeight)

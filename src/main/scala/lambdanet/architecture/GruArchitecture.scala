@@ -20,7 +20,7 @@ case class GruArchitecture(dimEmbedding: Int, pc: ParamCollection)
   def update[K](
       name: SymbolPath,
       embedding: Map[K, CompNode],
-      messages: Map[K, CompNode],
+      messages: Map[K, CompNode]
   ): Map[K, CompNode] = {
     val inputs = embedding.toVector.map {
       case (k, v) =>
@@ -28,7 +28,7 @@ case class GruArchitecture(dimEmbedding: Int, pc: ParamCollection)
     }
     verticalBatching2[K](
       inputs,
-      (old, msg) => gru(name / 'updateEmbedding)(old, msg),
+      (old, msg) => gru(name / 'updateEmbedding)(old, msg)
     ).map {
       case (k, chain) =>
         val Vector(x) = chain.toVector

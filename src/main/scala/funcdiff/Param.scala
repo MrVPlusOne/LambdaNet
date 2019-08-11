@@ -15,7 +15,7 @@ object ParameterAttribute {
 @SerialVersionUID(0)
 class Param(
     var node: ParamNode,
-    val attributes: Set[ParameterAttribute] = Set(),
+    val attributes: Set[ParameterAttribute] = Set()
 ) {
   def path: SymbolPath = node.path
 
@@ -44,7 +44,7 @@ object ParamCollection {
   @SerialVersionUID(0)
   case class SerializableFormat(
       parameterData: List[(SymbolPath, Map[String, Serializable])],
-      constantData: List[(SymbolPath, (Shape, Array[Real]))],
+      constantData: List[(SymbolPath, (Shape, Array[Real]))]
   )
 
   def fromSerializable(data: SerializableFormat): ParamCollection = {
@@ -83,17 +83,17 @@ case class ParamCollection() {
 
   def getParam(
       path: SymbolPath,
-      attributes: => Set[ParameterAttribute] = Set(),
+      attributes: => Set[ParameterAttribute] = Set()
   )(
-      init: => Tensor,
+      init: => Tensor
   ): Param =
     _paramMap.getOrElseUpdate(
       path,
-      new Param(new ParamNode(init, path), attributes),
+      new Param(new ParamNode(init, path), attributes)
     )
 
   def getVar(path: SymbolPath, attributes: => Set[ParameterAttribute] = Set())(
-      init: => Tensor,
+      init: => Tensor
   ): ParamNode = {
     val p = getParam(path, attributes)(init)
     p.node
@@ -118,7 +118,7 @@ case class ParamCollection() {
           "shape" -> node.shape,
           "data" -> node.value.data,
           "attributes" -> param.attributes.toList,
-          "path" -> param.path,
+          "path" -> param.path
         )
         paramData
       }.toList

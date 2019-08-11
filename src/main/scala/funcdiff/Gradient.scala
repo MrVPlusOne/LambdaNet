@@ -100,7 +100,7 @@ case class ZeroGradient(shape: Shape) extends Gradient {
   def splitAlongAxis(axis: Int, splitAt: Int): (Gradient, Gradient) = {
     (
       ZeroGradient(shape.updated(axis, splitAt)),
-      ZeroGradient(shape.updated(axis, shape(axis) - splitAt)),
+      ZeroGradient(shape.updated(axis, shape(axis) - splitAt))
     )
   }
 
@@ -180,11 +180,11 @@ case class DenseGradient(value: Tensor) extends Gradient {
 case class InflatedGradient(
     core: Tensor,
     ranges: List[NumscaRange],
-    shape: Shape,
+    shape: Shape
 ) extends Gradient {
   require(
     TensorExtension.shapeConsistentWithRanges(core.shape, ranges),
-    s"core shape: ${core.shape}, ranges: ${TensorExtension.showRanges(ranges)}",
+    s"core shape: ${core.shape}, ranges: ${TensorExtension.showRanges(ranges)}"
   )
 
   override def toString: String = {
@@ -221,7 +221,7 @@ case class InflatedGradient(
     InflatedGradient(
       core = op(core, t(tRanges: _*)),
       coreRanges.toList,
-      Shape(newShape.toVector),
+      Shape(newShape.toVector)
     )
   }
 
@@ -297,7 +297,7 @@ case class InflatedGradient(
     InflatedGradient(
       core.transpose(),
       List(ranges(1), ranges.head),
-      Gradient.transposeShape(shape),
+      Gradient.transposeShape(shape)
     )
   }
 
@@ -307,7 +307,7 @@ case class InflatedGradient(
 
   def subGradient(subRegion: Seq[Range]): Gradient = {
     throw new Exception(
-      "subGradient on sparse gradient not supported. Turn the gradient into dense instead.",
+      "subGradient on sparse gradient not supported. Turn the gradient into dense instead."
     )
   }
 
@@ -317,7 +317,7 @@ case class InflatedGradient(
 /** Mutable buffer used to accumulate gradients */
 class GradientBuilder(
     private var value: Gradient,
-    private var needCopy: Boolean,
+    private var needCopy: Boolean
 ) {
 
   def add(grad: Gradient): Unit = this synchronized {

@@ -39,7 +39,7 @@ object Analysis {
     })
 
     val frontier = mutable.PriorityQueue(g.nodes.toSeq: _*)(
-      (x: PNode, y: PNode) => -constDis(x).compare(constDis(y)),
+      (x: PNode, y: PNode) => -constDis(x).compare(constDis(y))
     )
 
     val frontierSet = mutable.HashSet(g.nodes.toSeq: _*)
@@ -54,7 +54,7 @@ object Analysis {
     }
 
     GraphAnalysis(
-      distanceToConstNode = constDis.apply,
+      distanceToConstNode = constDis.apply
     )
   }
 

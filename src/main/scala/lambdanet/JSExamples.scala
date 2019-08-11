@@ -57,7 +57,7 @@ object JSExamples {
     'POST_MinusMinusToken -> (List(number) -: number),
     'TildeToken -> (List(number) -: number),
     'ExclamationToken -> (List(any) -: boolean),
-    thisSymbol -> any,
+    thisSymbol -> any
   )
 
   def treatAsAny(name: String): (Symbol, AnyType.type) = {

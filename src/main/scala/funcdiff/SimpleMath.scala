@@ -7,7 +7,7 @@ import java.io.{
   ObjectInputStream,
   ObjectOutputStream,
   ObjectStreamClass,
-  Serializable,
+  Serializable
 }
 
 import scala.util.Random
@@ -33,7 +33,7 @@ object SimpleMath {
       }
 
       def compose(that: Map[K, V])(
-          implicit subRule: SubstituteRule[K, V],
+          implicit subRule: SubstituteRule[K, V]
       ): Map[K, V] = {
         that ++ this.mapValuesNow(v => subRule.substitute(v, that))
       }
@@ -43,7 +43,7 @@ object SimpleMath {
         * combines their values correspondingly.
         */
       def elementwiseCombine[V2, R](
-          that: Map[K, V2],
+          that: Map[K, V2]
       )(f: (V, V2) => R): Map[K, R] = {
         map.keys.map { k =>
           k -> f(map(k), that(k))
@@ -141,9 +141,9 @@ object SimpleMath {
   def expChoppedGaussian(
       chopMargin: (Double, Double),
       base: Double,
-      powerE: Double,
+      powerE: Double
   )(
-      random: Random,
+      random: Random
   ): Double = {
     val x = random.nextGaussian()
     if (x < chopMargin._1 || x > chopMargin._2) {
@@ -173,7 +173,7 @@ object SimpleMath {
   }
 
   def aggressiveInterpolate(aggressiveness: Double, from: Double, to: Double)(
-      x: Double,
+      x: Double
   ): Real = {
     linearInterpolate(from, to)(aggressiveSigmoid(aggressiveness)(x))
   }
@@ -183,7 +183,7 @@ object SimpleMath {
   }
 
   def expInterpolate(from: Double, to: Double, base: Double)(
-      x: Double,
+      x: Double
   ): Double = {
     val ratio = to / from
     val l = math.log(ratio) / math.log(base)
@@ -198,7 +198,7 @@ object SimpleMath {
     import parallel._
 
     val taskSupport = new ForkJoinTaskSupport(
-      new java.util.concurrent.ForkJoinPool(threadNum),
+      new java.util.concurrent.ForkJoinPool(threadNum)
     )
 
     if (threadNum > 1) {
@@ -218,7 +218,7 @@ object SimpleMath {
     import scala.collection.parallel
     import parallel._
     val taskSupport = new ForkJoinTaskSupport(
-      new java.util.concurrent.ForkJoinPool(threadNum),
+      new java.util.concurrent.ForkJoinPool(threadNum)
     )
     def parExecute(seq: Seq[A])(f: A => B): IS[B] = {
       if (threadNum > 1) {
@@ -274,7 +274,7 @@ object SimpleMath {
 
   def maxwellDistribution(
       xPoints: IS[Double],
-      temperature: Double,
+      temperature: Double
   ): IS[Double] = {
     require(temperature > 0)
     normalizeDistribution(xPoints.map { x =>
@@ -303,14 +303,14 @@ object SimpleMath {
         case ((x, y), n) =>
           assert(
             n > 0,
-            s"n($x, $y) = 0, require n > 0. Please filter out empty pairs",
+            s"n($x, $y) = 0, require n > 0. Please filter out empty pairs"
           )
           countX(x) += n
           countY(y) += n
       }
       (
         countX.toMap.mapValuesNow(_.toDouble / totalCount),
-        countY.toMap.mapValuesNow(_.toDouble / totalCount),
+        countY.toMap.mapValuesNow(_.toDouble / totalCount)
       )
     }
 
@@ -330,7 +330,7 @@ object SimpleMath {
   def randomSelectFrom[A](
       values: IS[A],
       maxPoints: Int,
-      random: Random,
+      random: Random
   ): IS[A] = {
     if (values.length <= maxPoints) {
       values
@@ -340,7 +340,7 @@ object SimpleMath {
         val filtered = values.indices.filter { i =>
           val keep =
             SimpleMath.randomGuess(random)(
-              dataPointsLeft.toDouble / (values.length - i),
+              dataPointsLeft.toDouble / (values.length - i)
             )
           if (keep) {
             dataPointsLeft -= 1
@@ -359,7 +359,7 @@ object SimpleMath {
   def rSquared(
       ys: IS[Double],
       predictions: IS[Double],
-      weights: IS[Double],
+      weights: IS[Double]
   ): Double = {
     val n = ys.length
     val mean = (0 until n).map(i => ys(i) * weights(i)).sum / n
@@ -387,7 +387,7 @@ object SimpleMath {
   }
 
   def mapSetZipWith[K, A, B, C](ms1: Map[K, Set[A]], ms2: Map[K, Set[B]])(
-      f: (Set[A], Set[B]) => Set[C],
+      f: (Set[A], Set[B]) => Set[C]
   ): Map[K, Set[C]] = {
     val keys = ms1.keySet ++ ms2.keySet
     keys.map { k =>
@@ -464,7 +464,7 @@ object SimpleMath {
 
   /** Print the error message if there is an exception or error when executing the computation */
   def withErrorMessage[T](msg: => String)(
-      computation: => T,
+      computation: => T
   ): T = {
     try {
       computation
@@ -513,7 +513,7 @@ object SimpleMath {
   type Coverage = Double
   def selectBasedOnFrequency[A](
       freqs: Seq[(A, Int)],
-      coverageGoal: Coverage,
+      coverageGoal: Coverage
   ): (Seq[(A, Int)], Coverage) = {
 
     /** sort lib types by their usages */

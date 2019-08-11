@@ -12,13 +12,13 @@ trait LossModel {
   protected def impl(
       logitsVec: GenSeq[CompNode],
       targets: Vector[Int],
-      predSpaceSize: Int,
+      predSpaceSize: Int
   ): CompNode
 
   def predictionLoss(
       logitsVec: GenSeq[CompNode],
       targets: Vector[Int],
-      predSpaceSize: Int,
+      predSpaceSize: Int
   ): CompNode = {
     impl(logitsVec, targets, predSpaceSize)
       .tap { loss =>
@@ -27,7 +27,7 @@ trait LossModel {
             .map { case (l, i) => s"iteration $i: $l" }
             .mkString("\n")
           printWarning(
-            s"Abnormally large loss: ${loss.value}, logits: \n$displayLogits",
+            s"Abnormally large loss: ${loss.value}, logits: \n$displayLogits"
           )
         }
       }
@@ -36,7 +36,7 @@ trait LossModel {
   def crossEntropyWithLogitsLoss(
       logits: CompNode,
       targets: Vector[Int],
-      predSpaceSize: Int,
+      predSpaceSize: Int
   ): CompNode = {
     mean(crossEntropyOnSoftmax(logits, oneHot(targets, predSpaceSize)))
   }
@@ -44,7 +44,7 @@ trait LossModel {
   def crossEntropyLoss(
       probs: CompNode,
       targets: Vector[Int],
-      predSpaceSize: Int,
+      predSpaceSize: Int
   ): CompNode = {
     mean(crossEntropy(probs, oneHot(targets, predSpaceSize)))
   }
@@ -57,7 +57,7 @@ object LossModel {
     def impl(
         logitsVec: GenSeq[CompNode],
         targets: Vector[Int],
-        predSpaceSize: Int,
+        predSpaceSize: Int
     ): Loss = {
       val losses = logitsVec.map { l =>
         crossEntropyWithLogitsLoss(l, targets, predSpaceSize)
@@ -79,7 +79,7 @@ object LossModel {
     def impl(
         logitsVec: GenSeq[CompNode],
         targets: Vector[Int],
-        predSpaceSize: Int,
+        predSpaceSize: Int
     ): Loss = {
       val loss = logitsVec.last.pipe { l =>
         crossEntropyWithLogitsLoss(l, targets, predSpaceSize)

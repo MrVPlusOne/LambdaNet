@@ -17,7 +17,7 @@ class CompNode(val func: DiffFunc) {
   def backprop: Map[CompNode, Gradient] = CompNode.backprop(this)
 
   def backpropForParams(
-      runInParallel: Option[(ExecutionContext, duration.Duration)],
+      runInParallel: Option[(ExecutionContext, duration.Duration)]
   ): Map[SymbolPath, Gradient] = {
     val br = runInParallel match {
       case Some((ctx, timeOut)) =>
@@ -26,7 +26,7 @@ class CompNode(val func: DiffFunc) {
         } catch {
           case _: TimeoutException =>
             throw new TimeoutException(
-              s"backpropForParams time out for the limit: $timeOut.",
+              s"backpropForParams time out for the limit: $timeOut."
             )
         }
       case None => this.backprop
@@ -35,7 +35,7 @@ class CompNode(val func: DiffFunc) {
   }
 
   def backpropParallel(
-      implicit ctx: ExecutionContext,
+      implicit ctx: ExecutionContext
   ): Future[Map[CompNode, Gradient]] = CompNode.backpropParallel(this)
 
   override def toString: String = {
@@ -58,7 +58,7 @@ object CompNode {
     */
   def backprop(
       nodes: List[CompNode],
-      grads: List[Gradient],
+      grads: List[Gradient]
   ): Map[CompNode, Gradient] = {
     import collection.mutable
     assert(nodes.length == grads.length)
@@ -79,7 +79,7 @@ object CompNode {
 
       val aG = gradients.getOrElseUpdate(
         arg,
-        new GradientBuilder(ZeroGradient(arg.shape), needCopy = false),
+        new GradientBuilder(ZeroGradient(arg.shape), needCopy = false)
       )
 //      val aG = gradients.getOrElse(arg, DenseGradient(numsca.zeros(arg.shape)))
       aG.add(grad)
@@ -87,7 +87,7 @@ object CompNode {
 
     assert(
       grads.any(_.isZero) || !gradients.values.exists(_.retrieve.isZero),
-      "nonempty gradients after backprop created empty gradients!",
+      "nonempty gradients after backprop created empty gradients!"
     )
     gradients.toMap.mapValuesNow(_.retrieve)
   }
@@ -125,7 +125,7 @@ object CompNode {
     */
   def topologicalSort(
       nodes: List[CompNode],
-      childNumbers: Option[mutable.Map[CompNode, Int]] = None,
+      childNumbers: Option[mutable.Map[CompNode, Int]] = None
   ): List[CompNode] = {
     val nodeCounters = childNumbers.getOrElse(countChildren(nodes))
 
@@ -151,7 +151,7 @@ object CompNode {
     * Back-propagate gradients through the computation graph in parallel
     */
   def backpropParallel(nodes: List[CompNode], grads: List[Gradient])(
-      implicit ctx: ExecutionContext,
+      implicit ctx: ExecutionContext
   ): Future[Map[CompNode, Gradient]] = {
     import collection.mutable
     assert(nodes.length == grads.length)
@@ -183,7 +183,7 @@ object CompNode {
     val gradients = DebugTime.logTime("gradsInit") {
       mutable.HashMap(childrenCount.keys.toSeq.map { n =>
         n -> new GradientHolder(
-          new GradientBuilder(ZeroGradient(n.shape), needCopy = false),
+          new GradientBuilder(ZeroGradient(n.shape), needCopy = false)
         )
       }: _*)
     }
@@ -227,7 +227,7 @@ object CompNode {
   }
 
   def backpropParallel(node: CompNode)(
-      implicit ctx: ExecutionContext,
+      implicit ctx: ExecutionContext
   ): Future[Map[CompNode, Gradient]] = {
     backpropParallel(List(node), List(DenseGradient(ones(node.value.shape))))
   }
@@ -240,7 +240,7 @@ object CompNode {
   def visualize(
       node: CompNode,
       nodeInfo: CompNode => String = n => SimpleMath.wrapInQuotes(n.func.name),
-      nodeName: CompNode => String = defaultNodeName,
+      nodeName: CompNode => String = defaultNodeName
   ): String = {
     var id = 0
     val idMap = mutable.HashMap[CompNode, Int]()

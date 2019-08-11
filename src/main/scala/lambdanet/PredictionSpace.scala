@@ -11,7 +11,8 @@ object PredictionSpace {
 
 case class PredictionSpace(allTypes: Set[PType]) {
   val libTypeVec: Vector[PType] = allTypes.filter(_.madeFromLibTypes).toVector
-  val projTypeVec: Vector[PType] = allTypes.filterNot(_.madeFromLibTypes).toVector
+  val projTypeVec: Vector[PType] =
+    allTypes.filterNot(_.madeFromLibTypes).toVector
   val typeVector: Vector[PType] = libTypeVec ++ projTypeVec
 
   require(projTypeVec.isEmpty, "(experiment requirement)")

@@ -73,7 +73,7 @@ class Tensor(val array: INDArray) extends Serializable {
       scalarOp: (INDArray, Double) => INDArray,
       rowOp: (INDArray, INDArray) => INDArray,
       colOp: (INDArray, INDArray) => INDArray,
-      tensorOp: (INDArray, INDArray) => INDArray,
+      tensorOp: (INDArray, INDArray) => INDArray
   )(other: Tensor): Tensor = {
     val v1 = array
     val v2 = other.array
@@ -181,7 +181,7 @@ class Tensor(val array: INDArray) extends Serializable {
           case Some(n) =>
             NDArrayIndex.interval(
               handleNegIndex(nr.from, i),
-              handleNegIndex(n, i),
+              handleNegIndex(n, i)
             )
         }
     }
@@ -194,7 +194,7 @@ class Tensor(val array: INDArray) extends Serializable {
   }
 
   private def selectIndexes(
-      selection: Seq[Tensor],
+      selection: Seq[Tensor]
   ): (Array[Array[Long]], Option[Shape]) = {
     if (selection.length == 1) {
       if (rank == 2 && shape.head == 1) {
@@ -210,7 +210,7 @@ class Tensor(val array: INDArray) extends Serializable {
   private def multiIndex(selection: Seq[Tensor]): Array[Array[Long]] = {
     require(
       selection.forall(s => s.shape.head == 1),
-      s"shapes must be [1, n] (was: ${selection.map(_.shape)}",
+      s"shapes must be [1, n] (was: ${selection.map(_.shape)}"
     )
 
     // broadcast selection to same shape
@@ -219,7 +219,7 @@ class Tensor(val array: INDArray) extends Serializable {
     val rank = ts.head.shape()(1)
     require(
       ts.forall(s => s.shape()(1) == rank),
-      s"shapes must be of rank $rank (was ${ts.map(_.shape().toList)}",
+      s"shapes must be of rank $rank (was ${ts.map(_.shape().toList)}"
     )
 
     (0 until rank.toInt).map { r =>
@@ -308,7 +308,7 @@ object Tensor {
 case class TensorSelection(
     t: Tensor,
     indexes: Array[Array[Long]],
-    shape: Option[Shape],
+    shape: Option[Shape]
 ) {
 
   def asTensor: Tensor = {

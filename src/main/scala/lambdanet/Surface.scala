@@ -11,7 +11,7 @@ object Surface {
   case class GModule(
       path: ProjectPath,
       stmts: Vector[GStmt],
-      isDeclarationFile: Boolean,
+      isDeclarationFile: Boolean
   ) {
     val moduleName: String = path.toString()
 
@@ -21,7 +21,7 @@ object Surface {
         .mkString(
           s"=== Start of '$path' ===\n",
           "\n",
-          s"\n=== End of '$path' ===",
+          s"\n=== End of '$path' ==="
         )
     }
   }
@@ -87,7 +87,7 @@ object Surface {
   @deprecated
   case class ExprContext(
       varAssign: Map[Symbol, GType],
-      typeContext: TypeContext,
+      typeContext: TypeContext
   ) {
     def newTypeVar(name: Symbol, objectType: ObjectType): ExprContext = {
       copy(typeContext = typeContext.newTypeVar(name, objectType))
@@ -97,7 +97,7 @@ object Surface {
       copy(varAssign = {
         assert(
           !varAssign.contains(arg),
-          s"new definition (${arg.name}: $argT) shadows outer definition of type ${varAssign(arg)}",
+          s"new definition (${arg.name}: $argT) shadows outer definition of type ${varAssign(arg)}"
         )
         varAssign.updated(arg, argT)
       })
@@ -201,7 +201,7 @@ object Surface {
       annot: TyAnnot,
       init: Option[GExpr],
       isConst: Boolean,
-      exportLevel: ExportLevel.Value,
+      exportLevel: ExportLevel.Value
   ) extends GStmt
 
   case class AssignStmt(lhs: GExpr, rhs: GExpr) extends GStmt {
@@ -228,7 +228,7 @@ object Surface {
       args: Vector[(Symbol, TyAnnot)],
       returnType: TyAnnot,
       body: GStmt,
-      exportLevel: ExportLevel.Value,
+      exportLevel: ExportLevel.Value
   ) extends GStmt {
     def functionType: FuncType = {
       FuncType(args.map(_._2.get).toList, returnType.asInstanceOf[GType])
@@ -242,12 +242,12 @@ object Surface {
       superTypes: Set[Symbol],
       vars: Map[Symbol, TyAnnot],
       funcDefs: Vector[FuncDef],
-      exportLevel: ExportLevel.Value,
+      exportLevel: ExportLevel.Value
   ) extends GStmt {
     def objectType: GType = {
       ObjectType(
         vars.mapValuesNow(_.get) ++
-          funcDefs.map(fd => fd.name -> fd.functionType),
+          funcDefs.map(fd => fd.name -> fd.functionType)
       )
     }
 
@@ -258,7 +258,7 @@ object Surface {
       tyVars: Vector[Symbol],
       ty: GType,
       exportLevel: ExportLevel.Value,
-      superTypes: Set[Symbol],
+      superTypes: Set[Symbol]
   ) extends GStmt
 
   case class NamespaceAliasStmt(name: Symbol, rhs: Vector[Symbol]) extends GStmt
@@ -266,7 +266,7 @@ object Surface {
   case class Namespace(
       name: Symbol,
       block: BlockStmt,
-      exportLevel: ExportLevel.Value,
+      exportLevel: ExportLevel.Value
   ) extends GStmt
 
   case class GImport(content: ImportStmt) extends GStmt
@@ -295,7 +295,7 @@ object Surface {
         case VarDef(x, ty, init, isConst, level) =>
           val keyword = if (isConst) "const" else "let"
           Vector(
-            indent -> s"${asPrefix(level)}$keyword ${x.name}: $ty = $init;",
+            indent -> s"${asPrefix(level)}$keyword ${x.name}: $ty = $init;"
           )
         case AssignStmt(lhs, rhs) =>
           Vector(indent -> s"$lhs = $rhs;")
@@ -315,7 +315,7 @@ object Surface {
           Vector(indent -> ("/* " + text + " */"))
         case BlockStmt(stmts) =>
           (indent -> "{") +: stmts.flatMap(
-            s => prettyPrintHelper(indent + 1, s),
+            s => prettyPrintHelper(indent + 1, s)
           ) :+ (indent -> "}")
         case FuncDef(funcName, tyVars, args, returnType, body, level) =>
           val argList = args
@@ -323,7 +323,7 @@ object Surface {
             .mkString("(", ", ", ")")
           val tyVarPart = tyVarClause(tyVars)
           Vector(
-            indent -> s"${asPrefix(level)}function ${funcName.name}$tyVarPart $argList: $returnType",
+            indent -> s"${asPrefix(level)}function ${funcName.name}$tyVarPart $argList: $returnType"
           ) ++
             prettyPrintHelper(indent, makeSureInBlock(body))
         case ClassDef(
@@ -332,7 +332,7 @@ object Surface {
             superTypes,
             vars,
             funcDefs,
-            level,
+            level
             ) =>
           val superPart =
             if (superTypes.nonEmpty)
@@ -340,7 +340,7 @@ object Surface {
             else ""
           val tyVarPart = tyVarClause(tyVars)
           Vector(
-            indent -> s"${asPrefix(level)}class ${name.name}$tyVarPart$superPart {",
+            indent -> s"${asPrefix(level)}class ${name.name}$tyVarPart$superPart {"
           ) ++
             vars.toList.map {
               case (fieldName, annot) =>
@@ -359,7 +359,7 @@ object Surface {
               " extends " + superTypes.mkString(" with ")
             else ""
           Vector(
-            indent -> s"${asPrefix(level)}type ${name.name}$tyVarList = $ty$superPart;",
+            indent -> s"${asPrefix(level)}type ${name.name}$tyVarList = $ty$superPart;"
           )
         case Namespace(name, block, level) =>
           (indent -> s"${asPrefix(level)}namespace ${name.name}") +:
@@ -392,7 +392,7 @@ object Surface {
           val c1 = cDef.copy(
             funcDefs = cDef.funcDefs.map { x =>
               rec(x).asInstanceOf[FuncDef]
-            },
+            }
           )
           f(c1)
         case other => f(other)
@@ -402,7 +402,7 @@ object Surface {
 
     def extractSignature(
         funcDef: FuncDef,
-        eliminateTVars: Boolean = true,
+        eliminateTVars: Boolean = true
     ): FuncType = {
       val fT = funcDef.args.map(_._2.get).toList -: funcDef.returnType.get
         .asInstanceOf[GType]

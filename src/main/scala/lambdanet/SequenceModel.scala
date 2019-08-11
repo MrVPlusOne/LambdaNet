@@ -17,7 +17,9 @@ object SequenceModel {
 
   def main(args: Array[String]): Unit = {
     import ammonite.ops._
-    val (libDefs, Seq(trainSet, testSet)) = parseRepos(Seq(pwd / RelPath("data/toy"), pwd / RelPath("data/toy")))
+    val (libDefs, Seq(trainSet, testSet)) = parseRepos(
+      Seq(pwd / RelPath("data/toy"), pwd / RelPath("data/toy"))
+    )
     val nodeMapping =
       libDefs.nodeMapping ++ trainSet.flatMap(
         _.irModules.flatMap(_.mapping)
@@ -38,7 +40,7 @@ object SequenceModel {
       modules: Vector[IRModule],
       libDefs: LibDefs,
       predSpace: PredictionSpace,
-      taskSupport: Option[ForkJoinTaskSupport],
+      taskSupport: Option[ForkJoinTaskSupport]
   ) {
     private val sentences = {
 
@@ -56,7 +58,8 @@ object SequenceModel {
         nodesToPredict: Vector[PNode],
         nameDropout: Double
     ): CompNode = {
-      val states = encode(architecture, nameEncoder, nameDropout, nodesToPredict)
+      val states =
+        encode(architecture, nameEncoder, nameDropout, nodesToPredict)
       val input = concatN(axis = 0, fromRows = true)(states)
       architecture.predict(input, predSpace.size)
     }
@@ -102,7 +105,7 @@ object SequenceModel {
     def aggregate(
         leftBatched: BatchedSeq,
         rightBatched: BatchedSeq,
-        encodeName: Symbol => CompNode,
+        encodeName: Symbol => CompNode
     ): Map[PNode, CompNode] = {
       import botkop.numsca._
 
@@ -116,7 +119,7 @@ object SequenceModel {
       /** run rnn from left to right */
       def pass(
           batched: BatchedSeq,
-          name: SymbolPath,
+          name: SymbolPath
       ): Map[PNode, CompNode] = {
         import cats.implicits._
 
@@ -126,7 +129,7 @@ object SequenceModel {
           .pipe(concatN(axis = 0, fromRows = true))
         def iter(
             s0: CompNode,
-            input: Vector[(Token, Option[PNode])],
+            input: Vector[(Token, Option[PNode])]
         ): (CompNode, Map[PNode, Chain[CompNode]]) = {
           val n1 = input.length
           val s1 = s0.slice(0 :> n1, :>)
@@ -199,7 +202,7 @@ object SequenceModel {
 
   def tokenizeModule(
       module: IRModule,
-      allNodeMapping: Map[PNode, PAnnot],
+      allNodeMapping: Map[PNode, PAnnot]
   ): TokenSeq = SM.withErrorMessage(s"In module: ${module.path}") {
     import Keywords.{beginModule, endModule}
     val tokenizer = Tokenizer(allNodeMapping)

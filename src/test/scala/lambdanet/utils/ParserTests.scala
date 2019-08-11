@@ -44,7 +44,7 @@ class ParserTests extends WordSpec with MyTest {
 
     val modules = ProgramParsing.parseGModulesFromFiles(
       files,
-      projectRoot,
+      projectRoot
     )
     modules.foreach { module =>
       println(s"=== module: '${module.moduleName}' ===")
@@ -166,7 +166,7 @@ class ParserTests extends WordSpec with MyTest {
     def test(text: String, target: Vector[ImportStmt]): Unit = {
       assert(
         ImportPattern.parseImports(text) === target,
-        s"parsing failed for '$text'",
+        s"parsing failed for '$text'"
       )
     }
 
@@ -174,23 +174,25 @@ class ParserTests extends WordSpec with MyTest {
 
     test(
       """import A1 from "./ZipCodeValidator";""",
-      Vector(ImportDefault(relPath("./ZipCodeValidator"), 'A1)),
+      Vector(ImportDefault(relPath("./ZipCodeValidator"), 'A1))
     )
     test(
       """import * as pkg from "./ZipCodeValidator";""",
-      Vector(ImportModule(relPath("./ZipCodeValidator"), 'pkg)),
+      Vector(ImportModule(relPath("./ZipCodeValidator"), 'pkg))
     )
     test(
       """import { ISessionEvent } from "../eme/session";""",
-      Vector(ImportSingle('ISessionEvent, relPath("../eme/session") ,'ISessionEvent))
+      Vector(
+        ImportSingle('ISessionEvent, relPath("../eme/session"), 'ISessionEvent)
+      )
     )
     test(
       """import {A,
         |B as B1} from "./ZipCodeValidator";""".stripMargin,
       Vector(
         ImportSingle('A, relPath("./ZipCodeValidator"), 'A),
-        ImportSingle('B, relPath("./ZipCodeValidator"), 'B1),
-      ),
+        ImportSingle('B, relPath("./ZipCodeValidator"), 'B1)
+      )
     )
     test(
       """import {
@@ -199,12 +201,12 @@ class ParserTests extends WordSpec with MyTest {
         |} from "./ZipCodeValidator";""".stripMargin,
       Vector(
         ImportSingle('A, relPath("./ZipCodeValidator"), 'A),
-        ImportSingle('B, relPath("./ZipCodeValidator"), 'B),
-      ),
+        ImportSingle('B, relPath("./ZipCodeValidator"), 'B)
+      )
     )
     test(
       """import {foo as fool} from "./file1";""",
-      Vector(ImportSingle('foo, relPath("./file1"), 'fool)),
+      Vector(ImportSingle('foo, relPath("./file1"), 'fool))
     )
     test("""import "./my-module.js";""", Vector())
 
@@ -228,7 +230,7 @@ class ParserTests extends WordSpec with MyTest {
     val parser = ProgramParsing
     val modules = parser.parseGModulesFromFiles(
       sources,
-      root,
+      root
     )
 
 //    QLangTranslation.fromProject(modules, )

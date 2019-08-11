@@ -20,7 +20,7 @@ case class EmailService(userEmail: String, password: String) {
 
   def sendMail(
       targetEmail: String,
-      timeOutSeconds: Int = 10,
+      timeOutSeconds: Int = 10
   )(subject: String, msg: String): Unit = {
     val Array(targetUser, targetDomain) = targetEmail.split("@")
 
@@ -36,14 +36,14 @@ case class EmailService(userEmail: String, password: String) {
             .from(user `@` domain)
             .to(targetUser `@` targetDomain)
             .subject(subject)
-            .content(Text(msg)),
+            .content(Text(msg))
         ),
-        Duration(s"${timeOutSeconds}s"),
+        Duration(s"${timeOutSeconds}s")
       )
     } catch {
       case _: TimeoutException =>
         Console.err.println(
-          s"send mail timed out: {subject: '$subject', msg: '$msg'}.",
+          s"send mail timed out: {subject: '$subject', msg: '$msg'}."
         )
     }
   }

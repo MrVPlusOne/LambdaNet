@@ -42,7 +42,7 @@ object QLangDisplay {
         elements: Vector[Output],
         start: Output,
         sep: Output,
-        end: Output,
+        end: Output
     ): Output = {
       val middle = elements
         .zip(Vector.fill(elements.length)(sep))
@@ -56,7 +56,7 @@ object QLangDisplay {
         truth: Map[PNode, PAnnot],
         prediction: Map[PNode, PType],
         predSpace: Set[PType],
-        indentSpaces: Int = 2,
+        indentSpaces: Int = 2
     ): Output = {
       import lambdanet.translation.makeSureInBlockQ
 
@@ -85,7 +85,7 @@ object QLangDisplay {
             val keyword = if (isConst) "const" else "let"
             Vector(
               indent ->
-                code(key(keyword), " ", x, showAnnot(x), key(" = "), init, ";"),
+                code(key(keyword), " ", x, showAnnot(x), key(" = "), init, ";")
             )
           case AssignStmt(lhs, rhs) =>
             Vector(indent -> code(lhs, key("  ⃪ "), rhs, ";"))
@@ -105,7 +105,7 @@ object QLangDisplay {
             (indent -> code(key("while"), " (", cond, ")")) +: rec(indent, bd)
           case BlockStmt(stmts) =>
             (indent -> code("{")) +: stmts.flatMap(
-              s => rec(indent + 1, s),
+              s => rec(indent + 1, s)
             ) :+ (indent -> code("}"))
           case FuncDef(funcName, args, ret, bd) =>
             val argList = args
@@ -122,8 +122,8 @@ object QLangDisplay {
                 ": (",
                 ret,
                 showAnnot(ret),
-                ")",
-              ),
+                ")"
+              )
             ) ++
               rec(indent, makeSureInBlockQ(bd))
           case ClassDef(n, superType, vars, funcDefs) =>
@@ -133,11 +133,11 @@ object QLangDisplay {
                   superType.map(_.toString: Output).toVector,
                   " extends ",
                   " with ",
-                  "",
+                  ""
                 )
               else code("")
             Vector(
-              indent -> code(key("class "), n, superPart, "{"),
+              indent -> code(key("class "), n, superPart, "{")
             ) ++
               vars.toList.map {
                 case (_, field) =>
@@ -156,7 +156,7 @@ object QLangDisplay {
             span(paddingLeft := s"${2 * dent}em")(
               " " * (dent * indentSpaces),
               text,
-              br(),
+              br()
             )
         }
         .pipe(span(_))
@@ -168,7 +168,7 @@ object QLangDisplay {
       m: QModule,
       prediction: Map[PNode, PType],
       predSpace: Set[PType],
-      indentSpaces: Int = 2,
+      indentSpaces: Int = 2
   )(dir: Path): Unit = {
     import QLangAccuracy.{top1Accuracy}
 
@@ -200,11 +200,11 @@ object QLangDisplay {
       head(
         h2(s"Module: ${m.path}"),
         h4(s"LibAcc: $libAccStr, ProjAcc: $projAccStr, Missing: $numMissing"),
-        meta(charset := "UTF-8"),
+        meta(charset := "UTF-8")
       ),
       body(marginLeft := "2rem")(
-        code(data),
-      ),
+        code(data)
+      )
     ).toString()
     write.over(file, output)
   }
@@ -225,12 +225,12 @@ object QLangDisplay {
     val groundTruth = annts.map { case (k, v) => k.n -> v }
     val prediction = groundTruth.updated(
       PNode(8, None, isType = false, fromLib = false),
-      PTyVar(PNode(6, None, isType = true, fromLib = false)),
+      PTyVar(PNode(6, None, isType = true, fromLib = false))
     )
     val outDir = pwd / "predictions"
     qModules.foreach { m =>
       renderModuleToDirectory(m, prediction, annts.values.toSet)(
-        outDir,
+        outDir
       )
     }
   }

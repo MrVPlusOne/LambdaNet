@@ -18,7 +18,7 @@ object Timeouts {
     printInfo(s"read timeouts from '$file'")
     if (!exists(file)) {
       printWarning(
-        s"Timeouts file not found under '$file', use default timeout values",
+        s"Timeouts file not found under '$file', use default timeout values"
       )
     }
     import ProgramParsing._

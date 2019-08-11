@@ -39,7 +39,7 @@ class RnnOptimizationTest extends TestUtils {
         val error = sum(
           plusN(states.zip(targets).map {
             case ((h, _), t) => square(h - t): CompNode
-          }),
+          })
         )
         //      val outputs = states.map{x => x ~> factory.linear('GruOutput, 1) }
 
@@ -98,7 +98,7 @@ class RnnOptimizationTest extends TestUtils {
     val collection = new ParamCollection()
 
     val targets = (0 until timeSteps).map { i =>
-      Tensor(math.sin(i * 6 * math.Pi / timeSteps)).reshape(1,1): CompNode
+      Tensor(math.sin(i * 6 * math.Pi / timeSteps)).reshape(1, 1): CompNode
     }
 
     val optimizer = Adam(learningRate = 0.01)
@@ -155,7 +155,7 @@ class RnnOptimizationTest extends TestUtils {
       val outputs = factory.bidirectionalGru(
         'TestBiGRU,
         Shape.make(1, nState),
-        combiner = (l, r) => factory.linear('Output, 1)(l.concat(r, axis = 1)),
+        combiner = (l, r) => factory.linear('Output, 1)(l.concat(r, axis = 1))
       )(inputs)
 
       val error = sum(plusN(outputs.zip(targets).map {

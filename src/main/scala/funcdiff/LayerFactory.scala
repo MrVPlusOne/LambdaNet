@@ -19,12 +19,12 @@ object LayerFactory {
 @SerialVersionUID(0)
 case class LayerFactory(
     nameSpace: SymbolPath,
-    paramCollection: ParamCollection,
+    paramCollection: ParamCollection
 ) {
 
   def getVar(
       relativePath: SymbolPath,
-      attributes: Set[ParameterAttribute] = Set(),
+      attributes: Set[ParameterAttribute] = Set()
   )(init: => Tensor): ParamNode =
     paramCollection.getVar(nameSpace ++ relativePath, attributes)(init)
 
@@ -40,7 +40,7 @@ case class LayerFactory(
       name: SymbolPath,
       nOut: Size,
       useBias: Boolean = true,
-      initializer: WeightsInitializer = LayerFactory.xavier,
+      initializer: WeightsInitializer = LayerFactory.xavier
   )(input: CompNode): CompNode = withPrefix(name) { prefix =>
     val nIn = input.shape(1)
     val w = getVar(prefix / 'w, attributes = Set(NeedRegularization)) {
@@ -55,7 +55,7 @@ case class LayerFactory(
   }
 
   def dropout(keepProb: Double)(
-      input: CompNode,
+      input: CompNode
   ): CompNode = {
     require(keepProb > 0 && keepProb < 1)
     val mask = (ns.rand(input.shape) < keepProb).boolToFloating / keepProb
@@ -66,7 +66,7 @@ case class LayerFactory(
       name: SymbolPath,
       inTraining: Boolean,
       momentum: Double = 0.9,
-      eps: Double = 1e-5,
+      eps: Double = 1e-5
   )(input: CompNode): CompNode = withPrefix(name) { prefix =>
     val inputMean = mean(input, axis = 0)
     val inputVariance = mean(square(input - inputMean), axis = 0)
@@ -95,7 +95,7 @@ case class LayerFactory(
     */
   def gru(
       name: SymbolPath,
-      initializer: WeightsInitializer = LayerFactory.xavier,
+      initializer: WeightsInitializer = LayerFactory.xavier
   )(state: CompNode, input: CompNode): CompNode = withPrefix(name) { prefix =>
     val inputSize = input.shape(1)
     val stateSize = state.shape(1)
@@ -137,10 +137,10 @@ case class LayerFactory(
     */
   def lstm(
       name: SymbolPath,
-      initializer: WeightsInitializer = LayerFactory.xavier,
+      initializer: WeightsInitializer = LayerFactory.xavier
   )(
       hAndC: (CompNode, CompNode),
-      input: CompNode,
+      input: CompNode
   ): (CompNode, CompNode) = withPrefix(name) { prefix =>
     val (h, c) = hAndC
 
@@ -194,7 +194,7 @@ case class LayerFactory(
   def bidirectionalGru(
       name: SymbolPath,
       stateShape: Shape,
-      combiner: (CompNode, CompNode) => CompNode,
+      combiner: (CompNode, CompNode) => CompNode
   )(inputs: IS[CompNode]): IS[CompNode] = withPrefix(name) { prefix =>
     val leftInit: CompNode = getVar(prefix / 'leftInit) {
       ns.randn(stateShape)
@@ -214,7 +214,7 @@ case class LayerFactory(
   def attentionLayer(
       name: SymbolPath,
       transformKey: Boolean = false,
-      transformValue: Boolean = false,
+      transformValue: Boolean = false
   )(xKey: CompNode, ys: IS[(CompNode, CompNode)]): CompNode =
     withPrefix(name) { _ =>
       require(ys.nonEmpty)

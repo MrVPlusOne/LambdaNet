@@ -16,7 +16,7 @@ package object train {
   def confusionMatrix(
       predictions: Vector[Int],
       groundTruths: Vector[Int],
-      categories: Int,
+      categories: Int
   ): ConfusionMatrix = {
     import cats.implicits._
     predictions
@@ -46,7 +46,7 @@ package object train {
   }
 
   implicit def countedMonoid[V](
-      implicit m: Monoid[V],
+      implicit m: Monoid[V]
   ): Monoid[Counted[V]] = new Monoid[Counted[V]] {
     def empty: Counted[V] = Counted(0, m.empty)
 
