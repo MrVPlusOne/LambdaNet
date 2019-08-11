@@ -442,14 +442,27 @@ object TrainingLoop extends TrainingLoopTrait {
 
           /** Use the Seq model to generate the init node embedding for GNN */
           object InitMode extends SeqModelMode {
-            val seqEmbedding = announced("run seq encoder") {
-              seqPredictor.encode(seqArchitecture, nameEncoder, labelDropout)
-            }
 
             def initEmbedding(nodeSet: Set[ProjNode]): Embedding =
-              Embedding(nodeSet.map { n =>
-                n -> seqEmbedding(n.n)
-              }.toMap)
+              announced("run seq encoder") {
+                val nodes = nodeSet.toVector
+                val pairs = nodes.zip(
+                  seqPredictor.encode(
+                    seqArchitecture,
+                    nameEncoder,
+                    labelDropout,
+                    nodes.map(_.n)
+                  )
+                )
+                architecture
+                  .verticalBatching(
+                    pairs,
+                    architecture.layerFactory
+                      .linear('initEmbedding / 'fromSeq, dimMessage)
+                  )
+                  .map { case (k, v) => k -> v.headOption.get }
+                  .pipe(Embedding)
+              }
 
             def transformLogits(logitsVec: Vector[CompNode]): Vector[CompNode] =
               logitsVec

@@ -56,13 +56,7 @@ object SequenceModel {
         nodesToPredict: Vector[PNode],
         nameDropout: Double
     ): CompNode = {
-      val embedding = encode(architecture, nameEncoder, nameDropout)
-      val missingEmbedding = architecture
-        .randomVar('MissingEmbedding / 'left)
-        .concat(architecture.randomVar('MissingEmbedding / 'right), axis = 1)
-      val states = nodesToPredict.map { n =>
-        embedding.getOrElse(n, missingEmbedding)
-      }
+      val states = encode(architecture, nameEncoder, nameDropout, nodesToPredict)
       val input = concatN(axis = 0, fromRows = true)(states)
       architecture.predict(input, predSpace.size)
     }
@@ -70,11 +64,18 @@ object SequenceModel {
     def encode(
         architecture: SeqArchitecture,
         nameEncoder: LabelEncoder,
-        nameDropout: Double
-    ): Map[PNode, CompNode] = {
+        nameDropout: Double,
+        nodesToPredict: Vector[PNode]
+    ): Vector[CompNode] = {
       val encodeName = nameEncoder.newEncoder(nameDropout)
-      architecture
+      val embedding = architecture
         .aggregate(leftBatched, rightBatched, encodeName)
+      val missingEmbedding = architecture
+        .randomVar('MissingEmbedding / 'left)
+        .concat(architecture.randomVar('MissingEmbedding / 'right), axis = 1)
+      nodesToPredict.map { n =>
+        embedding.getOrElse(n, missingEmbedding)
+      }
     }
   }
 

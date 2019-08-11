@@ -221,6 +221,7 @@ package object numsca {
 //      data.put(Array(NDArrayIndex.interval(pos, nextPos)), r.array)
 //      pos = nextPos
 //    }
+    assert(rows.forall(_.shape(1) == columns))
     val data = Nd4j.create(rows.toArray.flatMap(_.data), NDArrayFactory.C)
     val r =
       if (axis == 0) data.reshape(n, columns) else data.reshape(1, n * columns)
