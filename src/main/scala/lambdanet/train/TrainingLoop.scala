@@ -38,7 +38,7 @@ object TrainingLoop extends TrainingLoopTrait {
   val useSeqModel = false
   val taskName =
     if (useSeqModel) "seqModel"
-    else s"combined-init-${TrainingState.iterationNum}"
+    else s"onlyGNN-${TrainingState.iterationNum}"
 
   val labelDropoutProb: Real = 0.0
 
@@ -495,7 +495,7 @@ object TrainingLoop extends TrainingLoopTrait {
               architecture.initialEmbedding(nodeSet)
           }
 
-          val seqMode: SeqModelMode = InitMode
+          val seqMode: SeqModelMode = GnnModel
 
           // the probability for very iterations
           val probsVec = announced("run predictor") {
