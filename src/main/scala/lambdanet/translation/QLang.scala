@@ -252,11 +252,10 @@ object QLangTranslation {
                 nd.namespace
                   .map(Left.apply)
                   .getOrElse {
-                    val n = nd.term.getOrElse(
-                      throw new Error(
-                        s"Empty namedDef encountered in expr: $expr"
-                      )
-                    )
+                    val n = nd.term.getOrElse {
+                      printWarning(s"Empty namedDef encountered in expr: $expr", mustWarn = true)
+                      NameDef.unknownDef.term.get //fixme: this shouldn't happen
+                    }
                     Right(Var(n))
                   }
               } else {

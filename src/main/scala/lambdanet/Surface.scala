@@ -121,7 +121,7 @@ object Surface {
       expr match {
         case Var(s)           => s.name
         case Const(value, ty) => s"($value: $ty)"
-        case Cast(expr, ty)   => ???
+        case Cast(expr, ty)   => s"($expr as $ty)"
         case FuncCall(f, args) =>
           s"$f${args.mkString("(", ", ", ")")}"
         case ObjLiteral(fields) =>

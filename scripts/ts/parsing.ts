@@ -670,6 +670,7 @@ export function parseExpr(node: ts.Expression,
       // type assertions are ignored
       case SyntaxKind.OmittedExpression:
       case SyntaxKind.ImportKeyword:
+      case SyntaxKind.MetaProperty:
       case SyntaxKind.ClassExpression: {
         return undefinedValue; //todo: properly handle
       }

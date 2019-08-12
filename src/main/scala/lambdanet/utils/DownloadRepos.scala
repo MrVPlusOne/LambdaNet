@@ -15,10 +15,10 @@ object DownloadRepos {
     implicit val workingDir: Path = pwd / up / "lambda-repos"
     val random = new Random(1023)
     val repoList =
-      read(workingDir / "allRepos" / "repo-SHAs.txt").split("\\n").toVector
+      read(workingDir / "repo-SHAs.txt").split("\\n").toVector
     val testSet = repoList
       .pipe(random.shuffle(_))
-      .take(100)
+      .slice(100, 300)
 
     val totalSize = testSet.size
     testSet.zipWithIndex.foreach {

@@ -28,7 +28,7 @@ object Js {
 
 // using our own Json parser to allow trailing commas.
 object JsonParsing {
-  import fastparse._, NoWhitespace._
+  import fastparse._, JavaWhitespace._
   def stringChars(c: Char): Boolean = c != '\"' && c != '\\'
 
   def CommentChunk[_: P]: P[Unit] =
@@ -39,11 +39,11 @@ object JsonParsing {
 
   def singleLineComment[_: P]: P[Unit] = P("//" ~ CharsWhile(_ != '\n'))
 
-  def space[_: P]: P[Unit] =
-    P(
-      (MultilineComment | singleLineComment | CharsWhileIn(" \r\n\t", 1))
-        .rep(0)
-    )
+  def space[_: P]: P[Unit] = Pass
+//    P(
+//      (MultilineComment | singleLineComment |
+//        CharsWhileIn(" \r\n\t", 1)).rep(0)
+//    )
   def digits[_: P]: P[Unit] = P(CharsWhileIn("0-9"))
   def exponent[_: P]: P[Unit] = P(CharIn("eE") ~ CharIn("+\\-").? ~ digits)
   def fractional[_: P]: P[Unit] = P("." ~ digits)

@@ -49,7 +49,7 @@ object PrepareRepos {
       inParallel: Boolean = true,
       maxNum: Int = 1000,
       maxLinesOfCode: Int = Int.MaxValue,
-      parsedCallback: (Path, ParsedProject) => Unit = (_, _) => ()
+      parsedCallback: (Path, Option[ParsedProject]) => Unit = (_, _) => ()
   ): (LibDefs, Seq[List[ParsedProject]]) = {
     lambdanet.shouldWarn = false
 
@@ -71,13 +71,15 @@ object PrepareRepos {
 //        .pipe(random.shuffle(_))
         .take(maxNum)
         .pipe(x => if (inParallel) x.par else x)
-        .filter(f => countTsCode(f, dir) < maxLinesOfCode)
-        .map { f =>
-          val (a, b, c, d) =
-            prepareProject(libDefs, f, shouldPruneGraph = false)
-          ParsedProject(f.relativeTo(dir), a, b, c, d).tap { p =>
+        .flatMap { f =>
+          val r = if (countTsCode(f, dir) < maxLinesOfCode) {
+            val (a, b, c, d) =
+              prepareProject(libDefs, f, shouldPruneGraph = false)
+            Some(ParsedProject(f.relativeTo(dir), a, b, c, d))
+          } else None
+          r.tap { p =>
             parsedCallback(f, p)
-          }
+          }.toVector
         }
         .toList
 
@@ -101,15 +103,26 @@ object PrepareRepos {
 
   def parseTestSet(): Unit = {
     val trainSetDir: Path = pwd / up / "lambda-repos" / "allRepos"
-    val parsed = announced("parsePredGraphs")(
+    var progress = 0
+    announced("parsePredGraphs")(
       parseRepos(
         Seq(trainSetDir),
-        inParallel = true,
-        maxLinesOfCode = 30000,
-        parsedCallback = (file, p) => {
-          val nodes = p.pGraph.nodes.size
-          if (nodes > 500 && nodes < 10000) {
-            mv(file, trainSetDir / up / "testSet-new" / file.last)
+        inParallel = false,
+        maxLinesOfCode = 20000,
+        parsedCallback = (file, pOpt) => {
+          val dest = pOpt match {
+            case Some(p) =>
+              val nodes = p.pGraph.nodes.size
+              if (nodes > 500 && nodes < 10000)
+                "testSet-new"
+              else "TooBigOrSmall"
+            case None =>
+              "TooBigOrSmall"
+          }
+          mv(file, trainSetDir / up / dest / file.last)
+          this synchronized {
+            progress += 1
+            printResult(s"progress: $progress")
           }
         }
       )

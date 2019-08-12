@@ -20,7 +20,7 @@ object TrainingState {
     TrainingState(step, dimMessage, iterationNum, optimizer, pc)
   }
 
-  val iterationNum: Int = 4
+  val iterationNum: Int = 1
 
   def loadTrainingState(
       resultsDir: Path,
