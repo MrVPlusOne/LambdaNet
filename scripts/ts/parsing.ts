@@ -1067,7 +1067,13 @@ export class StmtParser {
             const n = node as ts.ImportEqualsDeclaration;
             const rhs = n.moduleReference;
             if (rhs.kind == SyntaxKind.ExternalModuleReference) {
-              return EP.alongWith(new ImportStmt(node.getText()));
+              const newName = n.name.text;
+              if(rhs.expression.kind == SyntaxKind.StringLiteral){
+                const path = (rhs.expression as ts.StringLiteral).text;
+                return EP.alongWith(new ImportSingle("$ExportEquals", newName, path));
+              } else {
+                throw new Error(`Unknown import equals: ${n.getText()}`)
+              }
             } else {
               return EP.alongWith(new NamespaceAliasStmt(n.name.getText(), rhs.getText()));
             }
@@ -1107,8 +1113,7 @@ export class StmtParser {
               // return EP.alongWith(new VarDef("$ExportEquals", null, e, true,
               //   ["export"]));
             } else if (e.category == "Var") {
-              const text = `export default ${(e as Var).name}`;
-              return EP.alongWith(new ExportStmt(text));
+              return EP.alongWith(new ExportDefault((e as Var).name, null));
             } else {
               return EP.alongWith(new VarDef("defaultVar", parseMark(undefined, n.expression), e, true,
                 ["export", "default"]));
@@ -1116,6 +1121,8 @@ export class StmtParser {
           }
           case SyntaxKind.NamespaceExportDeclaration:
           case SyntaxKind.ExportDeclaration: {
+
+
             return EP.alongWith(new ExportStmt(node.getText()));
           }
           case SyntaxKind.EnumDeclaration: {
