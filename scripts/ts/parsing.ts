@@ -10,9 +10,9 @@ export class GModule {
 export function mustExist<T>(v?: T, msg?: string): T {
   if (!v) {
     if (msg) {
-      throw new Error("should not be " + v + "! Message: " + msg);
+      throw new Error("Must exists! Message: " + msg);
     } else {
-      throw new Error("should not be " + v + "!");
+      throw new Error("Must exists!");
     }
   }
   return v;
@@ -274,6 +274,16 @@ class Const implements GExpr {
   }
 }
 
+class Cast implements GExpr{
+  category: "Cast" = "Cast";
+  mark: GMark;
+
+  constructor(public expr: GExpr, public ty: GType){
+    mustExist(expr);
+    this.mark = new Inferred(ty);
+  }
+}
+
 class FuncCall implements GExpr {
   category: string = "FuncCall";
 
@@ -362,7 +372,7 @@ class ImportDefault{
 
 class ImportModule {
   category: "ImportModule" = "ImportModule";
-  constructor(newName: string, public path: string) {}
+  constructor(public newName: string, public path: string) {}
 }
 
 type ExportStmt = ExportSingle | ExportDefault | ExportModule
@@ -370,19 +380,19 @@ type ExportStmt = ExportSingle | ExportDefault | ExportModule
 class ExportSingle{
   category: "ExportSingle" = "ExportSingle";
 
-  constructor(oldName: string, newName: string, from: string | null){}
+  constructor(public oldName: string, public newName: string, public from: string | null){}
 }
 
 class ExportDefault{
   category: "ExportDefault" = "ExportDefault";
 
-  constructor(newName: string | null, from: string | null) {}
+  constructor(public newName: string | null, public from: string | null) {}
 }
 
 class ExportModule{
-  category: "ExportOtherModule" = "ExportOtherModule";
+  category: "ExportModule" = "ExportModule";
 
-  constructor(from: string) {}
+  constructor(public from: string) {}
 }
 
 
@@ -507,6 +517,7 @@ type SpecialExpressions =
   ts.AwaitExpression |
   ts.NonNullExpression |
   ts.ClassExpression |
+  ts.OmittedExpression |
   JsxExpressions
 
 export function parseExpr(node: ts.Expression,
@@ -650,11 +661,14 @@ export function parseExpr(node: ts.Expression,
       case SyntaxKind.JsxSelfClosingElement: {
         return undefinedValue;
       }
-      // type assertions are ignored
-      case SyntaxKind.AsExpression:
-      case SyntaxKind.TypeAssertionExpression: {
-        return rec(n.expression);
+      case SyntaxKind.TypeAssertionExpression:
+      case SyntaxKind.AsExpression: {
+        const e = rec(n.expression);
+        const t = parseTypeNode(n.type);
+        return new Cast(e, t)
       }
+      // type assertions are ignored
+      case SyntaxKind.OmittedExpression:
       case SyntaxKind.ImportKeyword:
       case SyntaxKind.ClassExpression: {
         return undefinedValue; //todo: properly handle
@@ -856,7 +870,24 @@ export class StmtParser {
                 case SyntaxKind.ObjectBindingPattern:
                   return flatMap(lhs.elements, (e: ts.BindingElement) => {
                     const fieldName = e.propertyName ? e.propertyName : e.name;
-                    const access = rhs ? new Access(rhs, (fieldName as ts.Identifier).text, "missing") : null;
+                    let fName: string;
+                    switch (fieldName.kind) {
+                      case SyntaxKind.Identifier:
+                      case SyntaxKind.StringLiteral:
+                        fName = fieldName.text;
+                        break;
+                      case SyntaxKind.ComputedPropertyName:
+                        fName = SpecialVars.ComputedPropertyName;
+                        break;
+                      case SyntaxKind.NumericLiteral:
+                        fName = fieldName.getText();
+                        break;
+                      default:
+                        fName = SpecialVars.UNKNOWN;
+                        break;
+                    }
+
+                    const access = rhs ? new Access(rhs, fName, "missing") : null;
                     return parseBindingName(e.name, access);
                   });
                 case SyntaxKind.ArrayBindingPattern: {
@@ -1102,7 +1133,7 @@ export class StmtParser {
                 }
               }
             }
-            throw new Error(`Empty import clause. Import full text: ${n.getText()}`);
+            return EP.alongWith();
           }
           case SyntaxKind.ExportAssignment: {
             const n = node as ts.ExportAssignment;
@@ -1119,11 +1150,22 @@ export class StmtParser {
                 ["export", "default"]));
             }
           }
-          case SyntaxKind.NamespaceExportDeclaration:
           case SyntaxKind.ExportDeclaration: {
-
-
-            return EP.alongWith(new ExportStmt(node.getText()));
+            const n = node as ts.ExportDeclaration;
+            const path = n.moduleSpecifier ? (n.moduleSpecifier as ts.StringLiteral).text : null;
+            if(n.exportClause){
+              const exports = n.exportClause.elements.map(s => {
+                const newName = s.name.text;
+                if(s.propertyName){
+                  return new ExportSingle(s.propertyName.text, newName, path)
+                }else {
+                  return new ExportSingle(newName, newName, path)
+                }
+              });
+              return EP.alongWithMany(exports);
+            }else{
+              return EP.alongWith(new ExportModule(path!));
+            }
           }
           case SyntaxKind.EnumDeclaration: {
             const enumEquiv = new TVar("number");
@@ -1206,9 +1248,12 @@ export class StmtParser {
           }
 
           // ignored statements:
+          case SyntaxKind.NamespaceExportDeclaration:
+          case SyntaxKind.DebuggerStatement:
           case SyntaxKind.BreakStatement:
           case SyntaxKind.ContinueStatement:
             return EP.alongWith(new CommentStmt(node.getText()));
+
           case SyntaxKind.EmptyStatement:
             return EP.alongWithMany([]);
 
@@ -1281,6 +1326,9 @@ class SpecialVars {
   static YIELD = new Var("$Yield");
   static AWAIT = new Var("$Await");
   static Template = new Var("$Template");
+
+  static ComputedPropertyName = "$ComputedPropertyName";
+  static UNKNOWN = "$UNKNOWN";
 }
 
 // utilities
@@ -1303,7 +1351,7 @@ export function getLineNumber(node: ts.Node): number {
   return line + 1;
 }
 
-export function parseFiles(sources: string[], libraryFiles: string[]): GModule[] {
+export function parseFiles(sources: string[], libraryFiles: string[]): [GModule[], string[]] {
   let program = ts.createProgram(libraryFiles, {
     target: ts.ScriptTarget.ES2015,
     module: ts.ModuleKind.CommonJS
@@ -1312,13 +1360,21 @@ export function parseFiles(sources: string[], libraryFiles: string[]): GModule[]
 
   const checker = program.getTypeChecker(); // must call this to link source files to nodes
 
-  let sFiles: ts.SourceFile[] = sources.map(file => mustExist(program.getSourceFile(file),
-    "getSourceFile failed for: " + file));
+  let warnnings: string[] = [];
+  const sFiles: ts.SourceFile[] = sources
+    .map(file => mustExist(program.getSourceFile(file),
+    "getSourceFile failed for: " + file))
+    .filter(sc => {
+      const noError = program.getSyntacticDiagnostics(sc).length == 0;
+      if(!noError)
+        warnnings.push(`file ${sc.fileName} has syntactic error, skipped.`);
+      return noError
+    });
   mustExist(sFiles);
 
   let parser = new StmtParser(checker);
 
-  return sFiles.map((src, index) => {
+  return [sFiles.map((src, index) => {
     let stmts: GStmt[] = [];
     src.statements.forEach(s => {
       try {
@@ -1330,7 +1386,7 @@ export function parseFiles(sources: string[], libraryFiles: string[]): GModule[]
       }
     });
     return new GModule(sources[index], stmts);
-  });
+  }), warnnings]
 }
 
 function handleError<T>(node: ts.Node, thunk: () => T): T {

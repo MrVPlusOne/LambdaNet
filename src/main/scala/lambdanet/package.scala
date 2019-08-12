@@ -133,8 +133,8 @@ package object lambdanet extends SimpleMath.ExtensionsTrait {
   }
 
   var shouldWarn = true
-  def printWarning(str: String): Unit = {
-    if (shouldWarn)
+  def printWarning(str: String, mustWarn: Boolean = false): Unit = {
+    if (mustWarn || shouldWarn)
       Console.err.println(warnStr("[warn] " + str))
   }
 

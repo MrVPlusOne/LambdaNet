@@ -11,6 +11,8 @@ import lambdanet.translation.makeSureInBlockSurface
 
 import scala.collection.mutable
 import ProgramParsing._
+import lambdanet.ImportStmt._
+import lambdanet.ExportStmt._
 
 /** Parsing Typescript into the surface language */
 object ProgramParsing {
@@ -125,6 +127,7 @@ object ProgramParsing {
     val sources = ls
       .rec(root)
       .filter(filter)
+      .filter ( _.isFile )
       .filter { f =>
         val name = f.last
         if (declarationFileMod) name.endsWith(".d.ts")
@@ -214,10 +217,13 @@ object ProgramParsing {
 
   def asSymbol(v: Js.Val): Symbol = Symbol(asString(v))
 
-  def asOptionSymbol(v: Js.Val): Option[Symbol] = v match {
+  def asOption(v: Js.Val): Option[Js.Val] = v match {
     case Null => None
-    case _    => Some(asSymbol(v))
+    case _ => Some(v)
   }
+
+  def asOptionSymbol(v: Js.Val): Option[Symbol] =
+    asOption(v).map(asSymbol)
 
   def asObj(v: Val): Map[String, Val] = v.asInstanceOf[Obj].value
 
@@ -503,8 +509,8 @@ case class ProgramParsing() {
   /** Parses a sequence of [[GModule]] from Json string. These strings can be
     * generated through [[parseGModulesFromFiles]] when writeToFile is set to none-empty. */
   def parseGModulesFromJson(parsedJson: String): Vector[GModule] = {
-    val modules = ProgramParsing.parseJson(parsedJson).asInstanceOf[Js.Arr]
-    modules.value
+    val Arr(modules, warnnings) = ProgramParsing.parseJson(parsedJson).asInstanceOf[Js.Arr]
+    asArray(modules)
       .map(parseGModule)
       .groupBy(m => (m.isDeclarationFile, m.path))
       .map {
@@ -512,11 +518,11 @@ case class ProgramParsing() {
           GModule(path, ms.toVector.flatMap(_.stmts), isIndex)
       }
       .toVector
-//      .tap { _ =>
-//        printResult(
-//          s"Annotated: $numAnnotated, Inferred: $numInferred, Missing: $numMissing",
-//        )
-//      }
+      .tap { _ =>
+        asArray(warnnings).foreach{ v =>
+          printWarning("[Parse GModule] " + asString(v), mustWarn = true)
+        }
+      }
   }
 
   private def parseGModule(v: Js.Val): GModule = {
@@ -753,12 +759,39 @@ case class ProgramParsing() {
               ms.exportLevel
             )
           )
-        case "ImportStmt" =>
-          val importString = StringContext.treatEscapes(asString(map("text")))
-          ImportPattern.parseImports(importString).map(GImport)
-        case "ExportStmt" =>
-          val str = StringContext.treatEscapes(asString(map("text")))
-          ExportPattern.parseExports(str).map(GExport)
+        case cat @ ("ImportSingle" | "ImportDefault" | "ImportModule") =>
+          val path = {
+            val str = StringContext.treatEscapes(asString(map("path")))
+            ReferencePath(RelPath(str), isRelative = str.startsWith("."))
+          }
+          val newName = asSymbol(map("newName"))
+          val iStmt = cat match {
+            case "ImportSingle" =>
+              val oldName = asSymbol(map("oldName"))
+              ImportSingle(oldName, path, newName)
+            case "ImportDefault" =>
+              ImportDefault(path, newName)
+            case "ImportModule" =>
+              ImportModule(path, newName)
+          }
+          Vector(GImport(iStmt))
+        case cat @ ("ExportSingle" | "ExportDefault" | "ExportModule") =>
+          val path = asOption(map("from")).map{ s =>
+            val str = StringContext.treatEscapes(asString(s))
+            ReferencePath(RelPath(str), isRelative = str.startsWith("."))
+          }
+          val eStmt = cat match {
+            case "ExportSingle" =>
+              val oldName = asSymbol(map("oldName"))
+              val newName = asSymbol(map("newName"))
+              ExportSingle(oldName,newName, path)
+            case "ExportDefault"=>
+              val newName = asOption(map("newName")).map(asSymbol)
+              ExportDefault(newName, path)
+            case "ExportModule" =>
+              ExportOtherModule(path.get)
+          }
+          Vector(GExport(eStmt))
         case "NamespaceAliasStmt" =>
           val name = Symbol(asString(map("name")))
           val rhsText = asString(map("rhs"))
@@ -819,7 +852,10 @@ case class ProgramParsing() {
         val e1 = parseGExpr(map("e1"))
         val e2 = parseGExpr(map("e2"))
         IfExpr(cond, e1, e2)
-
+      case "Cast" =>
+        val e = parseGExpr(map("expr"))
+        val t = parseType(map("ty"))
+        Cast(e, t)
       case cat => throw new Error(s"Unhandled GExpr case: $cat")
     }).tap { e =>
       e.tyAnnot = Some(parseGTMark(map("mark")))

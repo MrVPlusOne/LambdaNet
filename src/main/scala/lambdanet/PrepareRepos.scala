@@ -37,6 +37,9 @@ object PrepareRepos {
   val parsedRepoPath: Path = pwd / "data" / "predicateGraphs.serialized"
 
   def main(args: Array[String]): Unit = {
+//    val d =pwd / up / "lambda-repos" / "allRepos"
+//    println(countTsCode(d / "argonjs_argon", d))
+
     parseTestSet()
   }
 
@@ -45,7 +48,8 @@ object PrepareRepos {
       loadFromFile: Boolean = true,
       inParallel: Boolean = true,
       maxNum: Int = 1000,
-      moveParsedTo: Option[Path] = None
+      maxLinesOfCode: Int = Int.MaxValue,
+      parsedCallback: (Path, ParsedProject) => Unit = (_, _) => ()
   ): (LibDefs, Seq[List[ParsedProject]]) = {
     lambdanet.shouldWarn = false
 
@@ -67,13 +71,13 @@ object PrepareRepos {
 //        .pipe(random.shuffle(_))
         .take(maxNum)
         .pipe(x => if (inParallel) x.par else x)
+        .filter(f => countTsCode(f, dir) < maxLinesOfCode)
         .map { f =>
           val (a, b, c, d) =
             prepareProject(libDefs, f, shouldPruneGraph = false)
-          moveParsedTo.foreach { path =>
-            mv(f, path / f.last)
+          ParsedProject(f.relativeTo(dir), a, b, c, d).tap { p =>
+            parsedCallback(f, p)
           }
-          ParsedProject(f.relativeTo(dir), a, b, c, d)
         }
         .toList
 
@@ -82,13 +86,32 @@ object PrepareRepos {
       dataSetDirs.map { fromDir(_, maxNum) }
   }
 
+  def countTsCode(dir: Path, workingDir: Path): Int = {
+    val map = %%(
+      'cloc,
+      "--csv",
+      dir
+    )(workingDir).out.lines.collect {
+      case l if l.headOption.forall(_.isDigit) && l.split(",").length == 5 =>
+        val cols = l.split(",")
+        cols(1) -> cols.last.toInt
+    }.toMap
+    map.getOrElse("TypeScript", 0)
+  }
+
   def parseTestSet(): Unit = {
     val trainSetDir: Path = pwd / up / "lambda-repos" / "allRepos"
     val parsed = announced("parsePredGraphs")(
       parseRepos(
         Seq(trainSetDir),
-        inParallel = false,
-        moveParsedTo = Some(trainSetDir / up / "allRepos-parsed")
+        inParallel = true,
+        maxLinesOfCode = 30000,
+        parsedCallback = (file, p) => {
+          val nodes = p.pGraph.nodes.size
+          if (nodes > 500 && nodes < 10000) {
+            mv(file, trainSetDir / up / "testSet-new" / file.last)
+          }
+        }
       )
     )
   }
