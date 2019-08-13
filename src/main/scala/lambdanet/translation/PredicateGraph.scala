@@ -138,12 +138,26 @@ object PredicateGraph {
         None
       )
 
-    def newUnknownDef(nameOpt: Option[Symbol]) =
-      NameDef(
-        Some(newNode(nameOpt, isType = false)),
-        NameDef.unknownDef.ty,
-        None
-      )
+    val namedUnknownDefs: mutable.HashMap[Symbol, NameDef] = mutable.HashMap()
+
+    def newUnknownDef(nameOpt: Option[Symbol]): NameDef = {
+      nameOpt match {
+        case None =>
+          NameDef(
+          Some(newNode(None, isType = false)),
+          NameDef.unknownDef.ty,
+          None
+        )
+        case Some(name) =>
+          namedUnknownDefs.getOrElseUpdate(name,
+            NameDef(
+              Some(newNode(nameOpt, isType = false)),
+              NameDef.unknownDef.ty,
+              None
+            )
+          )
+      }
+    }
   }
 
   case class ProjNode(n: PNode) {

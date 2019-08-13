@@ -37,7 +37,7 @@ object TrainingLoop extends TrainingLoopTrait {
   val toyMod: Boolean = false
   val onlySeqModel = false
   val taskName: String =
-    if (onlySeqModel) "seqModel"
+    if (onlySeqModel) "large-seqModel"
     else s"large-onlyGNN-${TrainingState.iterationNum}"
 
   val labelDropoutProb: Real = 0.0
@@ -282,8 +282,8 @@ object TrainingLoop extends TrainingLoopTrait {
       }
 
       def testStep(epoch: Int, isTestSet: Boolean): Unit = {
-        val dataSetName = if(isTestSet) "test" else "dev"
-        val dataSet = if(isTestSet) testSet else devSet
+        val dataSetName = if (isTestSet) "test" else "dev"
+        val dataSet = if (isTestSet) testSet else devSet
         if ((epoch - 1) % 5 == 0) announced(s"test on $dataSetName set") {
           import cats.implicits._
           architecture.dropoutStorage = None
@@ -294,7 +294,7 @@ object TrainingLoop extends TrainingLoopTrait {
             announced(s"test on $datum") {
               selectForward(datum).map {
                 case (_, fwd, pred) =>
-                  if(isTestSet) {
+                  if (isTestSet) {
                     val pred1 = pred.mapValuesNow {
                       _.head
                     }
@@ -315,8 +315,10 @@ object TrainingLoop extends TrainingLoopTrait {
           }.combineAll
 
           import stat.{libCorrect, projCorrect, confusionMatrix, categoricalAcc}
-          logger.logScalar(s"$dataSetName-libAcc", epoch, toAccuracy(libCorrect))
-          logger.logScalar(s"$dataSetName-projAcc", epoch, toAccuracy(projCorrect))
+          logger
+            .logScalar(s"$dataSetName-libAcc", epoch, toAccuracy(libCorrect))
+          logger
+            .logScalar(s"$dataSetName-projAcc", epoch, toAccuracy(projCorrect))
           logger.logConfusionMatrix(
             s"$dataSetName-confusionMat",
             epoch,
@@ -325,7 +327,11 @@ object TrainingLoop extends TrainingLoopTrait {
           )
           logger.logScalar(s"$dataSetName-fse-top1", epoch, toAccuracy(fse1Acc))
           logger.logScalar(s"$dataSetName-fse-top5", epoch, toAccuracy(fse5Acc))
-          logger.logString(s"$dataSetName-typeAcc", epoch, typeAccString(categoricalAcc))
+          logger.logString(
+            s"$dataSetName-typeAcc",
+            epoch,
+            typeAccString(categoricalAcc)
+          )
         }
       }
 

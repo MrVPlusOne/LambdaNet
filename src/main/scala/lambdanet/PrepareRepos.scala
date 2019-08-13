@@ -79,6 +79,10 @@ object PrepareRepos {
                 errorHandler =
                   ErrorHandler(ErrorHandler.StoreError, ErrorHandler.StoreError)
               )
+            val diff = (a.nodes ++ a.predicates.flatMap(_.allNodes))
+              .diff(libDefs.nodeMapping.keySet)
+            val libNode = diff.find(_.fromLib)
+            assert(libNode.isEmpty, s"lib node not in libDefs: ${libNode.get}")
             Some(ParsedProject(f.relativeTo(dir), a, b, c, d))
           } else None
           r.tap { p =>
@@ -254,7 +258,11 @@ object PrepareRepos {
         devDependencies
       ),
       errorHandler = handler,
-      libAllocator.newUnknownDef,
+      nameOpt => {
+        libAllocator.newUnknownDef(nameOpt).tap { d =>
+          printWarning(s"new unknown def: $d", mustWarn = true)
+        }
+      },
       maxIterations = 5
     )
 
@@ -292,7 +300,11 @@ object PrepareRepos {
     val anyNode = libAllocator.newNode(None, isType = true)
 
     val nodeMapping = defaultMapping ++
-      qModules.flatMap(_.mapping) + (anyNode -> Annot.Missing)
+      qModules.flatMap(_.mapping) ++
+      libAllocator.namedUnknownDefs.values.map { d =>
+        d.term.get -> Annot.Missing
+      } +
+      (anyNode -> Annot.Missing)
 
     println("Declaration files parsed.")
     LibDefs(anyNode, baseCtx1, nodeMapping, libExports)
