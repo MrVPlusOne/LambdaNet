@@ -133,7 +133,7 @@ object PrepareRepos {
     val devSetDir: Path = basePath / "devSet"
     val testSetDir: Path = basePath / "testSet"
     val (libDefs, Seq(trainSet, devSet, testSet)) = announced("parsePredGraphs")(
-      parseRepos(Seq(trainSetDir, devSetDir,testSetDir), loadFromFile = true)  //fixme: set loadFromFile to true and fix
+      parseRepos(Seq(trainSetDir, devSetDir,testSetDir), loadFromFile = false)  //fixme: set loadFromFile to false and fix
     )
     val stats = repoStatistics(trainSet ++ devSet ++ testSet)
     val avgStats = stats.headers
