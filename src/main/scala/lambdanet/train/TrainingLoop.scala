@@ -38,7 +38,7 @@ object TrainingLoop extends TrainingLoopTrait {
   val onlySeqModel = false
   val taskName =
     if (onlySeqModel) "seqModel"
-    else s"onlyGNN-${TrainingState.iterationNum}"
+    else s"large-onlyGNN-${TrainingState.iterationNum}"
 
   val labelDropoutProb: Real = 0.0
 
@@ -46,7 +46,7 @@ object TrainingLoop extends TrainingLoopTrait {
 
   def scaleLearningRate(epoch: Int): Double = {
     val min = 0.3
-    val epochToSlowDown = if (toyMod) 300 else 150
+    val epochToSlowDown = if (toyMod) 300 else 40
     SimpleMath
       .linearInterpolate(1.0, min)(epoch.toDouble / epochToSlowDown)
       .max(min)
@@ -55,7 +55,7 @@ object TrainingLoop extends TrainingLoopTrait {
   def main(args: Array[String]): Unit = {
     Tensor.floatingDataType = DataType.DOUBLE
     run(
-      maxTrainingEpochs = 5000,
+      maxTrainingEpochs = if (toyMod) 2500 else 500,
       numOfThreads = readThreadNumber()
     ).result()
   }
@@ -116,8 +116,11 @@ object TrainingLoop extends TrainingLoopTrait {
         (trainingState.epoch0 + 1 to maxTrainingEpochs).foreach { epoch =>
           announced(s"epoch $epoch") {
             handleExceptions(epoch) {
-              DebugTime.logTime("test-step") {
-                testStep(epoch)
+              DebugTime.logTime("test-devSet") {
+                testStep(epoch, isTestSet = false)
+              }
+              DebugTime.logTime("test-testSet") {
+                testStep(epoch, isTestSet = true)
               }
               trainStep(epoch)
               if (epoch % saveInterval == 0) {
@@ -278,24 +281,30 @@ object TrainingLoop extends TrainingLoopTrait {
         logger.logString("accuracy-distr", epoch, str)
       }
 
-      def testStep(epoch: Int): Unit =
-        if ((epoch - 1) % 5 == 0) announced("test on dev set") {
+      def testStep(epoch: Int, isTestSet: Boolean): Unit = {
+        val dataSetName = if(isTestSet) "test" else "dev"
+        val dataSet = if(isTestSet) testSet else devSet
+        if ((epoch - 1) % 5 == 0) announced(s"test on $dataSetName set") {
           import cats.implicits._
           architecture.dropoutStorage = None
           isTraining = false
 
-          val (stat, fse1Acc, fse5Acc) = testSet.flatMap { datum =>
+          val (stat, fse1Acc, fse5Acc) = dataSet.flatMap { datum =>
             checkShouldStop(epoch)
             announced(s"test on $datum") {
               selectForward(datum).map {
                 case (_, fwd, pred) =>
-                  val pred1 = pred.mapValuesNow { _.head }
-                  printQSource(
-                    datum.qModules,
-                    pred1,
-                    datum.predictor.predictionSpace,
-                    resultsDir / "predictions" / datum.projectName
-                  )
+                  if(isTestSet) {
+                    val pred1 = pred.mapValuesNow {
+                      _.head
+                    }
+                    printQSource(
+                      datum.qModules,
+                      pred1,
+                      datum.predictor.predictionSpace,
+                      resultsDir / "predictions" / datum.projectName
+                    )
+                  }
 
                   val (fse1, _) = datum.fseAcc.countTopNCorrect(1, pred)
                   val (fse5, _) = datum.fseAcc.countTopNCorrect(5, pred)
@@ -306,18 +315,19 @@ object TrainingLoop extends TrainingLoopTrait {
           }.combineAll
 
           import stat.{libCorrect, projCorrect, confusionMatrix, categoricalAcc}
-          logger.logScalar("test-libAcc", epoch, toAccuracy(libCorrect))
-          logger.logScalar("test-projAcc", epoch, toAccuracy(projCorrect))
+          logger.logScalar(s"$dataSetName-libAcc", epoch, toAccuracy(libCorrect))
+          logger.logScalar(s"$dataSetName-projAcc", epoch, toAccuracy(projCorrect))
           logger.logConfusionMatrix(
-            "test-confusionMat",
+            s"$dataSetName-confusionMat",
             epoch,
             confusionMatrix.value,
             2
           )
-          logger.logScalar("test-fse-top1", epoch, toAccuracy(fse1Acc))
-          logger.logScalar("test-fse-top5", epoch, toAccuracy(fse5Acc))
-          logger.logString("test-typeAcc", epoch, typeAccString(categoricalAcc))
+          logger.logScalar(s"$dataSetName-fse-top1", epoch, toAccuracy(fse1Acc))
+          logger.logScalar(s"$dataSetName-fse-top5", epoch, toAccuracy(fse5Acc))
+          logger.logString(s"$dataSetName-typeAcc", epoch, typeAccString(categoricalAcc))
         }
+      }
 
       def calcGradInfo(stats: Optimizer.OptimizeStats) = {
         def meanSquaredNorm(gs: Iterable[Gradient]) = {

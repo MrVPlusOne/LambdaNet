@@ -3,9 +3,7 @@ package lambdanet.architecture
 import botkop.numsca.Tensor
 import funcdiff._
 
-import scala.collection.GenSeq
 import lambdanet._
-import lambdanet.PrepareRepos.ParsedRepos
 import lambdanet.train.Datum
 import lambdanet.translation.PredicateGraph._
 

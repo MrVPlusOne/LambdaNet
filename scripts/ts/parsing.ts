@@ -518,6 +518,7 @@ type SpecialExpressions =
   ts.NonNullExpression |
   ts.ClassExpression |
   ts.OmittedExpression |
+  ts.MetaProperty |
   JsxExpressions
 
 export function parseExpr(node: ts.Expression,
@@ -1151,6 +1152,12 @@ export class StmtParser {
                 ["export", "default"]));
             }
           }
+          case SyntaxKind.NamespaceExportDeclaration:{
+            const n = node as ts.NamespaceExportDeclaration;
+            //todo: check if this is the right way
+            const name = n.name.text;
+            return EP.alongWith(new ExportSingle(name, name, null));
+          }
           case SyntaxKind.ExportDeclaration: {
             const n = node as ts.ExportDeclaration;
             const path = n.moduleSpecifier ? (n.moduleSpecifier as ts.StringLiteral).text : null;
@@ -1249,7 +1256,6 @@ export class StmtParser {
           }
 
           // ignored statements:
-          case SyntaxKind.NamespaceExportDeclaration:
           case SyntaxKind.DebuggerStatement:
           case SyntaxKind.BreakStatement:
           case SyntaxKind.ContinueStatement:

@@ -8,7 +8,6 @@ import lambdanet.translation.IR._
 import lambdanet.translation.PAnnot
 import lambdanet.translation.PredicateGraph.{PNode, PType}
 
-import scala.collection.GenSeq
 import scala.collection.parallel.ForkJoinTaskSupport
 import scala.language.implicitConversions
 

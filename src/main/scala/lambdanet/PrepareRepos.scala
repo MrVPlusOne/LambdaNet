@@ -34,13 +34,11 @@ case class LibDefs(
 
 object PrepareRepos {
   val libDefsFile: Path = pwd / up / "lambda-repos" / "libDefs.serialized"
-  val parsedRepoPath: Path = pwd / "data" / "predicateGraphs.serialized"
+  val parsedRepoPath: Path = pwd / "data" / "parsedDataSet.serialized"
 
   def main(args: Array[String]): Unit = {
-//    val d =pwd / up / "lambda-repos" / "allRepos"
-//    println(countTsCode(d / "argonjs_argon", d))
-
-    parseTestSet()
+//    parseTestSet()
+    parseAndSerializeDataSet()
   }
 
   def parseRepos(
@@ -101,13 +99,13 @@ object PrepareRepos {
     map.getOrElse("TypeScript", 0)
   }
 
-  def parseTestSet(): Unit = {
+  def parseAndFilterDataSet(): Unit = {
     val trainSetDir: Path = pwd / up / "lambda-repos" / "allRepos"
     var progress = 0
     announced("parsePredGraphs")(
       parseRepos(
         Seq(trainSetDir),
-        inParallel = false,
+        inParallel = true,
         maxLinesOfCode = 20000,
         parsedCallback = (file, pOpt) => {
           val dest = pOpt match {
@@ -129,13 +127,15 @@ object PrepareRepos {
     )
   }
 
-  def parseDataSet(): Unit = {
-    val trainSetDir: Path = pwd / up / "lambda-repos" / "trainSet"
-    val devSetDir: Path = pwd / up / "lambda-repos" / "devSet"
-    val (libDefs, Seq(trainSet, devSet)) = announced("parsePredGraphs")(
-      parseRepos(Seq(trainSetDir, devSetDir), loadFromFile = false)
+  def parseAndSerializeDataSet(): Unit = {
+    val basePath = pwd / up / "lambda-repos" / "bigger"
+    val trainSetDir: Path = basePath / "trainSet"
+    val devSetDir: Path = basePath / "devSet"
+    val testSetDir: Path = basePath / "testSet"
+    val (libDefs, Seq(trainSet, devSet, testSet)) = announced("parsePredGraphs")(
+      parseRepos(Seq(trainSetDir, devSetDir,testSetDir), loadFromFile = true)  //fixme: set loadFromFile to true and fix
     )
-    val stats = repoStatistics(trainSet ++ devSet)
+    val stats = repoStatistics(trainSet ++ devSet ++ testSet)
     val avgStats = stats.headers
       .zip(stats.average)
       .map {
@@ -147,7 +147,7 @@ object PrepareRepos {
 
     announced(s"save data set to file: $parsedRepoPath") {
       SM.saveObjectToFile(parsedRepoPath.toIO)(
-        ParsedRepos(libDefs, trainSet, devSet)
+        ParsedRepos(libDefs, trainSet, devSet, testSet)
       )
     }
   }
@@ -165,7 +165,8 @@ object PrepareRepos {
   case class ParsedRepos(
       libDefs: LibDefs,
       trainSet: List[ParsedProject],
-      devSet: List[ParsedProject]
+      devSet: List[ParsedProject],
+      testSet: List[ParsedProject]
   )
 
   case class RepoStats(

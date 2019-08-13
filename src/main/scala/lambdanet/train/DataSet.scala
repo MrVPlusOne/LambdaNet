@@ -3,13 +3,7 @@ package lambdanet.train
 import lambdanet._
 import lambdanet.translation.PredicateGraph._
 import NeuralInference._
-import lambdanet.PrepareRepos.ParsedRepos
 import lambdanet.SequenceModel.SeqPredictor
-import lambdanet.architecture.LabelEncoder.{
-  ConstantLabelEncoder,
-  RandomLabelEncoder,
-  TrainableLabelEncoder
-}
 import lambdanet.architecture.NNArchitecture
 import lambdanet.translation.ImportsResolution.NameDef
 import lambdanet.translation.QLang.QModule
@@ -20,6 +14,7 @@ import scala.collection.parallel.ForkJoinTaskSupport
 case class DataSet(
     nodeForAny: LibTypeNode,
     trainSet: Vector[Datum],
+    devSet: Vector[Datum],
     testSet: Vector[Datum]
 ) {
   override def toString: String =
@@ -39,11 +34,12 @@ object DataSet {
 
       printResult(s"Is toy data set? : $toyMod")
 
-      val repos @ ParsedRepos(libDefs, trainSet, devSet) =
+      val repos @ ParsedRepos(libDefs, trainSet, devSet, testSet) =
         if (toyMod)
           parseRepos(
             Seq(
               pwd / RelPath("data/toy/trainSet"),
+              pwd / RelPath("data/toy/testSet"), //todo: need devSet
               pwd / RelPath("data/toy/testSet")
             )
           )
@@ -61,29 +57,28 @@ object DataSet {
           coverageGoal = 0.95
         ).filterNot(n => typesNotToPredict.contains(n.n.n))
 
-      val data = (trainSet ++ devSet).toVector
-        .map {
-          case ParsedProject(path, g, qModules, irModules, annotations) =>
-            val predictor =
-              Predictor(
-                g,
-                libTypesToPredict,
-                libDefs.libNodeType,
-                taskSupport
-              )
-            val nonGenerifyIt = nonGenerify(libDefs)
-            val annots1 = annotations
-              .mapValuesNow { nonGenerifyIt }
-
-            val seqPredictor = SeqPredictor(
-              irModules,
-              libDefs,
-              predictor.predictionSpace,
+      val data = (trainSet ++ devSet ++ testSet).toVector.par.map {
+        case ParsedProject(path, g, qModules, irModules, annotations) =>
+          val predictor =
+            Predictor(
+              g,
+              libTypesToPredict,
+              libDefs.libNodeType,
               taskSupport
             )
-            Datum(path, annots1, qModules, predictor, seqPredictor)
-              .tap(printResult)
-        }
+          val nonGenerifyIt = nonGenerify(libDefs)
+          val annots1 = annotations
+            .mapValuesNow { nonGenerifyIt }
+
+          val seqPredictor = SeqPredictor(
+            irModules,
+            libDefs,
+            predictor.predictionSpace,
+            taskSupport
+          )
+          Datum(path, annots1, qModules, predictor, seqPredictor)
+            .tap(printResult)
+      }.seq
 
       (data.map { d =>
         d.annotations.size * d.inPSpaceRatio
@@ -100,10 +95,12 @@ object DataSet {
       )
       printResult(s"$libAnnots library targets, $projAnnots project targets.")
 
+      val (n1, n2) = (trainSet.length, devSet.length)
       DataSet(
         LibTypeNode(LibNode(libDefs.nodeForAny)),
-        data.take(trainSet.length),
-        data.drop(trainSet.length)
+        data.take(n1),
+        data.slice(n1, n1 + n2),
+        data.drop(n1 + n2)
       ).tap(printResult)
     }
 
