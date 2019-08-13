@@ -72,7 +72,13 @@ object PrepareRepos {
         .flatMap { f =>
           val r = if (countTsCode(f, dir) < maxLinesOfCode) {
             val (a, b, c, d) =
-              prepareProject(libDefs, f, shouldPruneGraph = false)
+              prepareProject(
+                libDefs,
+                f,
+                shouldPruneGraph = false,
+                errorHandler =
+                  ErrorHandler(ErrorHandler.StoreError, ErrorHandler.StoreError)
+              )
             Some(ParsedProject(f.relativeTo(dir), a, b, c, d))
           } else None
           r.tap { p =>
@@ -132,9 +138,13 @@ object PrepareRepos {
     val trainSetDir: Path = basePath / "trainSet"
     val devSetDir: Path = basePath / "devSet"
     val testSetDir: Path = basePath / "testSet"
-    val (libDefs, Seq(trainSet, devSet, testSet)) = announced("parsePredGraphs")(
-      parseRepos(Seq(trainSetDir, devSetDir,testSetDir), loadFromFile = false)  //fixme: set loadFromFile to false and fix
-    )
+    val (libDefs, Seq(trainSet, devSet, testSet)) =
+      announced("parsePredGraphs")(
+        parseRepos(
+          Seq(trainSetDir, devSetDir, testSetDir),
+          loadFromFile = false
+        )
+      )
     val stats = repoStatistics(trainSet ++ devSet ++ testSet)
     val avgStats = stats.headers
       .zip(stats.average)
@@ -327,7 +337,9 @@ object PrepareRepos {
       libDefs: LibDefs,
       root: Path,
       skipSet: Set[String] = Set("dist", "__tests__", "test", "tests"),
-      shouldPruneGraph: Boolean = true
+      shouldPruneGraph: Boolean = true,
+      errorHandler: ErrorHandler =
+        ErrorHandler(ErrorHandler.ThrowError, ErrorHandler.ThrowError)
   ): (PredicateGraph, Vector[QModule], Vector[IRModule], Map[ProjNode, PType]) =
     SimpleMath.withErrorMessage(s"In project: $root") {
       import libDefs._
@@ -342,9 +354,6 @@ object PrepareRepos {
       )
       val allocator = new PNodeAllocator(forLib = false)
       val irTranslator = new IRTranslation(allocator)
-
-      val errorHandler =
-        ErrorHandler(ErrorHandler.StoreError, ErrorHandler.StoreError)
 
 //    println(s"LibExports key set: ${libExports.keySet}")
       val qModules = QLangTranslation.fromProject(

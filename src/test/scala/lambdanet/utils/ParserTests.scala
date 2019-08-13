@@ -7,12 +7,8 @@ import ImportStmt._
 import funcdiff.SimpleMath
 import lambdanet.NeuralInference.Predictor
 import lambdanet.train.DataSet.selectLibTypes
-import lambdanet.translation.PredicateGraph.{
-  DefineRel,
-  LibTypeNode,
-  PNode,
-  PNodeAllocator
-}
+import lambdanet.translation.ImportsResolution.ErrorHandler
+import lambdanet.translation.PredicateGraph.{DefineRel, LibTypeNode, PNode, PNodeAllocator}
 import lambdanet.translation.QLangTranslation
 import lambdanet.utils.ProgramParsing.ImportPattern
 
@@ -249,7 +245,9 @@ class ParserTests extends WordSpec with MyTest {
         SimpleMath.readObjectFromFile[LibDefs](libDefsFile.toIO)
       }
 
-    val f = pwd / RelPath("data/tests/import-unknowns")
+    // fixme: TestDef is missing when resolving types
+    val f = pwd / RelPath("data/tests/export-import")
+    lambdanet.shouldWarn = true
     val (g, _, _, _) =
       prepareProject(libDefs, f, skipSet = Set(), shouldPruneGraph = false)
     g.predicates.foreach(println)

@@ -762,6 +762,8 @@ case class ProgramParsing() {
         case cat @ ("ImportSingle" | "ImportDefault" | "ImportModule") =>
           val path = {
             val str = StringContext.treatEscapes(asString(map("path")))
+            if(str.startsWith("\""))
+              throw new Error(s"path is not parsed correctly: '$str'")
             ReferencePath(RelPath(str), isRelative = str.startsWith("."))
           }
           val newName = asSymbol(map("newName"))

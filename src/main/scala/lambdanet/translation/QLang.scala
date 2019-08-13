@@ -112,15 +112,13 @@ object QLangTranslation {
     val root = pwd / RelPath("data/libraries")
     val files = ls
       .rec(root)
-      .filter(f => f.last.endsWith(".d.ts"))
+      .filter(f => f.isFile && f.last.endsWith(".d.ts"))
       .map(f => f.relativeTo(root))
     val allStmts =
       ProgramParsing
         .parseGModulesFromFiles(files, root)
         .map(_.stmts)
         .reduce(_ ++ _)
-    val m =
-      GModule(RelPath("default-imports"), allStmts, isDeclarationFile = true)
     val additionalDefs = JSExamples.specialVars.map {
       case (v, t) =>
         Surface.VarDef(
@@ -131,7 +129,8 @@ object QLangTranslation {
           ExportLevel.Unspecified
         )
     }
-    val defaultModule = m.copy(stmts = m.stmts ++ additionalDefs)
+    val defaultModule =
+      GModule(RelPath("default-imports"), allStmts ++ additionalDefs, isDeclarationFile = true)
     val libAllocator = new PNodeAllocator(forLib = true)
     val pModule = PLangTranslation.fromGModule(defaultModule, libAllocator)
 
@@ -476,7 +475,7 @@ object QLangTranslation {
           }
         }
 
-      val ctx1 = collectDefs(module.stmts)(ctx)
+      val ctx1 = collectDefs(module.stmts)(ctx)  // fixme: TestDef missing in export-import
       val stmts1 = module.stmts.flatMap(s => translateStmt(s)(ctx1))
       QModule(module.path, stmts1, newMapping.toMap)
     }
@@ -508,6 +507,7 @@ object QLangTranslation {
         case TyVar(n) =>
           def cantResolve() = {
             printWarning(s"Unable to resolve type: ${n.name}")
+//            throw new Error(s"Unable to resolve type: ${n.name}")
             NameDef.unknownDef
           }
           if (n.name == "...") // some weird corner case

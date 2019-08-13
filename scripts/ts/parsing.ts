@@ -1113,7 +1113,7 @@ export class StmtParser {
           }
           case SyntaxKind.ImportDeclaration: {
             const n = node as ts.ImportDeclaration;
-            const path = n.moduleSpecifier.getText();
+            const path = (n.moduleSpecifier as ts.StringLiteral).text;
             if(n.importClause){
               if(n.importClause.name){
                 return EP.alongWith(new ImportDefault(n.importClause.name.text, path));
