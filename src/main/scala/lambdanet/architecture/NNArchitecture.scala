@@ -329,7 +329,10 @@ abstract class NNArchitecture(
   ): CompNode = {
     singleLayer(
       'encodeLibTerm,
-      concatN(axis = 1, fromRows = true)(Vector(experience, signature, name))
+      concatN(axis = 1, fromRows = true)(
+//        Vector(experience, signature, name),
+          Vector(experience, name)
+      )
     )
 //     todo: see if type signature helps
 //    experience

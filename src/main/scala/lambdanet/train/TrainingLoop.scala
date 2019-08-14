@@ -38,9 +38,9 @@ object TrainingLoop extends TrainingLoopTrait {
   val onlySeqModel = false
   val taskName: String =
     if (onlySeqModel) "large-seqModel"
-    else s"large-independent-dropout-${TrainingState.iterationNum}"
+    else s"large-independent-noType-${TrainingState.iterationNum}"
 
-  val useDropout: Boolean = true
+  val useDropout: Boolean = false
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
