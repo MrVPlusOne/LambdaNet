@@ -40,7 +40,7 @@ object TrainingLoop extends TrainingLoopTrait {
     if (onlySeqModel) "large-seqModel"
     else s"large-independent-dropout-${TrainingState.iterationNum}"
 
-  val labelDropoutProb: Real = 0.0
+  val useDropout: Boolean = true
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
@@ -392,7 +392,7 @@ object TrainingLoop extends TrainingLoopTrait {
               seqArchitecture,
               nameEncoder,
               nodes,
-              nameDropout = if (isTraining) labelDropoutProb else 0.0
+              nameDropout = useDropout && isTraining
             )
           }
 
@@ -464,7 +464,7 @@ object TrainingLoop extends TrainingLoopTrait {
         limitTimeOpt(s"forward: $datum", Timeouts.forwardTimeout) {
           import datum._
 
-          val labelDropout = if (isTraining) labelDropoutProb else 0.0
+          val shouldDropout = useDropout && isTraining
 
           val predSpace = predictor.predictionSpace
 
@@ -484,7 +484,7 @@ object TrainingLoop extends TrainingLoopTrait {
                   seqPredictor.encode(
                     seqArchitecture,
                     nameEncoder,
-                    labelDropout,
+                    shouldDropout,
                     nodes.map(_.n)
                   )
                 )
@@ -510,7 +510,7 @@ object TrainingLoop extends TrainingLoopTrait {
                 seqArchitecture,
                 nameEncoder,
                 nodesToPredict.map(_.n),
-                labelDropout
+                shouldDropout
               ) * scale
             }
 
@@ -543,7 +543,7 @@ object TrainingLoop extends TrainingLoopTrait {
                 labelEncoder,
                 labelCoverage.isLibLabel,
                 nameEncoder,
-                labelDropout
+                shouldDropout
               )
               .result
               .pipe(seqMode.transformLogits)

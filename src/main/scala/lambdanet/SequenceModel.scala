@@ -55,7 +55,7 @@ object SequenceModel {
         architecture: SeqArchitecture,
         nameEncoder: LabelEncoder,
         nodesToPredict: Vector[PNode],
-        nameDropout: Double
+        nameDropout: Boolean
     ): CompNode = {
       val states =
         encode(architecture, nameEncoder, nameDropout, nodesToPredict)
@@ -66,10 +66,10 @@ object SequenceModel {
     def encode(
         architecture: SeqArchitecture,
         nameEncoder: LabelEncoder,
-        nameDropout: Double,
+        useDropout: Boolean,
         nodesToPredict: Vector[PNode]
     ): Vector[CompNode] = {
-      val encodeName = nameEncoder.newEncoder(nameDropout)
+      val encodeName = nameEncoder.newEncoder(useDropout)
       val embedding = architecture
         .aggregate(leftBatched, rightBatched, encodeName)
       val missingEmbedding = architecture
