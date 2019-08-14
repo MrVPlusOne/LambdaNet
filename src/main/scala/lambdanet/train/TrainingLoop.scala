@@ -35,10 +35,10 @@ import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
   val toyMod: Boolean = false
-  val onlySeqModel = true // todo
+  val onlySeqModel = false
   val taskName: String =
     if (onlySeqModel) "large-seqModel"
-    else s"large-onlyGNN-independent-${TrainingState.iterationNum}"
+    else s"large-noAttention-independent-${TrainingState.iterationNum}"
 
   val labelDropoutProb: Real = 0.0
 

@@ -339,22 +339,23 @@ object NeuralInference {
               val msgs = fields.toVector.map {
                 case (l, v) => Labeled(defined, v, Label.Field(l))
               }
-              val fieldMessages = fields.toVector.foldMap {
-                case (label, field) =>
-                  Map(
-                    (KindField(label): MessageKind) ->
-                      Vector[MessageModel](ClassFieldUsage(defined, field))
-                  )
-              }
-              fieldMessages |+|
+              // todo: turn attention back on
+//              val fieldMessages = fields.toVector.foldMap {
+//                case (label, field) =>
+//                  Map(
+//                    (KindField(label): MessageKind) ->
+//                      Vector[MessageModel](ClassFieldUsage(defined, field))
+//                  )
+//              }
+//              fieldMessages |+|
                 Map(KindBinaryLabeled("defineObject", LabelType.Field) -> msgs)
             case PAccess(receiver, label) =>
               val msg = Vector(Labeled(defined, receiver, Label.Field(label)))
               Map(
-                KindBinaryLabeled("defineAccess", LabelType.Field) -> msg,
-                KindAccess(label) -> Vector(
-                  AccessFieldUsage(receiver, defined)
-                )
+                KindBinaryLabeled("defineAccess", LabelType.Field) -> msg
+//                KindAccess(label) -> Vector(
+//                  AccessFieldUsage(receiver, defined)
+//                )
               )
           }
       }
