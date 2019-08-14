@@ -38,7 +38,7 @@ object TrainingLoop extends TrainingLoopTrait {
   val onlySeqModel = false
   val taskName: String =
     if (onlySeqModel) "large-seqModel"
-    else s"large-noAttention-independent-${TrainingState.iterationNum}"
+    else s"large-64dim-independent-${TrainingState.iterationNum}"
 
   val labelDropoutProb: Real = 0.0
 
