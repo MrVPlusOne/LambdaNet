@@ -38,7 +38,7 @@ object TrainingLoop extends TrainingLoopTrait {
   val onlySeqModel = false
   val taskName: String =
     if (onlySeqModel) "large-seqModel"
-    else s"large-64dim-independent-${TrainingState.iterationNum}"
+    else s"large-independent-dropout-${TrainingState.iterationNum}"
 
   val labelDropoutProb: Real = 0.0
 
@@ -94,13 +94,31 @@ object TrainingLoop extends TrainingLoopTrait {
       var isTraining = false
 
       val labelCoverage =
-        TrainableLabelEncoder(trainSet, coverageGoal = 0.95, architecture)
+        TrainableLabelEncoder(
+          trainSet,
+          coverageGoal = 0.92,
+          architecture,
+          dropoutProb = 0.2,
+          dropoutThreshold = 500
+        )
 
       val labelEncoder =
-        SegmentedLabelEncoder(trainSet, coverageGoal = 0.95, architecture)
+        SegmentedLabelEncoder(
+          trainSet,
+          coverageGoal = 0.98,
+          architecture,
+          dropoutProb = 0.2,
+          dropoutThreshold = 1000
+        )
 
       val nameEncoder = {
-        SegmentedLabelEncoder(trainSet, coverageGoal = 0.95, architecture)
+        SegmentedLabelEncoder(
+          trainSet,
+          coverageGoal = 0.98,
+          architecture,
+          dropoutProb = 0.2,
+          dropoutThreshold = 1000
+        )
 //        ConstantLabelEncoder(architecture)
       }
 

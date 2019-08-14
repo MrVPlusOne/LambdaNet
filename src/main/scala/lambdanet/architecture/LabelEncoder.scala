@@ -13,20 +13,27 @@ import scala.util.Random
 trait LabelEncoder {
   def name: String
 
+  protected def dropoutProb: Real
+
   private val random = new Random()
 
-  def newEncoder(dropoutProb: Double): Symbol => CompNode = {
+  def newEncoder(useDropout: Boolean): Symbol => CompNode = {
     val map = new TrieMap[Symbol, CompNode]()
+
+    def shouldDropout(): Boolean =
+      if (useDropout) random.synchronized {
+        random.nextDouble() < dropoutProb
+      } else false
+
     l: Symbol => {
-      val r = random.synchronized(random.nextDouble())
-      if (r < dropoutProb) dropoutImpl
-      else map.getOrElseUpdate(l, impl(l))
+      map.getOrElseUpdate(l, impl(l, shouldDropout))
     }
   }
 
-  protected def dropoutImpl: CompNode
-
-  protected def impl(label: Symbol): CompNode
+  protected def impl(
+      label: Symbol,
+      shouldDropout: () => Boolean
+  ): CompNode
 }
 
 object LabelEncoder {
@@ -35,12 +42,15 @@ object LabelEncoder {
       extends LabelEncoder {
     def name: String = "RandomLabelEncoder"
 
-    protected def impl(label: Symbol): CompNode = {
-      dropoutImpl
-    }
+    def dropoutProb: Real = 0.0
 
-    protected def dropoutImpl: CompNode =
+    protected def impl(
+        label: Symbol,
+        shouldDropout: () => Boolean
+    ): CompNode = {
       const(architecture.randomUnitVec())
+
+    }
   }
 
   case class ConstantLabelEncoder(architecture: NNArchitecture)
@@ -49,23 +59,35 @@ object LabelEncoder {
 
     private val zeroVec: Tensor = architecture.zeroVec()
 
-    protected def impl(label: Symbol): CompNode = zeroVec
+    protected def dropoutProb: Real = 0.0
 
-    protected def dropoutImpl: CompNode = zeroVec
+    protected def impl(
+        label: Symbol,
+        shouldDropout: () => Boolean
+    ): CompNode = {
+      zeroVec
+    }
   }
 
   import scala.collection.GenSeq
 
+  /**
+    * @param dropoutThreshold if a label appears more than this number of times
+    *                         in the training set, it won't be dropped out during
+    *                         training time.
+    */
   case class TrainableLabelEncoder(
       trainSet: Vector[Datum],
       coverageGoal: Double,
-      architecture: NNArchitecture
+      architecture: NNArchitecture,
+      dropoutProb: Real,
+      dropoutThreshold: Int
   ) extends LabelEncoder {
     import cats.implicits._
 
     def name: String = "TrainableLabelEncoder"
 
-    private val labelsMap: Map[Symbol, CompNode] = {
+    private val (labelsMap, commonLabels) = {
       val totalUsages = trainSet.foldMap { p =>
         val predsUsage = p.predictor.graph.predicates.toVector.collect {
           case DefineRel(_, expr) =>
@@ -90,13 +112,19 @@ object LabelEncoder {
       labels.map {
         case (s, _) =>
           s -> architecture.randomVar('label / s)
-      }.toMap
+      }.toMap -> labels.collect {
+        case (l, freq) if freq > dropoutThreshold => l
+      }.toSet
     }
 
     def isLibLabel(label: Symbol): Boolean = labelsMap.contains(label)
 
-    protected def impl(label: Symbol): CompNode = {
-      labelsMap.getOrElse(label, dropoutImpl)
+    protected def impl(
+        label: Symbol,
+        shouldDropout: () => Boolean
+    ): CompNode = {
+      if (!commonLabels.contains(label) && shouldDropout()) dropoutImpl
+      else labelsMap.getOrElse(label, dropoutImpl)
     }
 
     protected def dropoutImpl: CompNode =
@@ -108,16 +136,23 @@ object LabelEncoder {
 
   }
 
+  /**
+    * @param dropoutThreshold if a segment appears more than this number of times
+    *                         in the training set, it won't be dropped out during
+    *                         training time.
+    */
   case class SegmentedLabelEncoder(
       trainSet: Vector[Datum],
       coverageGoal: Double,
-      architecture: NNArchitecture
+      architecture: NNArchitecture,
+      dropoutProb: Real,
+      dropoutThreshold: Int
   ) extends LabelEncoder {
     import cats.implicits._
 
     def name: String = "SegmentedLabelEncoder"
 
-    private val segmentsMap: Map[Segment, CompNode] = {
+    private val (segmentsMap, commonSegments) = {
       val totalUsages = trainSet.foldMap { p =>
         val predsUsage = p.predictor.graph.predicates.toVector.collect {
           case DefineRel(_, expr) =>
@@ -139,25 +174,30 @@ object LabelEncoder {
       printResult(s"coverage achieved: $achieved")
       printResult(s"Fist 100 segs: ${segments.take(100)}")
 
-      segments.map {
+      val commonSegments =
+        segments.takeWhile(_._2 > dropoutThreshold).map(_._1).toSet
+      val segmentsMap = segments.map {
         case (s, _) =>
           s -> architecture.randomUnitVar("segments" / s.symbol)
       }.toMap
+      (segmentsMap, commonSegments)
     }
 
     private val zeroVec = architecture.zeroVec()
 
-    protected def impl(l: Symbol): CompNode = {
+    protected def impl(label: Symbol, shouldDropout: () => Boolean): CompNode = {
+      def dropoutImpl: CompNode =
+        architecture.randomVar('segments / '?)
+
       def encodeSeg(seg: Segment): CompNode = {
-        segmentsMap.getOrElse(seg, dropoutImpl)
+        if(!commonSegments.contains(seg) && shouldDropout()) dropoutImpl
+        else segmentsMap.getOrElse(seg, dropoutImpl)
       }
-      segmentName(l)
+
+      segmentName(label)
         .map(encodeSeg)
         .pipe(totalSafe(_, zeroVec))
     }
-
-    protected def dropoutImpl: CompNode =
-      architecture.randomVar('segments / '?)
 
     case class Segment(symbol: Symbol)
     def segmentName(symbol: Symbol): Vector[Segment] = {

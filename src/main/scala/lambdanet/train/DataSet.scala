@@ -44,7 +44,7 @@ object DataSet {
             )
           )
         else
-          announced(s"read data set from: $parsedRepoPath") {
+          announced(s"read data set from '$parsedRepoPath'") {
             SM.readObjectFromFile[ParsedRepos](parsedRepoPath.toIO)
           }
 
@@ -54,7 +54,7 @@ object DataSet {
         selectLibTypes(
           libDefs,
           repos.trainSet.map { _.userAnnots },
-          coverageGoal = 0.95
+          coverageGoal = 0.98
         ).filterNot(n => typesNotToPredict.contains(n.n.n))
 
       val data = (trainSet ++ devSet ++ testSet).toVector.par.map {
