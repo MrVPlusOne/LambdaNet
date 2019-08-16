@@ -45,7 +45,7 @@ object NeuralInference {
         }
 
         /** When set to false, each message passing has independent parameters */
-        val fixBetweenIteration = true
+        val fixBetweenIteration = false
 
         val embeddings = logTime("iterate") {
           (0 until iterations)
