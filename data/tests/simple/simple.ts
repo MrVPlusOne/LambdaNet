@@ -24,3 +24,4 @@ class C4{
 let c1: C1 = new C1();
 let c3: C3 = new C3();
 let c4: C4 = new C4();
+let r1: RegExp = /ab+c/;

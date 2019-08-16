@@ -79,11 +79,12 @@ object NeuralInference {
             }
 //            decodeSeparate(embed, allSignatureEmbeddings)
             val inputs = nodesToPredict.map(embed.vars.apply)
-            architecture.similarity(inputs, candidates, 'decodingSimilarity)
-//            architecture.predictLibraryTypes(
-//              inputs,
-//              predictionSpace.libTypeVec.length
-//            )
+            val sim1 = architecture.similarity(inputs, candidates, 'decodingSimilarity)
+            val sim2 = architecture.predictLibraryTypes(
+              inputs,
+              predictionSpace.libTypeVec.length
+            )
+            sim1 + sim2
           }
         }
       }

@@ -225,7 +225,7 @@ object PrepareRepos {
     val declarationsDir = pwd / up / "lambda-repos" / "declarations"
 
     println("parsing default module...")
-    val (baseCtx, libAllocator, defaultMapping) =
+    val (baseCtx, libAllocator, defaultMapping, defaultModule) =
       QLangTranslation.parseDefaultModule()
     println("default module parsed")
 
@@ -305,6 +305,8 @@ object PrepareRepos {
         d.term.get -> Annot.Missing
       } +
       (anyNode -> Annot.Missing)
+
+    //todo: collect object defs
 
     println("Declaration files parsed.")
     LibDefs(anyNode, baseCtx1, nodeMapping, libExports)

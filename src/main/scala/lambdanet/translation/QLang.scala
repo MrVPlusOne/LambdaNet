@@ -105,7 +105,8 @@ object QLangTranslation {
   def parseDefaultModule(): (
       ModuleExports,
       PNodeAllocator,
-      Map[PNode, PAnnot]
+      Map[PNode, PAnnot],
+      QModule
   ) = {
     import ammonite.ops._
 
@@ -130,7 +131,11 @@ object QLangTranslation {
         )
     }
     val defaultModule =
-      GModule(RelPath("default-imports"), allStmts ++ additionalDefs, isDeclarationFile = true)
+      GModule(
+        RelPath("default-imports"),
+        allStmts ++ additionalDefs,
+        isDeclarationFile = true
+      )
     val libAllocator = new PNodeAllocator(forLib = true)
     val pModule = PLangTranslation.fromGModule(defaultModule, libAllocator)
 
@@ -156,7 +161,7 @@ object QLangTranslation {
     val mapping = qModule.mapping ++
       Map(unknownTerm -> Annot.Missing, unknownType -> Annot.Missing)
 
-    (exports, libAllocator, mapping)
+    (exports, libAllocator, mapping, qModule)
   }
 
   def fromProject(
@@ -252,7 +257,10 @@ object QLangTranslation {
                   .map(Left.apply)
                   .getOrElse {
                     val n = nd.term.getOrElse {
-                      printWarning(s"Empty namedDef encountered in expr: $expr", mustWarn = true)
+                      printWarning(
+                        s"Empty namedDef encountered in expr: $expr",
+                        mustWarn = true
+                      )
                       NameDef.unknownDef.term.get //fixme: this shouldn't happen
                     }
                     Right(Var(n))
@@ -475,7 +483,7 @@ object QLangTranslation {
           }
         }
 
-      val ctx1 = collectDefs(module.stmts)(ctx)  // fixme: TestDef missing in export-import
+      val ctx1 = collectDefs(module.stmts)(ctx) // fixme: TestDef missing in export-import
       val stmts1 = module.stmts.flatMap(s => translateStmt(s)(ctx1))
       QModule(module.path, stmts1, newMapping.toMap)
     }
