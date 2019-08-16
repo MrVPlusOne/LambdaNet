@@ -209,7 +209,7 @@ class ParserTests extends WordSpec with MyTest {
   }
 
   "Standard lib parsing" in {
-    val (_, _, mapping) = QLangTranslation.parseDefaultModule()
+    val (_, _, mapping, _) = QLangTranslation.parseDefaultModule()
     println("standard lib mapping: ")
     mapping.foreach(println)
   }
@@ -233,7 +233,7 @@ class ParserTests extends WordSpec with MyTest {
   }
 
   ".d.ts files parsing" in {
-    val (baseCtx, libAllocator, _) = QLangTranslation.parseDefaultModule()
+    val (baseCtx, libAllocator, _, _) = QLangTranslation.parseDefaultModule()
     baseCtx.publicSymbols.foreach(println)
   }
 

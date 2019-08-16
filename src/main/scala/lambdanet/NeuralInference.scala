@@ -45,7 +45,7 @@ object NeuralInference {
         }
 
         /** When set to false, each message passing has independent parameters */
-        val fixBetweenIteration = false
+        val fixBetweenIteration = true
 
         val embeddings = logTime("iterate") {
           (0 until iterations)
@@ -79,12 +79,13 @@ object NeuralInference {
             }
 //            decodeSeparate(embed, allSignatureEmbeddings)
             val inputs = nodesToPredict.map(embed.vars.apply)
-            val sim1 = architecture.similarity(inputs, candidates, 'decodingSimilarity)
+//            val sim1 = architecture.similarity(inputs, candidates, 'decodingSimilarity)
             val sim2 = architecture.predictLibraryTypes(
               inputs,
               predictionSpace.libTypeVec.length
             )
-            sim1 + sim2
+//            sim1 + sim2
+            sim2
           }
         }
       }

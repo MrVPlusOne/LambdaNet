@@ -5,7 +5,15 @@ import botkop.numsca
 import botkop.numsca.:>
 import cats.data.Chain
 import funcdiff._
-import lambdanet.NeuralInference.{AccessFieldUsage, ClassFieldUsage, LabelUsages, LabelVector, Message, MessageKind, MessageModel}
+import lambdanet.NeuralInference.{
+  AccessFieldUsage,
+  ClassFieldUsage,
+  LabelUsages,
+  LabelVector,
+  Message,
+  MessageKind,
+  MessageModel
+}
 import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 
 import scala.collection.GenSeq
@@ -320,7 +328,7 @@ abstract class NNArchitecture(
     singleLayer(
       'encodeLibTerm,
       concatN(axis = 1, fromRows = true)(
-        Vector(experience, signature, name),
+        Vector(experience, signature, name)
 //          Vector(experience, name)
       )
     )
@@ -405,7 +413,6 @@ abstract class NNArchitecture(
   def singleLayer(
       path: SymbolPath,
       input: CompNode,
-      useDropout: Boolean = false
   ): CompNode = {
     def oneLayer(name: Symbol)(input: CompNode) = {
       val p = path / name
@@ -421,6 +428,19 @@ abstract class NNArchitecture(
 //          r * mask
 //      }
       r
+    }
+//    input ~> oneLayer('L1) ~> oneLayer('L2)
+    linear(path / 'L1, dimMessage)(input)
+  }
+
+  def predictionLayer(
+      path: SymbolPath,
+      input: CompNode,
+      useDropout: Boolean = false
+  ): CompNode = {
+    def oneLayer(name: Symbol)(input: CompNode) = {
+      val p = path / name
+      linear(p, dimMessage)(input) ~> relu
     }
 
     if (useDropout)
