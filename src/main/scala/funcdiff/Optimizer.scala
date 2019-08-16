@@ -48,24 +48,28 @@ trait Optimizer extends Serializable {
 
     val paramMap = params.map(p => p.path -> p).toMap
 
-    val transformed = gradients.mapValues(gradientTransform)
-    val deltas = for {
-      (path, g) <- transformed
-      p <- paramMap.get(path)
-      delta = parameterChangeAmount(p, g) * scaleLearningRate
-    } yield {
-      if (newlyCreated contains p.node) {
-        delta.addToTensor(p.node.value)
-      } else {
-        val newValue = p.node.value.copy()
-        delta.addToTensor(newValue)
-        p.node = paramNode(newValue, p.path)
-      }
+    val transformed = DebugTime.logTime("gradient-transformation") {
+      gradients.mapValues(gradientTransform)
+    }
+    val deltas = DebugTime.logTime("param-deltas") {
+      for {
+        (path, g) <- transformed
+        p <- paramMap.get(path)
+        delta = parameterChangeAmount(p, g) * scaleLearningRate
+      } yield {
+        if (newlyCreated contains p.node) {
+          delta.addToTensor(p.node.value)
+        } else {
+          val newValue = p.node.value.copy()
+          delta.addToTensor(newValue)
+          p.node = paramNode(newValue, p.path)
+        }
 
-      if (printUpdates) {
-        println(s"update param $p")
+        if (printUpdates) {
+          println(s"update param $p")
+        }
+        path -> delta
       }
-      path -> delta
     }
 
     OptimizeStats(gradients, transformed, deltas)

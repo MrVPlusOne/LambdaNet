@@ -5,16 +5,8 @@ import botkop.numsca
 import botkop.numsca.:>
 import cats.data.Chain
 import funcdiff._
-import lambdanet.NeuralInference.{
-  AccessFieldUsage,
-  ClassFieldUsage,
-  LabelUsages,
-  LabelVector,
-  Message,
-  MessageKind,
-  MessageModel
-}
-import lambdanet.translation.PredicateGraph.{PNode, ProjNode}
+import lambdanet.NeuralInference.{AccessFieldUsage, ClassFieldUsage, LabelUsages, LabelVector, Message, MessageKind, MessageModel}
+import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 
 import scala.collection.GenSeq
 
@@ -254,9 +246,7 @@ abstract class NNArchitecture(
 //      .pipe(sum(_, axis = 1))
 //      .pipe(softPlus(_) + 1.0)
     val factor = 1.0 / math.sqrt(dimMessage)
-    val sim = inputs1.dot(candidates1.t) * factor
-
-    sim ~> softmax
+    inputs1.dot(candidates1.t) * factor
   }
 
   def predictLibraryTypes(
@@ -330,8 +320,8 @@ abstract class NNArchitecture(
     singleLayer(
       'encodeLibTerm,
       concatN(axis = 1, fromRows = true)(
-//        Vector(experience, signature, name),
-          Vector(experience, name)
+        Vector(experience, signature, name),
+//          Vector(experience, name)
       )
     )
 //     todo: see if type signature helps

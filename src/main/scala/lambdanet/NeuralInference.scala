@@ -73,12 +73,17 @@ object NeuralInference {
 //            )
 //          }
           logTime("decode") {
+            val candidates = predictionSpace.libTypeVec.map{
+              case PTyVar(node) => encodeLibNode(LibNode(node))
+              case _ => throw new Error()
+            }
 //            decodeSeparate(embed, allSignatureEmbeddings)
             val inputs = nodesToPredict.map(embed.vars.apply)
-            architecture.predictLibraryTypes(
-              inputs,
-              predictionSpace.libTypeVec.length
-            )
+            architecture.similarity(inputs, candidates, 'decodingSimilarity)
+//            architecture.predictLibraryTypes(
+//              inputs,
+//              predictionSpace.libTypeVec.length
+//            )
           }
         }
       }
@@ -119,7 +124,6 @@ object NeuralInference {
         }
 
         n: LibNode => {
-          assert(graph.nodes.contains(n.n))
           if (n.n.isType) libSignatureEmbedding(PTyVar(n.n))
           else libTermEmbedding(LibTermNode(n))
         }
@@ -248,31 +252,13 @@ object NeuralInference {
       graph.nodes.filter(_.fromProject).map(ProjNode)
     val libraryNodes: Set[LibNode] =
       graph.nodes.filter(_.fromLib).map(LibNode) ++ unknownNodes
-    val allLibSignatures: Set[PType] = libraryNodes.map(libNodeType)
-
-    val projectTypes: Set[PTyVar] =
-      projectNodes.filter(n => n.n.isType).map(n => PTyVar(n.n))
-    val libraryTypes: Set[PTyVar] = libraryTypeNodes.map(_.n.n.pipe(PTyVar))
     val predictionSpace = PredictionSpace(
-      libraryTypes ++ Set() // ++ Set(PAny) ++ projectTypes,
+      libraryTypeNodes.map(_.n.n.pipe(PTyVar)) ++ Set() // ++ Set(PAny) ++ projectTypes,
     )
-    val predicateLabels: Set[Symbol] =
-      graph.predicates.flatMap {
-        case DefineRel(_, expr) => expr.allLabels
-        case _                  => Set[Symbol]()
-      }
-    val allLabels: Set[Symbol] = {
-      val pTypeLabels =
-        (predictionSpace.allTypes ++ allLibSignatures)
-          .flatMap(_.allLabels)
-      pTypeLabels ++ predicateLabels
-    }
+    //    val projectTypes: Set[PTyVar] =
+    //      projectNodes.filter(n => n.n.isType).map(n => PTyVar(n.n))
 
-    val allNames: Set[Symbol] = {
-      val nodes = graph.nodes ++ (allLibSignatures ++ predictionSpace.allTypes)
-        .flatMap(_.allNodes)
-      nodes.flatMap(_.nameOpt) ++ allLabels
-    }
+    val allLibSignatures: Set[PType] = libraryNodes.map(libNodeType) ++ predictionSpace.allTypes
 
     val labelUsages: LabelUsages = {
       import cats.implicits._

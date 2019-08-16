@@ -38,6 +38,19 @@ trait LabelEncoder {
 
 object LabelEncoder {
 
+  def main(args: Array[String]): Unit = {
+    Vector(
+      "readFileSync",
+      "CONFIG_FILE",
+      "yargs",
+      "BarBarToken",
+      "createAppId"
+    ).foreach { s =>
+      println(segmentName(Symbol(s)))
+    }
+
+  }
+
   case class RandomLabelEncoder(architecture: NNArchitecture)
       extends LabelEncoder {
     def name: String = "RandomLabelEncoder"
@@ -185,12 +198,15 @@ object LabelEncoder {
 
     private val zeroVec = architecture.zeroVec()
 
-    protected def impl(label: Symbol, shouldDropout: () => Boolean): CompNode = {
+    protected def impl(
+        label: Symbol,
+        shouldDropout: () => Boolean
+    ): CompNode = {
       def dropoutImpl: CompNode =
         architecture.randomVar('segments / '?)
 
       def encodeSeg(seg: Segment): CompNode = {
-        if(!commonSegments.contains(seg) && shouldDropout()) dropoutImpl
+        if (!commonSegments.contains(seg) && shouldDropout()) dropoutImpl
         else segmentsMap.getOrElse(seg, dropoutImpl)
       }
 
@@ -199,28 +215,43 @@ object LabelEncoder {
         .pipe(totalSafe(_, zeroVec))
     }
 
-    case class Segment(symbol: Symbol)
-    def segmentName(symbol: Symbol): Vector[Segment] = {
-      def splitCamelCase(s: String): Vector[Segment] = {
-        s.replaceAll(
-            String.format(
-              "%s|%s|%s",
-              "(?<=[A-Z])(?=[A-Z][a-z])",
-              "(?<=[^A-Z])(?=[A-Z])",
-              "(?<=[A-Za-z])(?=[^A-Za-z])"
-            ),
-            " "
-          )
-          .split("\\s+")
-          .map(s => Segment(Symbol(s.toLowerCase.replaceAll("[0-9]", ""))))
-          .toVector
-      }
-
-      symbol.name.split("_+").toVector.flatMap(splitCamelCase)
-    }
-
     def nameUsages(name: Symbol): Map[Segment, Int] = {
       segmentName(name).foldMap(s => Map(s -> 1))
     }
+  }
+
+  case class Segment(symbol: Symbol)
+  def segmentName(symbol: Symbol): Vector[Segment] = {
+    def segmentOpt(s: String) = {
+      val s1 = s.toLowerCase.replaceAll("[0-9]", "")
+      if (s1.isEmpty) None
+      else Some(Segment(Symbol(s1)))
+    }
+
+    def handleSpecial(segs: Vector[Segment]): Vector[Segment] = {
+      if (segs.length >= 2 && segs.head == Segment('$)) {
+        val symbol1 = Symbol(segs.head.symbol.name + segs(1).symbol.name)
+        Segment(symbol1) +: segs.drop(2)
+      } else segs
+    }
+
+    def splitCamelCase(s: String): Vector[Segment] = {
+      s.replaceAll(
+          String.format(
+            "%s|%s|%s",
+            "(?<=[A-Z])(?=[A-Z][a-z])",
+            "(?<=[^A-Z])(?=[A-Z])",
+            "(?<=[A-Za-z])(?=[^A-Za-z])"
+          ),
+          " "
+        )
+        .split("\\s+")
+        .toVector
+        .flatMap(s => segmentOpt(s).toVector)
+        .pipe(handleSpecial)
+    }
+
+    if (symbol.name.endsWith("Token")) Vector(Segment(symbol))
+    else symbol.name.split("_+").toVector.flatMap(splitCamelCase)
   }
 }
