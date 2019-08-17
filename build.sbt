@@ -1,9 +1,9 @@
 name := "LambdaNet"
 
-version := "0.2"
+version := "0.3"
 
 organization in ThisBuild := "mrvplusone.github.io"
-scalaVersion in ThisBuild := "2.12.7"
+scalaVersion in ThisBuild := "2.12.9"
 
 scalacOptions ++= Seq(
   "-feature",

@@ -38,7 +38,7 @@ object PrepareRepos {
   val parsedRepoPath: Path = pwd / "data" / "parsedDataSet.serialized"
 
   def main(args: Array[String]): Unit = {
-//    parseTestSet()
+//    mixTestDevSet()
     parseAndSerializeDataSet()
   }
 
@@ -137,18 +137,43 @@ object PrepareRepos {
     )
   }
 
+  def mixTestDevSet(): Unit = {
+    val random = new Random(1)
+    val dir = pwd / up / "lambda-repos" / "bigger"
+    val allProjects = (ls(dir / "testSet") ++ ls(dir / "devSet"))
+      .filter(f => f.isDir && f.last != "toy")  // toy remains in test set
+      .pipe(random.shuffle(_))
+
+    def tryMove(from: Path, to: Path): Unit = {
+      if(to != from) mv(from, to)
+    }
+
+    val num = allProjects.length
+    allProjects.take(num/2).foreach{ f =>
+      tryMove(f, dir / "testSet" / f.last)
+    }
+    allProjects.drop(num/2).foreach{ f =>
+      tryMove(f, dir / "devSet" / f.last)
+    }
+  }
+
   def parseAndSerializeDataSet(): Unit = {
     val basePath = pwd / up / "lambda-repos" / "bigger"
     val trainSetDir: Path = basePath / "trainSet"
     val devSetDir: Path = basePath / "devSet"
     val testSetDir: Path = basePath / "testSet"
     val (libDefs, Seq(trainSet, devSet, testSet)) =
-      announced("parsePredGraphs")(
+      announced("parsePredGraphs") {
+        var progress = 0
         parseRepos(
           Seq(trainSetDir, devSetDir, testSetDir),
-          loadFromFile = false
+          loadFromFile = false,
+          parsedCallback = (_, _) => synchronized {
+            progress += 1
+            printResult(s"Progress: $progress")
+          }
         )
-      )
+      }
     val stats = repoStatistics(trainSet ++ devSet ++ testSet)
     val avgStats = stats.headers
       .zip(stats.average)
