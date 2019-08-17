@@ -158,10 +158,14 @@ package object lambdanet extends SimpleMath.ExtensionsTrait {
 
     println(infoStr(s"  [start] $actionName started..."))
     val startTime = System.nanoTime()
-    action.tap { _ =>
-      val took = prettyPrintTime(System.nanoTime() - startTime, 2)
-      println(infoStr(s"  [finish] $actionName finished. (took $took)"))
-    }
+    (try {
+      action
+    } catch {
+      case e: Exception => throw e
+    }).tap { _ =>
+        val took = prettyPrintTime(System.nanoTime() - startTime, 2)
+        println(infoStr(s"  [finish] $actionName finished. (took $took)"))
+      }
   }
 
 }

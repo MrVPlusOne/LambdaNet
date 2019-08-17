@@ -161,18 +161,19 @@ object ImportsResolution {
     }
 
     override def toString: String = {
-      val all = publicSymbols ++ internalSymbols
-      all.keys
-        .map { k =>
-          val prefix =
-            if (publicSymbols.contains(k))
-              if (internalSymbols.contains(k)) "public"
-              else "public but not internal"
-            else if (internalSymbols.contains(k)) "internal"
-            else throw new Error("not possible")
-          s"($prefix)$k ${all(k)}"
-        }
-        .mkString("ModuleExports(", "; ", ")")
+//      val all = publicSymbols ++ internalSymbols
+//      all.keys
+//        .map { k =>
+//          val prefix =
+//            if (publicSymbols.contains(k))
+//              if (internalSymbols.contains(k)) "public"
+//              else "public but not internal"
+//            else if (internalSymbols.contains(k)) "internal"
+//            else throw new Error("not possible")
+//          s"($prefix)$k ${all(k)}"
+//        }
+//        .mkString("ModuleExports(", "; ", ")")
+      "[Module Exports]"
     }
 
   }

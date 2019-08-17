@@ -257,6 +257,13 @@ abstract class NNArchitecture(
     inputs1.dot(candidates1.t) * factor
   }
 
+  def encodeLibType(n: PNode) = {
+    assert(n.fromLib)
+    randomVar('libType / n.symbol)
+    //        val name = encodeNameOpt(n.nameOpt)
+    //        architecture.encodeLibType(ex, name)
+  }
+
   def predictLibraryTypes(
       inputs: Vector[CompNode],
       numLibType: Int

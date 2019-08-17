@@ -25,7 +25,8 @@ case class LibDefs(
     nodeForAny: PNode,
     baseCtx: ModuleExports,
     nodeMapping: Map[PNode, PAnnot],
-    libExports: Map[ProjectPath, ModuleExports]
+    libExports: Map[ProjectPath, ModuleExports],
+    classes: Set[QLang.ClassDef]
 ) {
   def libNodeType(n: LibNode): PType =
     nodeMapping(n.n).typeOpt
@@ -91,7 +92,6 @@ object PrepareRepos {
         }
         .toList
 
-    dataSetDirs.map(fromDir(_, maxNum))
     libDefs ->
       dataSetDirs.map { fromDir(_, maxNum) }
   }
@@ -306,10 +306,13 @@ object PrepareRepos {
       } +
       (anyNode -> Annot.Missing)
 
-    //todo: collect object defs
+    import translation.QLang._
+    val classes = (qModules :+ defaultModule).flatMap(_.stmts).collect{
+      case c: ClassDef => c
+    }.toSet
 
     println("Declaration files parsed.")
-    LibDefs(anyNode, baseCtx1, nodeMapping, libExports)
+    LibDefs(anyNode, baseCtx1, nodeMapping, libExports, classes)
   }
 
   def pruneGraph(

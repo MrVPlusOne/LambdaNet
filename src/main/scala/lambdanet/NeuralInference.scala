@@ -2,6 +2,7 @@ package lambdanet
 
 import lambdanet.architecture.Embedding
 import lambdanet.architecture.{LabelEncoder, NNArchitecture}
+import lambdanet.translation.QLang
 
 import scala.collection.mutable
 
@@ -21,7 +22,7 @@ object NeuralInference {
   case class Predictor(
       graph: PredicateGraph,
       libraryTypeNodes: Set[LibTypeNode],
-      libNodeType: LibNode => PType,
+      libDefs: LibDefs,
       taskSupport: Option[ForkJoinTaskSupport]
   ) {
 
@@ -73,9 +74,9 @@ object NeuralInference {
 //            )
 //          }
           logTime("decode") {
-            val candidates = predictionSpace.libTypeVec.map{
+            val candidates = predictionSpace.libTypeVec.map {
               case PTyVar(node) => encodeLibNode(LibNode(node))
-              case _ => throw new Error()
+              case _            => throw new Error()
             }
 //            decodeSeparate(embed, allSignatureEmbeddings)
             val inputs = nodesToPredict.map(embed.vars.apply)
@@ -90,42 +91,24 @@ object NeuralInference {
         }
       }
 
-      // todo: better encoding? (like using object label set)
-      private def encodeLibType(n: PNode) = {
-        assert(n.fromLib)
-        randomVar('libType / n.symbol)
-//        val name = encodeNameOpt(n.nameOpt)
-//        architecture.encodeLibType(ex, name)
-      }
-
       // todo: try simpler encoding first
       private def computeLibNodeEncoding(): LibNode => CompNode = {
-        val libSignatureEmbedding = {
+        val libSignatureEmbedding =
           signatureEmbeddingMap(
-            encodeLibType,
+            architecture.encodeLibType,
             encodeLabels,
-            allLibSignatures
-          ) ++
-            libraryNodes
-              .filter(_.n.isType)
-              .map(n => PTyVar(n.n) -> encodeLibType(n.n))
-        }
+          )
 
-        val libTermEmbedding = {
-          libraryNodes
-            .filter(_.n.isTerm)
-            .toSeq
-            .pipe(parallelize)
-            .map { n =>
-              val v1 = randomVar('libNode / n.n.symbol)
-              val v2 = libSignatureEmbedding(libNodeType(n))
-              val name = encodeNameOpt(n.n.nameOpt)
-              LibTermNode(n) -> architecture.encodeLibTerm(v1, v2, name)
-            }
-            .toMap
-        }
+        val libTermEmbeddingMap = collection.concurrent.TrieMap[LibTermNode, CompNode]()
+        def libTermEmbedding(n0: LibTermNode): CompNode = libTermEmbeddingMap.getOrElseUpdate(n0, {
+          val n = n0.n
+          val v1 = randomVar('libNode / n.n.symbol)
+          val v2 = libSignatureEmbedding(libDefs.libNodeType(n))
+          val name = encodeNameOpt(n.n.nameOpt)
+          architecture.encodeLibTerm(v1, v2, name)
+        })
 
-        n: LibNode => {
+        n: LibNode => DebugTime.logTime("computeLibNodeEncoding") {
           if (n.n.isType) libSignatureEmbedding(PTyVar(n.n))
           else libTermEmbedding(LibTermNode(n))
         }
@@ -207,9 +190,8 @@ object NeuralInference {
 
       private def signatureEmbeddingMap(
           leafEmbedding: PNode => CompNode,
-          labelEncoding: Symbol => CompNode,
-          signatures: Set[PType]
-      ): Map[PType, CompNode] = {
+          labelEncoding: Symbol => CompNode
+      ): PType => CompNode = {
 
         val signatureEmbeddings =
           collection.concurrent.TrieMap[PType, CompNode]()
@@ -234,8 +216,7 @@ object NeuralInference {
             )
           }
 
-        parallelize(signatures.toSeq).foreach(embedSignature)
-        signatureEmbeddings.toMap
+        embedSignature
       }
 
       private val encodeLabels = labelEncoder.newEncoder(useDropout)
@@ -255,23 +236,34 @@ object NeuralInference {
     val libraryNodes: Set[LibNode] =
       graph.nodes.filter(_.fromLib).map(LibNode) ++ unknownNodes
     val predictionSpace = PredictionSpace(
-      libraryTypeNodes.map(_.n.n.pipe(PTyVar)) ++ Set() // ++ Set(PAny) ++ projectTypes,
+      libraryTypeNodes
+        .map(_.n.n.pipe(PTyVar)) ++ Set() // ++ Set(PAny) ++ projectTypes,
     )
     //    val projectTypes: Set[PTyVar] =
     //      projectNodes.filter(n => n.n.isType).map(n => PTyVar(n.n))
 
-    val allLibSignatures: Set[PType] = libraryNodes.map(libNodeType) ++ predictionSpace.allTypes
+    val libClassDefs =
+      libDefs.classes.map {
+        case QLang.ClassDef(classNode, _, vars, funcDefs) =>
+          val fields = vars ++ funcDefs.mapValuesNow(_.funcNode)
+          DefineRel(classNode, PObject(fields))
+      }
+
+    val allLibSignatures: Set[PType] = libraryNodes.map(libDefs.libNodeType) ++
+      predictionSpace.allTypes ++ libClassDefs.map{ _.v.pipe(PTyVar) }
 
     val labelUsages: LabelUsages = {
       import cats.implicits._
+
       val classesInvolvingLabel =
-        graph.predicates.toVector.collect {
+        (libClassDefs ++ graph.predicates).toVector.collect {
           case DefineRel(c, PObject(fields)) =>
             fields.toVector.foldMap {
               case (label, field) =>
                 Map(label -> Vector(ClassFieldUsage(c, field)))
             }
         }.combineAll
+
       val accessesInvolvingLabel =
         graph.predicates.toVector.collect {
           case DefineRel(r, PAccess(receiver, label)) =>

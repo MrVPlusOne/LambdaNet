@@ -299,7 +299,7 @@ class ParserTests extends WordSpec with MyTest {
       Predictor(
         g,
         libTypesToPredict,
-        libDefs.libNodeType,
+        libDefs,
         None
       ).visualizeNeuralGraph
     }

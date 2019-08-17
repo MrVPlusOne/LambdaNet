@@ -127,7 +127,7 @@ object ProgramParsing {
     val sources = ls
       .rec(root)
       .filter(filter)
-      .filter ( _.isFile )
+      .filter(_.isFile)
       .filter { f =>
         val name = f.last
         if (declarationFileMod) name.endsWith(".d.ts")
@@ -219,7 +219,7 @@ object ProgramParsing {
 
   def asOption(v: Js.Val): Option[Js.Val] = v match {
     case Null => None
-    case _ => Some(v)
+    case _    => Some(v)
   }
 
   def asOptionSymbol(v: Js.Val): Option[Symbol] =
@@ -509,7 +509,8 @@ case class ProgramParsing() {
   /** Parses a sequence of [[GModule]] from Json string. These strings can be
     * generated through [[parseGModulesFromFiles]] when writeToFile is set to none-empty. */
   def parseGModulesFromJson(parsedJson: String): Vector[GModule] = {
-    val Arr(modules, warnnings) = ProgramParsing.parseJson(parsedJson).asInstanceOf[Js.Arr]
+    val Arr(modules, warnnings) =
+      ProgramParsing.parseJson(parsedJson).asInstanceOf[Js.Arr]
     asArray(modules)
       .map(parseGModule)
       .groupBy(m => (m.isDeclarationFile, m.path))
@@ -519,7 +520,7 @@ case class ProgramParsing() {
       }
       .toVector
       .tap { _ =>
-        asArray(warnnings).foreach{ v =>
+        asArray(warnnings).foreach { v =>
           printWarning("[Parse GModule] " + asString(v), mustWarn = true)
         }
       }
@@ -667,8 +668,7 @@ case class ProgramParsing() {
             (
               v1.getOrElse(false, Map()).map {
                 case (s, (mark, expr, _)) =>
-                  if (expr != Var(undefinedSymbol))
-                    instanceInits(s) = expr
+                  instanceInits(s) = expr
                   s -> mark
               },
               v1.getOrElse(true, Map()).map(p => p._1 -> (p._2._1, p._2._2))
@@ -762,7 +762,7 @@ case class ProgramParsing() {
         case cat @ ("ImportSingle" | "ImportDefault" | "ImportModule") =>
           val path = {
             val str = StringContext.treatEscapes(asString(map("path")))
-            if(str.startsWith("\""))
+            if (str.startsWith("\""))
               throw new Error(s"path is not parsed correctly: '$str'")
             ReferencePath(RelPath(str), isRelative = str.startsWith("."))
           }
@@ -778,7 +778,7 @@ case class ProgramParsing() {
           }
           Vector(GImport(iStmt))
         case cat @ ("ExportSingle" | "ExportDefault" | "ExportModule") =>
-          val path = asOption(map("from")).map{ s =>
+          val path = asOption(map("from")).map { s =>
             val str = StringContext.treatEscapes(asString(s))
             ReferencePath(RelPath(str), isRelative = str.startsWith("."))
           }
@@ -786,8 +786,8 @@ case class ProgramParsing() {
             case "ExportSingle" =>
               val oldName = asSymbol(map("oldName"))
               val newName = asSymbol(map("newName"))
-              ExportSingle(oldName,newName, path)
-            case "ExportDefault"=>
+              ExportSingle(oldName, newName, path)
+            case "ExportDefault" =>
               val newName = asOption(map("newName")).map(asSymbol)
               ExportDefault(newName, path)
             case "ExportModule" =>

@@ -27,7 +27,8 @@ object DataSet {
       taskSupport: Option[ForkJoinTaskSupport],
       architecture: NNArchitecture
   ): DataSet =
-    announced("loadDataSet") {
+//    announced("loadDataSet") {
+    {
       import PrepareRepos._
       import ammonite.ops._
       import TrainingLoop.toyMod
@@ -35,18 +36,22 @@ object DataSet {
       printResult(s"Is toy data set? : $toyMod")
 
       val repos @ ParsedRepos(libDefs, trainSet, devSet, testSet) =
-        if (toyMod)
+        if (toyMod) {
           parseRepos(
             Seq(
               pwd / RelPath("data/toy/trainSet"),
               pwd / RelPath("data/toy/testSet"), //todo: need devSet
               pwd / RelPath("data/toy/testSet")
-            )
+            ),
+            loadFromFile = false,
+            inParallel = false
           )
-        else
+        } else {
           announced(s"read data set from '$parsedRepoPath'") {
             SM.readObjectFromFile[ParsedRepos](parsedRepoPath.toIO)
           }
+        }
+
 
       // don't predict unknown and any
       val typesNotToPredict = Set(NameDef.unknownDef.ty.get, libDefs.nodeForAny)
@@ -57,28 +62,32 @@ object DataSet {
           coverageGoal = 0.98
         ).filterNot(n => typesNotToPredict.contains(n.n.n))
 
-      val data = (trainSet ++ devSet ++ testSet).toVector.par.map {
-        case ParsedProject(path, g, qModules, irModules, annotations) =>
-          val predictor =
-            Predictor(
-              g,
-              libTypesToPredict,
-              libDefs.libNodeType,
+      val data: Vector[Datum] = {
+        (trainSet ++ devSet ++ testSet).toVector.par.map {
+          case ParsedProject(path, g, qModules, irModules, annotations) =>
+            val predictor =
+              Predictor(
+                g,
+                libTypesToPredict,
+                libDefs,
+                taskSupport
+              )
+            val nonGenerifyIt = nonGenerify(libDefs)
+            val annots1 = annotations
+              .mapValuesNow {
+                nonGenerifyIt
+              }
+
+            val seqPredictor = SeqPredictor(
+              irModules,
+              libDefs,
+              predictor.predictionSpace,
               taskSupport
             )
-          val nonGenerifyIt = nonGenerify(libDefs)
-          val annots1 = annotations
-            .mapValuesNow { nonGenerifyIt }
-
-          val seqPredictor = SeqPredictor(
-            irModules,
-            libDefs,
-            predictor.predictionSpace,
-            taskSupport
-          )
-          Datum(path, annots1, qModules, predictor, seqPredictor)
-            .tap(printResult)
-      }.seq
+            Datum(path, annots1, qModules, predictor, seqPredictor)
+              .tap(printResult)
+        }.seq
+      }
 
       (data.map { d =>
         d.annotations.size * d.inPSpaceRatio
