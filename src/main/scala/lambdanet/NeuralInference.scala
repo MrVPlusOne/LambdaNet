@@ -35,7 +35,8 @@ object NeuralInference {
         labelEncoder: LabelEncoder,
         isLibLabel: Symbol => Boolean,
         nameEncoder: LabelEncoder,
-        useDropout: Boolean
+        useDropout: Boolean,
+        predictionDropout: Boolean
     ) {
       import architecture.{randomVar}
 
@@ -83,7 +84,8 @@ object NeuralInference {
 //            val sim1 = architecture.similarity(inputs, candidates, 'decodingSimilarity)
             val sim2 = architecture.predictLibraryTypes(
               inputs,
-              predictionSpace.libTypeVec.length
+              predictionSpace.libTypeVec.length,
+              if(predictionDropout) Some(0.5) else None
             )
 //            sim1 + sim2
             sim2

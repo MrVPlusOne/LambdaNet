@@ -38,7 +38,7 @@ object TrainingLoop extends TrainingLoopTrait {
   val onlySeqModel = false
   val taskName: String =
     if (onlySeqModel) "large-seqModel"
-    else s"large-libAttention-${TrainingState.iterationNum}"
+    else s"large-libAttention-predDropout-${TrainingState.iterationNum}"
 
   val useDropout: Boolean = false
 
@@ -543,7 +543,8 @@ object TrainingLoop extends TrainingLoopTrait {
                 labelEncoder,
                 labelCoverage.isLibLabel,
                 nameEncoder,
-                shouldDropout
+                shouldDropout,
+                isTraining
               )
               .result
               .pipe(seqMode.transformLogits)

@@ -266,11 +266,16 @@ abstract class NNArchitecture(
 
   def predictLibraryTypes(
       inputs: Vector[CompNode],
-      numLibType: Int
+      numLibType: Int,
+      dropoutP: Option[Double]
   ): CompNode = {
+    def drop(n: CompNode) = dropoutP match {
+      case Some(p) => dropout(p)(n)
+      case _ => n
+    }
     concatN(axis = 0, fromRows = true)(inputs) ~>
-      linear('libDistr / 'L1, dimMessage) ~> relu ~>
-      linear('libDistr / 'L2, dimMessage) ~> relu ~>
+      linear('libDistr / 'L1, dimMessage) ~> relu ~> drop ~>
+      linear('libDistr / 'L2, dimMessage) ~> relu ~> drop ~>
       linear('libDistr / 'L3, numLibType)
   }
 
@@ -419,7 +424,7 @@ abstract class NNArchitecture(
   val singleLayerModel = "2 FCs"
   def singleLayer(
       path: SymbolPath,
-      input: CompNode,
+      input: CompNode
   ): CompNode = {
     def oneLayer(name: Symbol)(input: CompNode) = {
       val p = path / name
