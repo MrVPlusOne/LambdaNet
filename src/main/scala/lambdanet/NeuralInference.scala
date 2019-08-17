@@ -81,13 +81,13 @@ object NeuralInference {
             }
 //            decodeSeparate(embed, allSignatureEmbeddings)
             val inputs = nodesToPredict.map(embed.vars.apply)
-//            val sim1 = architecture.similarity(inputs, candidates, 'decodingSimilarity)
+            val sim1 = architecture.similarity(inputs, candidates, 'decodingSimilarity)
             val sim2 = architecture.predictLibraryTypes(
               inputs,
               predictionSpace.libTypeVec.length,
               if(predictionDropout) Some(0.5) else None
             )
-//            sim1 + sim2
+            sim1 + sim2
             sim2
           }
         }
@@ -97,7 +97,7 @@ object NeuralInference {
       private def computeLibNodeEncoding(): LibNode => CompNode = {
         val libSignatureEmbedding =
           signatureEmbeddingMap(
-            architecture.encodeLibType,
+            architecture.encodeLibType(_, encodeNames),
             encodeLabels,
           )
 

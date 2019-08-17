@@ -257,11 +257,15 @@ abstract class NNArchitecture(
     inputs1.dot(candidates1.t) * factor
   }
 
-  def encodeLibType(n: PNode) = {
+  def encodeLibType(n: PNode, encodeName: Symbol => CompNode): CompNode = {
+    def encodeNameOpt(nameOpt: Option[Symbol]): CompNode = {
+      nameOpt.map(encodeName).getOrElse(randomVar('libTypeNameMissing))
+    }
+
     assert(n.fromLib)
-    randomVar('libType / n.symbol)
-    //        val name = encodeNameOpt(n.nameOpt)
-    //        architecture.encodeLibType(ex, name)
+    val ex = randomVar('libType / n.symbol)
+    val name = encodeNameOpt(n.nameOpt)
+    singleLayer('encodeLibType / 'mix, ex.concat(name, axis = 1))
   }
 
   def predictLibraryTypes(
@@ -421,7 +425,7 @@ abstract class NNArchitecture(
     }.combineAll
   }
 
-  val singleLayerModel = "2 FCs"
+  val singleLayerModel = "Linear"
   def singleLayer(
       path: SymbolPath,
       input: CompNode
@@ -431,8 +435,8 @@ abstract class NNArchitecture(
       val r = linear(p, dimMessage)(input) ~> relu
       r
     }
-    input ~> oneLayer('L1) ~> oneLayer('L2)
-//    linear(path / 'L1, dimMessage)(input)
+//    input ~> oneLayer('L1) ~> oneLayer('L2)
+    linear(path / 'L1, dimMessage)(input)
   }
 
   def predictionLayer(

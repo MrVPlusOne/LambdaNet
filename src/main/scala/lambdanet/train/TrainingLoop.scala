@@ -38,7 +38,7 @@ object TrainingLoop extends TrainingLoopTrait {
   val onlySeqModel = false
   val taskName: String =
     if (onlySeqModel) "large-seqModel"
-    else s"large-libAttention-predDropout-${TrainingState.iterationNum}"
+    else s"linearMessage-withName-predDropout-${TrainingState.iterationNum}"
 
   val useDropout: Boolean = false
 
