@@ -38,9 +38,9 @@ object TrainingLoop extends TrainingLoopTrait {
   val onlySeqModel = false
   val taskName: String =
     if (onlySeqModel) "large-seqModel"
-    else s"linearMessage-withName-predDropout-${TrainingState.iterationNum}"
+    else s"large-linearMessage-allDropout-${TrainingState.iterationNum}"
 
-  val useDropout: Boolean = false
+  val useDropout: Boolean = true
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
@@ -96,9 +96,9 @@ object TrainingLoop extends TrainingLoopTrait {
       val labelCoverage =
         TrainableLabelEncoder(
           trainSet,
-          coverageGoal = 0.92,
+          coverageGoal = 0.95,
           architecture,
-          dropoutProb = 0.2,
+          dropoutProb = 0.1,
           dropoutThreshold = 500
         )
 
@@ -107,7 +107,7 @@ object TrainingLoop extends TrainingLoopTrait {
           trainSet,
           coverageGoal = 0.98,
           architecture,
-          dropoutProb = 0.2,
+          dropoutProb = 0.1,
           dropoutThreshold = 1000
         )
 
@@ -116,7 +116,7 @@ object TrainingLoop extends TrainingLoopTrait {
           trainSet,
           coverageGoal = 0.98,
           architecture,
-          dropoutProb = 0.2,
+          dropoutProb = 0.1,
           dropoutThreshold = 1000
         )
 //        ConstantLabelEncoder(architecture)

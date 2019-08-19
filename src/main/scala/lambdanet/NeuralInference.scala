@@ -35,7 +35,7 @@ object NeuralInference {
         labelEncoder: LabelEncoder,
         isLibLabel: Symbol => Boolean,
         nameEncoder: LabelEncoder,
-        useDropout: Boolean,
+        labelDropout: Boolean,
         predictionDropout: Boolean
     ) {
       import architecture.{randomVar}
@@ -47,7 +47,7 @@ object NeuralInference {
         }
 
         /** When set to false, each message passing has independent parameters */
-        val fixBetweenIteration = false
+        val fixBetweenIteration = true
 
         val embeddings = logTime("iterate") {
           (0 until iterations)
@@ -81,11 +81,12 @@ object NeuralInference {
             }
 //            decodeSeparate(embed, allSignatureEmbeddings)
             val inputs = nodesToPredict.map(embed.vars.apply)
-            val sim1 = architecture.similarity(inputs, candidates, 'decodingSimilarity)
+            val sim1 =
+              architecture.similarity(inputs, candidates, 'decodingSimilarity)
             val sim2 = architecture.predictLibraryTypes(
               inputs,
               predictionSpace.libTypeVec.length,
-              if(predictionDropout) Some(0.5) else None
+              if (predictionDropout) Some(0.5) else None
             )
             sim1 + sim2
             sim2
@@ -98,22 +99,27 @@ object NeuralInference {
         val libSignatureEmbedding =
           signatureEmbeddingMap(
             architecture.encodeLibType(_, encodeNames),
-            encodeLabels,
+            encodeLabels
           )
 
-        val libTermEmbeddingMap = collection.concurrent.TrieMap[LibTermNode, CompNode]()
-        def libTermEmbedding(n0: LibTermNode): CompNode = libTermEmbeddingMap.getOrElseUpdate(n0, {
-          val n = n0.n
-          val v1 = randomVar('libNode / n.n.symbol)
-          val v2 = libSignatureEmbedding(libDefs.libNodeType(n))
-          val name = encodeNameOpt(n.n.nameOpt)
-          architecture.encodeLibTerm(v1, v2, name)
-        })
+        val libTermEmbeddingMap =
+          collection.concurrent.TrieMap[LibTermNode, CompNode]()
+        def libTermEmbedding(n0: LibTermNode): CompNode =
+          libTermEmbeddingMap.getOrElseUpdate(
+            n0, {
+              val n = n0.n
+              val v1 = randomVar('libNode / n.n.symbol)
+              val v2 = libSignatureEmbedding(libDefs.libNodeType(n))
+              val name = encodeNameOpt(n.n.nameOpt)
+              architecture.encodeLibTerm(v1, v2, name)
+            }
+          )
 
-        n: LibNode => DebugTime.logTime("computeLibNodeEncoding") {
-          if (n.n.isType) libSignatureEmbedding(PTyVar(n.n))
-          else libTermEmbedding(LibTermNode(n))
-        }
+        n: LibNode =>
+          DebugTime.logTime("computeLibNodeEncoding") {
+            if (n.n.isType) libSignatureEmbedding(PTyVar(n.n))
+            else libTermEmbedding(LibTermNode(n))
+          }
       }
 
       private def updateEmbedding(
@@ -221,9 +227,9 @@ object NeuralInference {
         embedSignature
       }
 
-      private val encodeLabels = labelEncoder.newEncoder(useDropout)
+      private val encodeLabels = labelEncoder.newEncoder(labelDropout)
 
-      private val encodeNames = nameEncoder.newEncoder(useDropout)
+      private val encodeNames = nameEncoder.newEncoder(labelDropout)
 
       def encodeNameOpt(nameOpt: Option[Symbol]): CompNode = {
         nameOpt match {
@@ -252,7 +258,7 @@ object NeuralInference {
       }
 
     val allLibSignatures: Set[PType] = libraryNodes.map(libDefs.libNodeType) ++
-      predictionSpace.allTypes ++ libClassDefs.map{ _.v.pipe(PTyVar) }
+      predictionSpace.allTypes ++ libClassDefs.map { _.v.pipe(PTyVar) }
 
     val labelUsages: LabelUsages = {
       import cats.implicits._
