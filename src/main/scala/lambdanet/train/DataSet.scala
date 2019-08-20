@@ -37,21 +37,26 @@ object DataSet {
 
       val repos @ ParsedRepos(libDefs, trainSet, devSet, testSet) =
         if (toyMod) {
-          parseRepos(
-            Seq(
-              pwd / RelPath("data/toy/trainSet"),
-              pwd / RelPath("data/toy/testSet"), //todo: need devSet
-              pwd / RelPath("data/toy/testSet")
-            ),
-            loadFromFile = false,
-            inParallel = false
-          )
+          try {
+            parseRepos(
+              Seq(
+                pwd / RelPath("data/toy/trainSet"),
+                pwd / RelPath("data/toy/devSet"),
+                pwd / RelPath("data/toy/testSet")
+              ),
+              loadFromFile = true,
+              inParallel = false
+            )
+          } catch {
+            case ex: Exception =>
+              ex.printStackTrace()
+              throw ex
+          }
         } else {
           announced(s"read data set from '$parsedRepoPath'") {
             SM.readObjectFromFile[ParsedRepos](parsedRepoPath.toIO)
           }
         }
-
 
       // don't predict unknown and any
       val typesNotToPredict = Set(NameDef.unknownDef.ty.get, libDefs.nodeForAny)
@@ -200,7 +205,7 @@ case class Datum(
        |""".stripMargin
   }
 
-  val fseAcc: FseAccuracy = FseAccuracy(qModules)
+  val fseAcc: FseAccuracy = FseAccuracy(qModules, predictor.predictionSpace)
 
   /** Only predict nodes whose type is within the prediction space */
   val nodesToPredict: Vector[ProjNode] = {

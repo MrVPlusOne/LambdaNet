@@ -155,6 +155,16 @@ object TrainingLoop extends TrainingLoopTrait {
         )
       }
 
+//      def logMaximalTestAcc() = {
+//        import cats.implicits._
+//        val maxAcc = testSet
+//          .foldMap(
+//            _.fseAcc.maximalAcc()
+//          )
+//          .pipe(toAccuracy)
+//        logger.logString("test-maxAcc", 0, maxAcc.toString)
+//      }
+
       val (machineName, emailService) = ReportFinish.readEmailInfo(taskName)
       private def handleExceptions(epoch: Int)(f: => Unit): Unit = {
         try f
@@ -312,20 +322,11 @@ object TrainingLoop extends TrainingLoopTrait {
             announced(s"test on $datum") {
               selectForward(datum).map {
                 case (_, fwd, pred) =>
-                  if (isTestSet) {
-                    val pred1 = pred.mapValuesNow {
-                      _.head
-                    }
-                    printQSource(
-                      datum.qModules,
-                      pred1,
-                      datum.predictor.predictionSpace,
-                      resultsDir / "predictions" / datum.projectName
-                    )
-                  }
-
-                  val (fse1, _) = datum.fseAcc.countTopNCorrect(1, pred)
-                  val (fse5, _) = datum.fseAcc.countTopNCorrect(5, pred)
+                  val (fse1, rightSet, wrongSet) = datum.fseAcc
+                    .countTopNCorrect(1, pred, onlyCountInSpaceTypes = true)
+                  val fse5 = datum.fseAcc
+                    .countTopNCorrect(5, pred, onlyCountInSpaceTypes = true)
+                    ._1
 
                   (fwd, fse1, fse5)
               }.toVector
@@ -636,13 +637,11 @@ object TrainingLoop extends TrainingLoopTrait {
           predictionDir: Path
       ) = DebugTime.logTime("printQSource") {
         rm(predictionDir)
-        qModules.par.foreach { m =>
-          QLangDisplay.renderModuleToDirectory(
-            m,
-            predictions,
-            predictionSpace.allTypes
-          )(predictionDir)
-        }
+        QLangDisplay.renderProjectToDirectory(
+          qModules,
+          predictions,
+          predictionSpace.allTypes
+        )(predictionDir)
       }
 
       private def saveTraining(epoch: Int, dirName: String): Unit = {
@@ -662,7 +661,13 @@ object TrainingLoop extends TrainingLoopTrait {
             cp.over(currentLogFile, saveDir / "log.txt")
           }
 
-          testSet.foreach { datum =>
+          if (testSet.isEmpty)
+            return
+
+          val predSpace = testSet.head.predictor.predictionSpace
+          import cats.implicits._
+
+          val (right, wrong) = testSet.flatMap { datum =>
             checkShouldStop(epoch)
             announced(s"test on $datum") {
               selectForward(datum).map {
@@ -670,12 +675,23 @@ object TrainingLoop extends TrainingLoopTrait {
                   printQSource(
                     datum.qModules,
                     pred.mapValuesNow { _.head },
-                    datum.predictor.predictionSpace,
+                    predSpace,
                     saveDir / "predictions" / datum.projectName
                   )
+                  val (_, rightSet, wrongSet) = datum.fseAcc.countTopNCorrect(
+                    1,
+                    pred,
+                    onlyCountInSpaceTypes = true
+                  )
+                  val Seq(x, y) = Seq(rightSet, wrongSet).map { set =>
+                    set.map(n => (n, pred(n).head, datum.projectName))
+                  }
+                  (x, y)
               }.toVector
             }
-          }
+          }.combineAll
+
+//         todo: makePredictionIndex(predSpace.allTypes.toVector, right, wrong)
 
           val dateTime = Calendar.getInstance().getTime
           write.over(saveDir / "time.txt", dateTime.toString)

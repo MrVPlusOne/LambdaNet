@@ -1,7 +1,8 @@
 package lambdanet.utils
 
+import lambdanet._
 import lambdanet.train.{Correct, Counted}
-import lambdanet.{Annot, train}
+import lambdanet.{Annot, PredictionSpace, train}
 import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 import lambdanet.translation.QLang._
 
@@ -47,7 +48,7 @@ object QLangAccuracy {
     stmts.foldMap(rec)
   }
 
-  case class FseAccuracy(modules: Vector[QModule]) {
+  case class FseAccuracy(modules: Vector[QModule], predSpace: PredictionSpace) {
     private val occurrence = modules.foldMap { m =>
       occurrenceMap(m.stmts)
     }
@@ -55,25 +56,25 @@ object QLangAccuracy {
     /** non-inferred project node annotations (only library types) */
     val annots = modules.flatMap {
       _.mapping.collect {
-        case (k, Annot.User(t, false)) if k.fromProject && t.madeFromLibTypes =>
-          k -> t
+        case (k, Annot.User(t, false)) if k.fromProject => k -> t
       }
     }.toMap
 
     /** Count top-N correctness */
     def countTopNCorrect(
         n: Int,
-        predictions: Map[PNode, Vector[PType]]
-    ): (Counted[Correct], Int) = {
-      //todo: filter and return the missing
-      val annots1 = annots.filter { case (k, _) => predictions.contains(k) }
-      val missing = annots.size - annots1.size
+        predictions: Map[PNode, Vector[PType]],
+        onlyCountInSpaceTypes: Boolean
+    ): (Counted[Correct], Set[PNode], Set[PNode]) = {
+      val annots1 = if (onlyCountInSpaceTypes) annots.filter {
+        case (k, t) => predictions.contains(k) && predSpace.allTypes.contains(t)
+      } else annots
       QLangAccuracy.countTopNCorrect(
         n,
         annots1,
         predictions,
         occurrence.getOrElse(_, 0)
-      ) -> missing
+      )
     }
   }
 
@@ -83,18 +84,18 @@ object QLangAccuracy {
       predictions: Map[PNode, Vector[PType]],
       nodeWeight: PNode => Int,
       warnMissingPredictions: Boolean = false
-  ): Counted[Correct] = {
-    val (y1, n1) = nodesToPredict.foldLeft((0, 0)) {
+  ): (Counted[Correct], Set[PNode], Set[PNode]) = {
+    val (rightSet, wrongSet) = nodesToPredict.foldLeft((Set[PNode](), Set[PNode]())) {
       case ((yes, no), (node, t)) =>
         val rightQ = predictions.get(node) match {
           case Some(t1) => t1.take(n).contains(t)
-          case None =>
-            throw new Error(s"Prediction missing for $node of type $t")
+          case None     => false
         }
-        val w = nodeWeight(node)
-        if (rightQ) (yes + w, no) else (yes, no + w)
+        if (rightQ) (yes + node, no) else (yes, no + node)
     }
-    Counted(y1 + n1, y1)
+    val y1 = rightSet.toSeq.map(nodeWeight).sum
+    val n1 = wrongSet.toSeq.map(nodeWeight).sum
+    (Counted(y1 + n1, y1), rightSet, wrongSet)
   }
 
   def topNAccuracy(
@@ -103,7 +104,7 @@ object QLangAccuracy {
       predictions: Map[PNode, Vector[PType]],
       nodeWeight: PNode => Int
   ): (Double, Int, Int) = {
-    val c = countTopNCorrect(n, nodesToPredict, predictions, nodeWeight)
+    val c = countTopNCorrect(n, nodesToPredict, predictions, nodeWeight)._1
     (train.toAccuracy(c), c.value, c.count)
   }
 
@@ -113,7 +114,7 @@ object QLangAccuracy {
       nodeWeight: PNode => Int
   ): (Double, Int, Int) = {
     val pred1 = predictions.mapValuesNow(Vector(_))
-    val c = countTopNCorrect(1, nodesToPredict, pred1, nodeWeight)
+    val c = countTopNCorrect(1, nodesToPredict, pred1, nodeWeight)._1
     (train.toAccuracy(c), c.value, c.count)
   }
 }

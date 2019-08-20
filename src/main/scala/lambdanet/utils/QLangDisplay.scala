@@ -63,7 +63,7 @@ object QLangDisplay {
       def showAnnot(x: PNode): Output = {
         truth(x) match {
           case Annot.User(t, _) =>
-            prediction.get(x) match {
+            val annot = prediction.get(x) match {
               case None => warning(s": [miss]$t")
               case Some(p) =>
                 if (t == p) correct(": " + t)
@@ -74,6 +74,8 @@ object QLangDisplay {
                   incorrect(s": ($p ≠ $t)")
                 }
             }
+            val idToDisplay = s"annot-${x.getId}"
+            span(id := idToDisplay)(annot)
           case Annot.Fixed(t) => s": [fix]$t"
           case Annot.Missing  => ""
         }
@@ -164,26 +166,23 @@ object QLangDisplay {
 
   }
 
-  def renderModuleToDirectory(
-      m: QModule,
+  def renderProjectToDirectory(
+      modules: Vector[QModule],
       prediction: Map[PNode, PType],
       predSpace: Set[PType],
       indentSpaces: Int = 2
   )(dir: Path): Unit = {
     import QLangAccuracy.{top1Accuracy}
 
-    val file = dir / RelPath(m.path + ".html")
-    val data = m.stmts
-      .map {
-        Impl.show(_, m.mapping, prediction, predSpace)
-      }
-    val annots = m.mapping.collect {
+    val file = dir / "predictions.html"
+    val totalMap = modules.flatMap(_.mapping).toMap
+    val annots = totalMap.collect {
       case (k, Annot.User(t, _)) if prediction.contains(k) => k -> t
     }
 
-    val numMissing = m.mapping.toSeq.collect {
+    val numMissing = totalMap.collect {
       case (k, Annot.User(t, _)) if !prediction.contains(k) => ()
-    }.length
+    }.size
 
     val libAccStr = {
       val (acc, yes, total) =
@@ -196,17 +195,50 @@ object QLangDisplay {
       s"%.4f=$yes/$total".format(acc)
     }
 
+    val renderedModules = modules.par.map { m =>
+      val outputs = m.stmts
+        .map(Impl.show(_, m.mapping, prediction, predSpace))
+
+      div(
+        hr(),
+        h2(s"Module: ${m.path}"),
+        body(marginLeft := "2rem")(
+          code(outputs)
+        )
+      )
+    }.seq
+
     val output = html(
       head(
-        h2(s"Module: ${m.path}"),
-        h4(s"LibAcc: $libAccStr, ProjAcc: $projAccStr, Missing: $numMissing"),
+        h3(s"LibAcc: $libAccStr, ProjAcc: $projAccStr, Missing: $numMissing"),
         meta(charset := "UTF-8")
       ),
-      body(marginLeft := "2rem")(
-        code(data)
-      )
+      renderedModules
     ).toString()
     write.over(file, output)
+  }
+
+  type AnnotPlace = (PNode, PType, ProjectPath)
+
+  def makePredictionIndex(
+      allTypes: Vector[PType],
+      rightPreds: Set[AnnotPlace],
+      wrongPreds: Set[AnnotPlace]
+  ): Unit = {
+    val groups = Seq(rightPreds, wrongPreds).map { preds =>
+      preds.groupBy(_._2)
+    }
+
+    allTypes.map { t =>
+      groups.map { grouped =>
+        grouped(t)
+          .map { case (n, _, path) => (path, n) }
+          .groupBy(_._1)
+          .map{ case (path, places) =>
+            button(`class`:="collapsible")(path.toString)
+          }
+      }
+    }
   }
 
   def main(args: Array[String]): Unit = {
@@ -228,10 +260,8 @@ object QLangDisplay {
       PTyVar(PNode(6, None, isType = true, fromLib = false))
     )
     val outDir = pwd / "predictions"
-    qModules.foreach { m =>
-      renderModuleToDirectory(m, prediction, annts.values.toSet)(
-        outDir
-      )
-    }
+    renderProjectToDirectory(qModules, prediction, annts.values.toSet)(
+      outDir
+    )
   }
 }
