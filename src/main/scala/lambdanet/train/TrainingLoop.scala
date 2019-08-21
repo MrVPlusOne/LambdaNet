@@ -36,9 +36,9 @@ object TrainingLoop extends TrainingLoopTrait {
   val onlySeqModel = false
   val taskName: String =
     if (onlySeqModel) "large-seqModel"
-    else s"large-linearMessage-allDropout-${TrainingState.iterationNum}"
+    else s"testOnToy-${TrainingState.iterationNum}"
 
-  val useDropout: Boolean = true
+  val useDropout: Boolean = false
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
@@ -65,7 +65,7 @@ object TrainingLoop extends TrainingLoopTrait {
 
 //    Nd4j.setNumThreads(numOfThreads)
     printInfo(s"Task: $taskName")
-    printInfo(s"maxEpochs = $maxTrainingEpochs, threads: $numOfThreads")
+    printInfo(s"maxEpochs = $maxTrainingEpochs, threads = $numOfThreads")
     Timeouts.readFromFile()
 
     def result(): Unit = {
@@ -73,7 +73,7 @@ object TrainingLoop extends TrainingLoopTrait {
       val architecture = GruArchitecture(state.dimMessage, state.pc)
       val seqArchitecture =
         SequenceModel.SeqArchitecture(state.dimMessage, state.pc)
-      val dataSet = DataSet.loadDataSet(taskSupport, architecture)
+      val dataSet = DataSet.loadDataSet(taskSupport, architecture, toyMod)
       trainOnProjects(dataSet, state, logger, architecture, seqArchitecture)
         .result()
     }

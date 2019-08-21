@@ -4,15 +4,14 @@ import lambdanet.utils.FileLogger
 
 trait TrainingLoopTrait {
 
-  val toyMod: Boolean
-  val taskName: String
+  def toyMod: Boolean
+  def taskName: String
   lazy val resultsDir = {
     import ammonite.ops._
     pwd / "running-result" / taskName
   }
   lazy val fileLogger =
     new FileLogger(resultsDir / "console.txt", printToConsole = true)
-  import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
   def scaleLearningRate(epoch: Int): Double
 

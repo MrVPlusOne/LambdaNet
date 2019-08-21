@@ -25,33 +25,26 @@ case class DataSet(
 object DataSet {
   def loadDataSet(
       taskSupport: Option[ForkJoinTaskSupport],
-      architecture: NNArchitecture
+      architecture: NNArchitecture,
+      toyMod: Boolean
   ): DataSet =
 //    announced("loadDataSet") {
     {
       import PrepareRepos._
       import ammonite.ops._
-      import TrainingLoop.toyMod
 
       printResult(s"Is toy data set? : $toyMod")
-
       val repos @ ParsedRepos(libDefs, trainSet, devSet, testSet) =
         if (toyMod) {
-          try {
-            parseRepos(
-              Seq(
-                pwd / RelPath("data/toy/trainSet"),
-                pwd / RelPath("data/toy/devSet"),
-                pwd / RelPath("data/toy/testSet")
-              ),
-              loadFromFile = true,
-              inParallel = false
-            )
-          } catch {
-            case ex: Exception =>
-              ex.printStackTrace()
-              throw ex
-          }
+          val (libDefs, Seq(trainSet, testSet)) = parseRepos(
+            Seq(
+              pwd / RelPath("data/toy/trainSet"),
+              pwd / RelPath("data/toy/testSet")
+            ),
+            loadFromFile = true,
+            inParallel = true
+          )
+          ParsedRepos(libDefs, trainSet, testSet, testSet)
         } else {
           announced(s"read data set from '$parsedRepoPath'") {
             SM.readObjectFromFile[ParsedRepos](parsedRepoPath.toIO)
