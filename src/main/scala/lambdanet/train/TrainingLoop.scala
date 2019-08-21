@@ -32,11 +32,11 @@ import scala.concurrent.{
 import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
-  val toyMod: Boolean = true
+  val toyMod: Boolean = false
   val onlySeqModel = false
   val taskName: String =
     if (onlySeqModel) "large-seqModel"
-    else s"testOnToy-${TrainingState.iterationNum}"
+    else s"newLogger-${TrainingState.iterationNum}"
 
   val useDropout: Boolean = true
 
