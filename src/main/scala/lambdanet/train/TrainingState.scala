@@ -14,10 +14,7 @@ object TrainingState {
     val dimMessage = map("dimMessage").asInstanceOf[Int]
     val optimizer = map("optimizer").asInstanceOf[Optimizer]
     val iterationNum = map("iterationNum").asInstanceOf[Int]
-    val pcData = map("pcData")
-      .asInstanceOf[ParamCollection.SerializableFormat]
-    val pc = ParamCollection.fromSerializable(pcData)
-    TrainingState(step, dimMessage, iterationNum, optimizer, pc)
+    TrainingState(step, dimMessage, iterationNum, optimizer)
   }
 
   val iterationNum: Int = 4
@@ -25,7 +22,7 @@ object TrainingState {
   def loadTrainingState(
       resultsDir: Path,
       logger: FileLogger
-  ): (TrainingState, EventLogger) = {
+  ): (TrainingState, ParamCollection, EventLogger) = {
     import ammonite.ops._
     import logger._
     val loggerFile = resultsDir / "log.txt"
@@ -43,11 +40,12 @@ object TrainingState {
 
       loadFromFile
         .map { p =>
-          cp.over(p / up / "log.txt", loggerFile)
+          cp.over(p / "log.txt", loggerFile)
           val s = announced("Loading training from file: " + p) {
-            TrainingState.fromFile(p)
+            TrainingState.fromFile(p / "state.serialized")
           }
-          (s, mkEventLogger(overrideMode = false))
+          val pc = ParamCollection.fromFile((p / "params.serialized"))
+          (s, pc, mkEventLogger(overrideMode = false))
         }
         .getOrElse {
           val resultsDirEmpty = ls(resultsDir) == Seq(logger.file)
@@ -56,13 +54,13 @@ object TrainingState {
             s"directory $resultsDir is not empty. Clear or remove it first."
           )
           mkdir(resultsDir / "control")
-          TrainingState(
+          val state = TrainingState(
             epoch0 = 0,
             dimMessage = 32,
             optimizer = Optimizer.Adam(learningRate = 1e-3),
-            iterationNum = iterationNum,
-            pc = ParamCollection()
-          ) -> mkEventLogger(overrideMode = true)
+            iterationNum = iterationNum
+          )
+          (state, new ParamCollection(), mkEventLogger(overrideMode = true))
         }
         .tap(println)
     }
@@ -74,8 +72,7 @@ case class TrainingState(
     epoch0: Int,
     dimMessage: Int,
     iterationNum: Int,
-    optimizer: Optimizer,
-    pc: ParamCollection
+    optimizer: Optimizer
 ) {
   def saveToFile(file: Path): Unit = {
     val toSave =
@@ -83,8 +80,7 @@ case class TrainingState(
         "epoch" -> epoch0,
         "dimMessage" -> dimMessage,
         "iterationNum" -> iterationNum,
-        "optimizer" -> optimizer,
-        "pcData" -> pc.toSerializable
+        "optimizer" -> optimizer
       )
     SM.saveObjectToFile(file.toIO)(toSave)
   }

@@ -4,6 +4,7 @@ import java.io._
 
 import botkop.numsca.{Shape, Tensor}
 import SimpleMath.Extensions._
+import ammonite.ops.Path
 
 trait ParameterAttribute extends Serializable
 
@@ -70,6 +71,10 @@ object ParamCollection {
     pc
   }
 
+  def fromFile(file: Path): ParamCollection = {
+    fromFile(file.toIO)
+  }
+
   def fromFile(file: File): ParamCollection = {
     val data = SimpleMath.readObjectFromFile[SerializableFormat](file)
     fromSerializable(data)
@@ -129,6 +134,10 @@ case class ParamCollection() {
       }.toList
 
     ParamCollection.SerializableFormat(parameterData, constantData)
+  }
+
+  def saveToFile(file: Path): Unit = {
+    saveToFile(file.toIO)
   }
 
   def saveToFile(file: File): Unit = {

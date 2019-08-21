@@ -38,7 +38,7 @@ object TrainingLoop extends TrainingLoopTrait {
     if (onlySeqModel) "large-seqModel"
     else s"testOnToy-${TrainingState.iterationNum}"
 
-  val useDropout: Boolean = false
+  val useDropout: Boolean = true
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
@@ -69,12 +69,12 @@ object TrainingLoop extends TrainingLoopTrait {
     Timeouts.readFromFile()
 
     def result(): Unit = {
-      val (state, logger) = loadTrainingState(resultsDir, fileLogger)
-      val architecture = GruArchitecture(state.dimMessage, state.pc)
+      val (state, pc, logger) = loadTrainingState(resultsDir, fileLogger)
+      val architecture = GruArchitecture(state.dimMessage, pc)
       val seqArchitecture =
-        SequenceModel.SeqArchitecture(state.dimMessage, state.pc)
+        SequenceModel.SeqArchitecture(state.dimMessage, pc)
       val dataSet = DataSet.loadDataSet(taskSupport, architecture, toyMod)
-      trainOnProjects(dataSet, state, logger, architecture, seqArchitecture)
+      trainOnProjects(dataSet, state, pc, logger, architecture, seqArchitecture)
         .result()
     }
 
@@ -82,6 +82,7 @@ object TrainingLoop extends TrainingLoopTrait {
     case class trainOnProjects(
         dataSet: DataSet,
         trainingState: TrainingState,
+        pc: ParamCollection,
         logger: EventLogger,
         architecture: NNArchitecture,
         seqArchitecture: SequenceModel.SeqArchitecture
@@ -332,6 +333,8 @@ object TrainingLoop extends TrainingLoopTrait {
           }.combineAll
 
           import stat.{libCorrect, projCorrect, confusionMatrix, categoricalAcc}
+          logger.logScalar(s"$dataSetName-loss", epoch, toAccuracyD(stat.loss))
+
           logger
             .logScalar(s"$dataSetName-libAcc", epoch, toAccuracy(libCorrect))
           logger
@@ -637,9 +640,10 @@ object TrainingLoop extends TrainingLoopTrait {
           if (!exists(saveDir)) {
             mkdir(saveDir)
           }
-          val savePath = saveDir / "trainingState.serialized"
-          TrainingState(epoch, dimMessage, iterationNum, optimizer, pc)
+          val savePath = saveDir / "state.serialized"
+          TrainingState(epoch, dimMessage, iterationNum, optimizer)
             .saveToFile(savePath)
+          pc.saveToFile(saveDir / "params.serialized")
           val currentLogFile = resultsDir / "log.txt"
           if (exists(currentLogFile)) {
             cp.over(currentLogFile, saveDir / "log.txt")
@@ -673,7 +677,10 @@ object TrainingLoop extends TrainingLoopTrait {
                     onlyCountInSpaceTypes = true
                   )
                   val Seq(x, y) = Seq(rightSet, wrongSet).map { set =>
-                    set.map(n => (n, pred(n).head, datum.projectName.toString))
+                    set.map { n =>
+                      val t = datum.annotations(ProjNode(n))
+                      (n, t, datum.projectName.toString)
+                    }
                   }
                   (x, y)
               }.toVector

@@ -28,7 +28,7 @@ private case class TrainingControl(resultsDir: Path) {
       if (consumeFile) {
         rm(restoreFile)
       }
-      Some(p / "trainingState.serialized")
+      Some(p)
     } else None
   }
 }
