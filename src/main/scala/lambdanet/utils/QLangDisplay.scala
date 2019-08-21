@@ -167,6 +167,7 @@ object QLangDisplay {
   }
 
   def renderProjectToDirectory(
+      projectName: String,
       modules: Vector[QModule],
       prediction: Map[PNode, PType],
       predSpace: Set[PType],
@@ -174,7 +175,7 @@ object QLangDisplay {
   )(dir: Path): Unit = {
     import QLangAccuracy.{top1Accuracy}
 
-    val file = dir / "predictions.html"
+    val file = dir / s"$projectName.html"
     val totalMap = modules.flatMap(_.mapping).toMap
     val annots = totalMap.collect {
       case (k, Annot.User(t, _)) if prediction.contains(k) => k -> t
@@ -202,7 +203,7 @@ object QLangDisplay {
       div(
         hr(),
         h2(s"Module: ${m.path}"),
-        body(marginLeft := "2rem")(
+        body(margin := "2rem")(
           code(outputs)
         )
       )
@@ -218,26 +219,69 @@ object QLangDisplay {
     write.over(file, output)
   }
 
-  type AnnotPlace = (PNode, PType, ProjectPath)
+  type ProjectName = String
+  type AnnotPlace = (PNode, PType, ProjectName)
 
-  def makePredictionIndex(
-      allTypes: Vector[PType],
+  def renderPredictionIndexToDir(
       rightPreds: Set[AnnotPlace],
-      wrongPreds: Set[AnnotPlace]
+      wrongPreds: Set[AnnotPlace],
+      dir: Path,
+      sourcePath: String,
   ): Unit = {
-    val groups = Seq(rightPreds, wrongPreds).map { preds =>
-      preds.groupBy(_._2)
+
+    var panelId = 0
+    def mkCollapse(title: Modifier, items: Seq[Modifier]) = {
+      val pId = synchronized { panelId += 1; panelId }
+      div(`class` := "panel-group")(
+        div(`class` := "panel panel-default")(
+          div(`class` := "panel-heading")(
+            h4(`class` := "panel-title")(
+              button(attr("data-toggle") := "collapse", href := s"#collapse$pId")(
+                title
+              )
+            )
+          ),
+          div(`class` := "panel-collapse collapse", id := s"collapse$pId")(
+            ul(`class` := "list-group")(
+              items: _*
+            )
+          )
+        )
+      )
     }
 
-    allTypes.map { t =>
-      groups.map { grouped =>
-        grouped(t)
-          .map { case (n, _, path) => (path, n) }
-          .groupBy(_._1)
-          .map{ case (path, places) =>
-            button(`class`:="collapsible")(path.toString)
+    Seq(("correct", rightPreds), ("incorrect", wrongPreds)).foreach {
+      case (cat, preds) =>
+        val types = preds
+          .groupBy(_._2)
+          .toSeq
+          .map(x => x._1.toString -> x._2)
+          .sortBy(_._1)
+          .map {
+            case (ty, rest) =>
+              val list = rest.toSeq.sortBy(x => (x._3, x._1.getId)).map { x =>
+                val n = x._1
+                val name = x._3
+                a(href := s"$sourcePath/$name.html/#annot-${n.getId}")(s"$n in $name")
+              }
+              mkCollapse(s"$ty | ${list.length}", list)
           }
-      }
+        val text = html(
+          head(
+            link(rel:="stylesheet", href:="bootstrap/bootstrap.css"),
+            script(src:="bootstrap/jQuery.js"),
+            script(src:="bootstrap/bootstrap.bundle.js"),
+
+            h3(s"$cat predictions"),
+            meta(charset := "UTF-8")
+          ),
+          body(margin := "2rem")(
+            types: _*
+          )
+        ).toString
+        val file = dir / s"$cat.html"
+        write.over(file, text)
+        cp.over(pwd / "scripts" / "bootstrap", dir / "bootstrap")
     }
   }
 
@@ -260,7 +304,7 @@ object QLangDisplay {
       PTyVar(PNode(6, None, isType = true, fromLib = false))
     )
     val outDir = pwd / "predictions"
-    renderProjectToDirectory(qModules, prediction, annts.values.toSet)(
+    renderProjectToDirectory("toy", qModules, prediction, annts.values.toSet)(
       outDir
     )
   }

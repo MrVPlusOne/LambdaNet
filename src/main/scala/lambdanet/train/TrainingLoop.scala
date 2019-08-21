@@ -14,13 +14,11 @@ import lambdanet.utils.{EventLogger, QLangDisplay, ReportFinish}
 import TrainingState._
 import botkop.numsca.Tensor
 import lambdanet.architecture.LabelEncoder.{
-  ConstantLabelEncoder,
   SegmentedLabelEncoder,
   TrainableLabelEncoder
 }
 import lambdanet.architecture.Embedding
 import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
-import lambdanet.translation.QLang.QModule
 import org.nd4j.linalg.api.buffer.DataType
 
 import scala.collection.parallel.ForkJoinTaskSupport
@@ -34,7 +32,7 @@ import scala.concurrent.{
 import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
-  val toyMod: Boolean = false
+  val toyMod: Boolean = true
   val onlySeqModel = false
   val taskName: String =
     if (onlySeqModel) "large-seqModel"
@@ -312,7 +310,7 @@ object TrainingLoop extends TrainingLoopTrait {
       def testStep(epoch: Int, isTestSet: Boolean): Unit = {
         val dataSetName = if (isTestSet) "test" else "dev"
         val dataSet = if (isTestSet) testSet else devSet
-        if ((epoch - 1) % 5 == 0) announced(s"test on $dataSetName set") {
+        if ((epoch - 1) % 3 == 0) announced(s"test on $dataSetName set") {
           import cats.implicits._
           architecture.dropoutStorage = None
           isTraining = false
@@ -630,20 +628,6 @@ object TrainingLoop extends TrainingLoopTrait {
 
       import ammonite.ops._
 
-      private def printQSource(
-          qModules: Vector[QModule],
-          predictions: Map[PNode, PType],
-          predictionSpace: PredictionSpace,
-          predictionDir: Path
-      ) = DebugTime.logTime("printQSource") {
-        rm(predictionDir)
-        QLangDisplay.renderProjectToDirectory(
-          qModules,
-          predictions,
-          predictionSpace.allTypes
-        )(predictionDir)
-      }
-
       private def saveTraining(epoch: Int, dirName: String): Unit = {
         isTraining = false
         architecture.dropoutStorage = None
@@ -667,31 +651,41 @@ object TrainingLoop extends TrainingLoopTrait {
           val predSpace = testSet.head.predictor.predictionSpace
           import cats.implicits._
 
+          var progress = 0
           val (right, wrong) = testSet.flatMap { datum =>
             checkShouldStop(epoch)
-            announced(s"test on $datum") {
+            announced(
+              s"(progress: ${progress.tap(_ => progress += 1)}) test on $datum"
+            ) {
               selectForward(datum).map {
                 case (_, fwd, pred) =>
-                  printQSource(
-                    datum.qModules,
-                    pred.mapValuesNow { _.head },
-                    predSpace,
-                    saveDir / "predictions" / datum.projectName
-                  )
+                  DebugTime.logTime("printQSource") {
+                    QLangDisplay.renderProjectToDirectory(
+                      datum.projectName.toString,
+                      datum.qModules,
+                      pred.mapValuesNow(_.head),
+                      predSpace.allTypes
+                    )(saveDir / "predictions")
+                  }
                   val (_, rightSet, wrongSet) = datum.fseAcc.countTopNCorrect(
                     1,
                     pred,
                     onlyCountInSpaceTypes = true
                   )
                   val Seq(x, y) = Seq(rightSet, wrongSet).map { set =>
-                    set.map(n => (n, pred(n).head, datum.projectName))
+                    set.map(n => (n, pred(n).head, datum.projectName.toString))
                   }
                   (x, y)
               }.toVector
             }
           }.combineAll
 
-//         todo: makePredictionIndex(predSpace.allTypes.toVector, right, wrong)
+          QLangDisplay.renderPredictionIndexToDir(
+            right,
+            wrong,
+            saveDir,
+            sourcePath = "predictions"
+          )
 
           val dateTime = Calendar.getInstance().getTime
           write.over(saveDir / "time.txt", dateTime.toString)
