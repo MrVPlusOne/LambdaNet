@@ -14,6 +14,7 @@ import lambdanet.NeuralInference.{
   MessageKind,
   MessageModel
 }
+import lambdanet.train.Logits
 import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 
 import scala.collection.GenSeq
@@ -275,7 +276,7 @@ abstract class NNArchitecture(
   ): CompNode = {
     def drop(n: CompNode) = dropoutP match {
       case Some(p) => dropout(p)(n)
-      case _ => n
+      case _       => n
     }
     concatN(axis = 0, fromRows = true)(inputs) ~>
       linear('libDistr / 'L1, dimMessage) ~> relu ~> drop ~>
@@ -287,28 +288,27 @@ abstract class NNArchitecture(
       inputs: Vector[CompNode],
       libCandidates: Vector[CompNode],
       projCandidates: Vector[CompNode]
-  ): CompNode = {
+  ): Logits = {
     val inputs1 =
       concatN(axis = 0, fromRows = true)(inputs)
-//        .pipe(singleLayer('similarityInputs, _))
-//    val candidates1 =
-//      concatN(axis = 0, fromRows = true)(projCandidates)
-//        .pipe(singleLayer('similarityCandidates, _))
 
     val pIsLib = inputs1 ~>
       linear('libDecider / 'L1, dimMessage) ~> relu ~>
       linear('libDecider / 'L2, dimMessage) ~> relu ~>
       linear('libDecider / 'L3, 1) ~> sigmoid
 
-    val libTypeNum = libCandidates.length
-    val libDistr = inputs1 ~>
-      linear('libDistr / 'L1, dimMessage) ~> relu ~>
-      linear('libDistr / 'L2, dimMessage) ~> relu ~>
-      linear('libDistr / 'L3, libTypeNum) ~> softmax
-//    val libDistr = similarity(inputs, libCandidates, 'libDistr)
-    val projDistr = similarity(inputs, projCandidates, 'projDistr)
+//    val libTypeNum = libCandidates.length
+//    val libDistr = inputs1 ~>
+//      linear('libDistr / 'L1, dimMessage) ~> relu ~>
+//      linear('libDistr / 'L2, dimMessage) ~> relu ~>
+//      linear('libDistr / 'L3, libTypeNum) ~> softmax
+    val libDistr = similarity(inputs, libCandidates, 'libDistr) ~> softmax
+    val projDistr = similarity(inputs, projCandidates, 'projDistr) ~> softmax
 
-    (libDistr * pIsLib).concat(projDistr * (-pIsLib + 1), 1)
+    (libDistr * pIsLib)
+      .concat(projDistr * (-pIsLib + 1), 1)
+      .pipe(_ + funcdiff.TensorExtension.zeroTolerance)
+      .pipe(log)
   }
 
   def encodeFunction(args: Vector[CompNode], to: CompNode): CompNode = {

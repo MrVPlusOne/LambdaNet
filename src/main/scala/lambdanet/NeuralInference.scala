@@ -42,9 +42,7 @@ object NeuralInference {
 
       /** returns softmax logits */
       def result: Vector[CompNode] = {
-        val encodeLibNode = logTime("encodeLibNode") {
-          computeLibNodeEncoding()
-        }
+        val encodeLibNode = computeLibNodeEncoding()
 
         /** When set to false, each message passing has independent parameters */
         val fixBetweenIteration = true
@@ -62,39 +60,19 @@ object NeuralInference {
         }
 
         embeddings.map { embed =>
-//          val allSignatureEmbeddings = logTime("allSignatureEmbeddings") {
-//            def encodeLeaf(n: PNode) =
-//              if (n.fromProject) embed.vars(ProjNode(n))
-//              else encodeLibType(n)
-//
-//            // encode all types from the prediction space
-//            signatureEmbeddingMap(
-//              encodeLeaf,
-//              encodeLabels,
-//              predictionSpace.allTypes,
-//            )
-//          }
           logTime("decode") {
-            val candidates = predictionSpace.libTypeVec.map {
-              case PTyVar(node) => encodeLibNode(LibNode(node))
-              case _            => throw new Error()
+            def encodeType(ty: PType) = ty match {
+              case PTyVar(node) =>
+                if (node.fromLib) encodeLibNode(LibNode(node))
+                else embed.vars(ProjNode(node))
+              case _ => throw new Error()
             }
-//            decodeSeparate(embed, allSignatureEmbeddings)
-            val inputs = nodesToPredict.map(embed.vars.apply)
-            val sim1 =
-              architecture.similarity(inputs, candidates, 'decodingSimilarity)
-            val sim2 = architecture.predictLibraryTypes(
-              inputs,
-              predictionSpace.libTypeVec.length,
-              if (predictionDropout) Some(0.5) else None
-            )
-            sim1 + sim2
-            sim2
+
+            decodeSeparate(embed, encodeType)
           }
         }
       }
 
-      // todo: try simpler encoding first
       private def computeLibNodeEncoding(): LibNode => CompNode = {
         val libSignatureEmbedding =
           signatureEmbeddingMap(
@@ -174,7 +152,7 @@ object NeuralInference {
 
       private def decodeSeparate(
           embedding: Embedding,
-          encodeSignature: Map[PType, CompNode]
+          encodeSignature: PType => CompNode
       ): CompNode = {
         val inputs = nodesToPredict
           .map(embedding.vars.apply)
@@ -241,30 +219,23 @@ object NeuralInference {
 
     val projectNodes: Set[ProjNode] =
       graph.nodes.filter(_.fromProject).map(ProjNode)
+    val projectClasses: Set[PType] = {
+      graph.predicates.collect {
+        case DefineRel(c, _: PObject) if c.isType => PTyVar(c)
+      }
+    }
     val libraryNodes: Set[LibNode] =
       graph.nodes.filter(_.fromLib).map(LibNode) ++ unknownNodes
     val predictionSpace = PredictionSpace(
       libraryTypeNodes
-        .map(_.n.n.pipe(PTyVar)) ++ Set() // ++ Set(PAny) ++ projectTypes,
+        .map(_.n.n.pipe(PTyVar)) ++ projectClasses // ++ Set(PAny),
     )
-    //    val projectTypes: Set[PTyVar] =
-    //      projectNodes.filter(n => n.n.isType).map(n => PTyVar(n.n))
-
-    val libClassDefs =
-      libDefs.classes.map {
-        case QLang.ClassDef(classNode, _, vars, funcDefs) =>
-          val fields = vars ++ funcDefs.mapValuesNow(_.funcNode)
-          DefineRel(classNode, PObject(fields))
-      }
-
-    val allLibSignatures: Set[PType] = libraryNodes.map(libDefs.libNodeType) ++
-      predictionSpace.allTypes ++ libClassDefs.map { _.v.pipe(PTyVar) }
 
     val labelUsages: LabelUsages = {
       import cats.implicits._
 
       val classesInvolvingLabel =
-        (libClassDefs ++ graph.predicates).toVector.collect {
+        (libDefs.libClassDefs ++ graph.predicates).toVector.collect {
           case DefineRel(c, PObject(fields)) =>
             fields.toVector.foldMap {
               case (label, field) =>

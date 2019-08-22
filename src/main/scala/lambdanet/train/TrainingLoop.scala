@@ -32,11 +32,11 @@ import scala.concurrent.{
 import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
-  val toyMod: Boolean = false
+  val toyMod: Boolean = true
   val onlySeqModel = false
   val taskName: String =
     if (onlySeqModel) "large-seqModel"
-    else s"newLogger-${TrainingState.iterationNum}"
+    else s"testOnToy-${TrainingState.iterationNum}"
 
   val useDropout: Boolean = true
 
@@ -63,7 +63,6 @@ object TrainingLoop extends TrainingLoopTrait {
       numOfThreads: Int
   ) {
 
-//    Nd4j.setNumThreads(numOfThreads)
     printInfo(s"Task: $taskName")
     printInfo(s"maxEpochs = $maxTrainingEpochs, threads = $numOfThreads")
     Timeouts.readFromFile()

@@ -5,14 +5,7 @@ import funcdiff.SimpleMath
 import lambdanet.translation.IR.IRModule
 import lambdanet.translation.ImportsResolution.{ErrorHandler, ModuleExports}
 import lambdanet.translation._
-import lambdanet.translation.PredicateGraph.{
-  LibNode,
-  PNode,
-  PNodeAllocator,
-  PType,
-  ProjNode,
-  TyPredicate
-}
+import lambdanet.translation.PredicateGraph.{DefineRel, LibNode, PNode, PNodeAllocator, PObject, PType, ProjNode, TyPredicate}
 import lambdanet.translation.QLang.QModule
 import lambdanet.utils.ProgramParsing
 import lambdanet.utils.ProgramParsing.GProject
@@ -31,6 +24,12 @@ case class LibDefs(
   def libNodeType(n: LibNode): PType =
     nodeMapping(n.n).typeOpt
       .getOrElse(PredictionSpace.unknownType)
+
+  lazy val libClassDefs: Set[DefineRel] = classes.map {
+    case QLang.ClassDef(classNode, _, vars, funcDefs) =>
+      val fields = vars ++ funcDefs.mapValuesNow(_.funcNode)
+      DefineRel(classNode, PObject(fields))
+  }
 }
 
 object PrepareRepos {

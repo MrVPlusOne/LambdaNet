@@ -60,6 +60,8 @@ object DataSet {
           coverageGoal = 0.98
         ).filterNot(n => typesNotToPredict.contains(n.n.n))
 
+      val nonGenerifyIt = nonGenerify(libDefs)
+
       val data: Vector[Datum] = {
         (trainSet ++ devSet ++ testSet).toVector.par.map {
           case ParsedProject(path, g, qModules, irModules, annotations) =>
@@ -70,11 +72,6 @@ object DataSet {
                 libDefs,
                 taskSupport
               )
-            val nonGenerifyIt = nonGenerify(libDefs)
-            val annots1 = annotations
-              .mapValuesNow {
-                nonGenerifyIt
-              }
 
             val seqPredictor = SeqPredictor(
               irModules,
@@ -82,6 +79,8 @@ object DataSet {
               predictor.predictionSpace,
               taskSupport
             )
+
+            val annots1 = annotations.mapValuesNow (nonGenerifyIt)
             Datum(path, annots1, qModules, predictor, seqPredictor)
               .tap(printResult)
         }.seq

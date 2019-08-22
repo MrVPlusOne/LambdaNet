@@ -15,8 +15,6 @@ case class PredictionSpace(allTypes: Set[PType]) {
     allTypes.filterNot(_.madeFromLibTypes).toVector
   val typeVector: Vector[PType] = libTypeVec ++ projTypeVec
 
-  require(projTypeVec.isEmpty, "(experiment requirement)")
-
   val size: Int = typeVector.size
 
   private val indexMap: Map[PType, Int] = {
