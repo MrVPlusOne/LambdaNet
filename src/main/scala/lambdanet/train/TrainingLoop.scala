@@ -321,7 +321,7 @@ object TrainingLoop extends TrainingLoopTrait {
             announced(s"test on $datum") {
               selectForward(datum).map {
                 case (_, fwd, pred) =>
-                  val (fse1, rightSet, wrongSet) = datum.fseAcc
+                  val (fse1, _, _) = datum.fseAcc
                     .countTopNCorrect(1, pred, onlyCountInSpaceTypes = true)
                   val fse5 = datum.fseAcc
                     .countTopNCorrect(5, pred, onlyCountInSpaceTypes = true)
