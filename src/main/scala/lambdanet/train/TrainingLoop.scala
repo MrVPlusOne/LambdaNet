@@ -31,7 +31,7 @@ import scala.concurrent.{
 import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
-  val toyMod: Boolean = true
+  val toyMod: Boolean = false
   val onlySeqModel = false
   val useDropout: Boolean = true
   val useOracleForIsLib: Boolean = true // todo: this is only for experiment
