@@ -17,6 +17,9 @@ object NeuralInference {
   import translation.ImportsResolution.NameDef.unknownDef
   import DebugTime.logTime
 
+  /** When set to false, each message passing has independent parameters */
+  val fixBetweenIteration = true
+
   /** Pre-computes a (batched) neural network sketch reusable
     * across multiple training steps for the given [[PredicateGraph]].
     * The actual forward propagation only happens in [[run]]. */
