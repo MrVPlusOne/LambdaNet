@@ -309,7 +309,7 @@ abstract class NNArchitecture(
 
     (libDistr * pIsLib)
       .concat(projDistr * (-pIsLib + 1), 1)
-      .pipe(_ + funcdiff.TensorExtension.zeroTolerance)
+      .pipe(_ + 10.0 * funcdiff.TensorExtension.zeroTolerance)
       .pipe(log)
   }
 
