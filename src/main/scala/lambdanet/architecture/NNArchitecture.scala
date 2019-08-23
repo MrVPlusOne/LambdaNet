@@ -303,6 +303,8 @@ abstract class NNArchitecture(
 //      linear('libDistr / 'L2, dimMessage) ~> relu ~>
 //      linear('libDistr / 'L3, libTypeNum) ~> softmax
     val libDistr = similarity(inputs, libCandidates, 'libDistr) ~> softmax
+    if(projCandidates.isEmpty)
+      return log(libDistr)
     val projDistr = similarity(inputs, projCandidates, 'projDistr) ~> softmax
 
     (libDistr * pIsLib)
