@@ -6,9 +6,13 @@ trait TrainingLoopTrait {
 
   def toyMod: Boolean
   def taskName: String
-  lazy val resultsDir = {
+  lazy val resultsDir: ammonite.ops.Path = {
     import ammonite.ops._
-    pwd / "running-result" / taskName
+    val pathText = read(pwd / "configs" / "resultsDir.txt").trim
+    val path = util.Try{
+      pwd / RelPath(pathText)
+    }.getOrElse(Path(pathText))
+    path / taskName
   }
   lazy val fileLogger =
     new FileLogger(resultsDir / "console.txt", printToConsole = true)
