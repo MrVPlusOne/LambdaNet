@@ -279,12 +279,8 @@ object NeuralInference {
 //          Map()
         case UsedAsBool(n) =>
           Map(KindSingle("usedAsBool") -> Vector(Single(n)))
-        case SubtypeRel(sub, sup) =>
-          mutual("subtypeRel", sub, sup)
-        case AssignRel(lhs, rhs) =>
-          mutual("assignRel", lhs, rhs)
-        case InheritanceRel(child, parent) =>
-          mutual("inheritanceRel", child, parent)
+        case BinaryRel(lhs, rhs, name) =>
+          mutual(name.toString, lhs, rhs)
         case DefineRel(defined, expr) =>
           expr match {
             case n: PNode =>

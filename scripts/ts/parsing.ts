@@ -445,10 +445,6 @@ class FuncDef implements GStmt {
   constructor(public name: string, public args: NamedValue<GMark>[], public returnType: GMark,
               public body: GStmt, public modifiers: string[], public tyVars: string[]) {
     mustExist(name);
-    if ((name == "Constructor") && returnType &&
-      ((returnType as UserAnnot).ty as TVar).name != 'void') {
-      throw new Error("Wrong return type for constructor. Got: " + returnType);
-    }
   }
 }
 
@@ -798,7 +794,7 @@ export class StmtParser {
       }
 
       const isConstructor = ts.isConstructorDeclaration(n);
-      const retType = isConstructor ? new UserAnnot(new TVar("void")) : inferRetType();
+      const retType = inferRetType();
 
       let publicArgs: string[] = [];
 

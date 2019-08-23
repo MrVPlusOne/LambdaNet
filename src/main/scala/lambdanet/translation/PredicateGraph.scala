@@ -3,6 +3,7 @@ package lambdanet.translation
 import lambdanet.IdAllocator
 import PredicateGraph._
 import funcdiff.SimpleMath
+import lambdanet.Surface.GStmt
 import lambdanet.translation.ImportsResolution.NameDef
 
 import scala.collection.{GenTraversableOnce, mutable}
@@ -144,12 +145,13 @@ object PredicateGraph {
       nameOpt match {
         case None =>
           NameDef(
-          Some(newNode(None, isType = false)),
-          NameDef.unknownDef.ty,
-          None
-        )
+            Some(newNode(None, isType = false)),
+            NameDef.unknownDef.ty,
+            None
+          )
         case Some(name) =>
-          namedUnknownDefs.getOrElseUpdate(name,
+          namedUnknownDefs.getOrElseUpdate(
+            name,
             NameDef(
               Some(newNode(nameOpt, isType = false)),
               NameDef.unknownDef.ty,
@@ -274,12 +276,10 @@ object PredicateGraph {
     def allNodes: Set[PNode]
 
     def substitute(f: PNode => PNode): TyPredicate = this match {
-      case HasName(n, name)              => HasName(f(n), name)
-      case SubtypeRel(sub, sup)          => SubtypeRel(f(sub), f(sup))
-      case UsedAsBool(n)                 => UsedAsBool(f(n))
-      case AssignRel(lhs, rhs)           => AssignRel(f(lhs), f(rhs))
-      case InheritanceRel(child, parent) => InheritanceRel(f(child), f(parent))
-      case DefineRel(v, expr)            => DefineRel(f(v), expr.substitute(f))
+      case HasName(n, name)          => HasName(f(n), name)
+      case UsedAsBool(n)             => UsedAsBool(f(n))
+      case BinaryRel(lhs, rhs, name) => BinaryRel(f(lhs), f(rhs), name)
+      case DefineRel(v, expr)        => DefineRel(f(v), expr.substitute(f))
     }
   }
 
@@ -287,11 +287,12 @@ object PredicateGraph {
     val allNodes: Set[PNode] = Set(n)
   }
 
-  case class SubtypeRel(sub: PNode, sup: PNode) extends TyPredicate {
-    val allNodes: Set[PNode] = Set(sub, sup)
+  object BinaryRelCat extends Enumeration {
+    val subtype, assign, `return`, equal, inheritance, fixType = Value
   }
 
-  case class AssignRel(lhs: PNode, rhs: PNode) extends TyPredicate {
+  case class BinaryRel(lhs: PNode, rhs: PNode, category: BinaryRelCat.Value)
+      extends TyPredicate {
     val allNodes: Set[PNode] = Set(lhs, rhs)
   }
 
@@ -299,15 +300,7 @@ object PredicateGraph {
     val allNodes: Set[PNode] = Set(n)
   }
 
-  case class InheritanceRel(child: PNode, parent: PNode) extends TyPredicate {
-    val allNodes: Set[PNode] = Set(child, parent)
-  }
-
   case class DefineRel(v: PNode, expr: PExpr) extends TyPredicate {
-//    expr match {
-//      case n: PNode => assert(v.isType == n.isType)
-//      case _ =>
-//    }
 
     val allNodes: Set[PNode] = expr.allNodes + v
   }
@@ -383,6 +376,7 @@ object PredicateGraphTranslation {
   ): PredicateGraph = {
     val predicates = mutable.Set[TyPredicate]()
     val typeMap = mutable.HashMap[PType, PNode]()
+    val fixedReturnType = mutable.HashMap[PNode, PNode]()
 
     def add(pred: TyPredicate): Unit = {
       predicates += pred
@@ -414,6 +408,8 @@ object PredicateGraphTranslation {
 
     def encodeStmt(stmt: IRStmt): Unit =
       SimpleMath.withErrorMessage(s"Error in IRStmt: $stmt") {
+        import BinaryRelCat._
+
         stmt match {
           case d: VarDef =>
             val lhs = d.node
@@ -424,25 +420,25 @@ object PredicateGraphTranslation {
 
             d.rhs match {
               case v1: Var =>
-                add(AssignRel(lhs, v1.node))
+                add(BinaryRel(lhs, v1.node, equal))
               case FuncCall(f, args) =>
                 define(PCall(f, args))
               case ObjLiteral(fields) =>
                 define(PObject(fields))
               case IfExpr(cond, e1, e2) =>
-                add(SubtypeRel(e1, lhs))
-                add(SubtypeRel(e2, lhs))
+                add(BinaryRel(e1, lhs, subtype))
+                add(BinaryRel(e2, lhs, subtype))
                 useCond(cond)
               case FieldAccess(receiver, label) =>
                 define(PAccess(receiver, label))
               case Cast(expr, node) =>
-                add(SubtypeRel(node, expr))
+                add(BinaryRel(node, expr, subtype))
                 define(node)
             }
           case AssignStmt(lhs, rhs) =>
-            add(AssignRel(lhs, rhs))
+            add(BinaryRel(lhs, rhs, assign))
           case ReturnStmt(v, ret) =>
-            add(SubtypeRel(v, ret))
+            add(BinaryRel(v, ret, `return`))
           case IfStmt(cond, e1, e2) =>
             useCond(cond)
             encodeStmt(e1)
@@ -453,11 +449,19 @@ object PredicateGraphTranslation {
           case block: BlockStmt =>
             block.stmts.foreach(encodeStmt)
           case f: FuncDef =>
+            // record return type for constructors
+            if (f.funcNode.nameOpt.contains(GStmt.constructorName)) {
+              fixedReturnType(f.funcNode) = f.returnType
+              assert(
+                f.returnType.fromProject,
+                s"constructor $f does not return a project type (${f.returnType})"
+              )
+            }
             add(DefineRel(f.funcNode, f.pType))
             encodeStmt(f.body)
           case c: ClassDef =>
             c.superTypes.foreach(
-              tv => add(InheritanceRel(c.classNode, tv.node))
+              tv => add(BinaryRel(c.classNode, tv.node, inheritance))
             )
             add(DefineRel(c.classNode, c.pType))
             c.funcDefs.values.foreach(encodeStmt)
@@ -470,6 +474,11 @@ object PredicateGraphTranslation {
       case (n, t) =>
         val tn = encodePType(t)
         add(DefineRel(n, tn))
+    }
+
+    predicates.collect {
+      case DefineRel(n, PCall(f, _)) if fixedReturnType.contains(f) =>
+        add(BinaryRel(n, fixedReturnType(f), BinaryRelCat.fixType))
     }
 
     val totalMapping = modules.foldLeft(Map[PNode, PAnnot]())(_ ++ _.mapping)

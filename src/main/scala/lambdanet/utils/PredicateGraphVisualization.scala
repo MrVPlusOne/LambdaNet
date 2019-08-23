@@ -34,14 +34,17 @@ object PredicateGraphVisualization {
     def name(p: TyPredicate): String = p match {
       case HasName(_, _) =>
         "Name"
-      case SubtypeRel(_, _) =>
-        " <: "
-      case AssignRel(_, _) =>
-        "  ⃪ "
+      case BinaryRel(_, _, name) =>
+        name match {
+          case BinaryRelCat.subtype => " <: "
+          case BinaryRelCat.assign => "  ⃪ "
+          case BinaryRelCat.`return` => " returns "
+          case BinaryRelCat.equal => " := "
+          case BinaryRelCat.inheritance => "extends"
+          case BinaryRelCat.fixType => "fixed"
+        }
       case UsedAsBool(_) =>
         "BOOL"
-      case InheritanceRel(_, _) =>
-        "Extends"
       case DefineRel(_, expr) =>
         expr match {
           case _: PNode      => "Equality"
@@ -57,17 +60,11 @@ object PredicateGraphVisualization {
       p match {
         case HasName(n, _) =>
           g.addEdge(p, n, "name")
-        case SubtypeRel(sub, sup) =>
-          g.addEdge(p, sub, "sub")
-          g.addEdge(p, sup, "sup")
-        case AssignRel(lhs, rhs) =>
+        case BinaryRel(lhs, rhs, _) =>
           g.addEdge(p, lhs, "lhs")
           g.addEdge(p, rhs, "rhs")
         case UsedAsBool(n) =>
           g.addEdge(p, n, "boolean")
-        case InheritanceRel(child, parent) =>
-          g.addEdge(p, child, "child")
-          g.addEdge(p, parent, "parent")
         case DefineRel(v, expr) =>
           g.addEdge(p, v, "defined")
           expr match {
