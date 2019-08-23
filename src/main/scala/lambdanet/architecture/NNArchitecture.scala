@@ -2,19 +2,11 @@ package lambdanet.architecture
 
 import lambdanet._
 import botkop.numsca
-import botkop.numsca.:>
+import botkop.numsca.{:>, Tensor}
 import cats.data.Chain
 import funcdiff._
-import lambdanet.NeuralInference.{
-  AccessFieldUsage,
-  ClassFieldUsage,
-  LabelUsages,
-  LabelVector,
-  Message,
-  MessageKind,
-  MessageModel
-}
-import lambdanet.train.{DecodingResult, Joint}
+import lambdanet.NeuralInference.{AccessFieldUsage, ClassFieldUsage, LabelUsages, LabelVector, Message, MessageKind, MessageModel}
+import lambdanet.train.{DecodingResult, Joint, TwoStage}
 import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 
 import scala.collection.GenSeq
@@ -284,18 +276,53 @@ abstract class NNArchitecture(
       linear('libDistr / 'L3, numLibType)
   }
 
-  def separatedSimilarity(
+  def twoStageSimilarity(
       inputs: Vector[CompNode],
       libCandidates: Vector[CompNode],
-      projCandidates: Vector[CompNode]
+      projCandidates: Vector[CompNode],
+      isLibOracle: Option[Vector[Boolean]]
   ): DecodingResult = {
     val inputs1 =
       concatN(axis = 0, fromRows = true)(inputs)
 
-    val pIsLib = inputs1 ~>
-      linear('libDecider / 'L1, dimMessage) ~> relu ~>
-      linear('libDecider / 'L2, dimMessage) ~> relu ~>
-      linear('libDecider / 'L3, 1) ~> sigmoid
+    val pIsLib = isLibOracle match {
+      case None =>
+        inputs1 ~>
+          linear('libDecider / 'L1, dimMessage) ~> relu ~>
+          linear('libDecider / 'L2, dimMessage) ~> relu ~>
+          linear('libDecider / 'L3, 1)
+      case Some(truth) =>
+        truth
+          .map(x => if (x) 1000.0 else -1000.0)
+          .pipe(x => const(Tensor(x.toArray).reshape(-1, 1)))
+    }
+
+    val libLogits = similarity(inputs, libCandidates, 'libDistr).logits
+    val projLogits = similarity(inputs, projCandidates, 'projDistr).logits
+
+    TwoStage(pIsLib, libLogits, projLogits)
+  }
+
+  def separatedSimilarity(
+      inputs: Vector[CompNode],
+      libCandidates: Vector[CompNode],
+      projCandidates: Vector[CompNode],
+      isLibOracle: Option[Vector[Boolean]]
+  ): DecodingResult = {
+    val inputs1 =
+      concatN(axis = 0, fromRows = true)(inputs)
+
+    val pIsLib = isLibOracle match {
+      case None =>
+        inputs1 ~>
+          linear('libDecider / 'L1, dimMessage) ~> relu ~>
+          linear('libDecider / 'L2, dimMessage) ~> relu ~>
+          linear('libDecider / 'L3, 1) ~> sigmoid
+      case Some(truth) =>
+        truth
+          .map(x => if (x) 1.0 else 0.0)
+          .pipe(x => const(Tensor(x.toArray).reshape(-1, 1)))
+    }
 
 //    val libTypeNum = libCandidates.length
 //    val libDistr = inputs1 ~>

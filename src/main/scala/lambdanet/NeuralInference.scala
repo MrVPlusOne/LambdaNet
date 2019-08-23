@@ -40,7 +40,8 @@ object NeuralInference {
         isLibLabel: Symbol => Boolean,
         nameEncoder: LabelEncoder,
         labelDropout: Boolean,
-        predictionDropout: Boolean
+        predictionDropout: Boolean,
+        isLibOracle: Option[Vector[Boolean]]
     ) {
       import architecture.{randomVar}
 
@@ -69,7 +70,7 @@ object NeuralInference {
               case _ => throw new Error()
             }
 
-            decodeSeparate(embed, encodeType)
+            decodeSeparate(embed, encodeType, isLibOracle)
           }
         }
       }
@@ -153,7 +154,8 @@ object NeuralInference {
 
       private def decodeSeparate(
           embedding: Embedding,
-          encodeSignature: PType => CompNode
+          encodeSignature: PType => CompNode,
+          isLibOracle: Option[Vector[Boolean]]
       ): DecodingResult = {
         val inputs = nodesToPredict
           .map(embedding.vars.apply)
@@ -168,10 +170,11 @@ object NeuralInference {
           .map(encodeSignature)
           .toVector
 
-        architecture.separatedSimilarity(
+        architecture.twoStageSimilarity(
           inputs,
           libCandidates,
-          projCandidates
+          projCandidates,
+          isLibOracle
         )
       }
 

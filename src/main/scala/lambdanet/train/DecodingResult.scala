@@ -73,6 +73,13 @@ case class TwoStage(
   }
 
   def toLoss(targets: Vector[Int]): Loss = {
+    def lossFromRows(rows: Vector[CompNode], targets: Vector[Int]) = {
+      if (rows.isEmpty) 0: CompNode
+      else
+        concatN(0, fromRows = true)(rows)
+          .pipe(crossEntropyWithLogitsLoss(_, targets))
+    }
+
     val isLib = targets.map(_ < libNum)
     val isLibTensor = isLib
       .map(if (_) 1.0 else 0.0)
@@ -89,16 +96,14 @@ case class TwoStage(
     }
 
     val libTargets = targets.filter(_ < libNum)
-    val libLoss = concatN(0, fromRows = true)(libRows)
-      .pipe(crossEntropyWithLogitsLoss(_, libTargets))
+    val libLoss = lossFromRows(libRows, libTargets)
 
     if (projNum == 0) return {
       mean(libLoss) + mean(binaryLoss)
     }
 
     val projTargets = targets.filter(_ >= libNum).map(_ - libNum)
-    val projLoss = concatN(0, fromRows = true)(projRows)
-      .pipe(crossEntropyWithLogitsLoss(_, projTargets))
+    val projLoss = lossFromRows(projRows, projTargets)
 
     mean(libLoss.concat(projLoss, axis = 0)) + mean(binaryLoss)
   }

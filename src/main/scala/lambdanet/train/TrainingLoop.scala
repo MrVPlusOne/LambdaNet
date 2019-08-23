@@ -17,7 +17,6 @@ import lambdanet.architecture.LabelEncoder.{
   SegmentedLabelEncoder,
   TrainableLabelEncoder
 }
-import lambdanet.architecture.Embedding
 import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 import org.nd4j.linalg.api.buffer.DataType
 
@@ -34,11 +33,23 @@ import scala.language.reflectiveCalls
 object TrainingLoop extends TrainingLoopTrait {
   val toyMod: Boolean = false
   val onlySeqModel = false
-  val taskName: String =
-    if (onlySeqModel) "large-seqModel"
-    else s"two-stage-${TrainingState.iterationNum}"
-
   val useDropout: Boolean = true
+  val useOracleForIsLib: Boolean = false // todo: this is only for experiment
+
+  val taskName: String = {
+    val flags = Seq(
+      "oracle" -> useOracleForIsLib,
+      "toy" -> toyMod
+    ).map(flag).mkString
+
+    if (onlySeqModel) "large-seqModel"
+    else s"two-stage$flags-${TrainingState.iterationNum}"
+  }
+
+  def flag(nameValue: (String, Boolean)): String = {
+    val (name, value) = nameValue
+    if(value) s"-$name" else ""
+  }
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
@@ -135,10 +146,10 @@ object TrainingLoop extends TrainingLoopTrait {
               DebugTime.logTime("test-devSet") {
                 testStep(epoch, isTestSet = false)
               }
+              trainStep(epoch)
               DebugTime.logTime("test-testSet") {
                 testStep(epoch, isTestSet = true)
               }
-              trainStep(epoch)
               if (epoch % saveInterval == 0) {
                 saveTraining(epoch, s"epoch$epoch")
               }
@@ -370,7 +381,7 @@ object TrainingLoop extends TrainingLoopTrait {
         (grads, transformed, deltas)
       }
 
-      val lossModel: LossModel = LossModel.EchoLoss
+      val lossModel: LossModel = LossModel.NormalLoss
         .tap(m => printResult(s"loss model: ${m.name}"))
 
       private def selectForward(data: Datum) = {
@@ -451,6 +462,13 @@ object TrainingLoop extends TrainingLoopTrait {
 
           val predSpace = predictor.predictionSpace
 
+          val groundTruths = nodesToPredict.map(annotations)
+          val targets = groundTruths.map(predSpace.indexOfType)
+          val isLibOracle =
+            if (useOracleForIsLib) Some(targets.map(predSpace.isLibType))
+            else None
+          val nodeDistances = nodesToPredict.map(_.n.pipe(distanceToConsts))
+
           // the probability for very iterations
           val decodingVec = announced("run predictor") {
             predictor
@@ -464,15 +482,12 @@ object TrainingLoop extends TrainingLoopTrait {
                 labelCoverage.isLibLabel,
                 nameEncoder,
                 shouldDropout,
-                isTraining
+                isTraining,
+                isLibOracle
               )
               .result
           }
           val decoding = decodingVec.last
-
-          val groundTruths = nodesToPredict.map(annotations)
-          val targets = groundTruths.map(predSpace.indexOfType)
-          val nodeDistances = nodesToPredict.map(_.n.pipe(distanceToConsts))
 
           val (libCounts, projCounts, confMat, typeAccs) =
             announced("compute training accuracy") {
@@ -610,7 +625,7 @@ object TrainingLoop extends TrainingLoopTrait {
       }
 
       private def analyzeDecoding(
-          logits: DecodingResult,
+          results: DecodingResult,
           groundTruths: Vector[PType],
           predictionSpace: PredictionSpace,
           nodeDistances: Vector[Int]
@@ -620,7 +635,7 @@ object TrainingLoop extends TrainingLoopTrait {
           Counted[ConfusionMatrix],
           Map[PType, Counted[Correct]]
       ) = {
-        val predictions = logits.topPredictions
+        val predictions = results.topPredictions
         val targets = groundTruths.map(predictionSpace.indexOfType)
         val truthValues = predictions.zip(targets).map { case (x, y) => x == y }
         val targetFromLibrary = groundTruths.map { _.madeFromLibTypes }
