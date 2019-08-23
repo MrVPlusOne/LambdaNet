@@ -2,6 +2,7 @@ package lambdanet
 
 import lambdanet.architecture.Embedding
 import lambdanet.architecture.{LabelEncoder, NNArchitecture}
+import lambdanet.train.TrainingLoop
 import lambdanet.translation.QLang
 
 import scala.collection.mutable
@@ -45,14 +46,12 @@ object NeuralInference {
         val encodeLibNode = computeLibNodeEncoding()
 
         /** When set to false, each message passing has independent parameters */
-        val fixBetweenIteration = false
-
         val embeddings = logTime("iterate") {
           (0 until iterations)
             .scanLeft(initEmbedding(projectNodes)) { (embed, i) =>
               updateEmbedding(encodeLibNode)(
                 embed,
-                if (fixBetweenIteration) 0
+                if (TrainingLoop.fixBetweenIteration) 0
                 else i
               )
             }

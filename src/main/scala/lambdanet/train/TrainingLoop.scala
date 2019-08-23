@@ -34,9 +34,13 @@ import scala.language.reflectiveCalls
 object TrainingLoop extends TrainingLoopTrait {
   val toyMod: Boolean = false
   val onlySeqModel = false
+
+  val iterationNum: Int = 8
+  val fixBetweenIteration = true
+
   val taskName: String =
     if (onlySeqModel) "large-seqModel"
-    else s"special-constructor-echo-${TrainingState.iterationNum}"
+    else s"special-constructor-echo-${iterationNum}"
 
   val useDropout: Boolean = true
 
