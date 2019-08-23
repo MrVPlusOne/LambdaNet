@@ -308,7 +308,7 @@ abstract class NNArchitecture(
     val libLogits = similarity(inputs, libCandidates, 'libDistr).logits
     val projLogits =
       if (projCandidates.nonEmpty)
-        similarity(inputs, projCandidates, 'projDistr).logits
+        Some(similarity(inputs, projCandidates, 'projDistr).logits)
       else None
 
     TwoStage(pIsLib, libLogits, projLogits)
