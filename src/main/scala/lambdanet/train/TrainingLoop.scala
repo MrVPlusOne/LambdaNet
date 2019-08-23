@@ -36,7 +36,7 @@ object TrainingLoop extends TrainingLoopTrait {
   val onlySeqModel = false
   val taskName: String =
     if (onlySeqModel) "large-seqModel"
-    else s"special-constructor-${TrainingState.iterationNum}"
+    else s"special-constructor-echo-${TrainingState.iterationNum}"
 
   val useDropout: Boolean = true
 
@@ -371,7 +371,7 @@ object TrainingLoop extends TrainingLoopTrait {
         (grads, transformed, deltas)
       }
 
-      val lossModel: LossModel = LossModel.NormalLoss
+      val lossModel: LossModel = LossModel.EchoLoss
         .tap(m => printResult(s"loss model: ${m.name}"))
 
       private def selectForward(data: Datum) = {

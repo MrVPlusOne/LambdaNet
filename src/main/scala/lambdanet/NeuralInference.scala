@@ -45,7 +45,7 @@ object NeuralInference {
         val encodeLibNode = computeLibNodeEncoding()
 
         /** When set to false, each message passing has independent parameters */
-        val fixBetweenIteration = false
+        val fixBetweenIteration = true
 
         val embeddings = logTime("iterate") {
           (0 until iterations)
