@@ -2,6 +2,7 @@ package lambdanet
 
 import lambdanet.architecture.Embedding
 import lambdanet.architecture.{LabelEncoder, NNArchitecture}
+import lambdanet.train.DecodingResult
 import lambdanet.translation.QLang
 
 import scala.collection.mutable
@@ -17,7 +18,7 @@ object NeuralInference {
   import DebugTime.logTime
 
   /** When set to false, each message passing has independent parameters */
-  val fixBetweenIteration = true
+  val fixBetweenIteration = false
 
   /** Pre-computes a (batched) neural network sketch reusable
     * across multiple training steps for the given [[PredicateGraph]].
@@ -44,7 +45,7 @@ object NeuralInference {
       import architecture.{randomVar}
 
       /** returns softmax logits */
-      def result: Vector[CompNode] = {
+      def result: Vector[DecodingResult] = {
         val encodeLibNode = computeLibNodeEncoding()
 
         val embeddings = logTime("iterate") {
@@ -138,7 +139,7 @@ object NeuralInference {
       private def decode(
           embedding: Embedding,
           encodeSignature: Map[PType, CompNode]
-      ): CompNode = {
+      ): DecodingResult = {
 
         val candidates = predictionSpace.typeVector
           .pipe(parallelize)
@@ -153,7 +154,7 @@ object NeuralInference {
       private def decodeSeparate(
           embedding: Embedding,
           encodeSignature: PType => CompNode
-      ): CompNode = {
+      ): DecodingResult = {
         val inputs = nodesToPredict
           .map(embedding.vars.apply)
 

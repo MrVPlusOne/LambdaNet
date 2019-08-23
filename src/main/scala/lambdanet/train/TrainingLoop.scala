@@ -36,7 +36,7 @@ object TrainingLoop extends TrainingLoopTrait {
   val onlySeqModel = false
   val taskName: String =
     if (onlySeqModel) "large-seqModel"
-    else s"special-constructor-echo-${TrainingState.iterationNum}"
+    else s"two-stage-${TrainingState.iterationNum}"
 
   val useDropout: Boolean = true
 
@@ -315,18 +315,18 @@ object TrainingLoop extends TrainingLoopTrait {
           architecture.dropoutStorage = None
           isTraining = false
 
-          val (stat, fse1Acc, fse5Acc) = dataSet.flatMap { datum =>
+          val (stat, fse1Acc) = dataSet.flatMap { datum =>
             checkShouldStop(epoch)
             announced(s"test on $datum") {
               selectForward(datum).map {
                 case (_, fwd, pred) =>
                   val (fse1, _, _) = datum.fseAcc
-                    .countTopNCorrect(1, pred, onlyCountInSpaceTypes = true)
-                  val fse5 = datum.fseAcc
-                    .countTopNCorrect(5, pred, onlyCountInSpaceTypes = true)
-                    ._1
-
-                  (fwd, fse1, fse5)
+                    .countTopNCorrect(
+                      1,
+                      pred.mapValuesNow(Vector(_)),
+                      onlyCountInSpaceTypes = true
+                    )
+                  (fwd, fse1)
               }.toVector
             }
           }.combineAll
@@ -345,7 +345,6 @@ object TrainingLoop extends TrainingLoopTrait {
             2
           )
           logger.logScalar(s"$dataSetName-fse-top1", epoch, toAccuracy(fse1Acc))
-          logger.logScalar(s"$dataSetName-fse-top5", epoch, toAccuracy(fse5Acc))
           logger.logString(
             s"$dataSetName-typeAcc",
             epoch,
@@ -382,7 +381,7 @@ object TrainingLoop extends TrainingLoopTrait {
       /** Forward propagation for the sequential model */
       private def seqForward(
           datum: Datum
-      ): Option[(Loss, ForwardResult, Map[PNode, Vector[PType]])] = {
+      ): Option[(Loss, ForwardResult, Map[PNode, PType])] = {
         def result = {
           val predictor = datum.seqPredictor
           val predSpace = predictor.predSpace
@@ -411,7 +410,7 @@ object TrainingLoop extends TrainingLoopTrait {
 
           val (libCounts, projCounts, confMat, typeAccs) =
             announced("compute training accuracy") {
-              analyzeLogits(
+              analyzeDecoding(
                 logits,
                 groundTruths,
                 predSpace,
@@ -419,12 +418,7 @@ object TrainingLoop extends TrainingLoopTrait {
               )
             }
 
-          val loss =
-            lossModel.crossEntropyWithLogitsLoss(
-              logits,
-              targets,
-              predSpace.size
-            )
+          val loss = logits.toLoss(targets)
 
           val totalCount = libCounts.count + projCounts.count
           val fwd = ForwardResult(
@@ -435,20 +429,8 @@ object TrainingLoop extends TrainingLoopTrait {
             typeAccs
           )
 
-          val predictions: Map[PNode, Vector[PType]] = {
-            import numsca._
-            val Shape(Vector(row, _)) = logits.value.shape
-            val predVec = (0 until row.toInt).map { r =>
-              logits
-                .value(r, :>)
-                .data
-                .zipWithIndex
-                .sortBy(_._1)
-                .map { case (_, i) => predSpace.typeVector(i) }
-                .reverse
-                .toVector
-            }
-
+          val predictions: Map[PNode, PType] = {
+            val predVec = logits.topPredictions.map { predSpace.typeVector }
             nodes.zip(predVec).toMap
           }
 
@@ -461,7 +443,7 @@ object TrainingLoop extends TrainingLoopTrait {
       }
       private def forward(
           datum: Datum
-      ): Option[(Loss, ForwardResult, Map[PNode, Vector[PType]])] =
+      ): Option[(Loss, ForwardResult, Map[PNode, PType])] =
         limitTimeOpt(s"forward: $datum", Timeouts.forwardTimeout) {
           import datum._
 
@@ -469,76 +451,13 @@ object TrainingLoop extends TrainingLoopTrait {
 
           val predSpace = predictor.predictionSpace
 
-          sealed trait SeqModelMode {
-            def transformLogits(logitsVec: Vector[CompNode]): Vector[CompNode]
-
-            def initEmbedding(nodeSet: Set[ProjNode]): Embedding
-          }
-
-          /** Use the Seq model to generate the init node embedding for GNN */
-          object InitMode extends SeqModelMode {
-
-            def initEmbedding(nodeSet: Set[ProjNode]): Embedding =
-              announced("run seq encoder") {
-                val nodes = nodeSet.toVector
-                val pairs = nodes.zip(
-                  seqPredictor.encode(
-                    seqArchitecture,
-                    nameEncoder,
-                    shouldDropout,
-                    nodes.map(_.n)
-                  )
-                )
-                architecture
-                  .verticalBatching(
-                    pairs,
-                    architecture.layerFactory
-                      .linear('initEmbedding / 'fromSeq, dimMessage)
-                  )
-                  .map { case (k, v) => k -> v.headOption.get }
-                  .pipe(Embedding)
-              }
-
-            def transformLogits(logitsVec: Vector[CompNode]): Vector[CompNode] =
-              logitsVec
-          }
-
-          object EnsembleMode extends SeqModelMode {
-            val scale =
-              architecture.layerFactory.getVar('EnsembleModeScale)(Tensor(1.0))
-            val seqLogits = announced("run seq predictor") {
-              seqPredictor.run(
-                seqArchitecture,
-                nameEncoder,
-                nodesToPredict.map(_.n),
-                shouldDropout
-              ) * scale
-            }
-
-            def initEmbedding(nodeSet: Set[ProjNode]): Embedding =
-              architecture.initialEmbedding(nodeSet)
-
-            def transformLogits(logitsVec: Vector[CompNode]): Vector[CompNode] =
-              logitsVec.map { _ + seqLogits }
-          }
-
-          object GnnModel extends SeqModelMode {
-            def transformLogits(logitsVec: Vector[Loss]): Vector[Loss] =
-              logitsVec
-
-            def initEmbedding(nodeSet: Set[ProjNode]): Embedding =
-              architecture.initialEmbedding(nodeSet)
-          }
-
-          val seqMode: SeqModelMode = GnnModel
-
           // the probability for very iterations
-          val probsVec = announced("run predictor") {
+          val decodingVec = announced("run predictor") {
             predictor
               .run(
                 architecture,
                 nodesToPredict,
-                seqMode.initEmbedding,
+                architecture.initialEmbedding,
                 iterationNum,
                 nodeForAny,
                 labelEncoder,
@@ -548,9 +467,8 @@ object TrainingLoop extends TrainingLoopTrait {
                 isTraining
               )
               .result
-              .pipe(seqMode.transformLogits)
           }
-          val probs = probsVec.last
+          val decoding = decodingVec.last
 
           val groundTruths = nodesToPredict.map(annotations)
           val targets = groundTruths.map(predSpace.indexOfType)
@@ -558,20 +476,17 @@ object TrainingLoop extends TrainingLoopTrait {
 
           val (libCounts, projCounts, confMat, typeAccs) =
             announced("compute training accuracy") {
-              analyzeLogits(
-                probs,
+              analyzeDecoding(
+                decoding,
                 groundTruths,
                 predSpace,
                 nodeDistances
               )
             }
 
-          val loss =
-            lossModel.predictionLoss(
-              predictor.parallelize(probsVec),
-              targets,
-              predSpace.size
-            )
+          val loss = lossModel.predictionLoss(
+            predictor.parallelize(decodingVec).map(_.toLoss(targets))
+          )
 
           val totalCount = libCounts.count + projCounts.count
           val fwd = ForwardResult(
@@ -582,20 +497,8 @@ object TrainingLoop extends TrainingLoopTrait {
             typeAccs
           )
 
-          val predictions: Map[PNode, Vector[PType]] = {
-            import numsca._
-            val Shape(Vector(row, _)) = probs.value.shape
-            val predVec = (0 until row.toInt).map { r =>
-              probs
-                .value(r, :>)
-                .data
-                .zipWithIndex
-                .sortBy(_._1)
-                .map { case (_, i) => predSpace.typeVector(i) }
-                .reverse
-                .toVector
-            }
-
+          val predictions: Map[PNode, PType] = {
+            val predVec = decoding.topPredictions.map { predSpace.typeVector }
             nodesToPredict.map(_.n).zip(predVec).toMap
           }
 
@@ -666,13 +569,13 @@ object TrainingLoop extends TrainingLoopTrait {
                     QLangDisplay.renderProjectToDirectory(
                       datum.projectName.toString,
                       datum.qModules,
-                      pred.mapValuesNow(_.head),
+                      pred,
                       predSpace.allTypes
                     )(saveDir / "predictions")
                   }
                   val (_, rightSet, wrongSet) = datum.fseAcc.countTopNCorrect(
                     1,
-                    pred,
+                    pred.mapValuesNow(Vector(_)),
                     onlyCountInSpaceTypes = true
                   )
                   val Seq(x, y) = Seq(rightSet, wrongSet).map { set =>
@@ -706,8 +609,8 @@ object TrainingLoop extends TrainingLoopTrait {
         }
       }
 
-      private def analyzeLogits(
-          logits: CompNode,
+      private def analyzeDecoding(
+          logits: DecodingResult,
           groundTruths: Vector[PType],
           predictionSpace: PredictionSpace,
           nodeDistances: Vector[Int]
@@ -717,11 +620,7 @@ object TrainingLoop extends TrainingLoopTrait {
           Counted[ConfusionMatrix],
           Map[PType, Counted[Correct]]
       ) = {
-        val predictions = numsca
-          .argmaxAxis(logits.value, axis = 1)
-          .data
-          .map(_.toInt)
-          .toVector
+        val predictions = logits.topPredictions
         val targets = groundTruths.map(predictionSpace.indexOfType)
         val truthValues = predictions.zip(targets).map { case (x, y) => x == y }
         val targetFromLibrary = groundTruths.map { _.madeFromLibTypes }

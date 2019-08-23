@@ -6,21 +6,18 @@ import lambdanet._
 
 import scala.collection.GenSeq
 
+/** Mixes the losses from each iteration into one total loss */
 trait LossModel {
   def name: String
 
   protected def impl(
-      logitsVec: GenSeq[CompNode],
-      targets: Vector[Int],
-      predSpaceSize: Int
+      losses: GenSeq[CompNode]
   ): CompNode
 
   def predictionLoss(
       logitsVec: GenSeq[CompNode],
-      targets: Vector[Int],
-      predSpaceSize: Int
   ): CompNode = {
-    impl(logitsVec, targets, predSpaceSize)
+    impl(logitsVec)
       .tap { loss =>
         if (loss.value.squeeze() > 20) {
           val displayLogits = logitsVec.zipWithIndex
@@ -32,22 +29,6 @@ trait LossModel {
         }
       }
   }
-
-  def crossEntropyWithLogitsLoss(
-      logits: CompNode,
-      targets: Vector[Int],
-      predSpaceSize: Int
-  ): CompNode = {
-    mean(crossEntropyOnSoftmax(logits, oneHot(targets, predSpaceSize)))
-  }
-
-  def crossEntropyLoss(
-      probs: CompNode,
-      targets: Vector[Int],
-      predSpaceSize: Int
-  ): CompNode = {
-    mean(crossEntropy(probs, oneHot(targets, predSpaceSize)))
-  }
 }
 
 object LossModel {
@@ -55,16 +36,10 @@ object LossModel {
     def name = "EchoLoss"
 
     def impl(
-        logitsVec: GenSeq[CompNode],
-        targets: Vector[Int],
-        predSpaceSize: Int
+        losses: GenSeq[CompNode]
     ): Loss = {
-      val losses = logitsVec.map { l =>
-        crossEntropyWithLogitsLoss(l, targets, predSpaceSize)
-      }
       val len = losses.length
       val weights = (1 to len).map(i => 1.0 / i).reverse
-//      val weights = Vector.iterate(1.0, len)(_ * 0.8).reverse
       val sum = weights.sum
       losses
         .zip(weights)
@@ -77,14 +52,9 @@ object LossModel {
     def name = "NormalLoss"
 
     def impl(
-        logitsVec: GenSeq[CompNode],
-        targets: Vector[Int],
-        predSpaceSize: Int
+        losses: GenSeq[CompNode],
     ): Loss = {
-      val loss = logitsVec.last.pipe { l =>
-        crossEntropyWithLogitsLoss(l, targets, predSpaceSize)
-      }
-      loss
+      losses.last
     }
   }
 }

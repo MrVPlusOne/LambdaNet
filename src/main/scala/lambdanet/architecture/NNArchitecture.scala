@@ -14,7 +14,7 @@ import lambdanet.NeuralInference.{
   MessageKind,
   MessageModel
 }
-import lambdanet.train.Logits
+import lambdanet.train.{DecodingResult, Joint}
 import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 
 import scala.collection.GenSeq
@@ -240,7 +240,7 @@ abstract class NNArchitecture(
       inputs: Vector[CompNode],
       candidates: Vector[CompNode],
       name: SymbolPath
-  ): CompNode = {
+  ): Joint = {
     val inputs1 =
       concatN(axis = 0, fromRows = true)(inputs)
         .pipe(linear(name / 'similarityInputs, dimMessage))
@@ -255,7 +255,7 @@ abstract class NNArchitecture(
 //      .pipe(sum(_, axis = 1))
 //      .pipe(softPlus(_) + 1.0)
     val factor = 1.0 / math.sqrt(dimMessage)
-    inputs1.dot(candidates1.t) * factor
+    Joint(inputs1.dot(candidates1.t) * factor)
   }
 
   def encodeLibType(n: PNode, encodeName: Symbol => CompNode): CompNode = {
@@ -288,7 +288,7 @@ abstract class NNArchitecture(
       inputs: Vector[CompNode],
       libCandidates: Vector[CompNode],
       projCandidates: Vector[CompNode]
-  ): Logits = {
+  ): DecodingResult = {
     val inputs1 =
       concatN(axis = 0, fromRows = true)(inputs)
 
@@ -303,15 +303,16 @@ abstract class NNArchitecture(
 //      linear('libDistr / 'L2, dimMessage) ~> relu ~>
 //      linear('libDistr / 'L3, libTypeNum) ~> softmax
     val epsilon = funcdiff.TensorExtension.zeroTolerance * 10
-    val libDistr = similarity(inputs, libCandidates, 'libDistr) ~> softmax
-    if(projCandidates.isEmpty)
-      return log(libDistr + epsilon)
-    val projDistr = similarity(inputs, projCandidates, 'projDistr) ~> softmax
+    val libDistr = similarity(inputs, libCandidates, 'libDistr).logits ~> softmax
+    if (projCandidates.isEmpty)
+      return Joint(log(libDistr + epsilon))
+    val projDistr = similarity(inputs, projCandidates, 'projDistr).logits ~> softmax
 
     (libDistr * pIsLib)
       .concat(projDistr * (-pIsLib + 1), 1)
       .pipe(_ + epsilon)
       .pipe(log)
+      .pipe(Joint)
   }
 
   def encodeFunction(args: Vector[CompNode], to: CompNode): CompNode = {

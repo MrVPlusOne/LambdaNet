@@ -4,6 +4,7 @@ import cats.data.Chain
 import funcdiff._
 import lambdanet.PrepareRepos.parseRepos
 import lambdanet.architecture.{ArchitectureHelper, LabelEncoder}
+import lambdanet.train.{DecodingResult, Joint}
 import lambdanet.translation.IR._
 import lambdanet.translation.PAnnot
 import lambdanet.translation.PredicateGraph.{PNode, PType}
@@ -56,11 +57,11 @@ object SequenceModel {
         nameEncoder: LabelEncoder,
         nodesToPredict: Vector[PNode],
         nameDropout: Boolean
-    ): CompNode = {
+    ): DecodingResult = {
       val states =
         encode(architecture, nameEncoder, nameDropout, nodesToPredict)
       val input = concatN(axis = 0, fromRows = true)(states)
-      architecture.predict(input, predSpace.size)
+      Joint(architecture.predict(input, predSpace.size))
     }
 
     def encode(

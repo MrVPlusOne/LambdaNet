@@ -86,6 +86,10 @@ trait APITrait {
   def crossEntropyOnSoftmax(logits: CompNode, targets: Tensor): CompNode =
     funcNode(CrossEntropyOnSoftmax(logits, targets))
 
+  def crossEntropyOnSigmoid(logits: CompNode, targets: Tensor): CompNode = {
+    funcNode(CrossEntropyOnSigmoid(logits, targets))
+  }
+
   def crossEntropyOnSoftmaxIneff(logits: CompNode, targets: Tensor): CompNode =
     -sum(log(softmax(logits) + epsilon) * targets, axis = 1)
 
