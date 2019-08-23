@@ -48,7 +48,7 @@ object TrainingLoop extends TrainingLoopTrait {
 
   def flag(nameValue: (String, Boolean)): String = {
     val (name, value) = nameValue
-    if(value) s"-$name" else ""
+    if (value) s"-$name" else ""
   }
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
@@ -191,7 +191,7 @@ object TrainingLoop extends TrainingLoopTrait {
               )
             } else {
               if (!ex.isInstanceOf[StopException]) {
-                saveTraining(epoch, "error-save")
+                saveTraining(epoch, "error-save", skipTest = true)
               }
               throw ex
             }
@@ -548,7 +548,11 @@ object TrainingLoop extends TrainingLoopTrait {
 
       import ammonite.ops._
 
-      private def saveTraining(epoch: Int, dirName: String): Unit = {
+      private def saveTraining(
+          epoch: Int,
+          dirName: String,
+          skipTest: Boolean = false
+      ): Unit = {
         isTraining = false
         architecture.dropoutStorage = None
 
@@ -566,7 +570,7 @@ object TrainingLoop extends TrainingLoopTrait {
             cp.over(currentLogFile, saveDir / "log.txt")
           }
 
-          if (testSet.isEmpty)
+          if (testSet.isEmpty || skipTest)
             return
 
           val predSpace = testSet.head.predictor.predictionSpace

@@ -54,17 +54,16 @@ case class Joint(logits: CompNode) extends DecodingResult {
 case class TwoStage(
     isLibLogits: CompNode,
     libLogits: CompNode,
-    projLogits: CompNode
+    projLogits: Option[CompNode]
 ) extends DecodingResult {
   val libNum: Int = libLogits.shape(1).toInt
-  val projNum: Int = projLogits.shape(1).toInt
 
   def topPredictions: Vector[Int] = {
     val libMax = argmaxAxis(libLogits.value, 1).data
-    if (projNum == 0)
+    if (projLogits.isEmpty)
       return libMax.map(_.toInt).toVector
 
-    val projMax = argmaxAxis(projLogits.value, 1).data
+    val projMax = argmaxAxis(projLogits.get.value, 1).data
     val isLib = isLibLogits.value.data.map(_ > 0)
     isLib.zipWithIndex.map {
       case (b, i) =>
@@ -92,13 +91,13 @@ case class TwoStage(
     isLib.zipWithIndex.foreach {
       case (b, row) =>
         if (b) libRows :+= libLogits.slice(row, :>)
-        else projRows :+= projLogits.slice(row, :>)
+        else projRows :+= projLogits.get.slice(row, :>)
     }
 
     val libTargets = targets.filter(_ < libNum)
     val libLoss = lossFromRows(libRows, libTargets)
 
-    if (projNum == 0) return {
+    if (projLogits.isEmpty) return {
       mean(libLoss) + mean(binaryLoss)
     }
 

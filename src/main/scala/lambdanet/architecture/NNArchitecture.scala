@@ -5,7 +5,15 @@ import botkop.numsca
 import botkop.numsca.{:>, Tensor}
 import cats.data.Chain
 import funcdiff._
-import lambdanet.NeuralInference.{AccessFieldUsage, ClassFieldUsage, LabelUsages, LabelVector, Message, MessageKind, MessageModel}
+import lambdanet.NeuralInference.{
+  AccessFieldUsage,
+  ClassFieldUsage,
+  LabelUsages,
+  LabelVector,
+  Message,
+  MessageKind,
+  MessageModel
+}
 import lambdanet.train.{DecodingResult, Joint, TwoStage}
 import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 
@@ -298,7 +306,10 @@ abstract class NNArchitecture(
     }
 
     val libLogits = similarity(inputs, libCandidates, 'libDistr).logits
-    val projLogits = similarity(inputs, projCandidates, 'projDistr).logits
+    val projLogits =
+      if (projCandidates.nonEmpty)
+        similarity(inputs, projCandidates, 'projDistr).logits
+      else None
 
     TwoStage(pIsLib, libLogits, projLogits)
   }
