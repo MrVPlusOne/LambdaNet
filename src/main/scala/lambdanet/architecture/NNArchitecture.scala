@@ -302,14 +302,15 @@ abstract class NNArchitecture(
 //      linear('libDistr / 'L1, dimMessage) ~> relu ~>
 //      linear('libDistr / 'L2, dimMessage) ~> relu ~>
 //      linear('libDistr / 'L3, libTypeNum) ~> softmax
+    val epsilon = funcdiff.TensorExtension.zeroTolerance * 10
     val libDistr = similarity(inputs, libCandidates, 'libDistr) ~> softmax
     if(projCandidates.isEmpty)
-      return log(libDistr)
+      return log(libDistr + epsilon)
     val projDistr = similarity(inputs, projCandidates, 'projDistr) ~> softmax
 
     (libDistr * pIsLib)
       .concat(projDistr * (-pIsLib + 1), 1)
-      .pipe(_ + 10.0 * funcdiff.TensorExtension.zeroTolerance)
+      .pipe(_ + epsilon)
       .pipe(log)
   }
 
