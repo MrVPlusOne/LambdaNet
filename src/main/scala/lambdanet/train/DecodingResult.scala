@@ -73,7 +73,7 @@ case class TwoStage(
 
   def toLoss(targets: Vector[Int]): Loss = {
     def lossFromRows(rows: Vector[CompNode], targets: Vector[Int]) = {
-      if (rows.isEmpty) 0: CompNode
+      if (rows.isEmpty) const(Tensor(0.0).reshape(1,1))
       else
         concatN(0, fromRows = true)(rows)
           .pipe(crossEntropyWithLogitsLoss(_, targets))
