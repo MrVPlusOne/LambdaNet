@@ -1,5 +1,6 @@
 package lambdanet.train
 
+import lambdanet._
 import lambdanet.utils.FileLogger
 
 trait TrainingLoopTrait {
@@ -12,7 +13,9 @@ trait TrainingLoopTrait {
     val path = util.Try{
       pwd / RelPath(pathText)
     }.getOrElse(Path(pathText))
-    path / taskName
+    (path / taskName).tap{ d =>
+      lambdanet.printResult(s"save results to directory: $d")
+    }
   }
   lazy val fileLogger =
     new FileLogger(resultsDir / "console.txt", printToConsole = true)
