@@ -17,6 +17,8 @@ object TrainingState {
     TrainingState(step, dimMessage, iterationNum, optimizer)
   }
 
+  val iterationNum: Int = 8
+
   def loadTrainingState(
       resultsDir: Path,
       logger: FileLogger
@@ -56,7 +58,7 @@ object TrainingState {
             epoch0 = 0,
             dimMessage = 32,
             optimizer = Optimizer.Adam(learningRate = 1e-3),
-            iterationNum = TrainingLoop.iterationNum
+            iterationNum = iterationNum
           )
           (state, new ParamCollection(), mkEventLogger(overrideMode = true))
         }
