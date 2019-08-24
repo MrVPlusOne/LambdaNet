@@ -143,10 +143,10 @@ object TrainingLoop extends TrainingLoopTrait {
         (trainingState.epoch0 + 1 to maxTrainingEpochs).foreach { epoch =>
           announced(s"epoch $epoch") {
             handleExceptions(epoch) {
+              trainStep(epoch)
               DebugTime.logTime("test-devSet") {
                 testStep(epoch, isTestSet = false)
               }
-              trainStep(epoch)
               DebugTime.logTime("test-testSet") {
                 testStep(epoch, isTestSet = true)
               }
@@ -191,6 +191,7 @@ object TrainingLoop extends TrainingLoopTrait {
               )
             } else {
               if (!ex.isInstanceOf[StopException]) {
+                ex.printStackTrace()
                 saveTraining(epoch, "error-save", skipTest = true)
               }
               throw ex
@@ -207,7 +208,9 @@ object TrainingLoop extends TrainingLoopTrait {
           System.gc()
         }
         val startTime = System.nanoTime()
-        val stats = random.shuffle(trainSet).zipWithIndex.map {
+        val oldOrder = random.shuffle(trainSet)
+        val (h, t) = oldOrder.splitAt(119)
+        val stats = (t ++ h).zipWithIndex.map {
           case (datum, i) =>
             import Console.{GREEN, BLUE}
             announced(

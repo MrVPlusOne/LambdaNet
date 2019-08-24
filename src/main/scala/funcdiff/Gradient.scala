@@ -226,7 +226,8 @@ case class InflatedGradient(
   }
 
   def *(t: Tensor): Gradient = {
-    transformCore(t, _ * _)
+    if(t.shape.elements == 1) this * t.squeeze()
+    else transformCore(t, _ * _)
   }
 
   def timesBy(t: Tensor): Gradient = transformCore(t, (a, b) => b * a)

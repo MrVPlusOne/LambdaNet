@@ -47,7 +47,7 @@ object TensorExtension {
       shape1: Shape,
       shape2: Shape
   ): (Seq[Int], Seq[Int]) = {
-    require(shape1.rank == shape2.rank)
+    require(shape1.rank == shape2.rank, s"shape 1: $shape1, shape 2: $shape2")
     var axes1, axes2 = List[Int]()
     for (i <- 0 until shape1.rank;
          l1 = shape1(i);
