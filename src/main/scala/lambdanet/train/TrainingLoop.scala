@@ -34,7 +34,7 @@ object TrainingLoop extends TrainingLoopTrait {
   val toyMod: Boolean = false
   val onlySeqModel = false
   val useDropout: Boolean = true
-  val useOracleForIsLib: Boolean = false // todo: this is only for experiment
+  val useOracleForIsLib: Boolean = true
 
   val taskName: String = {
     val flags = Seq(
