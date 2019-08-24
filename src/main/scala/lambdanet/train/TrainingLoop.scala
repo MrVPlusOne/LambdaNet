@@ -34,12 +34,15 @@ object TrainingLoop extends TrainingLoopTrait {
   val toyMod: Boolean = false
   val onlySeqModel = false
   val useDropout: Boolean = true
-  val useOracleForIsLib: Boolean = true
+  val useOracleForIsLib: Boolean = false
+  /* Assign more weights to project type to battle label imbalance */
+  val projWeight: Double = 4.0
 
   val taskName: String = {
     val flags = Seq(
       "oracle" -> useOracleForIsLib,
-      "toy" -> toyMod
+      "toy" -> toyMod,
+      "weighted" -> (projWeight != 1.0)
     ).map(flag).mkString
 
     if (onlySeqModel) "large-seqModel"
@@ -432,7 +435,7 @@ object TrainingLoop extends TrainingLoopTrait {
               )
             }
 
-          val loss = logits.toLoss(targets)
+          val loss = logits.toLoss(targets, projWeight, predSpace.libTypeVec.length)
 
           val totalCount = libCounts.count + projCounts.count
           val fwd = ForwardResult(
@@ -503,7 +506,8 @@ object TrainingLoop extends TrainingLoopTrait {
             }
 
           val loss = lossModel.predictionLoss(
-            predictor.parallelize(decodingVec).map(_.toLoss(targets))
+            predictor.parallelize(decodingVec)
+              .map(_.toLoss(targets, projWeight, predSpace.libTypeVec.length))
           )
 
           val totalCount = libCounts.count + projCounts.count

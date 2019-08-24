@@ -9,7 +9,7 @@ import numsca.{Tensor, argmaxAxis, :>}
 trait DecodingResult {
   def topPredictions: Vector[Int]
 
-  def toLoss(targets: Vector[Int]): CompNode
+  def toLoss(targets: Vector[Int], projWeight: Real, libNum: Int): CompNode
 
   protected def crossEntropyWithLogitsLoss(
       logits: CompNode,
@@ -29,11 +29,16 @@ case class Joint(logits: CompNode) extends DecodingResult {
       .toVector
   }
 
-  def toLoss(targets: Vector[Int]): Loss = {
-    crossEntropyWithLogitsLoss(
+  def toLoss(targets: Vector[Int], projWeight: Double, libNum: Int): Loss = {
+    val weights = targets
+      .map(_ < libNum)
+      .map(if (_) 1.0 else projWeight)
+      .pipe(x => Tensor(x.toArray).reshape(-1, 1))
+    (crossEntropyWithLogitsLoss(
       logits,
       targets
-    ).pipe(mean)
+    ) * weights)
+      .pipe(mean)
   }
 
   def sortedPredictions: Vector[Vector[Int]] = {
@@ -71,9 +76,9 @@ case class TwoStage(
     }.toVector
   }
 
-  def toLoss(targets: Vector[Int]): Loss = {
+  def toLoss(targets: Vector[Int], projWeight: Real, libNum: Int): Loss = {
     def lossFromRows(rows: Vector[CompNode], targets: Vector[Int]) = {
-      if (rows.isEmpty) const(Tensor(0.0).reshape(1,1))
+      if (rows.isEmpty) const(Tensor(0.0).reshape(1, 1))
       else
         concatN(0, fromRows = true)(rows)
           .pipe(crossEntropyWithLogitsLoss(_, targets))
@@ -84,7 +89,12 @@ case class TwoStage(
       .map(if (_) 1.0 else 0.0)
       .pipe(x => Tensor(x.toArray).reshape(-1, 1))
 
-    val binaryLoss = crossEntropyOnSigmoid(isLibLogits, isLibTensor)
+    val isLibWeights = isLib
+      .map(if (_) 1.0 else projWeight)
+      .pipe(x => Tensor(x.toArray).reshape(-1, 1))
+
+    val binaryLoss =
+      crossEntropyOnSigmoid(isLibLogits, isLibTensor) * isLibWeights
 
     var libRows = Vector[CompNode]()
     var projRows = Vector[CompNode]()
@@ -102,7 +112,7 @@ case class TwoStage(
     }
 
     val projTargets = targets.filter(_ >= libNum).map(_ - libNum)
-    val projLoss = lossFromRows(projRows, projTargets)
+    val projLoss = lossFromRows(projRows, projTargets) * projWeight
 
     mean(libLoss.concat(projLoss, axis = 0)) + mean(binaryLoss)
   }
