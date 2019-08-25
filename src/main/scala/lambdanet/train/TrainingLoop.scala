@@ -36,7 +36,7 @@ object TrainingLoop extends TrainingLoopTrait {
   val useDropout: Boolean = true
   val useOracleForIsLib: Boolean = false
   /* Assign more weights to project type to battle label imbalance */
-  val projWeight: Double = 4.0
+  val projWeight: Double = 3.0
 
   val taskName: String = {
     val flags = Seq(
@@ -46,7 +46,7 @@ object TrainingLoop extends TrainingLoopTrait {
     ).map(flag).mkString
 
     if (onlySeqModel) "large-seqModel"
-    else s"two-stage$flags-${TrainingState.iterationNum}"
+    else s"new-two-stage$flags-${TrainingState.iterationNum}"
   }
 
   def flag(nameValue: (String, Boolean)): String = {
@@ -580,7 +580,6 @@ object TrainingLoop extends TrainingLoopTrait {
           if (testSet.isEmpty || skipTest)
             return
 
-          val predSpace = testSet.head.predictor.predictionSpace
           import cats.implicits._
 
           var progress = 0
@@ -596,7 +595,7 @@ object TrainingLoop extends TrainingLoopTrait {
                       datum.projectName.toString,
                       datum.qModules,
                       pred,
-                      predSpace.allTypes
+                      datum.predictor.predictionSpace.allTypes
                     )(saveDir / "predictions")
                   }
                   val (_, rightSet, wrongSet) = datum.fseAcc.countTopNCorrect(

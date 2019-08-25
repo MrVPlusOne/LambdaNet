@@ -68,7 +68,7 @@ object QLangDisplay {
               case Some(p) =>
                 if (t == p) correct(": " + t)
                 else if (!predSpace.contains(t)) {
-                  if (p == unknownType) correct(s": [OOV]$t")
+                  if (p == unknownType) correct(s": [UNKN]$t")
                   else incorrect(s": [OOV]$t")
                 } else {
                   incorrect(s": ($p ≠ $t)")

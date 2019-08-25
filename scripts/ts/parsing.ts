@@ -460,7 +460,7 @@ class Constructor extends FuncDef {
 class ClassDef implements GStmt {
   category: string = "ClassDef";
 
-  constructor(public name: string, public constructor: FuncDef | null,
+  constructor(public name: string, public constructor: Constructor | null,
               public instanceLambdas: FuncDef[],
               public staticLambdas: FuncDef[],
               public vars: NamedValue<[GMark, GExpr | null, boolean]>[],

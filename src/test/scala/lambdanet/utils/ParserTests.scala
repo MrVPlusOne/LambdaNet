@@ -266,11 +266,11 @@ class ParserTests extends WordSpec with MyTest {
         SimpleMath.readObjectFromFile[LibDefs](libDefsFile.toIO)
       }
 
-    val dir = pwd / RelPath("data/toy")
+    val dir = pwd / RelPath("data/tests/public")
     val (g, qModules, irModules, annots) =
       prepareProject(libDefs, dir, skipSet = Set())
     val truth = annots.map { case (k, v) => k.n -> v }
-    val projName = "toy"
+    val projName = "public"
 
     QLangDisplay.renderProjectToDirectory(projName, qModules, truth, Set())(dir / "predictions")
 

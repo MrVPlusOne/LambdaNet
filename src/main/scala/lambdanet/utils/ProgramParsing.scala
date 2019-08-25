@@ -634,7 +634,11 @@ case class ProgramParsing() {
 
           val tyVars = asVector(map("tyVars")).map(asSymbol)
           val ms = parseModifiers(map("modifiers"))
-          Vector(FuncDef(name, tyVars, args, returnType, body, ms.exportLevel))
+          Vector(FuncDef(name, tyVars, args, returnType, body, ms.exportLevel).tap{
+            f => map.get("publicVars").foreach{ pv =>
+              f.publicVars = asVector(pv).map(asSymbol).toSet
+            }
+          })
         case "TypeAliasStmt" =>
           val name = Symbol(asString(map("name")))
           val tyVars = asVector(map("tyVars")).map(asSymbol)
@@ -663,7 +667,7 @@ case class ProgramParsing() {
 
           val instanceInits = mutable.HashMap[Symbol, Option[GExpr]]()
 
-          val (instanceVars, staticVars) = {
+          val (instanceVars0, staticVars) = {
             val v1 = vars.groupBy(_._2._3)
             (
               v1.getOrElse(false, Map()).map {
@@ -682,7 +686,7 @@ case class ProgramParsing() {
             )
           }
 
-          val constructor0 = {
+          val (constructor0, pubVars) = {
             val constructorValue = map("constructor")
             val f = if (constructorValue == Null) {
               // make an empty constructor
@@ -694,7 +698,7 @@ case class ProgramParsing() {
                 Annot.Missing,
                 BlockStmt(Vector()),
                 ExportLevel.Unspecified
-              )
+              ).tap(f => f.publicVars = Set())
             } else {
               parseGStmt(constructorValue).asInstanceOf[Vector[FuncDef]].head
             }
@@ -702,8 +706,13 @@ case class ProgramParsing() {
               name = GStmt.constructorName,
               returnType = Annot.Fixed(TyVar(name)),
               tyVars = tyVars // constructor has the same tyVars as the class
-            )
+            ) -> f.args.filter(x => f.publicVars.contains(x._1))
           }
+
+          // public vars need to be converted into instance vars and got instantiated in the constructor
+          val instanceVars = instanceVars0 ++ pubVars
+          pubVars.foreach { case (s, _) => instanceInits(s) = Some(Var(s)) }
+
           //put instance var instantiation into the constructor
           val constructor = {
             val thisDef = VarDef(

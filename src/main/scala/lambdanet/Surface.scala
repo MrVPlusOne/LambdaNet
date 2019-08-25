@@ -231,6 +231,7 @@ object Surface {
       body: GStmt,
       exportLevel: ExportLevel.Value
   ) extends GStmt {
+    var publicVars: Set[Symbol] = _
     def functionType: FuncType = {
       FuncType(args.map(_._2.get).toList, returnType.asInstanceOf[GType])
     }
