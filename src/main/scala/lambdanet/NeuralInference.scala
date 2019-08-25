@@ -228,11 +228,14 @@ object NeuralInference {
         case DefineRel(c, _: PObject) if c.isType => PTyVar(c)
       }
     }
+    val projectTypes: Set[PType] = {
+      graph.nodes.filter(n => n.fromProject && n.isType).map(PTyVar)
+    }
     val libraryNodes: Set[LibNode] =
       graph.nodes.filter(_.fromLib).map(LibNode) ++ unknownNodes
     val predictionSpace = PredictionSpace(
       libraryTypeNodes
-        .map(_.n.n.pipe(PTyVar)) ++ projectClasses // ++ Set(PAny),
+        .map(_.n.n.pipe(PTyVar)) ++ projectTypes // ++ Set(PAny),
     )
 
     val labelUsages: LabelUsages = {
