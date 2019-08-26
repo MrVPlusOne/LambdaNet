@@ -41,6 +41,7 @@ object TrainingLoop extends TrainingLoopTrait {
   val taskName: String = {
     val flags = Seq(
       "oracle" -> useOracleForIsLib,
+      "fix" -> NeuralInference.fixBetweenIteration,
       "toy" -> toyMod,
       "weighted" -> (projWeight != 1.0)
     ).map(flag).mkString
