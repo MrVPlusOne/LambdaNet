@@ -235,7 +235,7 @@ object NeuralInference {
       graph.nodes.filter(_.fromLib).map(LibNode) ++ unknownNodes
     val predictionSpace = PredictionSpace(
       libraryTypeNodes
-        .map(_.n.n.pipe(PTyVar)) ++ projectTypes // ++ Set(PAny),
+        .map(_.n.n.pipe(PTyVar)) ++ projectClasses // ++ Set(PAny),
     )
 
     val labelUsages: LabelUsages = {
