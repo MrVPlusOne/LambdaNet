@@ -94,6 +94,17 @@ object QLang {
 
   case class IfExpr(cond: QExpr, e1: QExpr, e2: QExpr) extends QExpr
 
+  val basicTypeRenaming: Map[Symbol, Symbol] = Map(
+    'number -> 'Number,
+    'string -> 'String,
+    'boolean -> 'Boolean,
+    'symbol -> 'Symbol,
+    'void -> 'Void,
+    'object -> 'Object,
+    'array -> 'Array,
+    'bigint -> 'BigInt
+  )
+  val basicTypes: Set[Symbol] = basicTypeRenaming.values.toSet
 }
 
 object QLangTranslation {
@@ -496,17 +507,6 @@ object QLangTranslation {
           ctx.internalSymbols(basicTypeRenaming.getOrElse(id, id)).term.get
       })
     }
-
-  private val basicTypeRenaming = Map(
-    'number -> 'Number,
-    'string -> 'String,
-    'boolean -> 'Boolean,
-    'symbol -> 'Symbol,
-    'void -> 'Void,
-    'object -> 'Object,
-    'array -> 'Array,
-    'bigint -> 'BigInt
-  )
 
   private def resolveType(ty: GType)(implicit ctx: ModuleExports): PType =
     SimpleMath.withErrorMessage(s"Failed to resolve type: $ty") {

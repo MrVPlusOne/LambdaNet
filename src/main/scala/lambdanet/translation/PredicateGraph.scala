@@ -129,6 +129,13 @@ object PredicateGraph {
         nameOpt: Option[Symbol],
         isType: Boolean
     ): PNode = {
+      if (!forLib) {
+        nameOpt.foreach { name =>
+          if (isType && QLang.basicTypes.contains(name)) {
+            throw new Error(s"Trying to override basic type definitions: $name")
+          }
+        }
+      }
       useNewId(id => new PNode(id, nameOpt, isType, forLib))
     }
 

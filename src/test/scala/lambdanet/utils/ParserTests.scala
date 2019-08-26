@@ -8,7 +8,13 @@ import funcdiff.SimpleMath
 import lambdanet.NeuralInference.Predictor
 import lambdanet.train.DataSet.selectLibTypes
 import lambdanet.translation.ImportsResolution.ErrorHandler
-import lambdanet.translation.PredicateGraph.{DefineRel, LibTypeNode, PNode, PNodeAllocator, PType}
+import lambdanet.translation.PredicateGraph.{
+  DefineRel,
+  LibTypeNode,
+  PNode,
+  PNodeAllocator,
+  PType
+}
 import lambdanet.translation.QLangTranslation
 import lambdanet.utils.ProgramParsing.ImportPattern
 import lambdanet.utils.QLangDisplay.AnnotPlace
@@ -266,16 +272,33 @@ class ParserTests extends WordSpec with MyTest {
         SimpleMath.readObjectFromFile[LibDefs](libDefsFile.toIO)
       }
 
-    val dir = pwd / RelPath("data/tests/public")
+    val dir = pwd / RelPath(
+      "../lambda-repos/bigger/testSet/Microsoft_TypeScriptSamples"
+    )
     val (g, qModules, irModules, annots) =
-      prepareProject(libDefs, dir, skipSet = Set())
+      prepareProject(
+        libDefs,
+        dir,
+        skipSet = Set(),
+        errorHandler =
+          ErrorHandler(ErrorHandler.StoreError, ErrorHandler.StoreError)
+      )
     val truth = annots.map { case (k, v) => k.n -> v }
-    val projName = "public"
+    val projName = "samples"
 
-    QLangDisplay.renderProjectToDirectory(projName, qModules, truth, Set())(dir / "predictions")
+    QLangDisplay.renderProjectToDirectory(projName, qModules, truth, Set())(
+      dir / "predictions"
+    )
 
-    val rightPreds: Set[AnnotPlace] = truth.map{ case (k, v) => (k, v, projName) }.toSet
-    QLangDisplay.renderPredictionIndexToDir(rightPreds, rightPreds, dir, "predictions")
+    val rightPreds: Set[AnnotPlace] = truth.map {
+      case (k, v) => (k, v, projName)
+    }.toSet
+    QLangDisplay.renderPredictionIndexToDir(
+      rightPreds,
+      rightPreds,
+      dir,
+      "predictions"
+    )
 
     irModules.foreach { m =>
       SequenceModel

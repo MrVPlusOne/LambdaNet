@@ -37,17 +37,27 @@ object PrepareRepos {
   val parsedRepoPath: Path = pwd / "data" / "parsedDataSet.serialized"
 
   def main(args: Array[String]): Unit = {
+//    parseAndFilterDataSet()
 //    mixTestDevSet()
     parseAndSerializeDataSet()
   }
+
+  sealed trait RepoResult{
+    def toVector: Vector[ParsedProject] = this match {
+      case Successful(p) => Vector(p)
+      case _ => Vector()
+    }
+  }
+  case object TooBigOrSmall extends RepoResult
+  case class HasError(ex: Throwable) extends RepoResult
+  case class Successful(result: ParsedProject) extends RepoResult
 
   def parseRepos(
       dataSetDirs: Seq[Path],
       loadFromFile: Boolean = true,
       inParallel: Boolean = true,
-      maxNum: Int = 1000,
       maxLinesOfCode: Int = Int.MaxValue,
-      parsedCallback: (Path, Option[ParsedProject]) => Unit = (_, _) => ()
+      parsedCallback: (Path, RepoResult) => Unit = (_, _) => ()
   ): (LibDefs, Seq[List[ParsedProject]]) = {
     lambdanet.shouldWarn = false
 
@@ -62,37 +72,36 @@ object PrepareRepos {
       defs
     }
 
-    val random = new Random(1)
-    def fromDir(dir: Path, maxNum: Int) =
+    def fromDir(dir: Path) =
       (ls ! dir)
         .filter(f => f.isDir)
-//        .pipe(random.shuffle(_))
-        .take(maxNum)
         .pipe(x => if (inParallel) x.par else x)
         .flatMap { f =>
           val r = if (countTsCode(f, dir) < maxLinesOfCode) {
-            val (a, b, c, d) =
-              prepareProject(
+            try {
+              val (a, b, c, d) = prepareProject(
                 libDefs,
                 f,
                 shouldPruneGraph = false,
                 errorHandler =
                   ErrorHandler(ErrorHandler.StoreError, ErrorHandler.StoreError)
               )
-            val diff = (a.nodes ++ a.predicates.flatMap(_.allNodes))
-              .diff(libDefs.nodeMapping.keySet)
-            val libNode = diff.find(_.fromLib)
-            assert(libNode.isEmpty, s"lib node not in libDefs: ${libNode.get}")
-            Some(ParsedProject(f.relativeTo(dir), a, b, c, d))
-          } else None
-          r.tap { p =>
-            parsedCallback(f, p)
-          }.toVector
+              val diff = (a.nodes ++ a.predicates.flatMap(_.allNodes))
+                .diff(libDefs.nodeMapping.keySet)
+              val libNode = diff.find(_.fromLib)
+              assert(libNode.isEmpty, s"lib node not in libDefs: ${libNode.get}")
+              Successful(ParsedProject(f.relativeTo(dir), a, b, c, d))
+            } catch {
+              case ex: Exception => HasError(ex)
+              case err: Error => HasError(err)
+            }
+          } else TooBigOrSmall
+          parsedCallback(f, r)
+          r.toVector
         }
         .toList
 
-    libDefs ->
-      dataSetDirs.map { fromDir(_, maxNum) }
+    libDefs -> dataSetDirs.map { fromDir }
   }
 
   def countTsCode(dir: Path, workingDir: Path): Int = {
@@ -118,15 +127,21 @@ object PrepareRepos {
         maxLinesOfCode = 20000,
         parsedCallback = (file, pOpt) => {
           val dest = pOpt match {
-            case Some(p) =>
+            case Successful(p) =>
               val nodes = p.pGraph.nodes.size
               if (nodes > 500 && nodes < 10000)
-                "testSet-new"
+                "filteredRepos"
               else "TooBigOrSmall"
-            case None =>
+            case TooBigOrSmall =>
               "TooBigOrSmall"
+            case HasError(ex) =>
+              printWarning(s"$file contains error: ${ex.getMessage}", mustWarn = true)
+              "HasError"
           }
-          mv(file, trainSetDir / up / dest / file.last)
+          val dir = trainSetDir / up / dest
+          if(!exists(dir))
+            mkdir(dir)
+          mv(file, dir / file.last)
           this synchronized {
             progress += 1
             printResult(s"progress: $progress")
@@ -138,9 +153,9 @@ object PrepareRepos {
 
   def mixTestDevSet(): Unit = {
     val random = new Random(1)
-    val dir = pwd / up / "lambda-repos" / "bigger"
-    val allProjects = (ls(dir / "testSet") ++ ls(dir / "devSet"))
-      .filter(f => f.isDir && f.last != "toy")  // toy remains in test set
+    val base = pwd / up / "lambda-repos"
+    val allProjects = ls(base / "filteredRepos")
+      .filter(f => f.isDir && f.last != "toy")
       .pipe(random.shuffle(_))
 
     def tryMove(from: Path, to: Path): Unit = {
@@ -148,11 +163,14 @@ object PrepareRepos {
     }
 
     val num = allProjects.length
-    allProjects.take(num/2).foreach{ f =>
-      tryMove(f, dir / "testSet" / f.last)
+    allProjects.take(40).foreach{ f =>
+      tryMove(f, base / "bigger" / "testSet" / f.last)
     }
-    allProjects.drop(num/2).foreach{ f =>
-      tryMove(f, dir / "devSet" / f.last)
+    allProjects.slice(40,80).foreach{ f =>
+      tryMove(f, base / "bigger" / "devSet" / f.last)
+    }
+    allProjects.drop(80).foreach{ f =>
+      tryMove(f, base / "bigger" / "trainSet" / f.last)
     }
   }
 
@@ -393,6 +411,7 @@ object PrepareRepos {
         root,
         filter = filterTests
       )
+//      println(p.prettyPrint)
       val allocator = new PNodeAllocator(forLib = false)
       val irTranslator = new IRTranslation(allocator)
 

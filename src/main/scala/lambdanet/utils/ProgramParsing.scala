@@ -60,7 +60,12 @@ object ProgramParsing {
       pathMapping: PathMapping,
       subProjects: Map[ProjectPath, ProjectPath],
       devDependencies: Set[ProjectPath]
-  )
+  ){
+    def prettyPrint: String = {
+      s"=== Project: $root ===\n" +
+      modules.map(_.prettyPrint).mkString("\n")
+    }
+  }
 
   def parseGProjectFromRoot(
       root: Path,
