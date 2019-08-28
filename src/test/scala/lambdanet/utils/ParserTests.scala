@@ -273,7 +273,8 @@ class ParserTests extends WordSpec with MyTest {
       }
 
     val dir = pwd / RelPath(
-      "../lambda-repos/bigger/testSet/Microsoft_TypeScriptSamples"
+//      "../lambda-repos/bigger/testSet/Microsoft_TypeScriptSamples"
+      "data/tests/syntax"
     )
     val (g, qModules, irModules, annots) =
       prepareProject(

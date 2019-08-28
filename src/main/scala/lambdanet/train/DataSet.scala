@@ -36,15 +36,13 @@ object DataSet {
       printResult(s"Is toy data set? : $toyMod")
       val repos @ ParsedRepos(libDefs, trainSet, devSet, testSet) =
         if (toyMod) {
-          val (libDefs, Seq(trainSet, testSet)) = parseRepos(
-            Seq(
-              pwd / RelPath("data/toy/trainSet"),
-              pwd / RelPath("data/toy/testSet")
-            ),
+          val base = pwd / up / "lambda-repos" / "small"
+          val (libDefs, Seq(trainSet, devSet, testSet)) = parseRepos(
+            Seq(base / "trainSet", base / "devSet", base / "testSet"),
             loadFromFile = true,
             inParallel = true
           )
-          ParsedRepos(libDefs, trainSet, testSet, testSet)
+          ParsedRepos(libDefs, trainSet, devSet, testSet)
         } else {
           announced(s"read data set from '$parsedRepoPath'") {
             SM.readObjectFromFile[ParsedRepos](parsedRepoPath.toIO)

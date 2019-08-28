@@ -31,10 +31,10 @@ import scala.concurrent.{
 import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
-  val toyMod: Boolean = false
+  val toyMod: Boolean = true
   val onlySeqModel = false
-  val useDropout: Boolean = true
-  val useOracleForIsLib: Boolean = true
+  val useDropout: Boolean = false
+  val useOracleForIsLib: Boolean = false
   /* Assign more weights to project type to battle label imbalance */
   val projWeight: Double = 3.0
 
@@ -148,15 +148,15 @@ object TrainingLoop extends TrainingLoopTrait {
           announced(s"epoch $epoch") {
             handleExceptions(epoch) {
               trainStep(epoch)
-              DebugTime.logTime("test-devSet") {
-                testStep(epoch, isTestSet = false)
-              }
-              DebugTime.logTime("test-testSet") {
-                testStep(epoch, isTestSet = true)
-              }
-              if (epoch % saveInterval == 0) {
-                saveTraining(epoch, s"epoch$epoch")
-              }
+              if ((epoch - 1) % 3 == 0)
+                DebugTime.logTime("testSteps") {
+                  testStep(epoch, isTestSet = false)
+                  testStep(epoch, isTestSet = true)
+                }
+              if ((epoch - 1) % saveInterval == 0)
+                DebugTime.logTime("saveTraining") {
+                  saveTraining(epoch, s"epoch$epoch")
+                }
             }
           }
         }
@@ -328,7 +328,7 @@ object TrainingLoop extends TrainingLoopTrait {
       def testStep(epoch: Int, isTestSet: Boolean): Unit = {
         val dataSetName = if (isTestSet) "test" else "dev"
         val dataSet = if (isTestSet) testSet else devSet
-        if ((epoch - 1) % 3 == 0) announced(s"test on $dataSetName set") {
+        announced(s"test on $dataSetName set") {
           import cats.implicits._
           architecture.dropoutStorage = None
           isTraining = false
@@ -436,7 +436,8 @@ object TrainingLoop extends TrainingLoopTrait {
               )
             }
 
-          val loss = logits.toLoss(targets, projWeight, predSpace.libTypeVec.length)
+          val loss =
+            logits.toLoss(targets, projWeight, predSpace.libTypeVec.length)
 
           val totalCount = libCounts.count + projCounts.count
           val fwd = ForwardResult(
@@ -507,7 +508,8 @@ object TrainingLoop extends TrainingLoopTrait {
             }
 
           val loss = lossModel.predictionLoss(
-            predictor.parallelize(decodingVec)
+            predictor
+              .parallelize(decodingVec)
               .map(_.toLoss(targets, projWeight, predSpace.libTypeVec.length))
           )
 
