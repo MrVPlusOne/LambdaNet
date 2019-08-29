@@ -274,11 +274,11 @@ class Const implements GExpr {
   }
 }
 
-class Cast implements GExpr{
+class Cast implements GExpr {
   category: "Cast" = "Cast";
   mark: GMark;
 
-  constructor(public expr: GExpr, public ty: GType){
+  constructor(public expr: GExpr, public ty: GType) {
     mustExist(expr);
     this.mark = new Inferred(ty);
   }
@@ -364,37 +364,42 @@ class ImportSingle {
   }
 }
 
-class ImportDefault{
+class ImportDefault {
   category: "ImportDefault" = "ImportDefault";
 
-  constructor(public newName: string, public path: string){}
+  constructor(public newName: string, public path: string) {
+  }
 }
 
 class ImportModule {
   category: "ImportModule" = "ImportModule";
-  constructor(public newName: string, public path: string) {}
+
+  constructor(public newName: string, public path: string) {
+  }
 }
 
 type ExportStmt = ExportSingle | ExportDefault | ExportModule
 
-class ExportSingle{
+class ExportSingle {
   category: "ExportSingle" = "ExportSingle";
 
-  constructor(public oldName: string, public newName: string, public from: string | null){}
+  constructor(public oldName: string, public newName: string, public from: string | null) {
+  }
 }
 
-class ExportDefault{
+class ExportDefault {
   category: "ExportDefault" = "ExportDefault";
 
-  constructor(public newName: string | null, public from: string | null) {}
+  constructor(public newName: string | null, public from: string | null) {
+  }
 }
 
-class ExportModule{
+class ExportModule {
   category: "ExportModule" = "ExportModule";
 
-  constructor(public from: string) {}
+  constructor(public from: string) {
+  }
 }
-
 
 
 class NamespaceAliasStmt implements GStmt {
@@ -662,7 +667,7 @@ export function parseExpr(node: ts.Expression,
       case SyntaxKind.AsExpression: {
         const e = rec(n.expression);
         const t = parseTypeNode(n.type);
-        return new Cast(e, t)
+        return new Cast(e, t);
       }
       // type assertions are ignored
       case SyntaxKind.OmittedExpression:
@@ -872,13 +877,9 @@ export class StmtParser {
                     switch (fieldName.kind) {
                       case SyntaxKind.Identifier:
                       case SyntaxKind.StringLiteral:
-                        fName = fieldName.text;
-                        break;
                       case SyntaxKind.ComputedPropertyName:
-                        fName = SpecialVars.ComputedPropertyName;
-                        break;
                       case SyntaxKind.NumericLiteral:
-                        fName = fieldName.getText();
+                        fName = parsePropertyName(fieldName);
                         break;
                       default:
                         fName = SpecialVars.UNKNOWN;
@@ -998,7 +999,7 @@ export class StmtParser {
           case SyntaxKind.SetAccessor:
           case SyntaxKind.Constructor: {
             let name = (node.kind == SyntaxKind.Constructor) ? "Constructor" :
-              useOrElse((node as any).name, x => x.getText(), "defaultFunc");
+              useOrElse((node as any).name, x => parsePropertyName(x), "defaultFunc");
             let n = <ts.FunctionLikeDeclaration>node;
             const modifiers = parseModifiers(n.modifiers);
             if (node.kind == SyntaxKind.SetAccessor) {
@@ -1037,7 +1038,7 @@ export class StmtParser {
                 let v1 = v as ts.PropertyDeclaration;
                 const init = v1.initializer ? ep.processExpr(v1.initializer) : null;
                 vars.push(new NamedValue(
-                  getPropertyName(v1.name),
+                  parsePropertyName(v1.name),
                   [parseMark(v1.type, v1), init, staticQ]
                 ));
               } else if (ts.isMethodDeclaration(v) || ts.isAccessor(v)) {
@@ -1097,11 +1098,11 @@ export class StmtParser {
             const rhs = n.moduleReference;
             if (rhs.kind == SyntaxKind.ExternalModuleReference) {
               const newName = n.name.text;
-              if(rhs.expression.kind == SyntaxKind.StringLiteral){
+              if (rhs.expression.kind == SyntaxKind.StringLiteral) {
                 const path = (rhs.expression as ts.StringLiteral).text;
                 return EP.alongWith(new ImportSingle("$ExportEquals", newName, path));
               } else {
-                throw new Error(`Unknown import equals: ${n.getText()}`)
+                throw new Error(`Unknown import equals: ${n.getText()}`);
               }
             } else {
               return EP.alongWith(new NamespaceAliasStmt(n.name.getText(), rhs.getText()));
@@ -1110,21 +1111,21 @@ export class StmtParser {
           case SyntaxKind.ImportDeclaration: {
             const n = node as ts.ImportDeclaration;
             const path = (n.moduleSpecifier as ts.StringLiteral).text;
-            if(n.importClause){
-              if(n.importClause.name){
+            if (n.importClause) {
+              if (n.importClause.name) {
                 return EP.alongWith(new ImportDefault(n.importClause.name.text, path));
               }
-              if(n.importClause.namedBindings){
+              if (n.importClause.namedBindings) {
                 const bindings = n.importClause.namedBindings;
                 if (bindings.kind == SyntaxKind.NamespaceImport) {
                   return EP.alongWith(new ImportModule(bindings.name.text, path));
                 } else {
                   const imports = bindings.elements.map(s => {
                     const newName = s.name.text;
-                    if(s.propertyName){
-                      return new ImportSingle(s.propertyName.text, newName, path)
-                    }else {
-                      return new ImportSingle(newName, newName, path)
+                    if (s.propertyName) {
+                      return new ImportSingle(s.propertyName.text, newName, path);
+                    } else {
+                      return new ImportSingle(newName, newName, path);
                     }
                   });
                   return EP.alongWithMany(imports);
@@ -1148,7 +1149,7 @@ export class StmtParser {
                 ["export", "default"]));
             }
           }
-          case SyntaxKind.NamespaceExportDeclaration:{
+          case SyntaxKind.NamespaceExportDeclaration: {
             const n = node as ts.NamespaceExportDeclaration;
             //todo: check if this is the right way
             const name = n.name.text;
@@ -1157,17 +1158,17 @@ export class StmtParser {
           case SyntaxKind.ExportDeclaration: {
             const n = node as ts.ExportDeclaration;
             const path = n.moduleSpecifier ? (n.moduleSpecifier as ts.StringLiteral).text : null;
-            if(n.exportClause){
+            if (n.exportClause) {
               const exports = n.exportClause.elements.map(s => {
                 const newName = s.name.text;
-                if(s.propertyName){
-                  return new ExportSingle(s.propertyName.text, newName, path)
-                }else {
-                  return new ExportSingle(newName, newName, path)
+                if (s.propertyName) {
+                  return new ExportSingle(s.propertyName.text, newName, path);
+                } else {
+                  return new ExportSingle(newName, newName, path);
                 }
               });
               return EP.alongWithMany(exports);
-            }else{
+            } else {
               return EP.alongWith(new ExportModule(path!));
             }
           }
@@ -1266,8 +1267,17 @@ export class StmtParser {
       });
     }
 
-    function getPropertyName(name: ts.PropertyName): string {
-      return mustExist(name.getText());
+    function parsePropertyName(name: ts.PropertyName): string {
+      switch (name.kind) {
+        case ts.SyntaxKind.Identifier:
+          return name.text;
+        case ts.SyntaxKind.ComputedPropertyName:
+          return SpecialVars.ComputedPropertyName;
+        case ts.SyntaxKind.NumericLiteral:
+          return name.getText();
+        case ts.SyntaxKind.StringLiteral:
+          return name.text;
+      }
     }
 
     return rec(node).stmts;
@@ -1366,12 +1376,13 @@ export function parseFiles(sources: string[], libraryFiles: string[]): [GModule[
   let warnnings: string[] = [];
   const sFiles: ts.SourceFile[] = sources
     .map(file => mustExist(program.getSourceFile(file),
-    "getSourceFile failed for: " + file))
+      "getSourceFile failed for: " + file))
     .filter(sc => {
       const noError = program.getSyntacticDiagnostics(sc).length == 0;
-      if(!noError)
+      if (!noError) {
         warnnings.push(`file ${sc.fileName} has syntactic error, skipped.`);
-      return noError
+      }
+      return noError;
     });
   mustExist(sFiles);
 
@@ -1389,7 +1400,7 @@ export function parseFiles(sources: string[], libraryFiles: string[]): [GModule[
       }
     });
     return new GModule(sources[index], stmts);
-  }), warnnings]
+  }), warnnings];
 }
 
 function handleError<T>(node: ts.Node, thunk: () => T): T {

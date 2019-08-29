@@ -276,7 +276,7 @@ object TrainingLoop extends TrainingLoopTrait {
             logger.logConfusionMatrix("confusionMat", epoch, confMat.value, 2)
             logAccuracyDetails(data zip fws, epoch)
 
-            logger.logString("typeAcc", epoch, typeAccString(categoricalAcc))
+//            logger.logString("typeAcc", epoch, typeAccString(categoricalAcc))
         }
 
         val gradInfo = gs.combineAll
@@ -350,23 +350,29 @@ object TrainingLoop extends TrainingLoopTrait {
           }.combineAll
 
           import stat.{libCorrect, projCorrect, confusionMatrix, categoricalAcc}
-          logger.logScalar(s"$dataSetName-loss", epoch, toAccuracyD(stat.loss))
+          import logger._
+          logScalar(s"$dataSetName-loss", epoch, toAccuracyD(stat.loss))
 
-          logger
-            .logScalar(s"$dataSetName-libAcc", epoch, toAccuracy(libCorrect))
-          logger
-            .logScalar(s"$dataSetName-projAcc", epoch, toAccuracy(projCorrect))
-          logger.logConfusionMatrix(
+          logScalar(s"$dataSetName-libAcc", epoch, toAccuracy(libCorrect))
+          logScalar(s"$dataSetName-projAcc", epoch, toAccuracy(projCorrect))
+          logConfusionMatrix(
             s"$dataSetName-confusionMat",
             epoch,
             confusionMatrix.value,
             2
           )
-          logger.logScalar(s"$dataSetName-fse-top1", epoch, toAccuracy(fse1Acc))
-          logger.logString(
+          logScalar(s"$dataSetName-fse-top1", epoch, toAccuracy(fse1Acc))
+          val libTypeAcc = categoricalAcc.filter(_._1.madeFromLibTypes)
+          logString(
             s"$dataSetName-typeAcc",
             epoch,
-            typeAccString(categoricalAcc)
+            typeAccString(libTypeAcc)
+          )
+          val projTypeAcc = categoricalAcc.filterNot(_._1.madeFromLibTypes)
+          logString(
+            s"$dataSetName-proj-typeAcc",
+            epoch,
+            typeAccString(projTypeAcc)
           )
         }
       }

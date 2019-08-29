@@ -10,10 +10,10 @@
 NotebookFileLineBreakTest
 NotebookFileLineBreakTest
 NotebookDataPosition[       158,          7]
-NotebookDataLength[     44147,        967]
-NotebookOptionsPosition[     41982,        929]
-NotebookOutlinePosition[     42334,        945]
-CellTagsIndexPosition[     42291,        942]
+NotebookDataLength[     45030,        977]
+NotebookOptionsPosition[     42768,        938]
+NotebookOutlinePosition[     43120,        954]
+CellTagsIndexPosition[     43077,        951]
 WindowFrame->Normal*)
 
 (* Beginning of Notebook Content *)
@@ -274,7 +274,58 @@ Cell[BoxData[{
  CellChangeTimes->{{3.7742044651199837`*^9, 3.774204498441595*^9}, {
   3.7749744950823793`*^9, 3.7749745160782213`*^9}, {3.774974714812057*^9, 
   3.774974717821535*^9}, {3.7754991873374567`*^9, 3.775499211859303*^9}},
- CellLabel->"In[56]:=",ExpressionUUID->"3d23ae5e-2963-49d0-97bc-d2a3881e2a94"],
+ CellLabel->"In[8]:=",ExpressionUUID->"3d23ae5e-2963-49d0-97bc-d2a3881e2a94"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"typeAccChart", "[", 
+   RowBox[{"points_", ",", "cutOff_", ",", "atMost_", ",", "name_"}], "]"}], ":=", 
+  RowBox[{"Module", "[", 
+   RowBox[{
+    RowBox[{"{", "labels1", "}"}], ",", "\[IndentingNewLine]", 
+    RowBox[{
+     RowBox[{"labels1", "=", 
+      RowBox[{
+       RowBox[{
+        RowBox[{"Rotate", "[", 
+         RowBox[{"#", ",", 
+          RowBox[{"90", "Degree"}]}], "]"}], "&"}], "/@", 
+       RowBox[{"takeSafe", "[", 
+        RowBox[{
+         RowBox[{"Drop", "[", 
+          RowBox[{
+           RowBox[{
+           "points", "\[LeftDoubleBracket]", "1", "\[RightDoubleBracket]"}], 
+           ",", "cutOff"}], "]"}], ",", "atMost"}], "]"}]}]}], ";", 
+     "\[IndentingNewLine]", 
+     RowBox[{"BarChart", "[", "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"takeSafe", "[", 
+        RowBox[{
+         RowBox[{"Drop", "[", 
+          RowBox[{
+           RowBox[{
+           "points", "\[LeftDoubleBracket]", "2", "\[RightDoubleBracket]"}], 
+           ",", "cutOff"}], "]"}], ",", "atMost"}], "]"}], ",", 
+       "\[IndentingNewLine]", 
+       RowBox[{"ChartLabels", "\[Rule]", 
+        RowBox[{"{", 
+         RowBox[{"labels1", ",", "None"}], "}"}]}], ",", 
+       "\[IndentingNewLine]", 
+       RowBox[{"BarSpacing", "\[Rule]", 
+        RowBox[{"{", 
+         RowBox[{
+          RowBox[{"-", "1"}], ",", "1"}], "}"}]}], ",", "\[IndentingNewLine]", 
+       RowBox[{"PlotLabel", "\[Rule]", 
+        RowBox[{"name", "<>", 
+         RowBox[{"ToString", "@", 
+          RowBox[{"StringForm", "[", 
+           RowBox[{"\"\<(cutAt: ``)\>\"", ",", "cutOff"}], "]"}]}]}]}], ",", 
+       "\[IndentingNewLine]", 
+       RowBox[{"ImageSize", "\[Rule]", "Medium"}]}], "\[IndentingNewLine]", 
+      "]"}]}]}], "\[IndentingNewLine]", "]"}]}]], "Input",
+ CellChangeTimes->{{3.776005943591934*^9, 3.776005975080784*^9}},
+ CellLabel->"In[32]:=",ExpressionUUID->"c21512c6-7345-47b8-aa61-308efb959930"],
 
 Cell[BoxData[
  RowBox[{
@@ -289,95 +340,34 @@ Cell[BoxData[
         RowBox[{
          RowBox[{"Length", "[", "ps", "]"}], "\[Equal]", "0"}], ",", 
         "\"\<Need more data\>\"", ",", "\[IndentingNewLine]", 
-        RowBox[{"Module", "[", 
+        RowBox[{"With", "[", 
          RowBox[{
           RowBox[{"{", 
            RowBox[{
+            RowBox[{"atMost", "=", "8"}], ",", 
+            RowBox[{"nTypes", "=", 
+             RowBox[{"Length", "@", 
+              RowBox[{"ps", "\[LeftDoubleBracket]", 
+               RowBox[{
+                RowBox[{"-", "1"}], ",", "2", ",", "1"}], 
+               "\[RightDoubleBracket]"}]}]}], ",", 
             RowBox[{"points", "=", 
              RowBox[{"ps", "\[LeftDoubleBracket]", 
               RowBox[{
-               RowBox[{"-", "1"}], ",", "2"}], "\[RightDoubleBracket]"}]}], 
-            ",", 
-            RowBox[{"atMost", "=", "8"}], ",", "labels1", ",", "labels2"}], 
+               RowBox[{"-", "1"}], ",", "2"}], "\[RightDoubleBracket]"}]}]}], 
            "}"}], ",", "\[IndentingNewLine]", 
-          RowBox[{
-           RowBox[{"labels1", "=", 
-            RowBox[{
-             RowBox[{
-              RowBox[{"Rotate", "[", 
-               RowBox[{"#", ",", 
-                RowBox[{"90", "Degree"}]}], "]"}], "&"}], "/@", 
-             RowBox[{"takeSafe", "[", 
-              RowBox[{
+          RowBox[{"Manipulate", "[", "\[IndentingNewLine]", 
+           RowBox[{
+            RowBox[{"typeAccChart", "[", 
+             RowBox[{"points", ",", "cutOff", ",", "atMost", ",", "name"}], 
+             "]"}], "\[IndentingNewLine]", ",", 
+            RowBox[{"{", 
+             RowBox[{"cutOff", ",", "0", ",", 
+              RowBox[{"Max", "[", 
                RowBox[{
-               "points", "\[LeftDoubleBracket]", "1", 
-                "\[RightDoubleBracket]"}], ",", "atMost"}], "]"}]}]}], ";", 
-           "\[IndentingNewLine]", 
-           RowBox[{"labels2", "=", 
-            RowBox[{
-             RowBox[{
-              RowBox[{"Rotate", "[", 
-               RowBox[{"#", ",", 
-                RowBox[{"90", "Degree"}]}], "]"}], "&"}], "/@", 
-             RowBox[{"dropSafe", "[", 
-              RowBox[{
-               RowBox[{
-               "points", "\[LeftDoubleBracket]", "1", 
-                "\[RightDoubleBracket]"}], ",", "atMost"}], "]"}]}]}], ";", 
-           "\[IndentingNewLine]", 
-           RowBox[{"Row", "@", 
-            RowBox[{"{", "\[IndentingNewLine]", 
-             RowBox[{
-              RowBox[{"BarChart", "[", "\[IndentingNewLine]", 
-               RowBox[{
-                RowBox[{"takeSafe", "[", 
-                 RowBox[{
-                  RowBox[{
-                  "points", "\[LeftDoubleBracket]", "2", 
-                   "\[RightDoubleBracket]"}], ",", "atMost"}], "]"}], ",", 
-                "\[IndentingNewLine]", 
-                RowBox[{"ChartLabels", "\[Rule]", 
-                 RowBox[{"{", 
-                  RowBox[{"labels1", ",", "None"}], "}"}]}], ",", 
-                "\[IndentingNewLine]", 
-                RowBox[{"BarSpacing", "\[Rule]", 
-                 RowBox[{"{", 
-                  RowBox[{
-                   RowBox[{"-", "1"}], ",", "1"}], "}"}]}], ",", 
-                "\[IndentingNewLine]", 
-                RowBox[{"PlotLabel", "\[Rule]", "name"}], ",", 
-                "\[IndentingNewLine]", 
-                RowBox[{"ImageSize", "\[Rule]", "Medium"}]}], 
-               "\[IndentingNewLine]", 
-               RowBox[{"(*", 
-                RowBox[{"LabelingFunction", "\[Rule]", "Above"}], "*)"}], 
-               "\[IndentingNewLine]", "]"}], ",", "\[IndentingNewLine]", 
-              RowBox[{"BarChart", "[", "\[IndentingNewLine]", 
-               RowBox[{
-                RowBox[{"dropSafe", "[", 
-                 RowBox[{
-                  RowBox[{
-                  "points", "\[LeftDoubleBracket]", "2", 
-                   "\[RightDoubleBracket]"}], ",", "atMost"}], "]"}], ",", 
-                "\[IndentingNewLine]", 
-                RowBox[{"ChartLabels", "\[Rule]", 
-                 RowBox[{"{", 
-                  RowBox[{"labels2", ",", "None"}], "}"}]}], ",", 
-                "\[IndentingNewLine]", 
-                RowBox[{"BarSpacing", "\[Rule]", 
-                 RowBox[{"{", 
-                  RowBox[{
-                   RowBox[{"-", "1"}], ",", "1"}], "}"}]}], ",", 
-                "\[IndentingNewLine]", 
-                RowBox[{"PlotLabel", "\[Rule]", "name"}], ",", 
-                "\[IndentingNewLine]", 
-                RowBox[{"ImageSize", "\[Rule]", "Medium"}]}], 
-               "\[IndentingNewLine]", 
-               RowBox[{"(*", 
-                RowBox[{"LabelingFunction", "\[Rule]", "Above"}], "*)"}], 
-               "\[IndentingNewLine]", "]"}]}], "\[IndentingNewLine]", 
-             "}"}]}]}]}], "\[IndentingNewLine]", "]"}]}], "]"}]}], "]"}]}], 
-   "]"}]}]], "Input",
+                RowBox[{"nTypes", "-", "atMost"}], ",", "0"}], "]"}], ",", 
+              "1"}], "}"}]}], "]"}]}], "\[IndentingNewLine]", "]"}]}], 
+       "]"}]}], "]"}]}], "]"}]}]], "Input",
  CellChangeTimes->{{3.774191606592168*^9, 3.7741916124478416`*^9}, {
    3.7741916556534653`*^9, 3.7741917116049623`*^9}, {3.774191800725046*^9, 
    3.774191885616516*^9}, {3.774191929471834*^9, 3.774191944574073*^9}, {
@@ -395,8 +385,22 @@ Cell[BoxData[
    3.774605303924656*^9}, {3.7746053612124987`*^9, 3.774605399102426*^9}, {
    3.774605450535419*^9, 3.774605465263592*^9}, {3.774974450547799*^9, 
    3.774974480865703*^9}, {3.7749745223067093`*^9, 3.774974574908749*^9}, 
-   3.774974756577888*^9, {3.774974798753607*^9, 3.774974802798359*^9}},
- CellLabel->"In[58]:=",ExpressionUUID->"008d239c-568d-463f-abea-e239aca7b9a9"],
+   3.774974756577888*^9, {3.774974798753607*^9, 3.774974802798359*^9}, {
+   3.775997860219133*^9, 3.775997899345611*^9}, {3.7759979391193237`*^9, 
+   3.775998028819119*^9}, {3.775998086445796*^9, 3.775998167658777*^9}, {
+   3.775998251340521*^9, 3.775998269615087*^9}, {3.7759984179965057`*^9, 
+   3.7759984362796383`*^9}, {3.7759984815485764`*^9, 
+   3.7759985014307537`*^9}, {3.7759985360827847`*^9, 
+   3.7759985429690027`*^9}, {3.775998682480626*^9, 3.775998782123478*^9}, {
+   3.775998817514741*^9, 3.775998919859771*^9}, {3.775998995972986*^9, 
+   3.775999029666769*^9}, {3.776001871369482*^9, 3.7760018918773823`*^9}, {
+   3.7760055649631844`*^9, 3.776005615291367*^9}, {3.776005667630485*^9, 
+   3.7760057291256227`*^9}, {3.7760058939888363`*^9, 3.776005927328957*^9}, {
+   3.776005979823118*^9, 3.776006004325306*^9}, {3.7760061103751793`*^9, 
+   3.7760061278621883`*^9}, {3.7760062362384043`*^9, 3.776006237675284*^9}, {
+   3.7760062843135233`*^9, 3.7760062844398212`*^9}, {3.7760063403466253`*^9, 
+   3.776006340891865*^9}, {3.776030136675528*^9, 3.776030144815114*^9}},
+ CellLabel->"In[40]:=",ExpressionUUID->"008d239c-568d-463f-abea-e239aca7b9a9"],
 
 Cell[BoxData[{
  RowBox[{
@@ -526,8 +530,7 @@ Cell[BoxData[
          "]"}]}], "]"}]}], "]"}]}], "]"}]}]], "Input",
  CellChangeTimes->{{3.773154110376362*^9, 3.773154155266444*^9}, {
   3.775565961108582*^9, 3.7755659795425167`*^9}},
- CellLabel->
-  "In[123]:=",ExpressionUUID->"30e0e5e6-a388-48bf-b5c7-f70dc2d3b087"],
+ CellLabel->"In[13]:=",ExpressionUUID->"30e0e5e6-a388-48bf-b5c7-f70dc2d3b087"],
 
 Cell[BoxData[
  RowBox[{
@@ -615,8 +618,9 @@ Cell[BoxData[
         "lossGraph", ",", "trainAccGraph", ",", "accDetailGraph", ",", 
         "distAccGraph", ",", "testAccGraph", ",", "timeGraph", ",", 
         "gradsGraph", ",", "fseAccGraph", ",", "trainConfPlot", ",", 
-        "testConfPlot", ",", "typeAccPlot", ",", "testTypeAccPlot"}], "}"}], 
-      ",", "\[IndentingNewLine]", 
+        "testConfPlot", ",", "\[IndentingNewLine]", "typeAccPlot", ",", 
+        "testTypeAccPlot", ",", "testProjTypeAccPlot"}], "}"}], ",", 
+      "\[IndentingNewLine]", 
       RowBox[{
        RowBox[{
         RowBox[{"{", 
@@ -625,66 +629,69 @@ Cell[BoxData[
        RowBox[{"Manipulate", "[", "\[IndentingNewLine]", 
         RowBox[{
          RowBox[{
-          RowBox[{"data", "=", 
+          RowBox[{
            RowBox[{
-            RowBox[{"Function", "[", 
+            RowBox[{"data", "=", 
              RowBox[{
-              RowBox[{"{", "x", "}"}], ",", 
-              RowBox[{"Select", "[", 
-               RowBox[{"x", ",", 
-                RowBox[{
-                 RowBox[{
+              RowBox[{"Function", "[", 
+               RowBox[{
+                RowBox[{"{", "x", "}"}], ",", 
+                RowBox[{"Select", "[", 
+                 RowBox[{"x", ",", 
                   RowBox[{
-                  "#", "\[LeftDoubleBracket]", "1", "\[RightDoubleBracket]"}],
-                   "\[LessEqual]", "epoch"}], "&"}]}], "]"}]}], "]"}], "/@", 
-            "data0"}]}], ";", "\[IndentingNewLine]", 
-          RowBox[{"lossGraph", "=", 
-           RowBox[{"drawMultipleCurves", "[", 
-            RowBox[{"\"\<losses\>\"", ",", 
-             RowBox[{"{", 
-              RowBox[{
-              "\"\<loss\>\"", ",", "\"\<dev-loss\>\"", ",", 
-               "\"\<test-loss\>\""}], "}"}], ",", "data", ",", "0.5", ",", 
-             RowBox[{"{", "}"}]}], "]"}]}], ";", "\[IndentingNewLine]", 
-          RowBox[{"trainAccGraph", "=", 
-           RowBox[{"drawMultipleCurves", "[", 
-            RowBox[{"\"\<accuracies\>\"", ",", 
-             RowBox[{"{", 
-              RowBox[{"\"\<libAcc\>\"", ",", "\"\<projAcc\>\""}], "}"}], ",", 
-             "data", ",", "0.5", ",", 
-             RowBox[{"{", "}"}]}], "]"}]}], ";", "\[IndentingNewLine]", 
-          RowBox[{"(*", 
-           RowBox[{"accDetailGraph", "=", 
-            RowBox[{"drawList", "[", 
-             RowBox[{"\"\<accuracy-distr\>\"", ",", "data", ",", 
+                   RowBox[{
+                    RowBox[{
+                    "#", "\[LeftDoubleBracket]", "1", 
+                    "\[RightDoubleBracket]"}], "\[LessEqual]", "epoch"}], 
+                   "&"}]}], "]"}]}], "]"}], "/@", "data0"}]}], ";", 
+            "\[IndentingNewLine]", 
+            RowBox[{"lossGraph", "=", 
+             RowBox[{"drawMultipleCurves", "[", 
+              RowBox[{"\"\<losses\>\"", ",", 
+               RowBox[{"{", 
+                RowBox[{
+                "\"\<loss\>\"", ",", "\"\<dev-loss\>\"", ",", 
+                 "\"\<test-loss\>\""}], "}"}], ",", "data", ",", "0.5", ",", 
+               RowBox[{"{", "}"}]}], "]"}]}], ";", "\[IndentingNewLine]", 
+            RowBox[{"trainAccGraph", "=", 
+             RowBox[{"drawMultipleCurves", "[", 
+              RowBox[{"\"\<accuracies\>\"", ",", 
+               RowBox[{"{", 
+                RowBox[{"\"\<libAcc\>\"", ",", "\"\<projAcc\>\""}], "}"}], 
+               ",", "data", ",", "0.5", ",", 
+               RowBox[{"{", "}"}]}], "]"}]}], ";"}], "\[IndentingNewLine]", 
+           RowBox[{"(*", 
+            RowBox[{"accDetailGraph", "=", 
+             RowBox[{"drawList", "[", 
+              RowBox[{"\"\<accuracy-distr\>\"", ",", "data", ",", 
+               RowBox[{"{", 
+                RowBox[{"AxesLabel", "\[Rule]", 
+                 RowBox[{"{", 
+                  RowBox[{"\"\<size\>\"", ",", "\"\<accuracy\>\""}], "}"}]}], 
+                "}"}]}], "]"}]}], "*)"}], ";", "\[IndentingNewLine]", 
+           RowBox[{"testAccGraph", "=", 
+            RowBox[{"drawMultipleCurves", "[", 
+             RowBox[{"\"\<test accuracies\>\"", ",", 
+              RowBox[{"{", 
+               RowBox[{"\"\<test-libAcc\>\"", ",", "\"\<test-projAcc\>\""}], 
+               "}"}], ",", "data", ",", "1.0", ",", 
+              RowBox[{"{", "}"}]}], "]"}]}], ";", "\[IndentingNewLine]", 
+           RowBox[{"timeGraph", "=", 
+            RowBox[{"drawSingleCurve", "[", 
+             RowBox[{"\"\<iter-time\>\"", ",", "data", ",", "0.3", ",", 
               RowBox[{"{", 
                RowBox[{"AxesLabel", "\[Rule]", 
                 RowBox[{"{", 
-                 RowBox[{"\"\<size\>\"", ",", "\"\<accuracy\>\""}], "}"}]}], 
-               "}"}]}], "]"}]}], "*)"}], ";", "\[IndentingNewLine]", 
-          RowBox[{"testAccGraph", "=", 
-           RowBox[{"drawMultipleCurves", "[", 
-            RowBox[{"\"\<test accuracies\>\"", ",", 
-             RowBox[{"{", 
-              RowBox[{"\"\<test-libAcc\>\"", ",", "\"\<test-projAcc\>\""}], 
-              "}"}], ",", "data", ",", "1.0", ",", 
-             RowBox[{"{", "}"}]}], "]"}]}], ";", "\[IndentingNewLine]", 
-          RowBox[{"timeGraph", "=", 
-           RowBox[{"drawSingleCurve", "[", 
-            RowBox[{"\"\<iter-time\>\"", ",", "data", ",", "0.3", ",", 
-             RowBox[{"{", 
-              RowBox[{"AxesLabel", "\[Rule]", 
-               RowBox[{"{", 
-                RowBox[{"\"\<step\>\"", ",", "\"\<s\>\""}], "}"}]}], "}"}]}], 
-            "]"}]}], ";", "\[IndentingNewLine]", 
-          RowBox[{"gradsGraph", "=", 
-           RowBox[{"drawMultipleCurves", "[", 
-            RowBox[{"\"\<gradient analysis\>\"", ",", 
-             RowBox[{"{", 
-              RowBox[{
-              "\"\<clippedGradient\>\"", ",", " ", "\"\<gradient\>\"", ",", 
-               "\"\<paramDelta\>\""}], "}"}], ",", "data", ",", "0.5", ",", 
-             RowBox[{"{", "}"}]}], "]"}]}], ";", "\[IndentingNewLine]", 
+                 RowBox[{"\"\<step\>\"", ",", "\"\<s\>\""}], "}"}]}], "}"}]}],
+              "]"}]}], ";", "\[IndentingNewLine]", 
+           RowBox[{"gradsGraph", "=", 
+            RowBox[{"drawMultipleCurves", "[", 
+             RowBox[{"\"\<gradient analysis\>\"", ",", 
+              RowBox[{"{", 
+               RowBox[{
+               "\"\<clippedGradient\>\"", ",", " ", "\"\<gradient\>\"", ",", 
+                "\"\<paramDelta\>\""}], "}"}], ",", "data", ",", "0.5", ",", 
+              RowBox[{"{", "}"}]}], "]"}]}], ";"}], "\[IndentingNewLine]", 
           RowBox[{"(*", 
            RowBox[{"distAccGraph", "=", 
             RowBox[{"drawBarChar", "[", 
@@ -718,6 +725,10 @@ Cell[BoxData[
            RowBox[{"drawTypeAcc", "[", 
             RowBox[{"\"\<test-typeAcc\>\"", ",", "data"}], "]"}]}], ";", 
           "\[IndentingNewLine]", 
+          RowBox[{"testProjTypeAccPlot", "=", 
+           RowBox[{"drawTypeAcc", "[", 
+            RowBox[{"\"\<test-proj-typeAcc\>\"", ",", "data"}], "]"}]}], ";", 
+          "\[IndentingNewLine]", 
           RowBox[{"Column", "[", 
            RowBox[{"{", "\[IndentingNewLine]", 
             RowBox[{
@@ -734,9 +745,10 @@ Cell[BoxData[
                  "}"}]}], "}"}], "]"}], ",", "\[IndentingNewLine]", 
              RowBox[{"Row", "[", 
               RowBox[{"{", 
-               RowBox[{"testTypeAccPlot", ",", "testConfPlot"}], "}"}], 
-              "]"}]}], "\[IndentingNewLine]", "}"}], "]"}]}], ",", 
-         "\[IndentingNewLine]", 
+               RowBox[{
+               "testTypeAccPlot", ",", "testProjTypeAccPlot", ",", 
+                "testConfPlot"}], "}"}], "]"}]}], "\[IndentingNewLine]", 
+            "}"}], "]"}]}], ",", "\[IndentingNewLine]", 
          RowBox[{"{", 
           RowBox[{
            RowBox[{"{", 
@@ -789,9 +801,9 @@ Cell[BoxData[
    3.7747926232884073`*^9}, {3.774872254597686*^9, 3.774872255679476*^9}, {
    3.7749746497658367`*^9, 3.7749746516012707`*^9}, {3.7754007313324327`*^9, 
    3.77540076226497*^9}, {3.775565839063016*^9, 3.775565847397781*^9}, {
-   3.775565890812244*^9, 3.77556590471765*^9}},
- CellLabel->
-  "In[120]:=",ExpressionUUID->"f17ed66f-751b-4e3f-b3ce-d9caa6ca4efa"],
+   3.775565890812244*^9, 3.77556590471765*^9}, {3.7760019841221724`*^9, 
+   3.776002030994093*^9}},
+ CellLabel->"In[15]:=",ExpressionUUID->"f17ed66f-751b-4e3f-b3ce-d9caa6ca4efa"],
 
 Cell[BoxData[
  RowBox[{
@@ -847,8 +859,7 @@ running/``.txt\>\"", ",", "\"\<utopia1\>\"", ",", "task", ",", "task"}],
   3.772157226414977*^9}, {3.77215725684726*^9, 3.772157259740436*^9}, {
   3.7723159314219027`*^9, 3.7723159857471848`*^9}, {3.772374131405843*^9, 
   3.772374177308598*^9}, {3.775610575956396*^9, 3.775610681660583*^9}},
- CellLabel->
-  "In[226]:=",ExpressionUUID->"73698989-be54-4b3c-b41e-8db8e339f51a"],
+ CellLabel->"In[17]:=",ExpressionUUID->"73698989-be54-4b3c-b41e-8db8e339f51a"],
 
 Cell[BoxData[
  RowBox[{
@@ -886,8 +897,7 @@ q2TGZx3FN44WclPAdHFxyncQLbZ5P48ukJ5lXisOon2qMiVBNNPL1vOLgHRE
 aJGyMYjOSj1hDqLvPHthBaIlj9c4gmirSZ+dQHSbwlt3EH2O7xeYbr3XGgai
 1/44kAaiDZIKCkC0/b9eMA0Ad5uR+g==
   "],
- CellLabel->
-  "In[271]:=",ExpressionUUID->"7b02550c-3904-470e-9fed-c37f2db65bef"],
+ CellLabel->"In[19]:=",ExpressionUUID->"7b02550c-3904-470e-9fed-c37f2db65bef"],
 
 Cell[BoxData[
  RowBox[{
@@ -908,8 +918,7 @@ Cell[BoxData[
  CellChangeTimes->{{3.775731331407292*^9, 3.775731478028287*^9}, {
   3.7757319805837307`*^9, 3.7757319862051888`*^9}, {3.775732192851695*^9, 
   3.775732210289424*^9}},
- CellLabel->
-  "In[257]:=",ExpressionUUID->"763dbf23-2eb3-4867-bcee-690e7ba19e5f"],
+ CellLabel->"In[20]:=",ExpressionUUID->"763dbf23-2eb3-4867-bcee-690e7ba19e5f"],
 
 Cell[BoxData[
  RowBox[{
@@ -925,7 +934,7 @@ running/``-``-epoch``\>\"", ",", "server", ",", "task", ",", "epoch", ",",
       "server", ",", "task", ",", "epoch"}], "]"}]}], "]"}]}]], "Input",
  CellChangeTimes->{{3.773658536430666*^9, 3.773658556905562*^9}, {
   3.774904971094236*^9, 3.774904975046784*^9}},
- CellLabel->"In[20]:=",ExpressionUUID->"cee0ac1d-32c8-40a6-b358-950ec8a35725"]
+ CellLabel->"In[21]:=",ExpressionUUID->"cee0ac1d-32c8-40a6-b358-950ec8a35725"]
 },
 WindowSize->{850, 855},
 WindowMargins->{{2, Automatic}, {Automatic, 0}},
@@ -956,19 +965,20 @@ Cell[5032, 132, 3007, 60, 220, "Input",ExpressionUUID->"97ea247b-76c2-45e3-a2a0-
 Cell[8042, 194, 2421, 53, 262, "Input",ExpressionUUID->"acce1dea-d942-41c8-8fb9-1303ac03a22e",
  CellGroupingRules->{"GroupTogetherGrouping", 10000.}]
 }, Open  ]],
-Cell[10478, 250, 994, 26, 52, "Input",ExpressionUUID->"3d23ae5e-2963-49d0-97bc-d2a3881e2a94"],
-Cell[11475, 278, 5743, 120, 535, "Input",ExpressionUUID->"008d239c-568d-463f-abea-e239aca7b9a9"],
-Cell[17221, 400, 4536, 96, 472, "Input",ExpressionUUID->"c1caf827-f9db-4da8-ad17-f8d13c077216",
+Cell[10478, 250, 993, 26, 52, "Input",ExpressionUUID->"3d23ae5e-2963-49d0-97bc-d2a3881e2a94"],
+Cell[11474, 278, 1941, 49, 220, "Input",ExpressionUUID->"c21512c6-7345-47b8-aa61-308efb959930"],
+Cell[13418, 329, 4096, 73, 212, "Input",ExpressionUUID->"008d239c-568d-463f-abea-e239aca7b9a9"],
+Cell[17517, 404, 4536, 96, 472, "Input",ExpressionUUID->"c1caf827-f9db-4da8-ad17-f8d13c077216",
  CellGroupingRules->{"GroupTogetherGrouping", 10000.}],
-Cell[21760, 498, 1372, 31, 254, "Input",ExpressionUUID->"30e0e5e6-a388-48bf-b5c7-f70dc2d3b087"],
-Cell[23135, 531, 3364, 70, 304, "Input",ExpressionUUID->"8eaebe0e-c1fc-4a5d-b1b7-6ae502627527"],
-Cell[26502, 603, 9932, 190, 703, "Input",ExpressionUUID->"f17ed66f-751b-4e3f-b3ce-d9caa6ca4efa",
+Cell[22056, 502, 1368, 30, 220, "Input",ExpressionUUID->"30e0e5e6-a388-48bf-b5c7-f70dc2d3b087"],
+Cell[23427, 534, 3364, 70, 304, "Input",ExpressionUUID->"8eaebe0e-c1fc-4a5d-b1b7-6ae502627527"],
+Cell[26794, 606, 10438, 199, 779, "Input",ExpressionUUID->"f17ed66f-751b-4e3f-b3ce-d9caa6ca4efa",
  CellGroupingRules->{"GroupTogetherGrouping", 10000.}],
-Cell[36437, 795, 202, 4, 30, "Input",ExpressionUUID->"6805c100-a6ad-420a-b856-67d855c5aa6b"],
-Cell[36642, 801, 2092, 49, 262, "Input",ExpressionUUID->"73698989-be54-4b3c-b41e-8db8e339f51a"],
-Cell[38737, 852, 1705, 37, 220, "Input",ExpressionUUID->"7b02550c-3904-470e-9fed-c37f2db65bef"],
-Cell[40445, 891, 851, 20, 94, "Input",ExpressionUUID->"763dbf23-2eb3-4867-bcee-690e7ba19e5f"],
-Cell[41299, 913, 679, 14, 136, "Input",ExpressionUUID->"cee0ac1d-32c8-40a6-b358-950ec8a35725"]
+Cell[37235, 807, 202, 4, 30, "Input",ExpressionUUID->"6805c100-a6ad-420a-b856-67d855c5aa6b"],
+Cell[37440, 813, 2088, 48, 262, "Input",ExpressionUUID->"73698989-be54-4b3c-b41e-8db8e339f51a"],
+Cell[39531, 863, 1701, 36, 220, "Input",ExpressionUUID->"7b02550c-3904-470e-9fed-c37f2db65bef"],
+Cell[41235, 901, 847, 19, 94, "Input",ExpressionUUID->"763dbf23-2eb3-4867-bcee-690e7ba19e5f"],
+Cell[42085, 922, 679, 14, 136, "Input",ExpressionUUID->"cee0ac1d-32c8-40a6-b358-950ec8a35725"]
 }
 ]
 *)
