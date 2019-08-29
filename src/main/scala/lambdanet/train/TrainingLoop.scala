@@ -262,33 +262,27 @@ object TrainingLoop extends TrainingLoopTrait {
         import cats.implicits._
         val (fws, gs, data) = stats.flatMap(_.toVector).unzip3
 
-        fws.combineAll.tap {
-          case ForwardResult(
-              loss,
-              libAcc,
-              projAcc,
-              confMat,
-              categoricalAcc
-              ) =>
-            logger.logScalar("loss", epoch, toAccuracyD(loss))
-            logger.logScalar("libAcc", epoch, toAccuracy(libAcc))
-            logger.logScalar("projAcc", epoch, toAccuracy(projAcc))
-            logger.logConfusionMatrix("confusionMat", epoch, confMat.value, 2)
-            logAccuracyDetails(data zip fws, epoch)
+        import logger._
 
-//            logger.logString("typeAcc", epoch, typeAccString(categoricalAcc))
+        fws.combineAll.tap { fwd =>
+          import fwd._
+          logScalar("loss", epoch, toAccuracyD(loss))
+          logScalar("libAcc", epoch, toAccuracy(libCorrect))
+          logScalar("projAcc", epoch, toAccuracy(projCorrect))
+          logConfusionMatrix("confusionMat", epoch, confusionMatrix.value, 2)
+          logAccuracyDetails(data zip fws, epoch)
         }
 
         val gradInfo = gs.combineAll
         gradInfo.unzip3.tap {
           case (grads, transformed, deltas) =>
-            logger.logScalar("gradient", epoch, grads.sum)
-            logger.logScalar("clippedGradient", epoch, transformed.sum)
-            logger.logScalar("paramDelta", epoch, deltas.sum)
+            logScalar("gradient", epoch, grads.sum)
+            logScalar("clippedGradient", epoch, transformed.sum)
+            logScalar("paramDelta", epoch, deltas.sum)
         }
 
         val timeInSec = (System.nanoTime() - startTime).toDouble / 1e9
-        logger.logScalar("iter-time", epoch, timeInSec)
+        logScalar("iter-time", epoch, timeInSec)
 
         println(DebugTime.show)
       }
@@ -432,7 +426,7 @@ object TrainingLoop extends TrainingLoopTrait {
           val targets = groundTruths.map(predSpace.indexOfType)
           val nodeDistances = nodes.map(_.pipe(datum.distanceToConsts))
 
-          val (libCounts, projCounts, confMat, typeAccs) =
+          val (correctness, confMat, typeAccs) =
             announced("compute training accuracy") {
               analyzeDecoding(
                 logits,
@@ -445,11 +439,18 @@ object TrainingLoop extends TrainingLoopTrait {
           val loss =
             logits.toLoss(targets, projWeight, predSpace.libTypeVec.length)
 
-          val totalCount = libCounts.count + projCounts.count
+          val totalCount = groundTruths.length
+          val mapped = nodes
+            .zip(groundTruths)
+            .zip(correctness)
+            .groupBy(_._2)
+            .mapValuesNow { pairs =>
+              pairs.map { case ((n, ty), _) => (n, ty, datum.projectName) }.toSet
+            }
           val fwd = ForwardResult(
             Counted(totalCount, loss.value.squeeze() * totalCount),
-            libCounts,
-            projCounts,
+            mapped(true),
+            mapped(false),
             confMat,
             typeAccs
           )
@@ -503,7 +504,7 @@ object TrainingLoop extends TrainingLoopTrait {
           }
           val decoding = decodingVec.last
 
-          val (libCounts, projCounts, confMat, typeAccs) =
+          val (correctness, confMat, typeAccs) =
             announced("compute training accuracy") {
               analyzeDecoding(
                 decoding,
@@ -519,11 +520,20 @@ object TrainingLoop extends TrainingLoopTrait {
               .map(_.toLoss(targets, projWeight, predSpace.libTypeVec.length))
           )
 
-          val totalCount = libCounts.count + projCounts.count
+          val totalCount = groundTruths.length
+          val nodes = datum.nodesToPredict.map(_.n)
+          val mapped = nodes
+            .zip(groundTruths)
+            .zip(correctness)
+            .groupBy(_._2)
+            .mapValuesNow { pairs =>
+              pairs.map { case ((n, ty), _) => (n, ty, datum.projectName) }.toSet
+            }
+
           val fwd = ForwardResult(
             Counted(totalCount, loss.value.squeeze() * totalCount),
-            libCounts,
-            projCounts,
+            mapped(true),
+            mapped(false),
             confMat,
             typeAccs
           )
@@ -607,18 +617,7 @@ object TrainingLoop extends TrainingLoopTrait {
                       datum.predictor.predictionSpace.allTypes
                     )(saveDir / "predictions")
                   }
-                  val (_, rightSet, wrongSet) = datum.fseAcc.countTopNCorrect(
-                    1,
-                    pred.mapValuesNow(Vector(_)),
-                    onlyCountInSpaceTypes = true
-                  )
-                  val Seq(x, y) = Seq(rightSet, wrongSet).map { set =>
-                    set.map { n =>
-                      val t = datum.annotations(ProjNode(n))
-                      (n, t, datum.projectName.toString)
-                    }
-                  }
-                  (x, y)
+                  (fwd.correctSet, fwd.incorrectSet)
               }.toVector
             }
           }.combineAll
@@ -649,24 +648,23 @@ object TrainingLoop extends TrainingLoopTrait {
           predictionSpace: PredictionSpace,
           nodeDistances: Vector[Int]
       ): (
-          Counted[LibCorrect],
-          Counted[ProjCorrect],
+          Vector[Boolean],
           Counted[ConfusionMatrix],
           Map[PType, Counted[Correct]]
       ) = {
         val predictions = results.topPredictions
         val targets = groundTruths.map(predictionSpace.indexOfType)
-        val truthValues = predictions.zip(targets).map { case (x, y) => x == y }
+        val correctness = predictions.zip(targets).map { case (x, y) => x == y }
         val targetFromLibrary = groundTruths.map { _.madeFromLibTypes }
-        val zipped = targetFromLibrary.zip(truthValues)
-        val libCorrect = zipped.collect {
-          case (true, true) => ()
-        }.length
-        val projCorrect = zipped.collect {
-          case (false, true) => ()
-        }.length
-        val libCounts = Counted(targetFromLibrary.count(identity), libCorrect)
-        val projCounts = Counted(targetFromLibrary.count(!_), projCorrect)
+//        val zipped = targetFromLibrary.zip(truthValues)
+//        val libCorrect = zipped.collect {
+//          case (true, true) => ()
+//        }.length
+//        val projCorrect = zipped.collect {
+//          case (false, true) => ()
+//        }.length
+//        val libCounts = Counted(targetFromLibrary.count(identity), libCorrect)
+//        val projCounts = Counted(targetFromLibrary.count(!_), projCorrect)
 
         val confMat = {
           def toCat(isLibType: Boolean): Int = if (isLibType) 0 else 1
@@ -679,11 +677,11 @@ object TrainingLoop extends TrainingLoopTrait {
         }
 
         val typeAccs =
-          groundTruths.zip(truthValues).groupBy(_._1).mapValuesNow { bools =>
+          groundTruths.zip(correctness).groupBy(_._1).mapValuesNow { bools =>
             Counted(bools.length, bools.count(_._2))
           }
 
-        (libCounts, projCounts, confMat, typeAccs)
+        (correctness, confMat, typeAccs)
       }
 
       private val avgAnnotations =
@@ -701,8 +699,8 @@ object TrainingLoop extends TrainingLoopTrait {
 
   private case class ForwardResult(
       loss: Counted[Double],
-      libCorrect: Counted[LibCorrect],
-      projCorrect: Counted[ProjCorrect],
+      correctSet: Set[(PNode, PType, ProjectPath)],
+      incorrectSet: Set[(PNode, PType, ProjectPath)],
       confusionMatrix: Counted[ConfusionMatrix],
       categoricalAcc: Map[PType, Counted[Correct]]
   ) {
@@ -711,6 +709,15 @@ object TrainingLoop extends TrainingLoopTrait {
         s"lib acc: ${toAccuracy(libCorrect)} (${libCorrect.count} nodes), " +
         s"proj acc: ${toAccuracy(projCorrect)} (${projCorrect.count} nodes)}"
     }
+
+    private def countCorrect(fromLib: Boolean) = {
+      val libCorrect = correctSet.count(_._1.fromLib == fromLib)
+      val libIncorrect = incorrectSet.count(_._1.fromLib == fromLib)
+      Counted(libCorrect + libIncorrect, libCorrect)
+    }
+
+    def libCorrect: Counted[LibCorrect] = countCorrect(true)
+    def projCorrect: Counted[ProjCorrect] = countCorrect(false)
   }
 
   private implicit val forwardResultMonoid: Monoid[ForwardResult] =
@@ -719,7 +726,7 @@ object TrainingLoop extends TrainingLoopTrait {
       import cats.implicits._
 
       def empty: ForwardResult =
-        ForwardResult(zero(0), zero(0), zero(0), zero(Map()), Map())
+        ForwardResult(zero(0), Set(), Set(), zero(Map()), Map())
 
       def combine(x: ForwardResult, y: ForwardResult): ForwardResult = {
         val z = ForwardResult.unapply(x).get |+| ForwardResult

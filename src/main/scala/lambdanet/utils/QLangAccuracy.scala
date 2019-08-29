@@ -48,6 +48,7 @@ object QLangAccuracy {
     stmts.foldMap(rec)
   }
 
+  // fixme: the label set is much smaller than the one obtained from forward
   case class FseAccuracy(modules: Vector[QModule], predSpace: PredictionSpace) {
     private val occurrence = modules.foldMap { m =>
       occurrenceMap(m.stmts)

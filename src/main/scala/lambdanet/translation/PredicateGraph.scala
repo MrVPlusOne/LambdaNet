@@ -227,7 +227,7 @@ object PredicateGraph {
       def showNode(n: PNode): String = {
         val prefix = if (n.fromLib) "L" else "P"
         n.nameOpt match {
-          case Some(n) => s"[$prefix]${n.name}"
+          case Some(n) => s"${n.name}"
           case None =>
             s"$prefix${n.getId}"
         }

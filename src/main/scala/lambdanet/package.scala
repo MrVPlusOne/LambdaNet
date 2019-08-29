@@ -32,6 +32,7 @@ package object lambdanet extends SimpleMath.ExtensionsTrait {
   val superSymbol = 'super
   val defaultSymbol = 'default
   val undefinedSymbol = 'undefined
+  val unknownSymbol = Symbol("<UNKNOWN>")
 
   val SM: SimpleMath.type = SimpleMath
 

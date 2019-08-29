@@ -220,7 +220,7 @@ object QLangDisplay {
   }
 
   type ProjectName = String
-  type AnnotPlace = (PNode, PType, ProjectName)
+  type AnnotPlace = (PNode, PType, ProjectPath)
 
   def renderPredictionIndexToDir(
       rightPreds: Set[AnnotPlace],

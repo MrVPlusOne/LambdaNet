@@ -3,6 +3,7 @@ package lambdanet
 import lambdanet.architecture.Embedding
 import lambdanet.architecture.{LabelEncoder, NNArchitecture}
 import lambdanet.train.DecodingResult
+import lambdanet.translation.ImportsResolution.NameDef
 import lambdanet.translation.QLang
 
 import scala.collection.mutable
@@ -233,9 +234,10 @@ object NeuralInference {
     }
     val libraryNodes: Set[LibNode] =
       graph.nodes.filter(_.fromLib).map(LibNode) ++ unknownNodes
+    private val unknownType = PTyVar(unknownDef.ty.get)
     val predictionSpace = PredictionSpace(
       libraryTypeNodes
-        .map(_.n.n.pipe(PTyVar)) ++ projectClasses // ++ Set(PAny),
+        .map(_.n.n.pipe(PTyVar)) ++ projectClasses - unknownType // ++ Set(PAny),
     )
 
     val labelUsages: LabelUsages = {

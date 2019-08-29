@@ -292,7 +292,7 @@ class ParserTests extends WordSpec with MyTest {
     )
 
     val rightPreds: Set[AnnotPlace] = truth.map {
-      case (k, v) => (k, v, projName)
+      case (k, v) => (k, v, RelPath(projName))
     }.toSet
     QLangDisplay.renderPredictionIndexToDir(
       rightPreds,
