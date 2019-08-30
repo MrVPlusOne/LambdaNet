@@ -89,14 +89,15 @@ case class TwoStage(
   }
 
   def topNPredictionsWithCertainty(n: Int): Vector[TopNDistribution[Int]] = {
-    def sortedRows(logits: Tensor, offset: Int) = logits.rows.map {
-      _.zip(Stream.from(offset))
-        .sortBy(_._1)
-        .reverse
-        .take(n)
-        .toVector
-        .pipe(TopNDistribution.apply)
-    }
+    def sortedRows(logits: Tensor, offset: Int) =
+      numsca.softmax(logits).rows.map {
+        _.zip(Stream.from(offset))
+          .sortBy(_._1)
+          .reverse
+          .take(n)
+          .toVector
+          .pipe(TopNDistribution.apply)
+      }
     val libRows = sortedRows(libLogits.value, 0)
     if (projLogits.isEmpty)
       return libRows.toVector

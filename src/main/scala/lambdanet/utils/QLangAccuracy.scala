@@ -68,7 +68,7 @@ object QLangAccuracy {
         onlyCountInSpaceTypes: Boolean
     ): (Counted[Correct], Set[PNode], Set[PNode]) = {
       val annots1 = if (onlyCountInSpaceTypes) annots.filter {
-        case (k, t) => predSpace.allTypes.contains(t)
+        case (k, t) => predictions.contains(k) && predSpace.allTypes.contains(t)
       } else annots
       QLangAccuracy.countTopNCorrect(
         n,
@@ -89,11 +89,12 @@ object QLangAccuracy {
     val d = nodesToPredict.keySet.diff(predictions.keySet)
     assert(d.isEmpty, s"Some nodes lack predictions: ${d}")
 
-    val (rightSet, wrongSet) = nodesToPredict.foldLeft((Set[PNode](), Set[PNode]())) {
-      case ((yes, no), (node, t)) =>
-        val rightQ = predictions(node).take(n).contains(t)
-        if (rightQ) (yes + node, no) else (yes, no + node)
-    }
+    val (rightSet, wrongSet) =
+      nodesToPredict.foldLeft((Set[PNode](), Set[PNode]())) {
+        case ((yes, no), (node, t)) =>
+          val rightQ = predictions(node).take(n).contains(t)
+          if (rightQ) (yes + node, no) else (yes, no + node)
+      }
     val y1 = rightSet.toSeq.map(nodeWeight).sum
     val n1 = wrongSet.toSeq.map(nodeWeight).sum
     (Counted(y1 + n1, y1), rightSet, wrongSet)
