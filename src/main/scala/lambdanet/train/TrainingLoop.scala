@@ -705,10 +705,10 @@ object TrainingLoop extends TrainingLoopTrait {
         s"proj acc: ${toAccuracy(projCorrect)} (${projCorrect.count} nodes)}"
     }
 
-    private def countCorrect(fromLib: Boolean) = {
-      val libCorrect = correctSet.count(_._1.fromLib == fromLib)
-      val libIncorrect = incorrectSet.count(_._1.fromLib == fromLib)
-      Counted(libCorrect + libIncorrect, libCorrect)
+    private def countCorrect(isLibType: Boolean) = {
+      val correct = correctSet.count(_._2.madeFromLibTypes == isLibType)
+      val incorrect = incorrectSet.count(_._2.madeFromLibTypes == isLibType)
+      Counted(correct + incorrect, correct)
     }
 
     def libCorrect: Counted[LibCorrect] = countCorrect(true)
