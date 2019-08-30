@@ -34,7 +34,7 @@ object TrainingLoop extends TrainingLoopTrait {
   val toyMod: Boolean = false
   val onlySeqModel = false
   val useDropout: Boolean = false
-  val useOracleForIsLib: Boolean = false
+  val useOracleForIsLib: Boolean = true
   /* Assign more weights to project type to battle label imbalance */
   val projWeight: Double = 3.0
 
