@@ -21,6 +21,14 @@ case class PredictionSpace(allTypes: Set[PType]) {
     typeVector.zipWithIndex.toMap
   }
 
+  def typeOfIndex(i: Int): PType = {
+    require(
+      i < typeVector.length,
+      s"index = $i, while type vector length = ${typeVector.length}"
+    )
+    typeVector(i)
+  }
+
   def indexOfType(ty: PType): Int = {
     indexMap(ty)
   }

@@ -25,6 +25,10 @@ object SimpleMath {
         }
         false
       }
+
+      def separatedBy(sep: T): Vector[T] = {
+        xs.toVector.flatMap{ x => Vector(x, sep)}.dropRight(1)
+      }
     }
 
     implicit class MapExtension[K, V](map: Map[K, V]) {

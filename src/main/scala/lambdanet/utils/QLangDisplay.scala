@@ -3,9 +3,10 @@ package lambdanet.utils
 import ammonite.ops._
 import funcdiff.SimpleMath
 import lambdanet._
+import lambdanet.train.TopNDistribution
 import lambdanet.translation.ImportsResolution.NameDef
 import lambdanet.translation.PAnnot
-import lambdanet.translation.PredicateGraph.{PNode, PTyVar, PType}
+import lambdanet.translation.PredicateGraph.{PAny, PNode, PTyVar, PType}
 import lambdanet.translation.QLang._
 
 import scala.language.implicitConversions
@@ -54,11 +55,14 @@ object QLangDisplay {
     def show(
         stmt: QStmt,
         truth: Map[PNode, PAnnot],
-        prediction: Map[PNode, PType],
+        topNPrediction: Map[PNode, TopNDistribution[PType]],
         predSpace: Set[PType],
         indentSpaces: Int = 2
     ): Output = {
       import lambdanet.translation.makeSureInBlockQ
+
+      val prediction: Map[PNode, PType] =
+        topNPrediction.mapValuesNow(_.topValue)
 
       def showAnnot(x: PNode): Output = {
         truth(x) match {
@@ -66,14 +70,27 @@ object QLangDisplay {
             val annot = prediction.get(x) match {
               case None => warning(s": [miss]$t")
               case Some(p) =>
-                if (t == p) correct(": " + t)
-                else if (!predSpace.contains(t)) {
-                  if (p == unknownType) correct(s": [UNKN]$t")
-                  else incorrect(s": [OOV]$t")
-                } else {
-                  incorrect(s": ($p ≠ $t)")
+                val annot =
+                  if (t == p) correct(": " + t)
+                  else if (!predSpace.contains(t)) {
+                    if (p == unknownType) correct(s": [UNKN]$t")
+                    else incorrect(s": [OOV]$t")
+                  } else {
+                    incorrect(s": ($p ≠ $t)")
+                  }
+                val tooltipText = {
+                  topNPrediction(x).distr
+                    .map {
+                      case (prob, ty) =>
+                        s"$ty: %.2f%%".format(prob * 100)
+                    }
+                    .mkString("    ")
                 }
+                span(attr("data-toggle") := "tooltip", title := tooltipText)(
+                  annot
+                )
             }
+
             val idToDisplay = s"annot-${x.getId}"
             span(id := idToDisplay)(annot)
           case Annot.Fixed(t) => s": [fix]$t"
@@ -169,11 +186,13 @@ object QLangDisplay {
   def renderProjectToDirectory(
       projectName: String,
       modules: Vector[QModule],
-      prediction: Map[PNode, PType],
+      predictions: Map[PNode, TopNDistribution[PType]],
       predSpace: Set[PType],
       indentSpaces: Int = 2
   )(dir: Path): Unit = {
     import QLangAccuracy.{top1Accuracy}
+
+    val prediction: Map[PNode, PType] = predictions.mapValuesNow(_.topValue)
 
     val file = dir / s"$projectName.html"
     val totalMap = modules.flatMap(_.mapping).toMap
@@ -198,7 +217,7 @@ object QLangDisplay {
 
     val renderedModules = modules.par.map { m =>
       val outputs = m.stmts
-        .map(Impl.show(_, m.mapping, prediction, predSpace))
+        .map(Impl.show(_, m.mapping, predictions, predSpace))
 
       div(
         hr(),
@@ -226,7 +245,7 @@ object QLangDisplay {
       rightPreds: Set[AnnotPlace],
       wrongPreds: Set[AnnotPlace],
       dir: Path,
-      sourcePath: String,
+      sourcePath: String
   ): Unit = {
 
     var panelId = 0
@@ -236,7 +255,10 @@ object QLangDisplay {
         div(`class` := "panel panel-default")(
           div(`class` := "panel-heading")(
             h4(`class` := "panel-title")(
-              button(attr("data-toggle") := "collapse", href := s"#collapse$pId")(
+              button(
+                attr("data-toggle") := "collapse",
+                href := s"#collapse$pId"
+              )(
                 title
               )
             )
@@ -262,16 +284,17 @@ object QLangDisplay {
               val list = rest.toSeq.sortBy(x => (x._3, x._1.getId)).map { x =>
                 val n = x._1
                 val name = x._3
-                a(href := s"$sourcePath/$name.html/#annot-${n.getId}")(s"$n in $name")
+                a(href := s"$sourcePath/$name.html/#annot-${n.getId}")(
+                  s"$n in $name"
+                )
               }
               mkCollapse(s"$ty | ${list.length}", list)
           }
         val text = html(
           head(
-            link(rel:="stylesheet", href:="bootstrap/bootstrap.css"),
-            script(src:="bootstrap/jQuery.js"),
-            script(src:="bootstrap/bootstrap.bundle.js"),
-
+            link(rel := "stylesheet", href := "bootstrap/bootstrap.css"),
+            script(src := "bootstrap/jQuery.js"),
+            script(src := "bootstrap/bootstrap.bundle.js"),
             h3(s"$cat predictions"),
             meta(charset := "UTF-8")
           ),
@@ -303,8 +326,11 @@ object QLangDisplay {
       PNode(8, None, isType = false, fromLib = false),
       PTyVar(PNode(6, None, isType = true, fromLib = false))
     )
+    val predictions = prediction.mapValuesNow(
+      ty => TopNDistribution(Vector(0.9 -> ty, 0.1 -> PAny))
+    )
     val outDir = pwd / "predictions"
-    renderProjectToDirectory("toy", qModules, prediction, annts.values.toSet)(
+    renderProjectToDirectory("toy", qModules, predictions, annts.values.toSet)(
       outDir
     )
   }

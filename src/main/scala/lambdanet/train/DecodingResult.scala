@@ -4,10 +4,20 @@ import lambdanet._
 import botkop.numsca
 import funcdiff.TensorExtension.oneHot
 import funcdiff._
-import numsca.{Tensor, argmaxAxis, :>}
+import numsca.{:>, Tensor, argmaxAxis}
+
+case class TopNDistribution[T](distr: Vector[(Real, T)]) {
+  def topValue: T = distr.head._2
+
+  def map[V](f: T => V): TopNDistribution[V] =
+    TopNDistribution(distr.map { case (prob, t) => (prob, f(t)) })
+
+}
 
 trait DecodingResult {
   def topPredictions: Vector[Int]
+
+  def topNPredictionsWithCertainty(n: Int): Vector[TopNDistribution[Int]]
 
   def toLoss(targets: Vector[Int], projWeight: Real, libNum: Int): CompNode
 
@@ -54,6 +64,8 @@ case class Joint(logits: CompNode) extends DecodingResult {
         .toVector
     }.toVector
   }
+
+  def topNPredictionsWithCertainty(n: Int): Vector[TopNDistribution[Int]] = ???
 }
 
 case class TwoStage(
@@ -73,6 +85,27 @@ case class TwoStage(
     isLib.zipWithIndex.map {
       case (b, i) =>
         if (b) libMax(i).toInt else projMax(i).toInt + libNum
+    }.toVector
+  }
+
+  def topNPredictionsWithCertainty(n: Int): Vector[TopNDistribution[Int]] = {
+    def sortedRows(logits: Tensor, offset: Int) = logits.rows.map {
+      _.zip(Stream.from(offset))
+        .sortBy(_._1)
+        .reverse
+        .take(n)
+        .toVector
+        .pipe(TopNDistribution.apply)
+    }
+    val libRows = sortedRows(libLogits.value, 0)
+    if (projLogits.isEmpty)
+      return libRows.toVector
+
+    val projRows = sortedRows(projLogits.get.value, libNum)
+    val isLib = isLibLogits.value.data.map(_ > 0)
+    isLib.zipWithIndex.map {
+      case (b, i) =>
+        if (b) libRows(i) else projRows(i)
     }.toVector
   }
 

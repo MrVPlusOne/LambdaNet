@@ -335,7 +335,7 @@ object TrainingLoop extends TrainingLoopTrait {
                   val (fse1, _, _) = datum.fseAcc
                     .countTopNCorrect(
                       1,
-                      pred.mapValuesNow(Vector(_)),
+                      pred.mapValuesNow(_.distr.map(_._2)),
                       onlyCountInSpaceTypes = true
                     )
                   (fwd, fse1)
@@ -399,7 +399,7 @@ object TrainingLoop extends TrainingLoopTrait {
       /** Forward propagation for the sequential model */
       private def seqForward(
           datum: Datum
-      ): Option[(Loss, ForwardResult, Map[PNode, PType])] = {
+      ): Option[(Loss, ForwardResult, Map[PNode, TopNDistribution[PType]])] = {
         def result = {
           val predictor = datum.seqPredictor
           val predSpace = predictor.predSpace
@@ -449,14 +449,16 @@ object TrainingLoop extends TrainingLoopTrait {
             }
           val fwd = ForwardResult(
             Counted(totalCount, loss.value.squeeze() * totalCount),
-            mapped(true),
-            mapped(false),
+            mapped.getOrElse(true, Set()),
+            mapped.getOrElse(false, Set()),
             confMat,
             typeAccs
           )
 
-          val predictions: Map[PNode, PType] = {
-            val predVec = logits.topPredictions.map { predSpace.typeVector }
+          val predictions = {
+            val predVec = logits
+              .topNPredictionsWithCertainty(6)
+              .map { _.map(predSpace.typeVector) }
             nodes.zip(predVec).toMap
           }
 
@@ -469,7 +471,7 @@ object TrainingLoop extends TrainingLoopTrait {
       }
       private def forward(
           datum: Datum
-      ): Option[(Loss, ForwardResult, Map[PNode, PType])] =
+      ): Option[(Loss, ForwardResult, Map[PNode, TopNDistribution[PType]])] =
         limitTimeOpt(s"forward: $datum", Timeouts.forwardTimeout) {
           import datum._
 
@@ -532,14 +534,16 @@ object TrainingLoop extends TrainingLoopTrait {
 
           val fwd = ForwardResult(
             Counted(totalCount, loss.value.squeeze() * totalCount),
-            mapped(true),
-            mapped(false),
+            mapped.getOrElse(true, Set()),
+            mapped.getOrElse(false, Set()),
             confMat,
             typeAccs
           )
 
-          val predictions: Map[PNode, PType] = {
-            val predVec = decoding.topPredictions.map { predSpace.typeVector }
+          val predictions = {
+            val predVec = decoding
+              .topNPredictionsWithCertainty(6)
+              .map { _.map(predSpace.typeOfIndex) }
             nodesToPredict.map(_.n).zip(predVec).toMap
           }
 
@@ -656,15 +660,6 @@ object TrainingLoop extends TrainingLoopTrait {
         val targets = groundTruths.map(predictionSpace.indexOfType)
         val correctness = predictions.zip(targets).map { case (x, y) => x == y }
         val targetFromLibrary = groundTruths.map { _.madeFromLibTypes }
-//        val zipped = targetFromLibrary.zip(truthValues)
-//        val libCorrect = zipped.collect {
-//          case (true, true) => ()
-//        }.length
-//        val projCorrect = zipped.collect {
-//          case (false, true) => ()
-//        }.length
-//        val libCounts = Counted(targetFromLibrary.count(identity), libCorrect)
-//        val projCounts = Counted(targetFromLibrary.count(!_), projCorrect)
 
         val confMat = {
           def toCat(isLibType: Boolean): Int = if (isLibType) 0 else 1

@@ -14,6 +14,11 @@ class Tensor(val array: INDArray) extends Serializable {
 
   val shape: Shape = Shape.fromArray(array.shape())
 
+  def rows: IndexedSeq[Array[Double]] = {
+    val Shape(Vector(rows, _)) = shape
+    (0 until rows.toInt).map{ r => this(r, :>).data}
+  }
+
   lazy val data: Array[Double] = array.dup.data.asDouble
 
   def newTensor(array: INDArray): Tensor = new Tensor(array)
