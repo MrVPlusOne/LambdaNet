@@ -31,7 +31,7 @@ import scala.concurrent.{
 import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
-  val toyMod: Boolean = true
+  val toyMod: Boolean = false
   val onlySeqModel = false
   val useDropout: Boolean = false
   val useOracleForIsLib: Boolean = false
@@ -47,7 +47,7 @@ object TrainingLoop extends TrainingLoopTrait {
     ).map(flag).mkString
 
     if (onlySeqModel) "large-seqModel"
-    else s"noOverride$flags-${TrainingState.iterationNum}"
+    else s"newHTML$flags-${TrainingState.iterationNum}"
   }
 
   def flag(nameValue: (String, Boolean)): String = {
