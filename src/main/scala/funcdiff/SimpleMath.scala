@@ -27,7 +27,11 @@ object SimpleMath {
       }
 
       def separatedBy(sep: T): Vector[T] = {
-        xs.toVector.flatMap{ x => Vector(x, sep)}.dropRight(1)
+        xs.toVector
+          .flatMap { x =>
+            Vector(x, sep)
+          }
+          .dropRight(1)
       }
     }
 
@@ -533,5 +537,18 @@ object SimpleMath {
     val achieved = selected.map(_._2).sum.toDouble / totalUsages
 
     (selected, achieved)
+  }
+
+  def joinWithSep[T](
+      elements: Vector[T],
+      start: T,
+      sep: T,
+      end: T
+  ): Vector[T] = {
+    val middle = elements
+      .zip(Vector.fill(elements.length)(sep))
+      .flatMap { case (a, b) => Vector(a, b) }
+      .dropRight(1)
+    start +: middle :+ end
   }
 }

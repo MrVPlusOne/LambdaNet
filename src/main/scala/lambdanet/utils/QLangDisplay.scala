@@ -5,8 +5,15 @@ import funcdiff.SimpleMath
 import lambdanet._
 import lambdanet.train.TopNDistribution
 import lambdanet.translation.ImportsResolution.NameDef
-import lambdanet.translation.PAnnot
-import lambdanet.translation.PredicateGraph.{PAny, PNode, PTyVar, PType}
+import lambdanet.translation.{PAnnot, PredicateGraph}
+import lambdanet.translation.PredicateGraph.{
+  PAny,
+  PFuncType,
+  PNode,
+  PObjectType,
+  PTyVar,
+  PType
+}
 import lambdanet.translation.QLang._
 
 import scala.language.implicitConversions
@@ -21,17 +28,17 @@ object QLangDisplay {
 
     type Output = Modifier
 
-    def correct(str: Output): Output =
-      span(color := "green")(str)
+    def correct(str: Output*): Output =
+      span(cls := "correct")(str)
 
-    def incorrect(str: Output): Output =
-      span(color := "red")(str)
+    def incorrect(str: Output*): Output =
+      span(cls := "incorrect")(str)
 
-    def warning(str: Output): Output =
-      span(color := "magenta")(str)
+    def warning(str: Output*): Output =
+      span(cls := "warning")(str)
 
-    def error(str: Output): Output =
-      span(color := "orange")(str)
+    def error(str: Output*): Output =
+      span(cls := "error")(str)
 
     def key(str: Output): Output = b(str)
 
@@ -60,6 +67,10 @@ object QLangDisplay {
       rec(e)
     }
 
+    implicit def pType2Output(ty: PType): Output = {
+      ty.pPrint[Output](node2Output)(x => x, span(_))
+    }
+
     def code(elements: Output*): Output = {
       span(elements)
     }
@@ -69,13 +80,8 @@ object QLangDisplay {
         start: Output,
         sep: Output,
         end: Output
-    ): Output = {
-      val middle = elements
-        .zip(Vector.fill(elements.length)(sep))
-        .flatMap { case (a, b) => Vector(a, b) }
-        .dropRight(1)
-      span(start +: middle :+ end)
-    }
+    ): Output =
+      span(SM.joinWithSep(elements, start, sep, end))
 
     def show(
         stmt: QStmt,
@@ -95,14 +101,14 @@ object QLangDisplay {
             annot match {
               case Annot.User(t, _) =>
                 val annot =
-                  if (!predSpace.contains(t)) warning(s": [OOV]$t")
+                  if (!predSpace.contains(t)) warning(": [OOV]", t)
                   else {
                     prediction.get(x) match {
-                      case None => warning(s": [miss]$t")
+                      case None => warning(": [miss]", t)
                       case Some(p) =>
                         val annot =
-                          if (t == p) correct(": " + t)
-                          else incorrect(s": ($p ≠ $t)")
+                          if (t == p) correct(": ", t)
+                          else incorrect(": (", p, " ≠ ", t, ")")
                         val tooltipText = {
                           topNPrediction(x).distr
                             .map {
@@ -119,7 +125,7 @@ object QLangDisplay {
                   }
                 val idToDisplay = s"annot-${x.getId}"
                 span(id := idToDisplay)(annot)
-              case Annot.Fixed(t) => s": [fix]$t"
+              case Annot.Fixed(t) => span(": [fix]", "t")
               case Annot.Missing  => ""
             }
           case None => error("[Truth Missing]")
@@ -133,7 +139,7 @@ object QLangDisplay {
       def superPart(superType: Set[PTyVar]) =
         if (superType.nonEmpty)
           mkSpan(
-            superType.map(_.toString: Output).toVector,
+            superType.map(x => x: Output).toVector,
             " extends ",
             " with ",
             ""
@@ -151,13 +157,13 @@ object QLangDisplay {
                   " ",
                   definition(x),
                   showAnnot(x),
-                  key(" = "),
-                  init,
-                  ";"
+                  init
+                    .map(s => code(" = ", s, ";"))
+                    .getOrElse(";")
                 )
             )
           case AssignStmt(lhs, rhs) =>
-            Vector(indent -> code(lhs, key("  ⃪ "), rhs, ";"))
+            Vector(indent -> code(lhs, key(" ⟵ "), rhs, ";"))
           case ReturnStmt(e, ret) =>
             val str = code(key("return "), ret, key(" = "), e)
             Vector(indent -> str)
@@ -189,7 +195,7 @@ object QLangDisplay {
                 " ",
                 argList,
                 ": (",
-                definition(ret),
+                if (ret.nameOpt.nonEmpty) ret else definition(ret),
                 showAnnot(ret),
                 ")"
               )
@@ -219,7 +225,7 @@ object QLangDisplay {
                 definition(n),
                 superPart(superTypes),
                 key(" = "),
-                aliased.toString
+                aliased
               )
             )
         }
@@ -289,7 +295,14 @@ object QLangDisplay {
         h3(s"LibAcc: $libAccStr, ProjAcc: $projAccStr, Missing: $numMissing"),
         meta(charset := "UTF-8"),
         tag("style")(
-          "a { text-decoration: none; color='black' } a:hover { text-decoration: underline; }"
+          """a { text-decoration: none; color: black; }
+            |a:hover { text-decoration: underline; }
+            |html { scroll-behavior: smooth; }
+            |.correct { color: green; } .correct a { color: green; }
+            |.incorrect { color: red; } .incorrect a { color: red; }
+            |.warning { color: magenta; } .warning a { color: magenta; }
+            |.error { color: orange; } .error a { color: orange; }
+            |""".stripMargin
         )
       ),
       renderedModules

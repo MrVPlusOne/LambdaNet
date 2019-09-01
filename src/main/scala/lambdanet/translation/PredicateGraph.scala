@@ -20,7 +20,9 @@ case class PredicateGraph(
   def mergeEqualities: (PredicateGraph, Map[PNode, PNode]) = {
     val substitution = predicates
       .collect {
-        case DefineRel(v, v1: PNode) => (v, v1)
+        case DefineRel(v, v1: PNode) =>
+          if (v1.nameOpt.isEmpty) v1.nameOpt = v.nameOpt
+          (v, v1)
       }
       .foldLeft(Map[PNode, PNode]()) { (map, pair) =>
         val (v0, v1) = pair
@@ -78,7 +80,10 @@ object PredicateGraph {
 
   type NodeSubstitution = Map[PNode, PNode]
   type NodeMapping = Map[PNode, PAnnot]
-  def substituteMapping(mapping: NodeMapping, subst: NodeSubstitution): NodeMapping = {
+  def substituteMapping(
+      mapping: NodeMapping,
+      subst: NodeSubstitution
+  ): NodeMapping = {
     val mergerUserKeys = subst.keySet.collect {
       case k if k.fromProject => k
     }
@@ -90,7 +95,7 @@ object PredicateGraph {
   @SerialVersionUID(1)
   class PNode(
       protected val id: Int,
-      val nameOpt: Option[Symbol],
+      var nameOpt: Option[Symbol],
       val isType: Boolean,
       val fromLib: Boolean
   ) extends PExpr
@@ -200,26 +205,35 @@ object PredicateGraph {
 
     def allNodes: Set[PNode]
 
-    def pPrint(envPriority: Int, showNode: PNode => String): String = {
-      def wrap(priority: Int)(content: String) = {
-        if (priority < envPriority) s"($content)" else content
+    def pPrint[S](
+        showNode: PNode => S
+    )(implicit convert: String => S, aggregate: Vector[S] => S): S = {
+      def rec(envPriority: Int)(ty: PType): S = {
+        def wrap(priority: Int)(content: S): S = {
+          if (priority < envPriority) aggregate(Vector("(", content, ")")) else content
+        }
+
+        ty match {
+          case PAny      => "any"
+          case PTyVar(n) => showNode(n)
+          case PFuncType(from, to) =>
+            wrap(0)(
+              aggregate(
+                SM.joinWithSep[S](from.map(rec(1)), "(", ",", ")") :+
+                  convert("->") :+ rec(0)(to)
+              )
+            )
+          case PObjectType(fields) =>
+            fields
+              .map {
+                case (l, t) =>
+                  aggregate(Vector[S](l.name, ": ", rec(0)(t)))
+              }.toVector
+              .pipe(SM.joinWithSep[S](_, "{", ", ", "}"))
+        }
       }
 
-      this match {
-        case PAny      => "any"
-        case PTyVar(n) => showNode(n)
-        case PFuncType(from, to) =>
-          wrap(0)(
-            from.map(_.pPrint(1, showNode)).mkString("(", ",", ")") + "->" + to
-              .pPrint(0, showNode)
-          )
-        case PObjectType(fields) =>
-          fields
-            .map {
-              case (l, t) => s"${l.name}: ${t.pPrint(0, showNode)}"
-            }
-            .mkString("{", ", ", "}")
-      }
+      rec(0)(this)
     }
 
     def substitute(f: PNode => PNode): PType = this match {
@@ -231,7 +245,7 @@ object PredicateGraph {
         PObjectType(fields.mapValuesNow(_.substitute(f)))
     }
 
-    override def toString: String = pPrint(0, _.toString)
+    override def toString: String = pPrint(_.toString)(identity, _.mkString(""))
 
     def showSimple: String = {
       def showNode(n: PNode): String = {
@@ -242,7 +256,7 @@ object PredicateGraph {
             s"$prefix${n.getId}"
         }
       }
-      pPrint(0, showNode)
+      pPrint(_.toString)(identity, _.mkString(""))
     }
   }
 
