@@ -5,7 +5,16 @@ import funcdiff.SimpleMath
 import lambdanet.translation.IR.IRModule
 import lambdanet.translation.ImportsResolution.{ErrorHandler, ModuleExports}
 import lambdanet.translation._
-import lambdanet.translation.PredicateGraph.{DefineRel, LibNode, PNode, PNodeAllocator, PObject, PType, ProjNode, TyPredicate}
+import lambdanet.translation.PredicateGraph.{
+  DefineRel,
+  LibNode,
+  PNode,
+  PNodeAllocator,
+  PObject,
+  PType,
+  ProjNode,
+  TyPredicate
+}
 import lambdanet.translation.QLang.QModule
 import lambdanet.utils.ProgramParsing
 import lambdanet.utils.ProgramParsing.GProject
@@ -37,15 +46,19 @@ object PrepareRepos {
   val parsedRepoPath: Path = pwd / "data" / "parsedDataSet.serialized"
 
   def main(args: Array[String]): Unit = {
+//    val defs = parseLibDefs()
+//    SimpleMath.saveObjectToFile(libDefsFile.toIO)(defs)
+//    println(s"library definitions saved to $libDefsFile")
+
 //    parseAndFilterDataSet()
 //    mixTestDevSet()
     parseAndSerializeDataSet()
   }
 
-  sealed trait RepoResult{
+  sealed trait RepoResult {
     def toVector: Vector[ParsedProject] = this match {
       case Successful(p) => Vector(p)
-      case _ => Vector()
+      case _             => Vector()
     }
   }
   case object TooBigOrSmall extends RepoResult
@@ -79,21 +92,26 @@ object PrepareRepos {
         .flatMap { f =>
           val r = if (countTsCode(f, dir) < maxLinesOfCode) {
             try {
-              val (a, b, c, d) = prepareProject(
+              val p0 = prepareProject(
                 libDefs,
+                dir,
                 f,
                 shouldPruneGraph = false,
                 errorHandler =
                   ErrorHandler(ErrorHandler.StoreError, ErrorHandler.StoreError)
-              )
-              val diff = (a.nodes ++ a.predicates.flatMap(_.allNodes))
-                .diff(libDefs.nodeMapping.keySet)
+              ).mergeEqualities
+              val diff =
+                (p0.pGraph.nodes ++ p0.pGraph.predicates.flatMap(_.allNodes))
+                  .diff(libDefs.nodeMapping.keySet)
               val libNode = diff.find(_.fromLib)
-              assert(libNode.isEmpty, s"lib node not in libDefs: ${libNode.get}")
-              Successful(ParsedProject(f.relativeTo(dir), a, b, c, d))
+              assert(
+                libNode.isEmpty,
+                s"lib node not in libDefs: ${libNode.get}"
+              )
+              Successful(p0)
             } catch {
               case ex: Exception => HasError(ex)
-              case err: Error => HasError(err)
+              case err: Error    => HasError(err)
             }
           } else TooBigOrSmall
           parsedCallback(f, r)
@@ -135,11 +153,14 @@ object PrepareRepos {
             case TooBigOrSmall =>
               "TooBigOrSmall"
             case HasError(ex) =>
-              printWarning(s"$file contains error: ${ex.getMessage}", mustWarn = true)
+              printWarning(
+                s"$file contains error: ${ex.getMessage}",
+                mustWarn = true
+              )
               "HasError"
           }
           val dir = trainSetDir / up / dest
-          if(!exists(dir))
+          if (!exists(dir))
             mkdir(dir)
           mv(file, dir / file.last)
           this synchronized {
@@ -159,17 +180,17 @@ object PrepareRepos {
       .pipe(random.shuffle(_))
 
     def tryMove(from: Path, to: Path): Unit = {
-      if(to != from) mv(from, to)
+      if (to != from) mv(from, to)
     }
 
     val num = allProjects.length
-    allProjects.take(40).foreach{ f =>
+    allProjects.take(40).foreach { f =>
       tryMove(f, base / "bigger" / "testSet" / f.last)
     }
-    allProjects.slice(40,80).foreach{ f =>
+    allProjects.slice(40, 80).foreach { f =>
       tryMove(f, base / "bigger" / "devSet" / f.last)
     }
-    allProjects.drop(80).foreach{ f =>
+    allProjects.drop(80).foreach { f =>
       tryMove(f, base / "bigger" / "trainSet" / f.last)
     }
   }
@@ -185,10 +206,11 @@ object PrepareRepos {
         parseRepos(
           Seq(trainSetDir, devSetDir, testSetDir),
           loadFromFile = false,
-          parsedCallback = (_, _) => synchronized {
-            progress += 1
-            printResult(s"Progress: $progress")
-          }
+          parsedCallback = (_, _) =>
+            synchronized {
+              progress += 1
+              printResult(s"Progress: $progress")
+            }
         )
       }
     val stats = repoStatistics(trainSet ++ devSet ++ testSet)
@@ -208,16 +230,33 @@ object PrepareRepos {
     }
   }
 
-  @SerialVersionUID(0)
+  @SerialVersionUID(2)
   case class ParsedProject(
       path: ProjectPath,
-      pGraph: PredicateGraph,
+      gProject: GProject,
       qModules: Vector[QModule],
       irModules: Vector[IRModule],
-      userAnnots: Map[ProjNode, PType]
-  )
+      pGraph: PredicateGraph
+  ){
+    @transient
+    lazy val userAnnots: Map[ProjNode, PType] = {
+      val allAnnots = irModules.flatMap(_.mapping).toMap
+      allAnnots.collect {
+        case (n, Annot.User(t, _)) => ProjNode(n) -> t
+      }
+    }
 
-  @SerialVersionUID(1)
+    def mergeEqualities: ParsedProject = {
+      val (graph1, merger) = pGraph.mergeEqualities
+      val qModules1 = qModules.map{ _.mapNodes(merger)}
+      val irModules1 = irModules.map{ _.mapNodes(merger)}
+      ParsedProject(path, gProject, qModules1, irModules1, graph1)
+    }
+
+
+  }
+
+  @SerialVersionUID(2)
   case class ParsedRepos(
       libDefs: LibDefs,
       trainSet: List[ParsedProject],
@@ -243,12 +282,12 @@ object PrepareRepos {
 
     val rows = results
       .map {
-        case ParsedProject(path, graph, _, _, annots) =>
+        case p@ParsedProject(path, _, _, _, graph) =>
           val nLib = graph.nodes.count(_.fromLib)
           val nProj = graph.nodes.count(!_.fromLib)
           val nPred = graph.predicates.size
-          val libAnnots = annots.count(_._2.madeFromLibTypes)
-          val projAnnots = annots.size - libAnnots
+          val libAnnots = p.userAnnots.count(_._2.madeFromLibTypes)
+          val projAnnots = p.userAnnots.size - libAnnots
           path -> Vector(nLib, nProj, libAnnots, projAnnots, nPred)
       }
       .sortBy(_._2.last)
@@ -349,9 +388,12 @@ object PrepareRepos {
       (anyNode -> Annot.Missing)
 
     import translation.QLang._
-    val classes = (qModules :+ defaultModule).flatMap(_.stmts).collect{
-      case c: ClassDef => c
-    }.toSet
+    val classes = (qModules :+ defaultModule)
+      .flatMap(_.stmts)
+      .collect {
+        case c: ClassDef => c
+      }
+      .toSet
 
     println("Declaration files parsed.")
     LibDefs(anyNode, baseCtx1, nodeMapping, libExports, classes)
@@ -394,28 +436,26 @@ object PrepareRepos {
 
   def prepareProject(
       libDefs: LibDefs,
-      root: Path,
+      projectsBase: Path,
+      projectRoot: Path,
       skipSet: Set[String] = Set("dist", "__tests__", "test", "tests"),
       shouldPruneGraph: Boolean = true,
       errorHandler: ErrorHandler =
         ErrorHandler(ErrorHandler.ThrowError, ErrorHandler.ThrowError)
-  ): (PredicateGraph, Vector[QModule], Vector[IRModule], Map[ProjNode, PType]) =
-    SimpleMath.withErrorMessage(s"In project: $root") {
+  ): ParsedProject =
+    SimpleMath.withErrorMessage(s"In project: $projectRoot") {
       import libDefs._
 
-      def filterTests(path: Path): Boolean = {
-        path.segments.forall(!skipSet.contains(_))
-      }
-
       val p = ProgramParsing.parseGProjectFromRoot(
-        root,
-        filter = filterTests
+        projectRoot,
+        filter = (path: Path) => {
+          path.segments.forall(!skipSet.contains(_))
+        }
       )
-//      println(p.prettyPrint)
+
       val allocator = new PNodeAllocator(forLib = false)
       val irTranslator = new IRTranslation(allocator)
 
-//    println(s"LibExports key set: ${libExports.keySet}")
       val qModules = QLangTranslation.fromProject(
         p.modules,
         baseCtx,
@@ -448,19 +488,15 @@ object PrepareRepos {
         else graph0
 
       errorHandler.warnErrors()
-      printResult(s"Project parsed: '$root'")
+      printResult(s"Project parsed: '$projectRoot'")
 
-      val (graph1, merger) = graph.mergeEqualities
-//      val qModules1 = qModules.map{ _.mapNodes(merger)}
-//      val qModules1 = irModules.map{ _.mapNodes(merger)}
-      val mergerUserKeys = merger.keySet.collect {
-        case k if k.fromProject => ProjNode(k)
-      }
-      val userAnnots1 = (userAnnots.keySet -- mergerUserKeys).map { k =>
-        k -> userAnnots(k).substitute(n => merger.getOrElse(n, n))
-      }.toMap
-
-      (graph1, qModules, irModules, userAnnots1)
+      ParsedProject(
+        projectRoot.relativeTo(projectsBase),
+        p,
+        qModules,
+        irModules,
+        graph
+      )
     }
 
 }

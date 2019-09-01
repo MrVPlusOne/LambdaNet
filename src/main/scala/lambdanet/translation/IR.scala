@@ -1,14 +1,7 @@
 package lambdanet.translation
 
 import lambdanet._
-import lambdanet.translation.PredicateGraph.{
-  PFunc,
-  PNode,
-  PNodeAllocator,
-  PObject,
-  PTyVar,
-  PType
-}
+import lambdanet.translation.PredicateGraph._
 import IR._
 import lambdanet.translation.QLang.{QExpr, QModule, QStmt}
 
@@ -23,39 +16,10 @@ object IR {
       stmts: Vector[IRStmt],
       mapping: Map[PNode, PAnnot]
   ) {
-    // todo: move this to QLang
-//    def moduleStats: IRModuleStats = {
-//      var fieldsUsed, fieldsDefined: Set[Symbol] = Set()
-//
-//      /** collects fields definitions and usages */
-//      def processExpr(expr: IRExpr): Unit = expr match {
-//        case ObjLiteral(fields) =>
-//          fieldsDefined ++= fields.keySet
-//        case FieldAccess(_, label) =>
-//          fieldsUsed += label
-//        case _ =>
-//      }
-//
-//      /** collects fields definitions and usages */
-//      def processStmt(stmt: IRStmt): Unit = stmt match {
-//        case s: VarDef => processExpr(s.rhs)
-//        case s: IfStmt =>
-//          processStmt(s.e1)
-//          processStmt(s.e2)
-//        case s: WhileStmt => processStmt(s.body)
-//        case s: BlockStmt => s.stmts.foreach(processStmt)
-//        case s: FuncDef   => s.body.stmts.foreach(processStmt)
-//        case s: ClassDef =>
-//          s.funcDefs.foreach(processStmt)
-//          fieldsDefined ++= s.funcDefs.map(_.name)
-//          fieldsDefined ++= s.vars.keySet
-//        case _ =>
-//      }
-//
-//      stmts.foreach(processStmt)
-//
-//      IRModuleStats(fieldsUsed, fieldsDefined)
-//    }
+    def mapNodes(merger: NodeSubstitution): IRModule = {
+      val stmts1 = stmts.map(_.subst(n => merger.getOrElse(n, n)))
+      copy(stmts = stmts1, mapping = substituteMapping(mapping, merger))
+    }
   }
 
   case class IRModuleStats(
@@ -79,6 +43,21 @@ object IR {
     * */
   // @formatter:on
   sealed trait IRExpr {
+    def subst(f: PNode => PNode): IRExpr = this match {
+      case Var(n) =>
+        Var(f(n))
+      case FuncCall(fun, args) =>
+        FuncCall(f(fun), args.map(f))
+      case ObjLiteral(fields) =>
+        ObjLiteral(fields.mapValuesNow(f))
+      case FieldAccess(receiver, label) =>
+        FieldAccess(f(receiver), label)
+      case IfExpr(cond, e1, e2) =>
+        IfExpr(f(cond), f(e1), f(e2))
+      case Cast(expr, ty) =>
+        Cast(f(expr), f(ty))
+    }
+
     def prettyPrint: String
 
     override def toString: String = prettyPrint
@@ -130,7 +109,44 @@ object IR {
     * */
   // @formatter:on
   sealed trait IRStmt {
-//    def prettyPrint(indentSpaces: Int = 2): String = {
+    private def substBlock(
+        blockStmt: BlockStmt,
+        f: PNode => PNode
+    ): BlockStmt = {
+      val stmts = blockStmt.stmts
+      BlockStmt(stmts.map(_.subst(f)))
+    }
+
+    def subst(f: PNode => PNode): IRStmt = this match {
+      case VarDef(node, rhs, isConst) =>
+        VarDef(f(node), rhs.subst(f), isConst)
+      case AssignStmt(lhs, rhs) =>
+        AssignStmt(f(lhs), f(rhs))
+      case ReturnStmt(v, ret) =>
+        ReturnStmt(f(v), f(ret))
+      case IfStmt(cond, e1, e2) =>
+        IfStmt(
+          f(cond),
+          substBlock(e1, f),
+          substBlock(e2, f)
+        )
+      case WhileStmt(cond, body) =>
+        WhileStmt(f(cond), substBlock(body, f))
+      case b: BlockStmt =>
+        substBlock(b, f)
+      case FuncDef(n, args, ret, body) =>
+        FuncDef(f(n), args.map(f), f(ret), substBlock(body, f))
+      case ClassDef(n, superTypes, vars, funcDefs) =>
+        val s1 = superTypes.map { case PTyVar(n) => PTyVar(f(n)) }
+        ClassDef(
+          f(n),
+          s1,
+          vars.mapValuesNow(f),
+          funcDefs.mapValuesNow(_.subst(f).asInstanceOf[FuncDef])
+        )
+    }
+
+    //    def prettyPrint(indentSpaces: Int = 2): String = {
 //      IRStmt
 //        .prettyPrintHelper(0, this)
 //        .map {
@@ -150,7 +166,7 @@ object IR {
 
   case class AssignStmt(lhs: PNode, rhs: PNode) extends IRStmt
 
-  case class ReturnStmt(v: PNode, returnType: PNode) extends IRStmt
+  case class ReturnStmt(v: PNode, ret: PNode) extends IRStmt
 
   case class IfStmt(cond: PNode, e1: BlockStmt, e2: BlockStmt) extends IRStmt
 

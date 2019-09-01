@@ -1,15 +1,6 @@
 package lambdanet.translation
 
-import lambdanet._
-import lambdanet.translation.PredicateGraph.{
-  PAny,
-  PFuncType,
-  PNode,
-  PNodeAllocator,
-  PObjectType,
-  PTyVar,
-  PType
-}
+import lambdanet.translation.PredicateGraph._
 import QLang._
 import ammonite.ops.RelPath
 import funcdiff.SimpleMath
@@ -20,9 +11,10 @@ import lambdanet.translation.ImportsResolution.{
   PathMapping
 }
 import lambdanet.translation.PLang.PModule
-import lambdanet.Surface.{GModule, GStmt}
+import lambdanet.Surface.GModule
 import lambdanet.utils.ProgramParsing
 import lambdanet._
+
 import scala.collection.mutable
 
 object QLang {
@@ -32,9 +24,51 @@ object QLang {
       path: ProjectPath,
       stmts: Vector[QStmt],
       mapping: Map[PNode, PAnnot]
-  )
+  ) {
+    stmts.map(_.subst(n => {
+      if (n.fromProject && !mapping.contains(n)) {
+        printWarning(s"mapping missing for $n.", mustWarn = true)
+      }
+      n
+    }))
 
-  sealed trait QStmt
+    def mapNodes(merger: NodeSubstitution): QModule = {
+      val stmts1 = stmts.map(_.subst(n => merger.getOrElse(n, n)))
+      copy(stmts = stmts1, mapping = substituteMapping(mapping, merger))
+    }
+
+  }
+
+  sealed trait QStmt {
+    def subst(f: PNode => PNode): QStmt = this match {
+      case VarDef(node, init, isConst) =>
+        VarDef(f(node), init.subst(f), isConst)
+      case AssignStmt(lhs, rhs) =>
+        AssignStmt(lhs.subst(f), rhs.subst(f))
+      case ExprStmt(e) =>
+        ExprStmt(e.subst(f))
+      case ReturnStmt(e, ret) =>
+        ReturnStmt(e.subst(f), f(ret))
+      case IfStmt(cond, branch1, branch2) =>
+        IfStmt(cond.subst(f), branch1.subst(f), branch2.subst(f))
+      case WhileStmt(cond, body) =>
+        WhileStmt(cond.subst(f), body.subst(f))
+      case BlockStmt(stmts) =>
+        BlockStmt(stmts.map(_.subst(f)))
+      case FuncDef(funcNode, args, returnType, body) =>
+        FuncDef(f(funcNode), args.map(f), f(returnType), body.subst(f))
+      case ClassDef(cn, superTypes, vars, funcDefs) =>
+        ClassDef(
+          f(cn),
+          superTypes.map { case PTyVar(node) => PTyVar(f(node)) },
+          vars.mapValuesNow(f),
+          funcDefs.map {
+            case (n, func) => n -> func.subst(f).asInstanceOf[FuncDef]
+          }
+        )
+    }
+
+  }
 
   case class VarDef(node: PNode, init: QExpr, isConst: Boolean) extends QStmt
 
@@ -57,6 +91,7 @@ object QLang {
       body: QStmt
   ) extends QStmt
 
+  @SerialVersionUID(1)
   case class ClassDef(
       classNode: PNode,
       superTypes: Set[PTyVar],
@@ -65,6 +100,21 @@ object QLang {
   ) extends QStmt
 
   sealed trait QExpr {
+    def subst(f: PNode => PNode): QExpr = this match {
+      case Var(node) =>
+        Var(f(node))
+      case FuncCall(fun, args) =>
+        FuncCall(fun.subst(f), args.map(_.subst(f)))
+      case Cast(expr, ty) =>
+        Cast(expr.subst(f), ty.substitute(f))
+      case ObjLiteral(fields) =>
+        ObjLiteral(fields.mapValuesNow(_.subst(f)))
+      case Access(expr, field) =>
+        Access(expr.subst(f), field)
+      case IfExpr(cond, e1, e2) =>
+        IfExpr(cond.subst(f), e1.subst(f), e2.subst(f))
+    }
+
     var tyAnnot: PAnnot = _
 
     override def toString: String = this match {

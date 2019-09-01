@@ -31,7 +31,7 @@ import scala.concurrent.{
 import scala.language.reflectiveCalls
 
 object TrainingLoop extends TrainingLoopTrait {
-  val toyMod: Boolean = false
+  val toyMod: Boolean = true
   val onlySeqModel = false
   val useDropout: Boolean = false
   val useOracleForIsLib: Boolean = true
@@ -157,6 +157,7 @@ object TrainingLoop extends TrainingLoopTrait {
                 DebugTime.logTime("saveTraining") {
                   saveTraining(epoch, s"epoch$epoch")
                 }
+              TensorExtension.checkNaN = (epoch - 1) % 10 == 0
             }
           }
         }

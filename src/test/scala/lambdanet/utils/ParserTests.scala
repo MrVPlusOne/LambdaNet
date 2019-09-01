@@ -256,8 +256,9 @@ class ParserTests extends WordSpec with MyTest {
     // fixme: TestDef is missing when resolving types
     val f = pwd / RelPath("data/tests/export-import")
     lambdanet.shouldWarn = true
-    val (g, _, _, _) =
-      prepareProject(libDefs, f, skipSet = Set(), shouldPruneGraph = false)
+    val parsed =
+      prepareProject(libDefs, f/up, f, skipSet = Set(), shouldPruneGraph = false)
+    val g = parsed.pGraph
     g.predicates.foreach(println)
     g.predicates.collect {
       case DefineRel(p, expr) if p.nameOpt.contains('a) =>
@@ -275,18 +276,21 @@ class ParserTests extends WordSpec with MyTest {
 
     val dir = pwd / RelPath(
 //      "../lambda-repos/bigger/testSet/Microsoft_TypeScriptSamples"
-      "data/tests/syntax"
+      "data/tests/interface"
     )
-    val (g, qModules, irModules, annots) =
+    val parsed@ParsedProject(_, gProject, qModules, irModules, g) =
       prepareProject(
         libDefs,
+        dir/up,
         dir,
         skipSet = Set(),
         errorHandler =
           ErrorHandler(ErrorHandler.StoreError, ErrorHandler.StoreError)
-      )
+      ).mergeEqualities
+    val annots = parsed.userAnnots
+    println{gProject.prettyPrint}
     val truth = annots.map { case (k, v) => k.n -> v }
-    val projName = "samples"
+    val projName = "interface"
 
     QLangDisplay.renderProjectToDirectory(projName, qModules, truth.map {
       case (k, v) => k -> TopNDistribution(Vector(1.0 -> v))
@@ -326,6 +330,7 @@ class ParserTests extends WordSpec with MyTest {
 
     println {
       Predictor(
+        projName,
         g,
         libTypesToPredict,
         libDefs,

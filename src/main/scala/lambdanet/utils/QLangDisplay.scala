@@ -29,6 +29,9 @@ object QLangDisplay {
     def warning(str: Output): Output =
       span(color := "magenta")(str)
 
+    def error(str: Output): Output =
+      span(color := "orange")(str)
+
     def key(str: Output): Output = b(str)
 
     implicit def qExpr2Output(e: QExpr): Output = e.toString
@@ -65,36 +68,40 @@ object QLangDisplay {
         topNPrediction.mapValuesNow(_.topValue)
 
       def showAnnot(x: PNode): Output = {
-        truth(x) match {
-          case Annot.User(t, _) =>
-            val annot = prediction.get(x) match {
-              case None => warning(s": [miss]$t")
-              case Some(p) =>
-                val annot =
-                  if (t == p) correct(": " + t)
-                  else if (!predSpace.contains(t)) {
-                    if (p == unknownType) correct(s": [UNKN]$t")
-                    else incorrect(s": [OOV]$t")
-                  } else {
-                    incorrect(s": ($p ≠ $t)")
-                  }
-                val tooltipText = {
-                  topNPrediction(x).distr
-                    .map {
-                      case (prob, ty) =>
-                        s"$ty: %.2f%%".format(prob * 100)
+        truth.get(x) match {
+          case Some(annot) =>
+            annot match {
+              case Annot.User(t, _) =>
+                val annot = prediction.get(x) match {
+                  case None => warning(s": [miss]$t")
+                  case Some(p) =>
+                    val annot =
+                      if (t == p) correct(": " + t)
+                      else if (!predSpace.contains(t)) {
+                        if (p == unknownType) correct(s": [UNKN]$t")
+                        else incorrect(s": [OOV]$t")
+                      } else {
+                        incorrect(s": ($p ≠ $t)")
+                      }
+                    val tooltipText = {
+                      topNPrediction(x).distr
+                        .map {
+                          case (prob, ty) =>
+                            s"$ty: %.2f%%".format(prob * 100)
+                        }
+                        .mkString("    ")
                     }
-                    .mkString("    ")
+                    span(attr("data-toggle") := "tooltip", title := tooltipText)(
+                      annot
+                    )
                 }
-                span(attr("data-toggle") := "tooltip", title := tooltipText)(
-                  annot
-                )
-            }
 
-            val idToDisplay = s"annot-${x.getId}"
-            span(id := idToDisplay)(annot)
-          case Annot.Fixed(t) => s": [fix]$t"
-          case Annot.Missing  => ""
+                val idToDisplay = s"annot-${x.getId}"
+                span(id := idToDisplay)(annot)
+              case Annot.Fixed(t) => s": [fix]$t"
+              case Annot.Missing  => ""
+            }
+          case None => error("[Truth Missing]")
         }
       }
 
@@ -318,8 +325,9 @@ object QLangDisplay {
       }
 
     val f = pwd / RelPath("data/toy")
-    val (g, qModules, _, annts) =
-      prepareProject(libDefs, f, skipSet = Set())
+    val p@ParsedProject(_, _, qModules, _, g) =
+      prepareProject(libDefs, pwd / "data", f, skipSet = Set())
+    val annts = p.userAnnots
 
     val groundTruth = annts.map { case (k, v) => k.n -> v }
     val prediction = groundTruth.updated(

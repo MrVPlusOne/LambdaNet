@@ -74,7 +74,17 @@ object PredicateGraph {
     def unapply(n: PNode): Option[(Int, Option[Symbol], Boolean, Boolean)] = {
       Some((n.id, n.nameOpt, n.isType, n.fromLib))
     }
+  }
 
+  type NodeSubstitution = Map[PNode, PNode]
+  type NodeMapping = Map[PNode, PAnnot]
+  def substituteMapping(mapping: NodeMapping, subst: NodeSubstitution): NodeMapping = {
+    val mergerUserKeys = subst.keySet.collect {
+      case k if k.fromProject => k
+    }
+    (mapping.keySet -- mergerUserKeys).map { k =>
+      k -> mapping(k).map(_.substitute(n => subst.getOrElse(n, n)))
+    }.toMap
   }
 
   @SerialVersionUID(1)
@@ -440,7 +450,7 @@ object PredicateGraphTranslation {
                 define(PAccess(receiver, label))
               case Cast(expr, node) =>
                 add(BinaryRel(node, expr, subtype))
-                define(node)
+                add(BinaryRel(lhs, node, fixType))
             }
           case AssignStmt(lhs, rhs) =>
             add(BinaryRel(lhs, rhs, assign))

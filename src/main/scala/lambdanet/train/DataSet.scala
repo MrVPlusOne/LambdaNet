@@ -62,9 +62,10 @@ object DataSet {
 
       val data: Vector[Datum] = {
         (trainSet ++ devSet ++ testSet).toVector.par.map {
-          case ParsedProject(path, g, qModules, irModules, annotations) =>
+          case p@ParsedProject(path, _, qModules, irModules, g) =>
             val predictor =
               Predictor(
+                path,
                 g,
                 libTypesToPredict,
                 libDefs,
@@ -78,7 +79,7 @@ object DataSet {
               taskSupport
             )
 
-            val annots1 = annotations.mapValuesNow (nonGenerifyIt)
+            val annots1 = p.userAnnots.mapValuesNow (nonGenerifyIt)
             Datum(path, annots1, qModules, predictor, seqPredictor)
               .tap(printResult)
         }.seq
