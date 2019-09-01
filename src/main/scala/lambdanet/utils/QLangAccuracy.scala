@@ -13,8 +13,8 @@ object QLangAccuracy {
 
   def occurrenceMap(stmts: Vector[QStmt]): Stat = {
     def rec(stmt: QStmt): Stat = stmt match {
-      case VarDef(n, init, _) =>
-        Map(n -> 1) |+| recE(init)
+      case VarDef(n, initOpt, _) =>
+        Map(n -> 1) |+| initOpt.map(recE).getOrElse(Map())
       case AssignStmt(lhs, rhs) =>
         recE(lhs) |+| recE(rhs)
       case ExprStmt(e)      => recE(e)
@@ -30,6 +30,8 @@ object QLangAccuracy {
       case ClassDef(_, _, vars, fs) =>
         vars.values.map(_ -> 1).toMap |+|
           fs.valuesIterator.toList.foldMap(rec)
+      case TypeAliasStmt(n, _, superTypes) =>
+        Map(n -> 1) ++ superTypes.map(t => t.node -> 1).toMap
     }
 
     def recE(expr: QExpr): Stat = expr match {

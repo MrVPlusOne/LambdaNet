@@ -147,15 +147,15 @@ object TrainingLoop extends TrainingLoopTrait {
         (trainingState.epoch0 + 1 to maxTrainingEpochs).foreach { epoch =>
           announced(s"epoch $epoch") {
             handleExceptions(epoch) {
+              if ((epoch - 1) % saveInterval == 0)
+                DebugTime.logTime("saveTraining") {
+                  saveTraining(epoch, s"epoch$epoch")
+                }
               trainStep(epoch)
               if ((epoch - 1) % 3 == 0)
                 DebugTime.logTime("testSteps") {
                   testStep(epoch, isTestSet = false)
                   testStep(epoch, isTestSet = true)
-                }
-              if ((epoch - 1) % saveInterval == 0)
-                DebugTime.logTime("saveTraining") {
-                  saveTraining(epoch, s"epoch$epoch")
                 }
               TensorExtension.checkNaN = (epoch - 1) % 10 == 0
             }

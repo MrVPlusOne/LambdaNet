@@ -1,20 +1,8 @@
 package lambdanet.translation
 
+import ammonite.ops.RelPath
 import funcdiff.SimpleMath
-import lambdanet.{
-  Annot,
-  AnyType,
-  ExportLevel,
-  ExportStmt,
-  FuncType,
-  GType,
-  ImportStmt,
-  ObjectType,
-  ProjectPath,
-  TyAnnot,
-  TyVar,
-  Surface
-}
+import lambdanet.{Annot, AnyType, ExportLevel, ExportStmt, FuncType, GType, ImportStmt, ObjectType, ProjectPath, Surface, TyAnnot, TyVar, printWarning}
 import lambdanet.Surface.{GExpr, GModule}
 import lambdanet.translation.PLang._
 import lambdanet.translation.PredicateGraph.{PNode, PNodeAllocator}

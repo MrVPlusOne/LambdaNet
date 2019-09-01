@@ -13,6 +13,7 @@ import scala.language.implicitConversions
 
 object QLangDisplay {
   import scalatags.Text.all._
+  import scalatags.stylesheet._
 
   private object Impl {
 
@@ -34,9 +35,30 @@ object QLangDisplay {
 
     def key(str: Output): Output = b(str)
 
-    implicit def qExpr2Output(e: QExpr): Output = e.toString
+    implicit def node2Output(e: PNode): Output = {
+      if (e.fromProject)
+        a(href := s"#def-${e.getId}")(e.toString)
+      else e.toString
+    }
 
-    implicit def qExpr2Output(e: PNode): Output = e.toString
+    implicit def qExpr2Output(e: QExpr): Output = {
+      def rec(e: QExpr): Output = e match {
+        case Var(n) => n
+        case FuncCall(f, args) =>
+          code(rec(f), mkSpan(args.map(rec), "(", ",", ")"))
+        case Cast(expr, ty) =>
+          code(rec(expr), " as ", ty.toString)
+        case ObjLiteral(fields) =>
+          fields
+            .map { case (n, t) => code(n.name, ": ", rec(t)) }
+            .pipe(xs => mkSpan(xs.toVector, "{", ",", "}"))
+        case Access(l, r) =>
+          code(rec(l), ".", r.name)
+        case IfExpr(cond, e1, e2) =>
+          code("(", rec(cond), " ? ", rec(e1), " : ", rec(e2))
+      }
+      rec(e)
+    }
 
     def code(elements: Output*): Output = {
       span(elements)
@@ -72,30 +94,29 @@ object QLangDisplay {
           case Some(annot) =>
             annot match {
               case Annot.User(t, _) =>
-                val annot = prediction.get(x) match {
-                  case None => warning(s": [miss]$t")
-                  case Some(p) =>
-                    val annot =
-                      if (t == p) correct(": " + t)
-                      else if (!predSpace.contains(t)) {
-                        if (p == unknownType) correct(s": [UNKN]$t")
-                        else incorrect(s": [OOV]$t")
-                      } else {
-                        incorrect(s": ($p ≠ $t)")
-                      }
-                    val tooltipText = {
-                      topNPrediction(x).distr
-                        .map {
-                          case (prob, ty) =>
-                            s"$ty: %.2f%%".format(prob * 100)
+                val annot =
+                  if (!predSpace.contains(t)) warning(s": [OOV]$t")
+                  else {
+                    prediction.get(x) match {
+                      case None => warning(s": [miss]$t")
+                      case Some(p) =>
+                        val annot =
+                          if (t == p) correct(": " + t)
+                          else incorrect(s": ($p ≠ $t)")
+                        val tooltipText = {
+                          topNPrediction(x).distr
+                            .map {
+                              case (prob, ty) =>
+                                s"$ty: %.2f%%".format(prob * 100)
+                            }
+                            .mkString("    ")
                         }
-                        .mkString("    ")
+                        span(
+                          attr("data-toggle") := "tooltip",
+                          title := tooltipText
+                        )(annot)
                     }
-                    span(attr("data-toggle") := "tooltip", title := tooltipText)(
-                      annot
-                    )
-                }
-
+                  }
                 val idToDisplay = s"annot-${x.getId}"
                 span(id := idToDisplay)(annot)
               case Annot.Fixed(t) => s": [fix]$t"
@@ -105,13 +126,35 @@ object QLangDisplay {
         }
       }
 
+      def definition(n: PNode): Output = {
+        span(id := s"def-${n.getId}")(b(n.toString))
+      }
+
+      def superPart(superType: Set[PTyVar]) =
+        if (superType.nonEmpty)
+          mkSpan(
+            superType.map(_.toString: Output).toVector,
+            " extends ",
+            " with ",
+            ""
+          )
+        else code("")
+
       def rec(indent: Int, stmt: QStmt): Vector[(Int, Output)] = {
         stmt match {
           case VarDef(x, init, isConst) =>
             val keyword = if (isConst) "const" else "let"
             Vector(
               indent ->
-                code(key(keyword), " ", x, showAnnot(x), key(" = "), init, ";")
+                code(
+                  key(keyword),
+                  " ",
+                  definition(x),
+                  showAnnot(x),
+                  key(" = "),
+                  init,
+                  ";"
+                )
             )
           case AssignStmt(lhs, rhs) =>
             Vector(indent -> code(lhs, key("  ⃪ "), rhs, ";"))
@@ -136,43 +179,49 @@ object QLangDisplay {
           case FuncDef(funcName, args, ret, bd) =>
             val argList = args
               .map { n =>
-                code(n, showAnnot(n))
+                code(definition(n), showAnnot(n))
               }
               .pipe(xs => mkSpan(xs, "(", ",", ")"))
             Vector(
               indent -> code(
                 key("function "),
-                funcName,
+                definition(funcName),
                 " ",
                 argList,
                 ": (",
-                ret,
+                definition(ret),
                 showAnnot(ret),
                 ")"
               )
             ) ++
               rec(indent, makeSureInBlockQ(bd))
-          case ClassDef(n, superType, vars, funcDefs) =>
-            val superPart =
-              if (superType.nonEmpty)
-                mkSpan(
-                  superType.map(_.toString: Output).toVector,
-                  " extends ",
-                  " with ",
-                  ""
-                )
-              else code("")
+          case ClassDef(n, superTypes, vars, funcDefs) =>
             Vector(
-              indent -> code(key("class "), n, superPart, "{")
+              indent -> code(
+                key("class "),
+                definition(n),
+                superPart(superTypes),
+                "{"
+              )
             ) ++
               vars.toList.map {
                 case (_, field) =>
-                  (indent + 1, code(field, showAnnot(field), ";"))
+                  (indent + 1, code(definition(field), showAnnot(field), ";"))
               } ++
               funcDefs.toVector.flatMap { fDef =>
                 rec(indent + 1, fDef._2)
               } ++
               Vector(indent -> code("}"))
+          case TypeAliasStmt(n, aliased, superTypes) =>
+            Vector(
+              indent -> code(
+                key("type "),
+                definition(n),
+                superPart(superTypes),
+                key(" = "),
+                aliased.toString
+              )
+            )
         }
       }
 
@@ -238,7 +287,10 @@ object QLangDisplay {
     val output = html(
       head(
         h3(s"LibAcc: $libAccStr, ProjAcc: $projAccStr, Missing: $numMissing"),
-        meta(charset := "UTF-8")
+        meta(charset := "UTF-8"),
+        tag("style")(
+          "a { text-decoration: none; color='black' } a:hover { text-decoration: underline; }"
+        )
       ),
       renderedModules
     ).toString()
@@ -258,6 +310,7 @@ object QLangDisplay {
     var panelId = 0
     def mkCollapse(title: Modifier, items: Seq[Modifier]) = {
       val pId = synchronized { panelId += 1; panelId }
+
       div(`class` := "panel-group")(
         div(`class` := "panel panel-default")(
           div(`class` := "panel-heading")(
@@ -297,6 +350,7 @@ object QLangDisplay {
               }
               mkCollapse(s"$ty | ${list.length}", list)
           }
+
         val text = html(
           head(
             link(rel := "stylesheet", href := "bootstrap/bootstrap.css"),
@@ -325,7 +379,7 @@ object QLangDisplay {
       }
 
     val f = pwd / RelPath("data/toy")
-    val p@ParsedProject(_, _, qModules, _, g) =
+    val p @ ParsedProject(_, _, qModules, _, g) =
       prepareProject(libDefs, pwd / "data", f, skipSet = Set())
     val annts = p.userAnnots
 

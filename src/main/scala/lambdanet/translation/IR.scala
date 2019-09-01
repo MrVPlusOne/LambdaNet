@@ -211,9 +211,11 @@ class IRTranslation(allocator: PNodeAllocator) {
     }
 
     s match {
-      case QLang.VarDef(v, init, isConst) =>
-        val (defs, initE) = translateExpr2(init)
-        defs ++ Vector(VarDef(v, initE, isConst))
+      case QLang.VarDef(v, initOpt, isConst) =>
+        initOpt.map { init =>
+          val (defs, initE) = translateExpr2(init)
+          defs ++ Vector(VarDef(v, initE, isConst))
+        }.getOrElse(Vector())
       case QLang.AssignStmt(lhs, rhs) =>
         val (defs3, lV) = exprAsPNode(lhs)
         val (defs4, rV) = exprAsPNode(rhs)
@@ -250,6 +252,7 @@ class IRTranslation(allocator: PNodeAllocator) {
             funcDefs.mapValuesNow(translateFunc)
           )
         )
+      case _: QLang.TypeAliasStmt => Vector()
     }
   }
 

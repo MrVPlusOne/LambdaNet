@@ -456,7 +456,9 @@ object PrepareRepos {
       val allocator = new PNodeAllocator(forLib = false)
       val irTranslator = new IRTranslation(allocator)
 
+      val projectName = projectRoot.relativeTo(projectsBase)
       val qModules = QLangTranslation.fromProject(
+        projectName,
         p.modules,
         baseCtx,
         libExports,
@@ -491,7 +493,7 @@ object PrepareRepos {
       printResult(s"Project parsed: '$projectRoot'")
 
       ParsedProject(
-        projectRoot.relativeTo(projectsBase),
+        projectName,
         p,
         qModules,
         irModules,

@@ -25,12 +25,6 @@ object QLang {
       stmts: Vector[QStmt],
       mapping: Map[PNode, PAnnot]
   ) {
-    stmts.map(_.subst(n => {
-      if (n.fromProject && !mapping.contains(n)) {
-        printWarning(s"mapping missing for $n.", mustWarn = true)
-      }
-      n
-    }))
 
     def mapNodes(merger: NodeSubstitution): QModule = {
       val stmts1 = stmts.map(_.subst(n => merger.getOrElse(n, n)))
@@ -42,7 +36,7 @@ object QLang {
   sealed trait QStmt {
     def subst(f: PNode => PNode): QStmt = this match {
       case VarDef(node, init, isConst) =>
-        VarDef(f(node), init.subst(f), isConst)
+        VarDef(f(node), init.map(_.subst(f)), isConst)
       case AssignStmt(lhs, rhs) =>
         AssignStmt(lhs.subst(f), rhs.subst(f))
       case ExprStmt(e) =>
@@ -66,11 +60,16 @@ object QLang {
             case (n, func) => n -> func.subst(f).asInstanceOf[FuncDef]
           }
         )
+      case TypeAliasStmt(n, pt, supers) =>
+        TypeAliasStmt(f(n), pt.substitute(f), supers.map {
+          case PTyVar(v) => PTyVar(f(v))
+        })
     }
 
   }
 
-  case class VarDef(node: PNode, init: QExpr, isConst: Boolean) extends QStmt
+  case class VarDef(node: PNode, init: Option[QExpr], isConst: Boolean)
+      extends QStmt
 
   case class AssignStmt(lhs: QExpr, rhs: QExpr) extends QStmt
 
@@ -97,6 +96,12 @@ object QLang {
       superTypes: Set[PTyVar],
       vars: Map[Symbol, PNode],
       funcDefs: Map[Symbol, FuncDef]
+  ) extends QStmt
+
+  case class TypeAliasStmt(
+      n: PNode,
+      aliased: PType,
+      superTypes: Set[PTyVar]
   ) extends QStmt
 
   sealed trait QExpr {
@@ -226,6 +231,7 @@ object QLangTranslation {
   }
 
   def fromProject(
+      projectName: RelPath,
       modules: Vector[GModule],
       baseCtx: ModuleExports,
       resolved: Map[ProjectPath, ModuleExports],
@@ -445,9 +451,7 @@ object QLangTranslation {
           stmt match {
             case PLang.VarDef(_, node, init, isConst, _) =>
               mapNode(node)
-              init.map { i =>
-                VarDef(node, translateExpr(i), isConst)
-              }.toVector
+              Vector(VarDef(node, init.map(translateExpr), isConst))
             case PLang.AssignStmt(lhs, rhs) =>
               Vector(AssignStmt(translateExpr(lhs), translateExpr(rhs)))
             case PLang.ExprStmt(e, isReturn) =>
@@ -529,12 +533,10 @@ object QLangTranslation {
               )
             case a: PLang.TypeAliasStmt =>
               mapNode(a.node)
-              if (a.superTypes.nonEmpty) {
-                val superTypes = a.superTypes.map(
-                  t => resolveType(TyVar(t)).asInstanceOf[PTyVar]
-                )
-                Vector(ClassDef(a.node, superTypes, Map(), Map()))
-              } else Vector()
+              val superTypes = a.superTypes.map(
+                t => resolveType(TyVar(t)).asInstanceOf[PTyVar]
+              )
+              Vector(TypeAliasStmt(a.node, newMapping(a.node).get, superTypes))
             case PLang.Namespace(name, block, _) =>
               val ctx1 = ctx |+| ctx.internalSymbols(name).namespace.get
               block.stmts.flatMap(s => translateStmt(s)(ctx1))
