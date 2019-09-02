@@ -44,8 +44,8 @@ object DataSet {
           )
           ParsedRepos(libDefs, trainSet, devSet, testSet)
         } else {
-          announced(s"read data set from '$parsedRepoPath'") {
-            SM.readObjectFromFile[ParsedRepos](parsedRepoPath.toIO)
+          announced(s"read data set from dir '$parsedReposDir'") {
+            ParsedRepos.readFromDir(parsedReposDir)
           }
         }
 
@@ -62,8 +62,8 @@ object DataSet {
 
       val data: Vector[Datum] = {
         ((trainSet ++ devSet).zip(Stream.continually(true)) ++
-          testSet.zip(Stream.continually(false))).toVector.par.map {
-          case (p @ ParsedProject(path, qModules, irModules, g), useInferred) =>
+          testSet.zip(Stream.continually(false))).toVector.par.flatMap {
+          case (p@ParsedProject(path, qModules, irModules, g), useInferred) =>
             val predictor =
               Predictor(
                 path,
@@ -83,10 +83,15 @@ object DataSet {
             val annots =
               if (useInferred) p.allUserAnnots else p.nonInferredUserAnnots
             val annots1 = annots.mapValuesNow(nonGenerifyIt)
-            Datum(path, annots1, qModules.map { m =>
-              m.copy(mapping = m.mapping.mapValuesNow(_.map(nonGenerifyIt)))
-            }, predictor, seqPredictor)
-              .tap(printResult)
+            try {
+              Datum(path, annots1, qModules.map { m =>
+                m.copy(mapping = m.mapping.mapValuesNow(_.map(nonGenerifyIt)))
+              }, predictor, seqPredictor)
+                .tap(printResult)
+                .pipe(Vector(_))
+            } catch {
+              case EmptyNodesToPredict => Vector()
+            }
         }.seq
       }
 
@@ -156,6 +161,8 @@ object DataSet {
 
 }
 
+case object EmptyNodesToPredict extends Exception
+
 case class Datum(
     projectName: ProjectPath,
     annotations: Map[ProjNode, PType],
@@ -210,7 +217,9 @@ case class Datum(
     }.toVector
 
     annotsToUse.map(_._1).tap { ns =>
-      assert(ns.nonEmpty, ns)
+      if(ns.isEmpty){
+        throw EmptyNodesToPredict
+      }
     }
   }
 }

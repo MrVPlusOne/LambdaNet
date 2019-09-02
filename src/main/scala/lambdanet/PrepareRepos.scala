@@ -43,7 +43,8 @@ case class LibDefs(
 
 object PrepareRepos {
   val libDefsFile: Path = pwd / up / "lambda-repos" / "libDefs.serialized"
-  val parsedRepoPath: Path = pwd / "data" / "parsedDataSet.serialized"
+//  val parsedRepoPath: Path = pwd / "data" / "parsedDataSet.serialized"
+  val parsedReposDir: Path = pwd / 'data / "parsedRepos"
 
   def main(args: Array[String]): Unit = {
 //    val defs = parseLibDefs()
@@ -52,7 +53,9 @@ object PrepareRepos {
 
 //    parseAndFilterDataSet()
 //    mixTestDevSet()
-    parseAndSerializeDataSet()
+//    parseAndSerializeDataSet()
+
+    testNewSerialization()
   }
 
   sealed trait RepoResult {
@@ -141,6 +144,7 @@ object PrepareRepos {
     announced("parsePredGraphs")(
       parseRepos(
         Seq(trainSetDir),
+        loadFromFile = false,
         inParallel = true,
         maxLinesOfCode = 20000,
         parsedCallback = (file, pOpt) => {
@@ -184,15 +188,32 @@ object PrepareRepos {
     }
 
     val num = allProjects.length
-    allProjects.take(40).foreach { f =>
+    allProjects.take(50).foreach { f =>
       tryMove(f, base / "bigger" / "testSet" / f.last)
     }
-    allProjects.slice(40, 80).foreach { f =>
+    allProjects.slice(50, 100).foreach { f =>
       tryMove(f, base / "bigger" / "devSet" / f.last)
     }
-    allProjects.drop(80).foreach { f =>
+    allProjects.drop(100).foreach { f =>
       tryMove(f, base / "bigger" / "trainSet" / f.last)
     }
+  }
+
+  def testNewSerialization(): Unit = {
+    val repos = announced("read1") {
+      SM.readObjectFromFile[ParsedRepos](
+        (parsedReposDir / up / "parsedDataSet.serialized").toIO
+      )
+    }
+
+    announced("write") {
+      repos.serializeIntoDir(parsedReposDir)
+    }
+
+    announced("read2") {
+      ParsedRepos.readFromDir(parsedReposDir)
+    }
+
   }
 
   def parseAndSerializeDataSet(): Unit = {
@@ -221,12 +242,11 @@ object PrepareRepos {
       }
       .mkString(", ")
     printResult(avgStats)
-    write.over(parsedRepoPath / up / "stats.txt", avgStats)
+    write.over(parsedReposDir / up / "stats.txt", avgStats)
 
-    announced(s"save data set to file: $parsedRepoPath") {
-      SM.saveObjectToFile(parsedRepoPath.toIO)(
-        ParsedRepos(libDefs, trainSet, devSet, testSet)
-      )
+    announced(s"save data set to dir: $parsedReposDir") {
+      ParsedRepos(libDefs, trainSet, devSet, testSet)
+        .serializeIntoDir(parsedReposDir)
     }
   }
 
@@ -261,13 +281,95 @@ object PrepareRepos {
     }
   }
 
+  import concurrent.{Future, Await}
+  import concurrent.ExecutionContext.Implicits.global
+  import concurrent.duration._
+
   @SerialVersionUID(2)
   case class ParsedRepos(
       libDefs: LibDefs,
       trainSet: List[ParsedProject],
       devSet: List[ParsedProject],
       testSet: List[ParsedProject]
-  )
+  ) {
+    import ParsedRepos._
+
+    def meta(chunkNum: Int) = Meta(trainSet.length, devSet.length, testSet.length,chunkNum)
+
+    def serializeIntoDir(
+        dir: Path,
+        timeoutSeconds: Int = 200,
+        chunkSize: Int = 50
+    ): Unit = {
+      import cats.implicits._
+
+      if (exists(dir)) rm(dir)
+      mkdir(dir)
+
+      def withName(
+          data: List[List[Serializable]],
+          dataSetName: String
+      ): List[(Serializable, String)] = {
+        data.zipWithIndex.map { case (d, i) => d -> (dataSetName + i) }
+      }
+
+      val libDefsF = Future {
+        SM.saveObjectToFile((dir / "libDefs").toIO)(libDefs)
+      }
+
+      val chunkSize = 50
+      val chunks = withName(
+        (trainSet ++ devSet ++ testSet).grouped(chunkSize).toList,
+        "chunk"
+      )
+      val toSave = (meta(chunks.length) -> "meta") +: chunks
+
+      val allF = (libDefsF +: toSave.toVector.map {
+        case (d, name) =>
+          Future { SM.saveObjectToFile((dir / name).toIO)(d) }
+      }).sequence_
+
+      Await.result(allF, timeoutSeconds.second)
+    }
+  }
+
+  object ParsedRepos {
+    case class Meta(trainSetSize: Int, devSetSize: Int, testSetSize: Int, chunkNum: Int) {
+      def totoalProjectNum = trainSetSize + devSetSize + testSetSize
+    }
+
+    def readFromDir(dir: Path, timeoutSeconds: Int = 200): ParsedRepos = {
+      import cats.implicits._
+
+      val meta = SM.readObjectFromFile[Meta]((dir / "meta").toIO)
+      import meta._
+      val libDefsF = Future {
+        announced("read libDefs") {
+          SM.readObjectFromFile[LibDefs]((dir / "libDefs").toIO)
+        }
+      }
+      Thread.sleep(100)
+      val chunksF = (0 until chunkNum).toVector.map { i =>
+        Future {
+          SM.readObjectFromFile[List[ParsedProject]]((dir / s"chunk$i").toIO)
+        }
+      }.sequence
+      val resultF = for {
+        libDefs <- libDefsF
+        projectChunks <- chunksF.map(_.toList)
+        projects = projectChunks.flatten
+      } yield {
+        ParsedRepos(
+          libDefs,
+          projects.take(trainSetSize),
+          projects.slice(trainSetSize, trainSetSize + devSetSize),
+          projects.drop(trainSetSize + devSetSize)
+        )
+      }
+
+      Await.result(resultF, timeoutSeconds.second)
+    }
+  }
 
   case class RepoStats(
       average: Vector[Double],

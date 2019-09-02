@@ -18,7 +18,7 @@ object DownloadRepos {
       read(workingDir / "repo-SHAs.txt").split("\\n").toVector
     val testSet = repoList
       .pipe(random.shuffle(_))
-      .slice(300, 500)
+      .drop(500)
 
     val totalSize = testSet.size
     var progress = 0

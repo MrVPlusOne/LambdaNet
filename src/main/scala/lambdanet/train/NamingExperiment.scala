@@ -1,6 +1,6 @@
 package lambdanet.train
 
-import lambdanet.PrepareRepos.{ParsedProject, ParsedRepos, parsedRepoPath}
+import lambdanet.PrepareRepos.{ParsedProject, ParsedRepos, parsedReposDir}
 import lambdanet.{SM, announced}
 import lambdanet.translation.PredicateGraph._
 
@@ -54,8 +54,8 @@ object NamingExperiment {
     import ammonite.ops._
     import cats.implicits._
 
-    val repos = announced(s"read data set from: $parsedRepoPath") {
-      SM.readObjectFromFile[ParsedRepos](parsedRepoPath.toIO)
+    val repos = announced(s"read data set from: $parsedReposDir") {
+      ParsedRepos.readFromDir(parsedReposDir)
     }
     val train = repos.trainSet.map(toData).combineAll
     val dev = repos.devSet.map(toData).combineAll

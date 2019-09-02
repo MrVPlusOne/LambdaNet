@@ -2,7 +2,7 @@ package lambdanet.train
 
 import java.util.Calendar
 
-import lambdanet.{printResult, _}
+import lambdanet._
 import java.util.concurrent.ForkJoinPool
 
 import botkop.numsca
@@ -39,7 +39,7 @@ object TrainingLoop extends TrainingLoopTrait {
     ).map(flag).mkString
 
     if (onlySeqModel) "large-seqModel"
-    else s"newTestSet$flags-${TrainingState.iterationNum}"
+    else s"largerSet$flags-${TrainingState.iterationNum}"
   }
 
   def flag(nameValue: (String, Boolean)): String = {
