@@ -5,7 +5,8 @@ import collection._
 /** Modified from 'https://www.scala-lang.org/docu/files/collections-api/collections-impl_6.html' */
 class PrefixMap[K, V]
     extends mutable.Map[List[K], V]
-    with mutable.MapLike[List[K], V, PrefixMap[K, V]] {
+    with mutable.MapLike[List[K], V, PrefixMap[K, V]]
+    with Serializable {
 
   var suffixes: immutable.Map[K, PrefixMap[K, V]] = Map.empty
   var value: Option[V] = None

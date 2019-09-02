@@ -233,11 +233,10 @@ object PrepareRepos {
   @SerialVersionUID(2)
   case class ParsedProject(
       path: ProjectPath,
-      gProject: GProject,
       qModules: Vector[QModule],
       irModules: Vector[IRModule],
       pGraph: PredicateGraph
-  ){
+  ) {
     @transient
     lazy val allUserAnnots: Map[ProjNode, PType] = {
       val allAnnots = irModules.flatMap(_.mapping).toMap
@@ -256,12 +255,10 @@ object PrepareRepos {
 
     def mergeEqualities: ParsedProject = {
       val (graph1, merger) = pGraph.mergeEqualities
-      val qModules1 = qModules.map{ _.mapNodes(merger)}
-      val irModules1 = irModules.map{ _.mapNodes(merger)}
-      ParsedProject(path, gProject, qModules1, irModules1, graph1)
+      val qModules1 = qModules.map { _.mapNodes(merger) }
+      val irModules1 = irModules.map { _.mapNodes(merger) }
+      ParsedProject(path, qModules1, irModules1, graph1)
     }
-
-
   }
 
   @SerialVersionUID(2)
@@ -289,14 +286,14 @@ object PrepareRepos {
     require(results.nonEmpty)
 
     val rows = results
-      .map {
-        case p@ParsedProject(path, _, _, _, graph) =>
-          val nLib = graph.nodes.count(_.fromLib)
-          val nProj = graph.nodes.count(!_.fromLib)
-          val nPred = graph.predicates.size
-          val libAnnots = p.allUserAnnots.count(_._2.madeFromLibTypes)
-          val projAnnots = p.allUserAnnots.size - libAnnots
-          path -> Vector(nLib, nProj, libAnnots, projAnnots, nPred)
+      .map { p =>
+        import p.{path, pGraph => graph}
+        val nLib = graph.nodes.count(_.fromLib)
+        val nProj = graph.nodes.count(!_.fromLib)
+        val nPred = graph.predicates.size
+        val libAnnots = p.allUserAnnots.count(_._2.madeFromLibTypes)
+        val projAnnots = p.allUserAnnots.size - libAnnots
+        path -> Vector(nLib, nProj, libAnnots, projAnnots, nPred)
       }
       .sortBy(_._2.last)
 
@@ -448,6 +445,7 @@ object PrepareRepos {
       projectRoot: Path,
       skipSet: Set[String] = Set("dist", "__tests__", "test", "tests"),
       shouldPruneGraph: Boolean = true,
+      shouldPrintProject: Boolean = false,
       errorHandler: ErrorHandler =
         ErrorHandler(ErrorHandler.ThrowError, ErrorHandler.ThrowError)
   ): ParsedProject =
@@ -460,6 +458,8 @@ object PrepareRepos {
           path.segments.forall(!skipSet.contains(_))
         }
       )
+
+      if (shouldPrintProject) println { p.prettyPrint }
 
       val allocator = new PNodeAllocator(forLib = false)
       val irTranslator = new IRTranslation(allocator)
@@ -500,13 +500,7 @@ object PrepareRepos {
       errorHandler.warnErrors()
       printResult(s"Project parsed: '$projectRoot'")
 
-      ParsedProject(
-        projectName,
-        p,
-        qModules,
-        irModules,
-        graph
-      )
+      ParsedProject(projectName, qModules, irModules, graph)
     }
 
 }

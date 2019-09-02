@@ -54,16 +54,33 @@ object ProgramParsing {
     TsConfigFile(baseOpt)
   }
 
+  type Dir = ProjectPath
+
+  case class BasicPathMapping(
+      subProjects: Map[ProjectPath, RelPath],
+      baseDirs: Map[Dir, Option[ProjectPath]],
+      aliases: Map[ProjectPath, ProjectPath]
+  ) extends PathMapping
+      with Serializable {
+    def map(currentPath: ProjectPath, path: ProjectPath): ProjectPath = {
+      subProjects.get(path).foreach { s =>
+        return s
+      }
+      val base = baseDirs(currentPath).getOrElse(currentPath)
+      base / path
+    }
+  }
+
   case class GProject(
       root: Path,
       modules: Vector[GModule],
       pathMapping: PathMapping,
       subProjects: Map[ProjectPath, ProjectPath],
       devDependencies: Set[ProjectPath]
-  ){
+  ) {
     def prettyPrint: String = {
       s"=== Project: $root ===\n" +
-      modules.map(_.prettyPrint).mkString("\n")
+        modules.map(_.prettyPrint).mkString("\n")
     }
   }
 
@@ -87,7 +104,6 @@ object ProgramParsing {
         name -> linkTarget.relativeTo(root)
       }).toMap
 
-    type Dir = ProjectPath
     val baseDirs = {
       def rec(
           path: Path,
@@ -113,21 +129,12 @@ object ProgramParsing {
       rec(root, None)
     }
 
-    val mapping = new PathMapping {
-      def map(currentPath: ProjectPath, path: ProjectPath): ProjectPath = {
-        subProjects.get(path).foreach { s =>
-          return s
-        }
-        val base = baseDirs(currentPath).getOrElse(currentPath)
-        base / path
-      }
-
-      val aliases: Map[ProjectPath, ProjectPath] =
-        (for {
-          f <- ls.rec(root) if f.isSymLink
-          pointsTo <- f.tryFollowLinks
-        } yield f.relativeTo(root) -> pointsTo.relativeTo(root)).toMap
-    }
+    val aliases: Map[ProjectPath, ProjectPath] =
+      (for {
+        f <- ls.rec(root) if f.isSymLink
+        pointsTo <- f.tryFollowLinks
+      } yield f.relativeTo(root) -> pointsTo.relativeTo(root)).toMap
+    val mapping = BasicPathMapping(subProjects, baseDirs, aliases)
 
     val sources = ls
       .rec(root)
@@ -639,11 +646,14 @@ case class ProgramParsing() {
 
           val tyVars = asVector(map("tyVars")).map(asSymbol)
           val ms = parseModifiers(map("modifiers"))
-          Vector(FuncDef(name, tyVars, args, returnType, body, ms.exportLevel).tap{
-            f => map.get("publicVars").foreach{ pv =>
-              f.publicVars = asVector(pv).map(asSymbol).toSet
+          Vector(
+            FuncDef(name, tyVars, args, returnType, body, ms.exportLevel).tap {
+              f =>
+                map.get("publicVars").foreach { pv =>
+                  f.publicVars = asVector(pv).map(asSymbol).toSet
+                }
             }
-          })
+          )
         case "TypeAliasStmt" =>
           val name = Symbol(asString(map("name")))
           val tyVars = asVector(map("tyVars")).map(asSymbol)

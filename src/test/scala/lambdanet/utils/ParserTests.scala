@@ -278,17 +278,18 @@ class ParserTests extends WordSpec with MyTest {
       "../lambda-repos/small/testSet/gigobyte_ui-stack"
 //      "data/tests/interface"
     )
-    val parsed@ParsedProject(_, gProject, qModules, irModules, g) =
+    val parsed@ParsedProject(_, qModules, irModules, g) =
       prepareProject(
         libDefs,
         dir/up,
         dir,
         skipSet = Set(),
         errorHandler =
-          ErrorHandler(ErrorHandler.StoreError, ErrorHandler.StoreError)
+          ErrorHandler(ErrorHandler.StoreError, ErrorHandler.StoreError),
+        shouldPrintProject = true
       ).mergeEqualities
+    SM.saveObjectToFile((pwd/"data"/"testSerialization.serialized").toIO)(parsed)
     val annots = parsed.allUserAnnots
-    println{gProject.prettyPrint}
     val truth = annots.map { case (k, v) => k.n -> v }
     val projName = "gigobyte_ui-stack"
 

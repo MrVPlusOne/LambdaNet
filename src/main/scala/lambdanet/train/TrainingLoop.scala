@@ -13,27 +13,19 @@ import lambdanet.architecture._
 import lambdanet.utils.{EventLogger, QLangDisplay, ReportFinish}
 import TrainingState._
 import botkop.numsca.Tensor
-import lambdanet.architecture.LabelEncoder.{
-  SegmentedLabelEncoder,
-  TrainableLabelEncoder
-}
+import lambdanet.architecture.LabelEncoder.{SegmentedLabelEncoder, TrainableLabelEncoder}
 import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 import org.nd4j.linalg.api.buffer.DataType
 
 import scala.collection.parallel.ForkJoinTaskSupport
-import scala.concurrent.{
-  Await,
-  ExecutionContext,
-  ExecutionContextExecutorService,
-  Future,
-  TimeoutException
-}
+import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutorService, Future, TimeoutException}
 import scala.language.reflectiveCalls
+import scala.util.Random
 
 object TrainingLoop extends TrainingLoopTrait {
-  val toyMod: Boolean = true
+  val toyMod: Boolean = false
   val onlySeqModel = false
-  val useDropout: Boolean = false
+  val useDropout: Boolean = true
   val useOracleForIsLib: Boolean = true
   /* Assign more weights to project type to battle label imbalance */
   val projWeight: Double = 3.0
@@ -47,7 +39,7 @@ object TrainingLoop extends TrainingLoopTrait {
     ).map(flag).mkString
 
     if (onlySeqModel) "large-seqModel"
-    else s"newMetric$flags-${TrainingState.iterationNum}"
+    else s"newTestSet$flags-${TrainingState.iterationNum}"
   }
 
   def flag(nameValue: (String, Boolean)): String = {
@@ -115,13 +107,18 @@ object TrainingLoop extends TrainingLoopTrait {
           dropoutThreshold = 500
         )
 
+      private val rand = new Random(1)
+      def randomLabelId(): Int = rand.synchronized{
+        rand.nextInt(50)
+      }
       val labelEncoder =
         SegmentedLabelEncoder(
           trainSet,
           coverageGoal = 0.98,
           architecture,
           dropoutProb = 0.1,
-          dropoutThreshold = 1000
+          dropoutThreshold = 1000,
+          randomLabelId
         )
 
       val nameEncoder = {
@@ -130,7 +127,8 @@ object TrainingLoop extends TrainingLoopTrait {
           coverageGoal = 0.98,
           architecture,
           dropoutProb = 0.1,
-          dropoutThreshold = 1000
+          dropoutThreshold = 1000,
+          randomLabelId
         )
 //        ConstantLabelEncoder(architecture)
       }

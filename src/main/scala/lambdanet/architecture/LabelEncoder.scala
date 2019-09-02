@@ -146,7 +146,8 @@ object LabelEncoder {
       coverageGoal: Double,
       architecture: NNArchitecture,
       dropoutProb: Real,
-      dropoutThreshold: Int
+      dropoutThreshold: Int,
+      randomLabelId: () => Int
   ) extends LabelEncoder {
     import cats.implicits._
 
@@ -189,8 +190,10 @@ object LabelEncoder {
         label: Symbol,
         shouldDropout: () => Boolean
     ): CompNode = {
-      def dropoutImpl: CompNode =
-        architecture.randomVar('segments / '?)
+      def dropoutImpl: CompNode = {
+        val i = randomLabelId()
+        architecture.randomVar('segments / Symbol(s"?$i"))
+      }
 
       def encodeSeg(seg: Segment): CompNode = {
         if (!commonSegments.contains(seg) && shouldDropout()) dropoutImpl

@@ -53,7 +53,7 @@ object ImportsResolution {
   }
 
   object PathMapping {
-    def empty: PathMapping = new PathMapping {
+    def empty: PathMapping = new PathMapping with Serializable {
       def map(
           currentDir: ProjectPath,
           pathToResolve: ProjectPath

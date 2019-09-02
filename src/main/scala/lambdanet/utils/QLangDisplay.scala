@@ -392,8 +392,7 @@ object QLangDisplay {
       }
 
     val f = pwd / RelPath("data/toy")
-    val p @ ParsedProject(_, _, qModules, _, g) =
-      prepareProject(libDefs, pwd / "data", f, skipSet = Set())
+    val p = prepareProject(libDefs, pwd / "data", f, skipSet = Set())
     val annts = p.allUserAnnots
 
     val groundTruth = annts.map { case (k, v) => k.n -> v }
@@ -405,7 +404,7 @@ object QLangDisplay {
       ty => TopNDistribution(Vector(0.9 -> ty, 0.1 -> PAny))
     )
     val outDir = pwd / "predictions"
-    renderProjectToDirectory("toy", qModules, predictions, annts.values.toSet)(
+    renderProjectToDirectory("toy", p.qModules, predictions, annts.values.toSet)(
       outDir
     )
   }

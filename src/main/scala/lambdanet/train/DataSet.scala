@@ -63,7 +63,7 @@ object DataSet {
       val data: Vector[Datum] = {
         ((trainSet ++ devSet).zip(Stream.continually(true)) ++
           testSet.zip(Stream.continually(false))).toVector.par.map {
-          case (p @ ParsedProject(path, _, qModules, irModules, g), useInferred) =>
+          case (p @ ParsedProject(path, qModules, irModules, g), useInferred) =>
             val predictor =
               Predictor(
                 path,
@@ -80,9 +80,12 @@ object DataSet {
               taskSupport
             )
 
-            val annots = if(useInferred) p.allUserAnnots else p.nonInferredUserAnnots
+            val annots =
+              if (useInferred) p.allUserAnnots else p.nonInferredUserAnnots
             val annots1 = annots.mapValuesNow(nonGenerifyIt)
-            Datum(path, annots1, qModules, predictor, seqPredictor)
+            Datum(path, annots1, qModules.map { m =>
+              m.copy(mapping = m.mapping.mapValuesNow(_.map(nonGenerifyIt)))
+            }, predictor, seqPredictor)
               .tap(printResult)
         }.seq
       }
