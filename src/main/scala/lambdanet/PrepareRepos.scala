@@ -239,10 +239,18 @@ object PrepareRepos {
       pGraph: PredicateGraph
   ){
     @transient
-    lazy val userAnnots: Map[ProjNode, PType] = {
+    lazy val allUserAnnots: Map[ProjNode, PType] = {
       val allAnnots = irModules.flatMap(_.mapping).toMap
       allAnnots.collect {
         case (n, Annot.User(t, _)) => ProjNode(n) -> t
+      }
+    }
+
+    @transient
+    lazy val nonInferredUserAnnots: Map[ProjNode, PType] = {
+      val allAnnots = irModules.flatMap(_.mapping).toMap
+      allAnnots.collect {
+        case (n, Annot.User(t, false)) => ProjNode(n) -> t
       }
     }
 
@@ -286,8 +294,8 @@ object PrepareRepos {
           val nLib = graph.nodes.count(_.fromLib)
           val nProj = graph.nodes.count(!_.fromLib)
           val nPred = graph.predicates.size
-          val libAnnots = p.userAnnots.count(_._2.madeFromLibTypes)
-          val projAnnots = p.userAnnots.size - libAnnots
+          val libAnnots = p.allUserAnnots.count(_._2.madeFromLibTypes)
+          val projAnnots = p.allUserAnnots.size - libAnnots
           path -> Vector(nLib, nProj, libAnnots, projAnnots, nPred)
       }
       .sortBy(_._2.last)

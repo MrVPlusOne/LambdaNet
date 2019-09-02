@@ -35,7 +35,7 @@ object NamingExperiment {
     import cats.implicits._
 
     val data = for {
-      (n, t) <- project.userAnnots
+      (n, t) <- project.allUserAnnots
       name <- n.n.nameOpt
     } yield {
       Map((name, convert(t)) -> 1)

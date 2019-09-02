@@ -38,19 +38,6 @@ trait LabelEncoder {
 
 object LabelEncoder {
 
-  def main(args: Array[String]): Unit = {
-    Vector(
-      "readFileSync",
-      "CONFIG_FILE",
-      "yargs",
-      "BarBarToken",
-      "createAppId"
-    ).foreach { s =>
-      println(segmentName(Symbol(s)))
-    }
-
-  }
-
   case class RandomLabelEncoder(architecture: NNArchitecture)
       extends LabelEncoder {
     def name: String = "RandomLabelEncoder"

@@ -394,7 +394,7 @@ object QLangDisplay {
     val f = pwd / RelPath("data/toy")
     val p @ ParsedProject(_, _, qModules, _, g) =
       prepareProject(libDefs, pwd / "data", f, skipSet = Set())
-    val annts = p.userAnnots
+    val annts = p.allUserAnnots
 
     val groundTruth = annts.map { case (k, v) => k.n -> v }
     val prediction = groundTruth.updated(

@@ -275,8 +275,8 @@ class ParserTests extends WordSpec with MyTest {
       }
 
     val dir = pwd / RelPath(
-//      "../lambda-repos/bigger/testSet/Microsoft_TypeScriptSamples"
-      "data/tests/interface"
+      "../lambda-repos/small/testSet/gigobyte_ui-stack"
+//      "data/tests/interface"
     )
     val parsed@ParsedProject(_, gProject, qModules, irModules, g) =
       prepareProject(
@@ -287,10 +287,10 @@ class ParserTests extends WordSpec with MyTest {
         errorHandler =
           ErrorHandler(ErrorHandler.StoreError, ErrorHandler.StoreError)
       ).mergeEqualities
-    val annots = parsed.userAnnots
+    val annots = parsed.allUserAnnots
     println{gProject.prettyPrint}
     val truth = annots.map { case (k, v) => k.n -> v }
-    val projName = "interface"
+    val projName = "gigobyte_ui-stack"
 
     QLangDisplay.renderProjectToDirectory(projName, qModules, truth.map {
       case (k, v) => k -> TopNDistribution(Vector(1.0 -> v))

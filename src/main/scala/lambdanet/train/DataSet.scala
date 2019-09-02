@@ -54,15 +54,16 @@ object DataSet {
       val libTypesToPredict: Set[LibTypeNode] =
         selectLibTypes(
           libDefs,
-          repos.trainSet.map { _.userAnnots },
+          repos.trainSet.map { _.nonInferredUserAnnots },
           coverageGoal = 0.98
         ).filterNot(n => typesNotToPredict.contains(n.n.n))
 
       val nonGenerifyIt = nonGenerify(libDefs)
 
       val data: Vector[Datum] = {
-        (trainSet ++ devSet ++ testSet).toVector.par.map {
-          case p@ParsedProject(path, _, qModules, irModules, g) =>
+        ((trainSet ++ devSet).zip(Stream.continually(true)) ++
+          testSet.zip(Stream.continually(false))).toVector.par.map {
+          case (p @ ParsedProject(path, _, qModules, irModules, g), useInferred) =>
             val predictor =
               Predictor(
                 path,
@@ -79,7 +80,8 @@ object DataSet {
               taskSupport
             )
 
-            val annots1 = p.userAnnots.mapValuesNow (nonGenerifyIt)
+            val annots = if(useInferred) p.allUserAnnots else p.nonInferredUserAnnots
+            val annots1 = annots.mapValuesNow(nonGenerifyIt)
             Datum(path, annots1, qModules, predictor, seqPredictor)
               .tap(printResult)
         }.seq
@@ -118,7 +120,7 @@ object DataSet {
 
     val usages: Map[PNode, Int] = annotations.par
       .map { p =>
-        p.collect { case (_, PTyVar(v)) => v -> 1 }
+        p.toVector.collect { case (_, PTyVar(v)) => Map(v -> 1) }.combineAll
       }
       .fold(Map[PNode, Int]())(_ |+| _)
 

@@ -6,7 +6,7 @@ import funcdiff.SimpleMath
 import lambdanet.Surface.GStmt
 import lambdanet.translation.ImportsResolution.NameDef
 
-import scala.collection.{GenTraversableOnce, mutable}
+import scala.collection.{mutable}
 import lambdanet._
 
 @SerialVersionUID(1)
@@ -39,7 +39,7 @@ case class PredicateGraph(
     val predicates1 = (predicates -- equalities)
       .map { _.substitute(substF) }
       .filter {
-        case HasName(n, name) if nameList contains name =>
+        case HasName(_, name) if nameList contains name =>
           false
         case _ => true
       }
@@ -256,7 +256,7 @@ object PredicateGraph {
             s"$prefix${n.getId}"
         }
       }
-      pPrint(_.toString)(identity, _.mkString(""))
+      pPrint(showNode)(identity, _.mkString(""))
     }
   }
 
