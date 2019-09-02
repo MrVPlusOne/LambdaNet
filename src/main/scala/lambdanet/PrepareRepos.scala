@@ -334,6 +334,8 @@ object PrepareRepos {
   }
 
   object ParsedRepos {
+
+    @SerialVersionUID(1)
     case class Meta(trainSetSize: Int, devSetSize: Int, testSetSize: Int, chunkNum: Int) {
       def totoalProjectNum = trainSetSize + devSetSize + testSetSize
     }
