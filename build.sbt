@@ -17,7 +17,7 @@ fork in run := true
 
 val memoryLimit = {
   // for some reason, the memory usage keeps going up on the server
-  if(System.getProperty("os.name") == "Mac OS X") 8 else 32
+  if(System.getProperty("os.name") == "Mac OS X") 12 else 48
 }
 
 val nd4jBinary = {
@@ -25,8 +25,8 @@ val nd4jBinary = {
   if(useCuda) "nd4j-cuda-10.0-platform" else "nd4j-native-platform"
 }
 
-javaOptions ++= Seq(s"-Xms2G", "-Xmx6G", s"-Dorg.bytedeco.javacpp.maxbytes=${memoryLimit}G",
-  s"-Dorg.bytedeco.javacpp.maxphysicalbytes=${memoryLimit+8}G")
+javaOptions ++= Seq(s"-Xms2G", "-Xmx10G", s"-Dorg.bytedeco.javacpp.maxbytes=${memoryLimit}G",
+  s"-Dorg.bytedeco.javacpp.maxphysicalbytes=${memoryLimit+11}G")
 
 libraryDependencies ++= Seq(
   "com.lihaoyi" %% "fastparse" % "2.0.4",

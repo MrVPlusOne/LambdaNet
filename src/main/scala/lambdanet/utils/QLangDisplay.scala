@@ -8,9 +8,7 @@ import lambdanet.translation.ImportsResolution.NameDef
 import lambdanet.translation.{PAnnot, PredicateGraph}
 import lambdanet.translation.PredicateGraph.{
   PAny,
-  PFuncType,
   PNode,
-  PObjectType,
   PTyVar,
   PType
 }
@@ -20,7 +18,6 @@ import scala.language.implicitConversions
 
 object QLangDisplay {
   import scalatags.Text.all._
-  import scalatags.stylesheet._
 
   private object Impl {
 

@@ -101,7 +101,7 @@ object TrainingLoop extends TrainingLoopTrait {
       val labelCoverage =
         TrainableLabelEncoder(
           trainSet,
-          coverageGoal = 0.95,
+          coverageGoal = 0.90,
           architecture,
           dropoutProb = 0.1,
           dropoutThreshold = 500
@@ -140,12 +140,12 @@ object TrainingLoop extends TrainingLoopTrait {
       printResult(s"Single layer consists of: ${architecture.singleLayerModel}")
 
       def result(): Unit = {
-        val saveInterval = if (toyMod) 100 else 10
+        val saveInterval = if (toyMod) 100 else 5
 
         (trainingState.epoch0 + 1 to maxTrainingEpochs).foreach { epoch =>
           announced(s"epoch $epoch") {
             handleExceptions(epoch) {
-              if ((epoch - 1) % saveInterval == 0)
+              if (epoch == 1 || epoch % saveInterval == 0)
                 DebugTime.logTime("saveTraining") {
                   saveTraining(epoch, s"epoch$epoch")
                 }
@@ -166,16 +166,6 @@ object TrainingLoop extends TrainingLoopTrait {
           "Training finished!"
         )
       }
-
-//      def logMaximalTestAcc() = {
-//        import cats.implicits._
-//        val maxAcc = testSet
-//          .foldMap(
-//            _.fseAcc.maximalAcc()
-//          )
-//          .pipe(toAccuracy)
-//        logger.logString("test-maxAcc", 0, maxAcc.toString)
-//      }
 
       val (machineName, emailService) = ReportFinish.readEmailInfo(taskName)
       private def handleExceptions(epoch: Int)(f: => Unit): Unit = {
@@ -206,6 +196,10 @@ object TrainingLoop extends TrainingLoopTrait {
 
       def trainStep(epoch: Int): Unit = {
         isTraining = true
+
+        DebugTime.logTime("GC") {
+          System.gc()
+        }
 
         val startTime = System.nanoTime()
         val oldOrder = random.shuffle(trainSet)
@@ -249,10 +243,6 @@ object TrainingLoop extends TrainingLoopTrait {
                     calcGradInfo(stats)
                   }
                 }.toVector
-
-                DebugTime.logTime("GC") {
-                  System.gc()
-                }
 
                 (fwd, gradInfo, datum)
               }
