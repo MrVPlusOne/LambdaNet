@@ -50,6 +50,27 @@ object QLangAccuracy {
     stmts.foldMap(rec)
   }
 
+  def countTopNCorrect(
+      n: Int,
+      nodesToPredict: Map[PNode, PType],
+      predictions: Map[PNode, Vector[PType]],
+      nodeWeight: PNode => Int,
+      warnMissingPredictions: Boolean = false
+  ): (Counted[Correct], Set[PNode], Set[PNode]) = {
+    val d = nodesToPredict.keySet.diff(predictions.keySet)
+    assert(d.isEmpty, s"Some nodes lack predictions: ${d}")
+
+    val (rightSet, wrongSet) =
+      nodesToPredict.foldLeft((Set[PNode](), Set[PNode]())) {
+        case ((yes, no), (node, t)) =>
+          val rightQ = predictions(node).take(n).contains(t)
+          if (rightQ) (yes + node, no) else (yes, no + node)
+      }
+    val y1 = rightSet.toSeq.map(nodeWeight).sum
+    val n1 = wrongSet.toSeq.map(nodeWeight).sum
+    (Counted(y1 + n1, y1), rightSet, wrongSet)
+  }
+
   // fixme: the label set is much smaller than the one obtained from forward
   case class FseAccuracy(modules: Vector[QModule], predSpace: PredictionSpace) {
     private val occurrence = modules.foldMap { m =>
@@ -79,27 +100,6 @@ object QLangAccuracy {
         occurrence.getOrElse(_, 0)
       )
     }
-  }
-
-  def countTopNCorrect(
-      n: Int,
-      nodesToPredict: Map[PNode, PType],
-      predictions: Map[PNode, Vector[PType]],
-      nodeWeight: PNode => Int,
-      warnMissingPredictions: Boolean = false
-  ): (Counted[Correct], Set[PNode], Set[PNode]) = {
-    val d = nodesToPredict.keySet.diff(predictions.keySet)
-    assert(d.isEmpty, s"Some nodes lack predictions: ${d}")
-
-    val (rightSet, wrongSet) =
-      nodesToPredict.foldLeft((Set[PNode](), Set[PNode]())) {
-        case ((yes, no), (node, t)) =>
-          val rightQ = predictions(node).take(n).contains(t)
-          if (rightQ) (yes + node, no) else (yes, no + node)
-      }
-    val y1 = rightSet.toSeq.map(nodeWeight).sum
-    val n1 = wrongSet.toSeq.map(nodeWeight).sum
-    (Counted(y1 + n1, y1), rightSet, wrongSet)
   }
 
   def topNAccuracy(

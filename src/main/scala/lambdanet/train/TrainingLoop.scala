@@ -10,15 +10,24 @@ import cats.Monoid
 import funcdiff.{SimpleMath => SM}
 import funcdiff._
 import lambdanet.architecture._
-import lambdanet.utils.{EventLogger, QLangDisplay, ReportFinish}
+import lambdanet.utils.{EventLogger, QLangAccuracy, QLangDisplay, ReportFinish}
 import TrainingState._
 import botkop.numsca.Tensor
-import lambdanet.architecture.LabelEncoder.{SegmentedLabelEncoder, TrainableLabelEncoder}
+import lambdanet.architecture.LabelEncoder.{
+  SegmentedLabelEncoder,
+  TrainableLabelEncoder
+}
 import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 import org.nd4j.linalg.api.buffer.DataType
 
 import scala.collection.parallel.ForkJoinTaskSupport
-import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutorService, Future, TimeoutException}
+import scala.concurrent.{
+  Await,
+  ExecutionContext,
+  ExecutionContextExecutorService,
+  Future,
+  TimeoutException
+}
 import scala.language.reflectiveCalls
 import scala.util.Random
 
@@ -108,7 +117,7 @@ object TrainingLoop extends TrainingLoopTrait {
         )
 
       private val rand = new Random(1)
-      def randomLabelId(): Int = rand.synchronized{
+      def randomLabelId(): Int = rand.synchronized {
         rand.nextInt(50)
       }
       val labelEncoder =
@@ -144,18 +153,18 @@ object TrainingLoop extends TrainingLoopTrait {
 
         (trainingState.epoch0 + 1 to maxTrainingEpochs).foreach { epoch =>
           announced(s"epoch $epoch") {
+            TensorExtension.checkNaN = (epoch - 1) % 10 == 0
             handleExceptions(epoch) {
               if (epoch == 1 || epoch % saveInterval == 0)
                 DebugTime.logTime("saveTraining") {
                   saveTraining(epoch, s"epoch$epoch")
                 }
-              trainStep(epoch)
               if ((epoch - 1) % 3 == 0)
                 DebugTime.logTime("testSteps") {
                   testStep(epoch, isTestSet = false)
                   testStep(epoch, isTestSet = true)
                 }
-              TensorExtension.checkNaN = (epoch - 1) % 10 == 0
+              trainStep(epoch)
             }
           }
         }
@@ -317,7 +326,7 @@ object TrainingLoop extends TrainingLoopTrait {
           architecture.dropoutStorage = None
           isTraining = false
 
-          val (stat, fse1Acc) = dataSet.flatMap { datum =>
+          val (stat, fse1Acc, projTop5Acc) = dataSet.flatMap { datum =>
             checkShouldStop(epoch)
             announced(s"test on $datum") {
               selectForward(datum).map {
@@ -328,7 +337,25 @@ object TrainingLoop extends TrainingLoopTrait {
                       pred.mapValuesNow(_.distr.map(_._2)),
                       onlyCountInSpaceTypes = true
                     )
-                  (fwd, fse1)
+                  val projTop5 = {
+                    val ground = datum.nodesToPredict.map(datum.annotations)
+                    val nodesMap = datum.nodesToPredict
+                      .map (_.n)
+                      .zip(ground)
+                      .filter(x => !x._2.madeFromLibTypes)
+                      .toMap
+                    val predictions = pred.map {
+                      case (n, distr) => n -> distr.distr.take(5).map(_._2)
+                    }
+                    QLangAccuracy.countTopNCorrect(
+                      5,
+                      nodesMap,
+                      predictions,
+                      _ => 1
+                    )._1
+                  }
+                  (fwd, fse1, projTop5)
+
               }.toVector
             }
           }.combineAll
@@ -336,9 +363,9 @@ object TrainingLoop extends TrainingLoopTrait {
           import stat.{libCorrect, projCorrect, confusionMatrix, categoricalAcc}
           import logger._
           logScalar(s"$dataSetName-loss", epoch, toAccuracyD(stat.loss))
-
           logScalar(s"$dataSetName-libAcc", epoch, toAccuracy(libCorrect))
           logScalar(s"$dataSetName-projAcc", epoch, toAccuracy(projCorrect))
+          logScalar(s"$dataSetName-projTop5Acc", epoch, toAccuracy(projTop5Acc))
           logConfusionMatrix(
             s"$dataSetName-confusionMat",
             epoch,
