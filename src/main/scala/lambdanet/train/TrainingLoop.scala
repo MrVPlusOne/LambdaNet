@@ -207,9 +207,6 @@ object TrainingLoop extends TrainingLoopTrait {
       def trainStep(epoch: Int): Unit = {
         isTraining = true
 
-        DebugTime.logTime("GC") {
-          System.gc()
-        }
         val startTime = System.nanoTime()
         val oldOrder = random.shuffle(trainSet)
         val (h, t) = oldOrder.splitAt(119)
@@ -252,6 +249,10 @@ object TrainingLoop extends TrainingLoopTrait {
                     calcGradInfo(stats)
                   }
                 }.toVector
+
+                DebugTime.logTime("GC") {
+                  System.gc()
+                }
 
                 (fwd, gradInfo, datum)
               }

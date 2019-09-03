@@ -53,9 +53,9 @@ object PrepareRepos {
 
 //    parseAndFilterDataSet()
 //    mixTestDevSet()
-//    parseAndSerializeDataSet()
+    parseAndSerializeDataSet()
 
-    testNewSerialization()
+//    testNewSerialization()
   }
 
   sealed trait RepoResult {
