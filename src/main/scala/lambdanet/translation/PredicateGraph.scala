@@ -321,7 +321,7 @@ object PredicateGraph {
   }
 
   object BinaryRelCat extends Enumeration {
-    val subtype, assign, `return`, equal, inheritance, fixType = Value
+    val subtype, assign, equal, inheritance, fixType = Value
   }
 
   case class BinaryRel(lhs: PNode, rhs: PNode, category: BinaryRelCat.Value)
@@ -471,7 +471,7 @@ object PredicateGraphTranslation {
           case AssignStmt(lhs, rhs) =>
             add(BinaryRel(lhs, rhs, assign))
           case ReturnStmt(v, ret) =>
-            add(BinaryRel(v, ret, `return`))
+            add(BinaryRel(v, ret, assign))
           case IfStmt(cond, e1, e2) =>
             useCond(cond)
             encodeStmt(e1)

@@ -25,10 +25,6 @@ abstract class NNArchitecture(
     pc: ParamCollection
 ) extends ArchitectureHelper {
 
-  /** Store the dropout masks so that they can be reused across a
-    * single forward propagation (but should be cleared between iterations) */
-  var dropoutStorage: Option[ParamCollection] = None
-
   type UpdateMessages = Map[ProjNode, Chain[Message]]
   val emptyMessages: UpdateMessages = Map()
 
@@ -66,8 +62,8 @@ abstract class NNArchitecture(
     ): UpdateMessages = {
       val name = name0 / iterSymbol
       toVars(
-        verticalBatching(n1s.zip(inputs), singleLayer(name / 'left, _)) |+|
-          verticalBatching(n2s.zip(inputs), singleLayer(name / 'right, _))
+        verticalBatching(n1s.zip(inputs), linearLayer(name / 'left, _)) |+|
+          verticalBatching(n2s.zip(inputs), linearLayer(name / 'right, _))
       )
     }
 
@@ -101,7 +97,7 @@ abstract class NNArchitecture(
       val messages =
         concatN(axis = 0, fromRows = true)(nodes1.map(encodeNode))
           .concat(weightedSum, axis = 1)
-          .pipe(singleLayer(name, _))
+          .pipe(linearLayer(name, _))
       nodes1.zipWithIndex.map {
         case (n, i) =>
           Map(ProjNode(n) -> Chain(messages.slice(i, :>))) //todo: use rows operator
@@ -117,7 +113,7 @@ abstract class NNArchitecture(
           val paired = models
             .asInstanceOf[Vector[Single]]
             .map(s => s.n -> encodeNode(s.n))
-          verticalBatching(paired, singleLayer(name / iterSymbol, _))
+          verticalBatching(paired, linearLayer(name / iterSymbol, _))
             .pipe(toVars)
         case KindBinary(name) =>
           val (n1s, n2s, inputs) = models
@@ -133,10 +129,9 @@ abstract class NNArchitecture(
           val paired = models
             .asInstanceOf[Vector[Naming]]
             .map(s => s.n -> encodeName(s.name))
-          verticalBatching(paired, singleLayer(name / iterSymbol, _))
+          verticalBatching(paired, linearLayer(name / iterSymbol, _))
             .pipe(toVars)
         case KindBinaryLabeled(name, LabelType.Position) =>
-          //todo: try RNN based embedding
           val (n1s, n2s, inputs) = models
             .asInstanceOf[Vector[Labeled]]
             .map {
@@ -243,6 +238,33 @@ abstract class NNArchitecture(
   ): Joint = {
     val inputs1 =
       concatN(axis = 0, fromRows = true)(inputs)
+        .pipe(nonLinearLayer(name / 'inputs))
+    val candidates1 =
+      concatN(axis = 0, fromRows = true)(candidates)
+        .pipe(nonLinearLayer(name / 'candidates))
+    val similarities =
+      for (candId <- candidates.indices) yield {
+        val cand = candidates1.slice(candId, :>)
+        val cands = Vector
+          .fill(inputs.length)(cand)
+          .pipe(concatN(0, fromRows = true))
+        inputs1.concat(cands, axis = 1) ~>
+          linear(name / 'sim0, dimMessage) ~> relu ~>
+          linear(name / 'sim1, dimMessage / 2) ~> relu ~>
+          linear(name / 'sim2, 1)
+      }
+
+    val logits = concatN(axis = 1)(similarities)
+    Joint(logits)
+  }
+
+  def oldSimilarity(
+      inputs: Vector[CompNode],
+      candidates: Vector[CompNode],
+      name: SymbolPath
+  ): Joint = {
+    val inputs1 =
+      concatN(axis = 0, fromRows = true)(inputs)
         .pipe(linear(name / 'similarityInputs, dimMessage))
     val candidates1 =
       concatN(axis = 0, fromRows = true)(candidates)
@@ -266,9 +288,10 @@ abstract class NNArchitecture(
     assert(n.fromLib)
     val ex = randomVar('libType / n.symbol)
     val name = encodeNameOpt(n.nameOpt)
-    singleLayer('encodeLibType / 'mix, ex.concat(name, axis = 1))
+    linearLayer('encodeLibType / 'mix, ex.concat(name, axis = 1))
   }
 
+  @deprecated
   def predictLibraryTypes(
       inputs: Vector[CompNode],
       numLibType: Int,
@@ -314,6 +337,7 @@ abstract class NNArchitecture(
     TwoStage(pIsLib, libLogits, projLogits)
   }
 
+  @deprecated
   def separatedSimilarity(
       inputs: Vector[CompNode],
       libCandidates: Vector[CompNode],
@@ -360,7 +384,7 @@ abstract class NNArchitecture(
           a.concat(encodePosition(i - 1), axis = 1)
       }
       .pipe(concatN(axis = 0, fromRows = true))
-      .pipe(singleLayer('encodeFunction, _))
+      .pipe(nonLinearLayer('encodeFunction))
       .pipe(sum(_, axis = 0))
   }
 
@@ -373,7 +397,7 @@ abstract class NNArchitecture(
           case (v1, v2) => v1.concat(v2, axis = 1)
         }
         .pipe(concatN(axis = 0, fromRows = true))
-        .pipe(singleLayer('encodeObject, _))
+        .pipe(nonLinearLayer('encodeObject))
         .pipe(sum(_, axis = 0))
     }
   }
@@ -383,20 +407,12 @@ abstract class NNArchitecture(
       signature: CompNode,
       name: CompNode
   ): CompNode = {
-    singleLayer(
-      'encodeLibTerm,
+    nonLinearLayer('encodeLibTerm)(
       concatN(axis = 1, fromRows = true)(
         Vector(experience, signature, name)
-//          Vector(experience, name)
       )
     )
-//     todo: see if type signature helps
-//    experience
   }
-
-//  def encodeLibType(experience: CompNode, name: CompNode): CompNode = {
-//    singleLayer('encodeLibType, experience.concat(name, axis = 1))
-//  }
 
   def mergeMessages[K](
       name: SymbolPath,
@@ -418,7 +434,7 @@ abstract class NNArchitecture(
 //          val attention = softmax(keys.dot(n1.t).t / dimMessage)
 //          n -> attention.dot(values)
 
-          n -> plusN(ms.toVector)
+          n -> meanN(ms.toVector)
       }
       .seq
       .toMap
@@ -468,17 +484,25 @@ abstract class NNArchitecture(
   }
 
   val singleLayerModel = "Linear"
-  def singleLayer(
+  def linearLayer(
       path: SymbolPath,
       input: CompNode
   ): CompNode = {
-    def oneLayer(name: Symbol)(input: CompNode) = {
-      val p = path / name
-      val r = linear(p, dimMessage)(input) ~> relu
-      r
-    }
-//    input ~> oneLayer('L1) ~> oneLayer('L2)
     linear(path / 'L1, dimMessage)(input)
+  }
+
+  def nonLinearLayer(path: SymbolPath)(input: CompNode): CompNode = {
+    fcNetwork(path, numLayer = 2)(input)
+  }
+
+  def fcNetwork(path: SymbolPath, numLayer: Int)(input: CompNode): CompNode = {
+    require(numLayer >= 1)
+    def oneLayer(i: Int)(input: CompNode) = {
+      val p = path / Symbol(s"L$i")
+      linear(p, dimMessage)(relu(input))
+    }
+    val x0 = input ~> linear(path / Symbol("L0"), dimMessage)
+    (1 until numLayer).foldLeft(x0)((x, i) => oneLayer(i)(x))
   }
 
   def predictionLayer(

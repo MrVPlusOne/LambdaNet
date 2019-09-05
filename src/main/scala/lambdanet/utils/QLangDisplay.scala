@@ -34,6 +34,9 @@ object QLangDisplay {
     def warning(str: Output*): Output =
       span(cls := "warning")(str)
 
+    def missing(str: Output*): Output =
+      span(cls := "missing")(str)
+
     def error(str: Output*): Output =
       span(cls := "error")(str)
 
@@ -101,7 +104,7 @@ object QLangDisplay {
                   if (!predSpace.contains(t)) warning(": [OOV]", t)
                   else {
                     prediction.get(x) match {
-                      case None => warning(": [miss]", t)
+                      case None => missing(": [miss]", t)
                       case Some(p) =>
                         val annot =
                           if (t == p) correct(": ", t)
@@ -298,6 +301,7 @@ object QLangDisplay {
             |.correct { color: green; } .correct a { color: green; }
             |.incorrect { color: red; } .incorrect a { color: red; }
             |.warning { color: magenta; } .warning a { color: magenta; }
+            |.missing { color: gray; } .missing a { color: gray; }
             |.error { color: orange; } .error a { color: orange; }
             |""".stripMargin
         )

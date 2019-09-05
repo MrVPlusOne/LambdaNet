@@ -48,7 +48,7 @@ object TrainingLoop extends TrainingLoopTrait {
     ).map(flag).mkString
 
     if (onlySeqModel) "large-seqModel"
-    else s"largerSet$flags-${TrainingState.iterationNum}"
+    else s"newModel$flags-${TrainingState.iterationNum}"
   }
 
   def flag(nameValue: (String, Boolean)): String = {
@@ -68,6 +68,8 @@ object TrainingLoop extends TrainingLoopTrait {
 
   def main(args: Array[String]): Unit = {
     Tensor.floatingDataType = DataType.DOUBLE
+    PrepareRepos.main(args)  //todo
+
     run(
       maxTrainingEpochs = if (toyMod) 2500 else 500,
       numOfThreads = readThreadNumber()
@@ -122,6 +124,7 @@ object TrainingLoop extends TrainingLoopTrait {
       }
       val labelEncoder =
         SegmentedLabelEncoder(
+          "labelEncoder",
           trainSet,
           coverageGoal = 0.98,
           architecture,
@@ -132,6 +135,7 @@ object TrainingLoop extends TrainingLoopTrait {
 
       val nameEncoder = {
         SegmentedLabelEncoder(
+          "nameEncoder",
           trainSet,
           coverageGoal = 0.98,
           architecture,
@@ -149,7 +153,7 @@ object TrainingLoop extends TrainingLoopTrait {
       printResult(s"Single layer consists of: ${architecture.singleLayerModel}")
 
       def result(): Unit = {
-        val saveInterval = if (toyMod) 100 else 5
+        val saveInterval = if (toyMod) 100 else 6
 
         (trainingState.epoch0 + 1 to maxTrainingEpochs).foreach { epoch =>
           announced(s"epoch $epoch") {
@@ -221,7 +225,6 @@ object TrainingLoop extends TrainingLoopTrait {
             ) {
 //              println(DebugTime.show)
               checkShouldStop(epoch)
-              architecture.dropoutStorage = Some(new ParamCollection())
               for {
                 (loss, fwd, _) <- selectForward(datum).tap(
                   _.foreach(r => printResult(r._2))
@@ -323,7 +326,6 @@ object TrainingLoop extends TrainingLoopTrait {
         val dataSet = if (isTestSet) testSet else devSet
         announced(s"test on $dataSetName set") {
           import cats.implicits._
-          architecture.dropoutStorage = None
           isTraining = false
 
           val (stat, fse1Acc, projTop5Acc) = dataSet.flatMap { datum =>
@@ -555,7 +557,7 @@ object TrainingLoop extends TrainingLoopTrait {
             mapped.getOrElse(false, Set()),
             confMat,
             typeAccs
-          )
+          ).tap( r => assert(r.isConsistent))
 
           val predictions = {
             val predVec = decoding
@@ -601,7 +603,6 @@ object TrainingLoop extends TrainingLoopTrait {
           skipTest: Boolean = false
       ): Unit = {
         isTraining = false
-        architecture.dropoutStorage = None
 
         announced(s"save training to $dirName") {
           val saveDir = resultsDir / "saved" / dirName
@@ -730,6 +731,10 @@ object TrainingLoop extends TrainingLoopTrait {
 
     def libCorrect: Counted[LibCorrect] = countCorrect(true)
     def projCorrect: Counted[ProjCorrect] = countCorrect(false)
+
+    def isConsistent: Boolean = {
+      categoricalAcc.keySet == (correctSet ++ incorrectSet).map(_._2)
+    }
   }
 
   private implicit val forwardResultMonoid: Monoid[ForwardResult] =

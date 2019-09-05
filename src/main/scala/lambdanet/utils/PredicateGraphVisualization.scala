@@ -38,7 +38,6 @@ object PredicateGraphVisualization {
         name match {
           case BinaryRelCat.subtype => " <: "
           case BinaryRelCat.assign => "  ⃪ "
-          case BinaryRelCat.`return` => " returns "
           case BinaryRelCat.equal => " := "
           case BinaryRelCat.inheritance => "extends"
           case BinaryRelCat.fixType => "fixed"

@@ -142,6 +142,7 @@ object LabelEncoder {
     *                         training time.
     */
   case class SegmentedLabelEncoder(
+      symbolPath: SymbolPath,
       trainSet: Vector[Datum],
       coverageGoal: Double,
       architecture: NNArchitecture,
@@ -184,8 +185,6 @@ object LabelEncoder {
       (segmentsMap, commonSegments)
     }
 
-    private val zeroVec = architecture.zeroVec()
-
     protected def impl(
         label: Symbol,
         shouldDropout: () => Boolean
@@ -200,9 +199,14 @@ object LabelEncoder {
         else segmentsMap.getOrElse(seg, dropoutImpl)
       }
 
-      segmentName(label)
-        .map(encodeSeg)
-        .pipe(totalSafe(_, zeroVec))
+      val segs = segmentName(label)
+      if (segs.isEmpty) architecture.zeroVec()
+      else
+        segs
+          .map(encodeSeg)
+          .pipe(concatN(0, fromRows = true))
+          .pipe(architecture.nonLinearLayer(symbolPath))
+          .pipe(sum(_, 0))
     }
 
     def nameUsages(name: Symbol): Map[Segment, Int] = {

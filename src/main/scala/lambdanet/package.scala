@@ -1,5 +1,5 @@
 import ammonite.ops.RelPath
-import funcdiff.SimpleMath
+import funcdiff.{DebugTime, SimpleMath}
 import lambdanet.translation.PredicateGraph
 import org.nd4j.linalg.api.buffer.DataType
 import org.nd4j.linalg.factory.Nd4j
@@ -168,6 +168,10 @@ package object lambdanet extends SimpleMath.ExtensionsTrait {
         val took = prettyPrintTime(System.nanoTime() - startTime, 2)
         println(infoStr(s"  [finish] $actionName finished. (took $took)"))
       }
+  }
+
+  def announcedAndLogTime[A](actionName: String)(action: => A): A = {
+    announced(actionName)(DebugTime.logTime(actionName)(action))
   }
 
 }

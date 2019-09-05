@@ -29,7 +29,7 @@ case class ReNormalizeArch(dimEmbedding: Int, pc: ParamCollection)
     }
     verticalBatching(
       inputs,
-      stacked => singleLayer('updateEmbedding, stacked) ~> renormalize
+      stacked => linearLayer('updateEmbedding, stacked) ~> renormalize
     ).map {
       case (k, chain) =>
         val Vector(x) = chain.toVector
