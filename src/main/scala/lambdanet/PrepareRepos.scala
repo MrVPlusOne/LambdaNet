@@ -5,21 +5,12 @@ import funcdiff.SimpleMath
 import lambdanet.translation.IR.IRModule
 import lambdanet.translation.ImportsResolution.{ErrorHandler, ModuleExports}
 import lambdanet.translation._
-import lambdanet.translation.PredicateGraph.{
-  DefineRel,
-  LibNode,
-  PNode,
-  PNodeAllocator,
-  PObject,
-  PType,
-  ProjNode,
-  TyPredicate
-}
+import lambdanet.translation.PredicateGraph.{DefineRel, LibNode, PNode, PNodeAllocator, PObject, PType, ProjNode, TyPredicate}
 import lambdanet.translation.QLang.QModule
 import lambdanet.utils.ProgramParsing
 import lambdanet.utils.ProgramParsing.GProject
 
-import scala.collection.mutable
+import scala.collection.{immutable, mutable}
 import scala.util.Random
 
 @SerialVersionUID(2)
@@ -52,7 +43,7 @@ object PrepareRepos {
 //    println(s"library definitions saved to $libDefsFile")
 
 //    parseAndFilterDataSet()
-//    mixTestDevSet()
+    mixTestDevSet()
     parseAndSerializeDataSet()
 
 //    testNewSerialization()
@@ -103,15 +94,17 @@ object PrepareRepos {
                 errorHandler =
                   ErrorHandler(ErrorHandler.StoreError, ErrorHandler.StoreError)
               ).mergeEqualities
-              val diff =
-                (p0.pGraph.nodes ++ p0.pGraph.predicates.flatMap(_.allNodes))
-                  .diff(libDefs.nodeMapping.keySet)
-              val libNode = diff.find(_.fromLib)
-              assert(
-                libNode.isEmpty,
-                s"lib node not in libDefs: ${libNode.get}"
-              )
-              Successful(p0)
+
+              Successful(p0).tap{ _ =>
+                val diff =
+                  (p0.pGraph.nodes ++ p0.pGraph.predicates.flatMap(_.allNodes))
+                    .diff(libDefs.nodeMapping.keySet)
+                val libNode = diff.find(_.fromLib)
+                assert(
+                  libNode.isEmpty,
+                  s"lib node not in libDefs: ${libNode.get}"
+                )
+              }
             } catch {
               case ex: Exception => HasError(ex)
               case err: Error    => HasError(err)
@@ -139,21 +132,31 @@ object PrepareRepos {
   }
 
   def parseAndFilterDataSet(): Unit = {
-    val trainSetDir: Path = pwd / up / "lambda-repos" / "allRepos"
+    def projectDestination(p: ParsedProject): String = {
+      val nodes = p.pGraph.nodes.size
+      if (nodes < 500 || nodes > 10000)
+        return "TooBigOrSmall"
+      val annots = p.allUserAnnots
+      val libCount = annots.count(_._2.madeFromLibTypes)
+      val projCount = annots.size - libCount
+      if(projCount * 10 < libCount)
+        return "TooFewProjectLabels"
+
+      "filteredRepos"
+    }
+
+    val allReposDir: Path = pwd / up / "lambda-repos" / "allRepos"
     var progress = 0
     announced("parsePredGraphs")(
       parseRepos(
-        Seq(trainSetDir),
+        Seq(allReposDir),
         loadFromFile = false,
         inParallel = true,
         maxLinesOfCode = 20000,
         parsedCallback = (file, pOpt) => {
           val dest = pOpt match {
             case Successful(p) =>
-              val nodes = p.pGraph.nodes.size
-              if (nodes > 500 && nodes < 10000)
-                "filteredRepos"
-              else "TooBigOrSmall"
+              projectDestination(p)
             case TooBigOrSmall =>
               "TooBigOrSmall"
             case HasError(ex) =>
@@ -163,7 +166,7 @@ object PrepareRepos {
               )
               "HasError"
           }
-          val dir = trainSetDir / up / dest
+          val dir = allReposDir / up / dest
           if (!exists(dir))
             mkdir(dir)
           mv(file, dir / file.last)
@@ -187,11 +190,10 @@ object PrepareRepos {
       if (to != from) mv(from, to)
     }
 
-    val num = allProjects.length
-    allProjects.take(50).foreach { f =>
+    allProjects.take(60).foreach { f =>
       tryMove(f, base / "bigger" / "testSet" / f.last)
     }
-    allProjects.slice(50, 100).foreach { f =>
+    allProjects.slice(60, 40).foreach { f =>
       tryMove(f, base / "bigger" / "devSet" / f.last)
     }
     allProjects.drop(100).foreach { f =>
@@ -317,7 +319,7 @@ object PrepareRepos {
         SM.saveObjectToFile((dir / "libDefs").toIO)(libDefs)
       }
 
-      val chunkSize = 50
+      val chunkSize = 30
       val chunks = withName(
         (trainSet ++ devSet ++ testSet).grouped(chunkSize).toList,
         "chunk"

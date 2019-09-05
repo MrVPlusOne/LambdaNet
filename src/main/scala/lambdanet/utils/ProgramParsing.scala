@@ -293,7 +293,8 @@ object ProgramParsing {
       exportLevel: ExportLevel.Value,
       isGetter: Boolean,
       isSetter: Boolean,
-      isAbstract: Boolean
+      isAbstract: Boolean,
+      isAsync: Boolean
   )
 
   private def parseModifiers(v: Js.Val): DefModifiers = {
@@ -307,7 +308,8 @@ object ProgramParsing {
     val isGetter = modifiers.contains("get")
     val isSetter = modifiers.contains("set")
     val isAbstract = modifiers.contains("abstract")
-    DefModifiers(isConst, exportLevel, isGetter, isSetter, isAbstract)
+    val isAsync = modifiers.contains("async")
+    DefModifiers(isConst, exportLevel, isGetter, isSetter, isAbstract, isAsync)
   }
 
   def isDeclarationFileName(name: String): Boolean = {
@@ -637,17 +639,18 @@ case class ProgramParsing() {
           val ms = parseModifiers(map("modifiers"))
           Vector(Namespace(Symbol(name), body, ms.exportLevel))
         case "FuncDef" =>
-          val name = Symbol(asString(map("name")))
+          val name0 = asString(map("name"))
           val args = parseArgList(map("args"))
           val returnType =
-            if (name == 'Constructor) Annot.Missing
+            if (name0 == "Constructor") Annot.Missing
             else parseGTMark(map("returnType"))
           val body = makeSureInBlockSurface(parseGStmt(map("body")))
 
           val tyVars = asVector(map("tyVars")).map(asSymbol)
           val ms = parseModifiers(map("modifiers"))
+          val name = if(ms.isAsync) "$Async_" + name0 else name0
           Vector(
-            FuncDef(name, tyVars, args, returnType, body, ms.exportLevel).tap {
+            FuncDef(Symbol(name), tyVars, args, returnType, body, ms.exportLevel).tap {
               f =>
                 map.get("publicVars").foreach { pv =>
                   f.publicVars = asVector(pv).map(asSymbol).toSet

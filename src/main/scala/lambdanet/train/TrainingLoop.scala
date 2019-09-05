@@ -68,10 +68,9 @@ object TrainingLoop extends TrainingLoopTrait {
 
   def main(args: Array[String]): Unit = {
     Tensor.floatingDataType = DataType.DOUBLE
-    PrepareRepos.main(args)  //todo
 
     run(
-      maxTrainingEpochs = if (toyMod) 2500 else 500,
+      maxTrainingEpochs = if (toyMod) 1000 else 200,
       numOfThreads = readThreadNumber()
     ).result()
   }

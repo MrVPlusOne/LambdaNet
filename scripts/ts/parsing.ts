@@ -760,7 +760,7 @@ export class StmtParser {
             name = "$Lambda" + getNLambda[0];
             getNLambda[0] += 1;
           }
-          lambdas.push(parseFunction(name, f, []));
+          lambdas.push(parseFunction(name, f, parseModifiers(f.modifiers)));
           return new Var(name);
         }
 
@@ -1285,30 +1285,27 @@ export class StmtParser {
 }
 
 function parseModifiers(modifiersNode?: ts.ModifiersArray): string[] {
-  let modifiers: string[] = [];
   if (modifiersNode) {
-    modifiersNode.forEach(m => {
+    return flatMap(modifiersNode, (m: ts.Modifier) => {
       switch (m.kind) {
         case SyntaxKind.ExportKeyword:
-          modifiers.push("export");
-          break;
+          return ["export"];
         case SyntaxKind.DefaultKeyword:
-          modifiers.push("default");
-          break;
+          return ["default"];
         case SyntaxKind.ConstKeyword:
-          modifiers.push("const");
-          break;
+          return ["const"];
         case SyntaxKind.StaticKeyword:
-          modifiers.push("static");
-          break;
+          return ["static"];
         case SyntaxKind.PublicKeyword:
-          modifiers.push("public");
-          break;
+          return ["public"];
+        case SyntaxKind.AsyncKeyword:
+          return ["async"];
         default:
+          return [];
       }
-    });
+    })
   }
-  return modifiers;
+  return [];
 }
 
 export function flattenBlock(stmts: GStmt[]): GStmt {
