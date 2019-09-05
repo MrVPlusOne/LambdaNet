@@ -3,6 +3,7 @@ package lambdanet
 import lambdanet.architecture.Embedding
 import lambdanet.architecture.{LabelEncoder, NNArchitecture}
 import lambdanet.train.DecodingResult
+import lambdanet.translation.ImportsResolution.NameDef
 
 import scala.collection.mutable
 
@@ -35,7 +36,6 @@ object NeuralInference {
         nodesToPredict: Vector[ProjNode],
         initEmbedding: Set[ProjNode] => Embedding,
         iterations: Int,
-        nodeForAny: LibTypeNode,
         labelEncoder: LabelEncoder,
         isLibLabel: Symbol => Boolean,
         nameEncoder: LabelEncoder,
@@ -178,6 +178,8 @@ object NeuralInference {
         )
       }
 
+      private val nodeForAny = NameDef.anyType.node
+
       private def signatureEmbeddingMap(
           leafEmbedding: PNode => CompNode,
           labelEncoding: Symbol => CompNode
@@ -191,7 +193,7 @@ object NeuralInference {
               sig,
               sig match {
                 case PTyVar(node) => leafEmbedding(node)
-                case PAny         => leafEmbedding(nodeForAny.n.n)
+                case PAny         => leafEmbedding(nodeForAny)
                 case PFuncType(args, to) =>
                   val args1 = args.map(embedSignature)
                   val to1 = embedSignature(to)
@@ -237,10 +239,9 @@ object NeuralInference {
     }
     val libraryNodes: Set[LibNode] =
       graph.nodes.filter(_.fromLib).map(LibNode) ++ unknownNodes
-    private val unknownType = PTyVar(unknownDef.ty.get)
     val predictionSpace = PredictionSpace(
       libraryTypeNodes
-        .map(_.n.n.pipe(PTyVar)) ++ projectClasses - unknownType // ++ Set(PAny),
+        .map(_.n.n.pipe(PTyVar)) ++ projectClasses - NameDef.unknownType // ++ Set(PAny),
     )
 
     val labelUsages: LabelUsages = {

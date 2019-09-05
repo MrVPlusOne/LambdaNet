@@ -12,7 +12,6 @@ import lambdanet.utils.QLangAccuracy.FseAccuracy
 import scala.collection.parallel.ForkJoinTaskSupport
 
 case class DataSet(
-    nodeForAny: LibTypeNode,
     trainSet: Vector[Datum],
     devSet: Vector[Datum],
     testSet: Vector[Datum]
@@ -49,21 +48,20 @@ object DataSet {
           }
         }
 
-      // don't predict unknown and any
-      val typesNotToPredict = Set(NameDef.unknownDef.ty.get, libDefs.nodeForAny)
       val libTypesToPredict: Set[LibTypeNode] =
         selectLibTypes(
           libDefs,
           repos.trainSet.map { _.nonInferredUserAnnots },
           coverageGoal = 0.98
-        ).filterNot(n => typesNotToPredict.contains(n.n.n))
+        )
 
       val nonGenerifyIt = nonGenerify(libDefs)
 
+      var inSpace = Counted(0, 0)
       val data: Vector[Datum] = {
         ((trainSet ++ devSet).zip(Stream.continually(true)) ++
           testSet.zip(Stream.continually(false))).toVector.par.flatMap {
-          case (p@ParsedProject(path, qModules, irModules, g), useInferred) =>
+          case (p @ ParsedProject(path, qModules, irModules, g), useInferred) =>
             val predictor =
               Predictor(
                 path,
@@ -73,20 +71,20 @@ object DataSet {
                 taskSupport
               )
 
-            val seqPredictor = SeqPredictor(
-              irModules,
-              libDefs,
-              predictor.predictionSpace,
-              taskSupport
-            )
-
             val annots =
               if (useInferred) p.allUserAnnots else p.nonInferredUserAnnots
-            val annots1 = annots.mapValuesNow(nonGenerifyIt)
+            val annots1 = annots
+              .mapValuesNow(nonGenerifyIt)
+              .filter { x =>
+                predictor.predictionSpace.allTypes.contains(x._2).tap { in =>
+                  import cats.implicits._
+                  inSpace |+|= Counted(1, if (in) 1 else 0)
+                }
+              }
             try {
               Datum(path, annots1, qModules.map { m =>
                 m.copy(mapping = m.mapping.mapValuesNow(_.map(nonGenerifyIt)))
-              }, predictor, seqPredictor)
+              }, predictor)
                 .tap(printResult)
                 .pipe(Vector(_))
             } catch {
@@ -95,13 +93,9 @@ object DataSet {
         }.seq
       }
 
-      (data.map { d =>
-        d.annotations.size * d.inPSpaceRatio
-      }.sum / data.map(_.annotations.size.toDouble).sum)
-        .tap { r =>
-          printResult(s"overall InSpaceRatio = $r")
-        }
-      //fixme: figure out why some projects have very low inSpaceRatio
+      toAccuracy(inSpace).tap { r =>
+        printResult(s"overall InSpaceRatio = $r")
+      }
 
       val libAnnots = data.map(_.libAnnots).sum
       val projAnnots = data.map(_.projAnnots).sum
@@ -112,7 +106,6 @@ object DataSet {
 
       val (n1, n2) = (trainSet.length, devSet.length)
       DataSet(
-        LibTypeNode(LibNode(libDefs.nodeForAny)),
         data.take(n1),
         data.slice(n1, n1 + n2),
         data.drop(n1 + n2)
@@ -165,37 +158,29 @@ case object EmptyNodesToPredict extends Exception
 
 case class Datum(
     projectName: ProjectPath,
-    annotations: Map[ProjNode, PType],
+    nodesToPredict: Map[ProjNode, PType],
     qModules: Vector[QModule],
-    predictor: Predictor,
-    seqPredictor: SeqPredictor
+    predictor: Predictor
 ) {
-  val inPSpaceRatio: Double =
-    annotations
-      .count(
-        _._2.pipe(predictor.predictionSpace.allTypes.contains)
-      )
-      .toDouble / annotations.size
-
-  val distanceToConsts: PNode => Int = {
-    Analysis.analyzeGraph(predictor.graph).distanceToConstNode
+  if (nodesToPredict.isEmpty) {
+    throw EmptyNodesToPredict
   }
+  require(nodesToPredict.forall {
+    case (_, ty) => predictor.predictionSpace.allTypes.contains(ty)
+  })
 
-  def libAnnots: Int = annotations.count(_._2.madeFromLibTypes)
-  def projAnnots: Int = annotations.count(!_._2.madeFromLibTypes)
+  val libAnnots: Int = nodesToPredict.count(_._2.madeFromLibTypes)
+  val projAnnots: Int = nodesToPredict.count(!_._2.madeFromLibTypes)
+  val projLabelRatio: Double =
+    if (projAnnots == 0) 0.0 else projAnnots.toDouble / (libAnnots + projAnnots)
 
   def showInline: String = {
     val info = s"{name: $projectName, " +
-      s"annotations: ${annotations.size}(L:$libAnnots/P:$projAnnots), " +
+      s"annotations: ${nodesToPredict.size}(L:$libAnnots/P:$projAnnots, p ratio:%.4f), "
+        .format(projLabelRatio) +
       s"predicates: ${predictor.graph.predicates.size}, " +
-      s"predictionSpace: ${predictor.predictionSpace.size}, " +
-      s"inPSpaceRatio: $inPSpaceRatio"
-    val outOfSpaceTypes =
-      annotations.values.toSet.diff(predictor.predictionSpace.allTypes)
-    val extra = if (inPSpaceRatio < 0.5) {
-      s", outOfSpace: $outOfSpaceTypes }"
-    } else "}"
-    info + extra
+      s"predictionSpace: ${predictor.predictionSpace.size}, "
+    info
   }
 
   override def toString: String = {
@@ -210,16 +195,4 @@ case class Datum(
 
   val fseAcc: FseAccuracy = FseAccuracy(qModules, predictor.predictionSpace)
 
-  /** Only predict nodes whose type is within the prediction space */
-  val nodesToPredict: Vector[ProjNode] = {
-    val annotsToUse = annotations.filter {
-      case (_, t) => predictor.predictionSpace.allTypes.contains(t)
-    }.toVector
-
-    annotsToUse.map(_._1).tap { ns =>
-      if(ns.isEmpty){
-        throw EmptyNodesToPredict
-      }
-    }
-  }
 }

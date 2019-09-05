@@ -137,8 +137,11 @@ object PredicateGraph {
       extends IdAllocator[PNode]
       with Serializable {
 
+    val anyNode: PNode = newNode(Some('ANY), isType = true)
     val unknownDef: NameDef =
-      if (forLib) NameDef.makeUnknownDef(this) else null
+      if (forLib) {
+        NameDef.makeUnknownDef(this)
+      } else null
 
     def newNode(
         nameOpt: Option[Symbol],
@@ -404,9 +407,9 @@ object PredicateGraphTranslation {
   def fromIRModules(
       fixedAnnotations: Map[PNode, PType],
       allocator: PNodeAllocator,
-      nodeForAny: PNode,
       modules: Vector[IRModule]
   ): PredicateGraph = {
+    val nodeForAny: PNode = NameDef.anyType.node
     val predicates = mutable.Set[TyPredicate]()
     val typeMap = mutable.HashMap[PType, PNode]()
     val fixedReturnType = mutable.HashMap[PNode, PNode]()

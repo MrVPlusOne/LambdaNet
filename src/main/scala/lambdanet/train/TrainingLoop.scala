@@ -48,7 +48,7 @@ object TrainingLoop extends TrainingLoopTrait {
     ).map(flag).mkString
 
     if (onlySeqModel) "large-seqModel"
-    else s"newModel$flags-${TrainingState.iterationNum}"
+    else "newData" + s"$flags-${TrainingState.iterationNum}"
   }
 
   def flag(nameValue: (String, Boolean)): String = {
@@ -339,12 +339,8 @@ object TrainingLoop extends TrainingLoopTrait {
                       onlyCountInSpaceTypes = true
                     )
                   val projTop5 = {
-                    val ground = datum.nodesToPredict.map(datum.annotations)
-                    val nodesMap = datum.nodesToPredict
-                      .map (_.n)
-                      .zip(ground)
-                      .filter(x => !x._2.madeFromLibTypes)
-                      .toMap
+                    val nodesMap = datum.nodesToPredict.
+                      collect{ case (n, ty) if !ty.madeFromLibTypes => n.n -> ty}
                     val predictions = pred.map {
                       case (n, distr) => n -> distr.distr.take(5).map(_._2)
                     }
@@ -410,83 +406,84 @@ object TrainingLoop extends TrainingLoopTrait {
         .tap(m => printResult(s"loss model: ${m.name}"))
 
       private def selectForward(data: Datum) = {
-        if (onlySeqModel) seqForward(data)
-        else forward(data)
+//        if (onlySeqModel) seqForward(data)
+//        else forward(data)
+        forward(data)
       }
 
-      /** Forward propagation for the sequential model */
-      private def seqForward(
-          datum: Datum
-      ): Option[(Loss, ForwardResult, Map[PNode, TopNDistribution[PType]])] = {
-        def result = {
-          val predictor = datum.seqPredictor
-          val predSpace = predictor.predSpace
-          // the logits for very iterations
-          val nodes = datum.nodesToPredict.map { _.n }
-          val logits = announced("run seq predictor") {
-            predictor.run(
-              seqArchitecture,
-              nameEncoder,
-              nodes,
-              nameDropout = useDropout && isTraining
-            )
-          }
-
-          val nonGenerifyIt = DataSet.nonGenerify(predictor.libDefs)
-
-          val groundTruths = nodes.map {
-            case n if n.fromLib =>
-              nonGenerifyIt(predictor.libDefs.nodeMapping(n).get)
-            case n if n.fromProject =>
-              datum.annotations(ProjNode(n))
-          }
-
-          val targets = groundTruths.map(predSpace.indexOfType)
-          val nodeDistances = nodes.map(_.pipe(datum.distanceToConsts))
-
-          val (correctness, confMat, typeAccs) =
-            announced("compute training accuracy") {
-              analyzeDecoding(
-                logits,
-                groundTruths,
-                predSpace,
-                nodeDistances
-              )
-            }
-
-          val loss =
-            logits.toLoss(targets, projWeight, predSpace.libTypeVec.length)
-
-          val totalCount = groundTruths.length
-          val mapped = nodes
-            .zip(groundTruths)
-            .zip(correctness)
-            .groupBy(_._2)
-            .mapValuesNow { pairs =>
-              pairs.map { case ((n, ty), _) => (n, ty, datum.projectName) }.toSet
-            }
-          val fwd = ForwardResult(
-            Counted(totalCount, loss.value.squeeze() * totalCount),
-            mapped.getOrElse(true, Set()),
-            mapped.getOrElse(false, Set()),
-            confMat,
-            typeAccs
-          )
-
-          val predictions = {
-            val predVec = logits
-              .topNPredictionsWithCertainty(6)
-              .map { _.map(predSpace.typeVector) }
-            nodes.zip(predVec).toMap
-          }
-
-          (loss, fwd, predictions)
-        }
-
-        limitTimeOpt(s"forward: $datum", Timeouts.forwardTimeout) {
-          DebugTime.logTime("seqForward") { result }
-        }
-      }
+//      /** Forward propagation for the sequential model */
+//      private def seqForward(
+//          datum: Datum
+//      ): Option[(Loss, ForwardResult, Map[PNode, TopNDistribution[PType]])] = {
+//        def result = {
+//          val predictor = datum.seqPredictor
+//          val predSpace = predictor.predSpace
+//          // the logits for very iterations
+//          val nodes = datum.nodesToPredict.map { _.n }
+//          val logits = announced("run seq predictor") {
+//            predictor.run(
+//              seqArchitecture,
+//              nameEncoder,
+//              nodes,
+//              nameDropout = useDropout && isTraining
+//            )
+//          }
+//
+//          val nonGenerifyIt = DataSet.nonGenerify(predictor.libDefs)
+//
+//          val groundTruths = nodes.map {
+//            case n if n.fromLib =>
+//              nonGenerifyIt(predictor.libDefs.nodeMapping(n).get)
+//            case n if n.fromProject =>
+//              datum.nodesToPredict(ProjNode(n))
+//          }
+//
+//          val targets = groundTruths.map(predSpace.indexOfType)
+//          val nodeDistances = nodes.map(_.pipe(datum.distanceToConsts))
+//
+//          val (correctness, confMat, typeAccs) =
+//            announced("compute training accuracy") {
+//              analyzeDecoding(
+//                logits,
+//                groundTruths,
+//                predSpace,
+//                nodeDistances
+//              )
+//            }
+//
+//          val loss =
+//            logits.toLoss(targets, projWeight, predSpace.libTypeVec.length)
+//
+//          val totalCount = groundTruths.length
+//          val mapped = nodes
+//            .zip(groundTruths)
+//            .zip(correctness)
+//            .groupBy(_._2)
+//            .mapValuesNow { pairs =>
+//              pairs.map { case ((n, ty), _) => (n, ty, datum.projectName) }.toSet
+//            }
+//          val fwd = ForwardResult(
+//            Counted(totalCount, loss.value.squeeze() * totalCount),
+//            mapped.getOrElse(true, Set()),
+//            mapped.getOrElse(false, Set()),
+//            confMat,
+//            typeAccs
+//          )
+//
+//          val predictions = {
+//            val predVec = logits
+//              .topNPredictionsWithCertainty(6)
+//              .map { _.map(predSpace.typeVector) }
+//            nodes.zip(predVec).toMap
+//          }
+//
+//          (loss, fwd, predictions)
+//        }
+//
+//        limitTimeOpt(s"forward: $datum", Timeouts.forwardTimeout) {
+//          DebugTime.logTime("seqForward") { result }
+//        }
+//      }
       private def forward(
           datum: Datum
       ): Option[(Loss, ForwardResult, Map[PNode, TopNDistribution[PType]])] =
@@ -497,22 +494,19 @@ object TrainingLoop extends TrainingLoopTrait {
 
           val predSpace = predictor.predictionSpace
 
-          val groundTruths = nodesToPredict.map(annotations)
+          val (nodes, groundTruths) = nodesToPredict.toVector.unzip
           val targets = groundTruths.map(predSpace.indexOfType)
           val isLibOracle =
             if (useOracleForIsLib) Some(targets.map(predSpace.isLibType))
             else None
-          val nodeDistances = nodesToPredict.map(_.n.pipe(distanceToConsts))
 
-          // the probability for very iterations
           val decodingVec = announced("run predictor") {
             predictor
               .run(
                 architecture,
-                nodesToPredict,
+                nodes,
                 architecture.initialEmbedding,
                 iterationNum,
-                nodeForAny,
                 labelEncoder,
                 labelCoverage.isLibLabel,
                 nameEncoder,
@@ -529,8 +523,7 @@ object TrainingLoop extends TrainingLoopTrait {
               analyzeDecoding(
                 decoding,
                 groundTruths,
-                predSpace,
-                nodeDistances
+                predSpace
               )
             }
 
@@ -541,8 +534,8 @@ object TrainingLoop extends TrainingLoopTrait {
           )
 
           val totalCount = groundTruths.length
-          val nodes = datum.nodesToPredict.map(_.n)
           val mapped = nodes
+            .map(_.n)
             .zip(groundTruths)
             .zip(correctness)
             .groupBy(_._2)
@@ -562,7 +555,7 @@ object TrainingLoop extends TrainingLoopTrait {
             val predVec = decoding
               .topNPredictionsWithCertainty(6)
               .map { _.map(predSpace.typeOfIndex) }
-            nodesToPredict.map(_.n).zip(predVec).toMap
+            nodes.map(_.n).zip(predVec).toMap
           }
 
           (loss, fwd, predictions)
@@ -666,8 +659,7 @@ object TrainingLoop extends TrainingLoopTrait {
       private def analyzeDecoding(
           results: DecodingResult,
           groundTruths: Vector[PType],
-          predictionSpace: PredictionSpace,
-          nodeDistances: Vector[Int]
+          predictionSpace: PredictionSpace
       ): (
           Vector[Boolean],
           Counted[ConfusionMatrix],
@@ -697,7 +689,7 @@ object TrainingLoop extends TrainingLoopTrait {
       }
 
       private val avgAnnotations =
-        SM.mean(trainSet.map(_.annotations.size.toDouble))
+        SM.mean(trainSet.map(_.nodesToPredict.size.toDouble))
     }
 
     val taskSupport: Option[ForkJoinTaskSupport] =

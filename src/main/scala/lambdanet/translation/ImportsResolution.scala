@@ -5,7 +5,7 @@ import ammonite.ops.RelPath
 import funcdiff.SimpleMath
 import lambdanet.{ExportLevel, ImportStmt, ProjectPath, ReferencePath}
 import lambdanet.translation.PLang._
-import lambdanet.translation.PredicateGraph.{PNode, PNodeAllocator}
+import lambdanet.translation.PredicateGraph.{PNode, PNodeAllocator, PTyVar}
 import lambdanet._
 import lambdanet.ExportStmt._
 import lambdanet.ImportStmt._
@@ -107,6 +107,9 @@ object ImportsResolution {
       val libAllocator = new PNodeAllocator(forLib = true)
       libAllocator.unknownDef
     }
+
+    val unknownType = PTyVar(NameDef.unknownDef.ty.get)
+    val anyType = PTyVar(new PNodeAllocator(forLib = true).anyNode)
 
     val empty: NameDef = NameDef(None, None, None)
 

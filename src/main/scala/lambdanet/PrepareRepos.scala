@@ -3,9 +3,23 @@ package lambdanet
 import ammonite.ops._
 import funcdiff.SimpleMath
 import lambdanet.translation.IR.IRModule
-import lambdanet.translation.ImportsResolution.{ErrorHandler, ModuleExports}
+import lambdanet.translation.ImportsResolution.{
+  ErrorHandler,
+  ModuleExports,
+  NameDef
+}
 import lambdanet.translation._
-import lambdanet.translation.PredicateGraph.{DefineRel, LibNode, PNode, PNodeAllocator, PObject, PType, ProjNode, TyPredicate}
+import lambdanet.translation.PredicateGraph.{
+  DefineRel,
+  LibNode,
+  PNode,
+  PNodeAllocator,
+  PObject,
+  PTyVar,
+  PType,
+  ProjNode,
+  TyPredicate
+}
 import lambdanet.translation.QLang.QModule
 import lambdanet.utils.ProgramParsing
 import lambdanet.utils.ProgramParsing.GProject
@@ -15,7 +29,6 @@ import scala.util.Random
 
 @SerialVersionUID(2)
 case class LibDefs(
-    nodeForAny: PNode,
     baseCtx: ModuleExports,
     nodeMapping: Map[PNode, PAnnot],
     libExports: Map[ProjectPath, ModuleExports],
@@ -37,16 +50,27 @@ object PrepareRepos {
 //  val parsedRepoPath: Path = pwd / "data" / "parsedDataSet.serialized"
   val parsedReposDir: Path = pwd / 'data / "parsedRepos"
 
+  val allReposDir: Path = pwd / up / "lambda-repos" / "allRepos"
+
   def main(args: Array[String]): Unit = {
 //    val defs = parseLibDefs()
 //    SimpleMath.saveObjectToFile(libDefsFile.toIO)(defs)
 //    println(s"library definitions saved to $libDefsFile")
 
+//    remixDividedDataSet()
 //    parseAndFilterDataSet()
-    mixTestDevSet()
+    divideDataSet()
     parseAndSerializeDataSet()
+  }
 
-//    testNewSerialization()
+  private def remixDividedDataSet(): Unit = {
+    val base = pwd / up / "lambda-repos" / "bigger"
+    for {
+      dataSet <- Seq("trainSet", "testSet", "devSet")
+      p <- ls(base / dataSet) if p.isDir && p.last != "toy"
+    } {
+      mv(p, allReposDir / p.last)
+    }
   }
 
   sealed trait RepoResult {
@@ -95,7 +119,7 @@ object PrepareRepos {
                   ErrorHandler(ErrorHandler.StoreError, ErrorHandler.StoreError)
               ).mergeEqualities
 
-              Successful(p0).tap{ _ =>
+              Successful(p0).tap { _ =>
                 val diff =
                   (p0.pGraph.nodes ++ p0.pGraph.predicates.flatMap(_.allNodes))
                     .diff(libDefs.nodeMapping.keySet)
@@ -137,15 +161,20 @@ object PrepareRepos {
       if (nodes < 500 || nodes > 10000)
         return "TooBigOrSmall"
       val annots = p.allUserAnnots
+      val annotsRatio = annots.size.toDouble / p.pGraph.predicates.size
+      printResult(s"annots ratio: $annotsRatio")
+      if (annotsRatio < 1.0 / 10) {
+        return "TooFewLabels"
+      }
+
       val libCount = annots.count(_._2.madeFromLibTypes)
       val projCount = annots.size - libCount
-      if(projCount * 10 < libCount)
+      if (projCount * 10 < libCount)
         return "TooFewProjectLabels"
 
       "filteredRepos"
     }
 
-    val allReposDir: Path = pwd / up / "lambda-repos" / "allRepos"
     var progress = 0
     announced("parsePredGraphs")(
       parseRepos(
@@ -179,7 +208,7 @@ object PrepareRepos {
     )
   }
 
-  def mixTestDevSet(): Unit = {
+  def divideDataSet(): Unit = {
     val random = new Random(1)
     val base = pwd / up / "lambda-repos"
     val allProjects = ls(base / "filteredRepos")
@@ -201,7 +230,7 @@ object PrepareRepos {
     }
   }
 
-  def testNewSerialization(): Unit = {
+  private def testNewSerialization(): Unit = {
     val repos = announced("read1") {
       SM.readObjectFromFile[ParsedRepos](
         (parsedReposDir / up / "parsedDataSet.serialized").toIO
@@ -252,6 +281,10 @@ object PrepareRepos {
     }
   }
 
+  // don't predict unknown and any
+  val typesNotToPredict: Set[PType] =
+    Set(NameDef.unknownType, NameDef.anyType)
+
   @SerialVersionUID(2)
   case class ParsedProject(
       path: ProjectPath,
@@ -263,7 +296,8 @@ object PrepareRepos {
     lazy val allUserAnnots: Map[ProjNode, PType] = {
       val allAnnots = irModules.flatMap(_.mapping).toMap
       allAnnots.collect {
-        case (n, Annot.User(t, _)) => ProjNode(n) -> t
+        case (n, Annot.User(t, _)) if !typesNotToPredict.contains(t) =>
+          ProjNode(n) -> t
       }
     }
 
@@ -271,7 +305,8 @@ object PrepareRepos {
     lazy val nonInferredUserAnnots: Map[ProjNode, PType] = {
       val allAnnots = irModules.flatMap(_.mapping).toMap
       allAnnots.collect {
-        case (n, Annot.User(t, false)) => ProjNode(n) -> t
+        case (n, Annot.User(t, false)) if !typesNotToPredict.contains(t) =>
+          ProjNode(n) -> t
       }
     }
 
@@ -296,7 +331,8 @@ object PrepareRepos {
   ) {
     import ParsedRepos._
 
-    def meta(chunkNum: Int) = Meta(trainSet.length, devSet.length, testSet.length,chunkNum)
+    def meta(chunkNum: Int) =
+      Meta(trainSet.length, devSet.length, testSet.length, chunkNum)
 
     def serializeIntoDir(
         dir: Path,
@@ -338,7 +374,12 @@ object PrepareRepos {
   object ParsedRepos {
 
     @SerialVersionUID(1)
-    case class Meta(trainSetSize: Int, devSetSize: Int, testSetSize: Int, chunkNum: Int) {
+    case class Meta(
+        trainSetSize: Int,
+        devSetSize: Int,
+        testSetSize: Int,
+        chunkNum: Int
+    ) {
       def totoalProjectNum = trainSetSize + devSetSize + testSetSize
     }
 
@@ -489,7 +530,7 @@ object PrepareRepos {
         QLangTranslation.fromPModule(m, baseCtx1 |+| exports(m.path))
       }
 
-    val anyNode = libAllocator.newNode(None, isType = true)
+    val anyNode = libAllocator.anyNode
 
     val nodeMapping = defaultMapping ++
       qModules.flatMap(_.mapping) ++
@@ -507,7 +548,7 @@ object PrepareRepos {
       .toSet
 
     println("Declaration files parsed.")
-    LibDefs(anyNode, baseCtx1, nodeMapping, libExports, classes)
+    LibDefs(baseCtx1, nodeMapping, libExports, classes)
   }
 
   def pruneGraph(
@@ -589,7 +630,6 @@ object PrepareRepos {
         PredicateGraphTranslation.fromIRModules(
           fixedAnnots,
           allocator,
-          nodeForAny,
           irModules
         )
       val userTypes =

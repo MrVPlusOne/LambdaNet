@@ -96,7 +96,7 @@ object LabelEncoder {
             nameUsages(name)
         }.combineAll
 
-        val annotsUsage = p.annotations.toVector.foldMap {
+        val annotsUsage = p.nodesToPredict.toVector.foldMap {
           case (_, t) => t.allLabels.toVector.foldMap(nameUsages)
         }
 
@@ -163,7 +163,7 @@ object LabelEncoder {
             nameUsages(name)
         }.combineAll
 
-        val annotsUsage = p.annotations.toVector.foldMap {
+        val annotsUsage = p.nodesToPredict.toVector.foldMap {
           case (_, t) => t.allLabels.toVector.foldMap(nameUsages)
         }
 
