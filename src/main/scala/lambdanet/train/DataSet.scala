@@ -10,6 +10,7 @@ import lambdanet.translation.QLang.QModule
 import lambdanet.utils.QLangAccuracy.FseAccuracy
 
 import scala.collection.parallel.ForkJoinTaskSupport
+import scala.util.Random
 
 case class DataSet(
     trainSet: Vector[Datum],
@@ -171,13 +172,27 @@ case class Datum(
 
   val libAnnots: Int = nodesToPredict.count(_._2.madeFromLibTypes)
   val projAnnots: Int = nodesToPredict.count(!_._2.madeFromLibTypes)
-  val projLabelRatio: Double =
-    if (projAnnots == 0) 0.0 else projAnnots.toDouble / (libAnnots + projAnnots)
+  val libLabelRatio: Double =
+    if (projAnnots == 0) 1.0 else libAnnots.toDouble / projAnnots
+
+  def downsampleLibAnnots(
+      maxLibRatio: Double,
+      random: Random
+  ): Map[ProjNode, PType] = {
+    if (libLabelRatio <= maxLibRatio)
+      return nodesToPredict
+    val maxLibLabels = (projAnnots * maxLibRatio).toInt
+    val libLabels = nodesToPredict.toVector
+      .filter(_._2.madeFromLibTypes)
+      .pipe(random.shuffle(_))
+      .take(maxLibLabels)
+    nodesToPredict.filter(!_._2.madeFromLibTypes) ++ libLabels
+  }
 
   def showInline: String = {
     val info = s"{name: $projectName, " +
-      s"annotations: ${nodesToPredict.size}(L:$libAnnots/P:$projAnnots, p ratio:%.4f), "
-        .format(projLabelRatio) +
+      s"annotations: ${nodesToPredict.size}(L:$libAnnots/P:$projAnnots, ratio:%.4f), "
+        .format(libLabelRatio) +
       s"predicates: ${predictor.graph.predicates.size}, " +
       s"predictionSpace: ${predictor.predictionSpace.size}, "
     info

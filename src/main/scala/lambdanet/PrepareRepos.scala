@@ -222,7 +222,7 @@ object PrepareRepos {
     allProjects.take(60).foreach { f =>
       tryMove(f, base / "bigger" / "testSet" / f.last)
     }
-    allProjects.slice(60, 40).foreach { f =>
+    allProjects.slice(60, 100).foreach { f =>
       tryMove(f, base / "bigger" / "devSet" / f.last)
     }
     allProjects.drop(100).foreach { f =>

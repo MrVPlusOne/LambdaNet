@@ -17,7 +17,7 @@ import lambdanet.architecture.LabelEncoder.{
   SegmentedLabelEncoder,
   TrainableLabelEncoder
 }
-import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
+import lambdanet.translation.PredicateGraph.{PNode, PType}
 import org.nd4j.linalg.api.buffer.DataType
 
 import scala.collection.parallel.ForkJoinTaskSupport
@@ -32,12 +32,13 @@ import scala.language.reflectiveCalls
 import scala.util.Random
 
 object TrainingLoop extends TrainingLoopTrait {
-  val toyMod: Boolean = false
+  val toyMod: Boolean = true
   val onlySeqModel = false
   val useDropout: Boolean = true
   val useOracleForIsLib: Boolean = true
   /* Assign more weights to project type to battle label imbalance */
-  val projWeight: Double = 3.0
+  val maxLibRatio: Real = 3.0
+  val projWeight: Real = maxLibRatio
 
   val taskName: String = {
     val flags = Seq(
@@ -48,7 +49,7 @@ object TrainingLoop extends TrainingLoopTrait {
     ).map(flag).mkString
 
     if (onlySeqModel) "large-seqModel"
-    else "newData" + s"$flags-${TrainingState.iterationNum}"
+    else "downsample" + s"$flags-${TrainingState.iterationNum}"
   }
 
   def flag(nameValue: (String, Boolean)): String = {
@@ -151,10 +152,13 @@ object TrainingLoop extends TrainingLoopTrait {
       printResult(s"NN Architecture: ${architecture.arcName}")
       printResult(s"Single layer consists of: ${architecture.singleLayerModel}")
 
+      var shouldAnnounce: Boolean = true
+
       def result(): Unit = {
         val saveInterval = if (toyMod) 100 else 6
 
         (trainingState.epoch0 + 1 to maxTrainingEpochs).foreach { epoch =>
+          shouldAnnounce = epoch == 1 // only announce in the first epoch for debugging purpose
           announced(s"epoch $epoch") {
             TensorExtension.checkNaN = (epoch - 1) % 10 == 0
             handleExceptions(epoch) {
@@ -220,12 +224,17 @@ object TrainingLoop extends TrainingLoopTrait {
           case (datum, i) =>
             import Console.{GREEN, BLUE}
             announced(
-              s"$GREEN[epoch $epoch](progress: ${i + 1}/${trainSet.size})$BLUE train on $datum"
+              s"$GREEN[epoch $epoch](progress: ${i + 1}/${trainSet.size})$BLUE train on $datum",
+              shouldAnnounce
             ) {
 //              println(DebugTime.show)
               checkShouldStop(epoch)
               for {
-                (loss, fwd, _) <- selectForward(datum).tap(
+                (loss, fwd, _) <- forward(
+                  datum,
+                  shouldDownsample = true,
+                  shouldDropout = useDropout
+                ).tap(
                   _.foreach(r => printResult(r._2))
                 )
                 _ = checkShouldStop(epoch)
@@ -247,7 +256,7 @@ object TrainingLoop extends TrainingLoopTrait {
                   s"optimization: $datum",
                   Timeouts.optimizationTimeout
                 ) {
-                  announced("optimization") {
+                  announced("optimization", shouldAnnounce) {
                     val stats = DebugTime.logTime("optimization") {
                       optimize(loss)
                     }
@@ -329,8 +338,12 @@ object TrainingLoop extends TrainingLoopTrait {
 
           val (stat, fse1Acc, projTop5Acc) = dataSet.flatMap { datum =>
             checkShouldStop(epoch)
-            announced(s"test on $datum") {
-              selectForward(datum).map {
+            announced(s"test on $datum", shouldAnnounce) {
+              forward(
+                datum,
+                shouldDownsample = !isTestSet,
+                shouldDropout = false
+              ).map {
                 case (_, fwd, pred) =>
                   val (fse1, _, _) = datum.fseAcc
                     .countTopNCorrect(
@@ -339,17 +352,20 @@ object TrainingLoop extends TrainingLoopTrait {
                       onlyCountInSpaceTypes = true
                     )
                   val projTop5 = {
-                    val nodesMap = datum.nodesToPredict.
-                      collect{ case (n, ty) if !ty.madeFromLibTypes => n.n -> ty}
+                    val nodesMap = datum.nodesToPredict.collect {
+                      case (n, ty) if !ty.madeFromLibTypes => n.n -> ty
+                    }
                     val predictions = pred.map {
                       case (n, distr) => n -> distr.distr.take(5).map(_._2)
                     }
-                    QLangAccuracy.countTopNCorrect(
-                      5,
-                      nodesMap,
-                      predictions,
-                      _ => 1
-                    )._1
+                    QLangAccuracy
+                      .countTopNCorrect(
+                        5,
+                        nodesMap,
+                        predictions,
+                        _ => 1
+                      )
+                      ._1
                   }
                   (fwd, fse1, projTop5)
 
@@ -404,12 +420,6 @@ object TrainingLoop extends TrainingLoopTrait {
 
       val lossModel: LossModel = LossModel.NormalLoss
         .tap(m => printResult(s"loss model: ${m.name}"))
-
-      private def selectForward(data: Datum) = {
-//        if (onlySeqModel) seqForward(data)
-//        else forward(data)
-        forward(data)
-      }
 
 //      /** Forward propagation for the sequential model */
 //      private def seqForward(
@@ -485,7 +495,9 @@ object TrainingLoop extends TrainingLoopTrait {
 //        }
 //      }
       private def forward(
-          datum: Datum
+          datum: Datum,
+          shouldDownsample: Boolean,
+          shouldDropout: Boolean
       ): Option[(Loss, ForwardResult, Map[PNode, TopNDistribution[PType]])] =
         limitTimeOpt(s"forward: $datum", Timeouts.forwardTimeout) {
           import datum._
@@ -494,13 +506,16 @@ object TrainingLoop extends TrainingLoopTrait {
 
           val predSpace = predictor.predictionSpace
 
-          val (nodes, groundTruths) = nodesToPredict.toVector.unzip
+          val annotsToUse =
+            if (shouldDownsample) datum.downsampleLibAnnots(maxLibRatio, random)
+            else nodesToPredict
+          val (nodes, groundTruths) = annotsToUse.toVector.unzip
           val targets = groundTruths.map(predSpace.indexOfType)
           val isLibOracle =
             if (useOracleForIsLib) Some(targets.map(predSpace.isLibType))
             else None
 
-          val decodingVec = announced("run predictor") {
+          val decodingVec = announced("run predictor", shouldAnnounce) {
             predictor
               .run(
                 architecture,
@@ -519,7 +534,7 @@ object TrainingLoop extends TrainingLoopTrait {
           val decoding = decodingVec.last
 
           val (correctness, confMat, typeAccs) =
-            announced("compute training accuracy") {
+            announced("compute training accuracy", shouldAnnounce) {
               analyzeDecoding(
                 decoding,
                 groundTruths,
@@ -549,7 +564,7 @@ object TrainingLoop extends TrainingLoopTrait {
             mapped.getOrElse(false, Set()),
             confMat,
             typeAccs
-          ).tap( r => assert(r.isConsistent))
+          ).tap(r => assert(r.isConsistent))
 
           val predictions = {
             val predVec = decoding
@@ -619,9 +634,10 @@ object TrainingLoop extends TrainingLoopTrait {
           val (right, wrong) = testSet.flatMap { datum =>
             checkShouldStop(epoch)
             announced(
-              s"(progress: ${progress.tap(_ => progress += 1)}) test on $datum"
+              s"(progress: ${progress.tap(_ => progress += 1)}) test on $datum",
+              shouldAnnounce
             ) {
-              selectForward(datum).map {
+              forward(datum, shouldDownsample = false, shouldDropout = false).map {
                 case (_, fwd, pred) =>
                   DebugTime.logTime("printQSource") {
                     QLangDisplay.renderProjectToDirectory(
@@ -689,7 +705,9 @@ object TrainingLoop extends TrainingLoopTrait {
       }
 
       private val avgAnnotations =
-        SM.mean(trainSet.map(_.nodesToPredict.size.toDouble))
+        SM.mean(
+          trainSet.map(_.downsampleLibAnnots(maxLibRatio, random).size.toDouble)
+        )
     }
 
     val taskSupport: Option[ForkJoinTaskSupport] =
