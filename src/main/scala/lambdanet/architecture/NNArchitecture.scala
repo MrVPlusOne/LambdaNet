@@ -237,8 +237,8 @@ abstract class NNArchitecture(
     val logits0 = concatN(0, fromRows = true)(rows) ~>
       linear(name / 'sim0, dimMessage) ~> relu ~>
       linear(name / 'sim1, dimMessage / 2) ~> relu ~>
-      linear(name / 'sim1, dimMessage / 4) ~> relu ~>
-      linear(name / 'sim2, 1)
+      linear(name / 'sim2, dimMessage / 4) ~> relu ~>
+      linear(name / 'sim3, 1)
 
     val logits = logits0.reshape(Shape.make(inputs.length, candidates.length))
     Joint(logits)
@@ -306,7 +306,7 @@ abstract class NNArchitecture(
       case None =>
         inputs1 ~>
           linear('libDecider / 'L1, dimMessage) ~> relu ~>
-          linear('libDecider / 'L2, dimMessage) ~> relu ~>
+          linear('libDecider / 'L2, dimMessage/2) ~> relu ~>
           linear('libDecider / 'L3, 1)
       case Some(truth) =>
         truth
@@ -337,7 +337,7 @@ abstract class NNArchitecture(
       case None =>
         inputs1 ~>
           linear('libDecider / 'L1, dimMessage) ~> relu ~>
-          linear('libDecider / 'L2, dimMessage) ~> relu ~>
+          linear('libDecider / 'L2, dimMessage/2) ~> relu ~>
           linear('libDecider / 'L3, 1) ~> sigmoid
       case Some(truth) =>
         truth
@@ -474,7 +474,7 @@ abstract class NNArchitecture(
       path: SymbolPath,
       input: CompNode
   ): CompNode = {
-    linear(path / 'L1, dimMessage)(input)
+    linear(path / 'L0, dimMessage)(input)
   }
 
   def messageLayer(path: SymbolPath)(input: CompNode): CompNode = {
