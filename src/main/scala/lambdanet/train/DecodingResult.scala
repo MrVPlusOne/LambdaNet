@@ -34,7 +34,7 @@ case class Joint(logits: CompNode) extends DecodingResult {
   def topPredictions: Vector[Int] = {
     numsca
       .argmaxAxis(logits.value, axis = 1)
-      .data
+      .dataSlow
       .map(_.toInt)
       .toVector
   }
@@ -57,7 +57,7 @@ case class Joint(logits: CompNode) extends DecodingResult {
     (0 until row.toInt).map { r =>
       logits
         .value(r, :>)
-        .data
+        .dataSlow
         .zipWithIndex
         .sortBy(x => -x._1)
         .map(_._2)
@@ -76,12 +76,12 @@ case class TwoStage(
   val libNum: Int = libLogits.shape(1).toInt
 
   def topPredictions: Vector[Int] = {
-    val libMax = argmaxAxis(libLogits.value, 1).data
+    val libMax = argmaxAxis(libLogits.value, 1).dataSlow
     if (projLogits.isEmpty)
       return libMax.map(_.toInt).toVector
 
-    val projMax = argmaxAxis(projLogits.get.value, 1).data
-    val isLib = isLibLogits.value.data.map(_ > 0)
+    val projMax = argmaxAxis(projLogits.get.value, 1).dataSlow
+    val isLib = isLibLogits.value.dataSlow.map(_ > 0)
     isLib.zipWithIndex.map {
       case (b, i) =>
         if (b) libMax(i).toInt else projMax(i).toInt + libNum
@@ -103,7 +103,7 @@ case class TwoStage(
       return libRows.toVector
 
     val projRows = sortedRows(projLogits.get.value, libNum)
-    val isLib = isLibLogits.value.data.map(_ > 0)
+    val isLib = isLibLogits.value.dataSlow.map(_ > 0)
     isLib.zipWithIndex.map {
       case (b, i) =>
         if (b) libRows(i) else projRows(i)

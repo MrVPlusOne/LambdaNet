@@ -214,15 +214,15 @@ package object numsca {
     assert(first.shape(0) == 1, s"shape = ${first.shape}")
     val columns = first.shape(1)
     val n = rows.length
-//    val data = Nd4j.createUninitialized(Array(columns * n), NDArrayFactory.C)
-//    var pos = 0L
-//    rows.foreach { r =>
-//      val nextPos = pos + columns
-//      data.put(Array(NDArrayIndex.interval(pos, nextPos)), r.array)
-//      pos = nextPos
-//    }
-    assert(rows.forall(_.shape(1) == columns))
-    val data = Nd4j.create(rows.toArray.flatMap(_.data), NDArrayFactory.C)
+    val data = Nd4j.createUninitialized(Array(columns * n), NDArrayFactory.C)
+    var pos = 0L
+    rows.foreach { r =>
+      val nextPos = pos + columns
+      data.put(Array(NDArrayIndex.interval(pos, nextPos)), r.array)
+      pos = nextPos
+    }
+//    assert(rows.forall(_.shape(1) == columns))
+//    val data = Nd4j.create(rows.toArray.flatMap(_.dataSlow), NDArrayFactory.C)
     val r =
       if (axis == 0) data.reshape(n, columns) else data.reshape(1, n * columns)
     new Tensor(r)

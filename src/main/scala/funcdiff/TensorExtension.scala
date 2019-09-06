@@ -1,12 +1,14 @@
 package funcdiff
 
 import botkop.numsca
-import botkop.numsca.{NumscaRange, Tensor, Shape}
+import botkop.numsca.{NumscaRange, Shape, Tensor}
 import botkop.{numsca => ns}
 import org.nd4j.linalg.api.ops.impl.indexaccum.{IMax, IMin}
 import org.nd4j.linalg.factory.Nd4j
 import org.nd4j.linalg.ops.transforms.Transforms
-import Tensor.{Size}
+import Tensor.Size
+import org.nd4j.linalg.indexing.BooleanIndexing
+import org.nd4j.linalg.indexing.conditions.IsNaN
 
 object TensorExtension {
 
@@ -15,9 +17,9 @@ object TensorExtension {
   }
 
   def mamFormat(t: Tensor): String = {
-    if (t.data.length == 1) mamFormat(t.squeeze())
+    if (t.elements == 1) mamFormat(t.squeeze())
     else {
-      t.data
+      t.dataSlow
         .map(mamFormat)
         .mkString("{", ",", "}") // fixme: support high-dimensional tensors
     }
@@ -153,7 +155,10 @@ object TensorExtension {
 
     def assertNoNaN(): Unit = {
       if (checkNaN) {
-        assert(data.data.forall(!_.isNaN))
+        BooleanIndexing.or(
+          data.value.array,
+          new IsNaN()
+        )
       }
     }
   }

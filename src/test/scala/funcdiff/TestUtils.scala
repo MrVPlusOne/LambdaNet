@@ -5,6 +5,7 @@ import botkop.{numsca => ns}
 import com.typesafe.scalalogging.LazyLogging
 import org.nd4j.linalg.api.buffer.{DataBuffer, DataType}
 import org.nd4j.linalg.factory.Nd4j
+import org.nd4j.linalg.indexing.BooleanIndexing
 import org.scalatest.{FlatSpec, Matchers}
 
 import scala.util.Random
@@ -143,7 +144,7 @@ trait TestUtils extends FlatSpec with Matchers with LazyLogging {
               )
             case None =>
               assert(
-                numerical.data.forall(x => math.abs(x) < 1e-5),
+                numerical.dataSlow.forall(x => math.abs(x) < 1e-5),
                 s"*** $out failed to pass numerical gradient check. The gradient is expected to be zero."
               )
           }
@@ -184,7 +185,7 @@ trait TestUtils extends FlatSpec with Matchers with LazyLogging {
           )
         case None =>
           assert(
-            numerical.data.forall(x => math.abs(x) < 1e-5),
+            numerical.dataSlow.forall(x => math.abs(x) < 1e-5),
             s"*** $out failed to pass numerical gradient check. The gradient is expected to be zero."
           )
       }

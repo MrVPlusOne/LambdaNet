@@ -8,25 +8,32 @@ scalaVersion in ThisBuild := "2.12.9"
 scalacOptions ++= Seq(
   "-feature",
   "-Ypartial-unification", // for using cats
-  "-language:higherKinds",
+  "-language:higherKinds"
 //  "-deprecation"
 )
 
 // to make the classpath right
 fork in run := true
 
-val memoryLimit = {
+val (heapLimit, offHeapLimit) = {
   // for some reason, the memory usage keeps going up on the server
-  if(System.getProperty("os.name") == "Mac OS X") 12 else 48
+  if (System.getProperty("os.name") == "Mac OS X")
+    (12, 12)
+  else
+    (24, 32) // linux server
 }
 
 val nd4jBinary = {
   val useCuda = new File("configs/useCuda.txt").exists()
-  if(useCuda) "nd4j-cuda-10.0-platform" else "nd4j-native-platform"
+  if (useCuda) "nd4j-cuda-10.0-platform" else "nd4j-native-platform"
 }
 
-javaOptions ++= Seq(s"-Xms2G", "-Xmx10G", s"-Dorg.bytedeco.javacpp.maxbytes=${memoryLimit}G",
-  s"-Dorg.bytedeco.javacpp.maxphysicalbytes=${memoryLimit+11}G")
+javaOptions ++= Seq(
+  s"-Xms2G",
+  s"-Xmx$heapLimit",
+  s"-Dorg.bytedeco.javacpp.maxbytes=${offHeapLimit}G",
+  s"-Dorg.bytedeco.javacpp.maxphysicalbytes=${offHeapLimit + heapLimit + 1}G"
+)
 
 libraryDependencies ++= Seq(
   "com.lihaoyi" %% "fastparse" % "2.0.4",
@@ -44,7 +51,7 @@ libraryDependencies ++= Seq(
   "org.typelevel" %% "cats-effect" % "2.0.0-M3",
   "com.github.nscala-time" %% "nscala-time" % "2.22.0",
   "com.lihaoyi" %% "upickle" % "0.7.5",
-  "com.lihaoyi" %% "scalatags" % "0.7.0",
+  "com.lihaoyi" %% "scalatags" % "0.7.0"
 )
 
 addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.0")

@@ -5,6 +5,7 @@ import java.io._
 import botkop.numsca.{Shape, Tensor}
 import SimpleMath.Extensions._
 import ammonite.ops.Path
+import org.nd4j.linalg.api.ndarray.INDArray
 
 trait ParameterAttribute extends Serializable
 
@@ -45,7 +46,7 @@ object ParamCollection {
   @SerialVersionUID(0)
   case class SerializableFormat(
       parameterData: List[(SymbolPath, Map[String, Serializable])],
-      constantData: List[(SymbolPath, (Shape, Array[Real]))]
+      constantData: List[(SymbolPath, INDArray)]
   )
 
   def fromSerializable(data: SerializableFormat): ParamCollection = {
@@ -54,19 +55,18 @@ object ParamCollection {
 
     paramMap.foreach {
       case (path, param) =>
-        val shape = param("shape").asInstanceOf[Shape]
-        val data = param("data").asInstanceOf[Array[Double]]
+        val data = param("array").asInstanceOf[INDArray]
         val attributes =
           param("attributes").asInstanceOf[List[ParameterAttribute]].toSet
         val p1 = param("path").asInstanceOf[SymbolPath]
         assert(p1 == path, s"path: $path, restored: $p1")
 
-        val value = Tensor(data).reshape(shape)
+        val value = Tensor(data)
         pc.getParam(path, attributes) { value }
     }
     constMap.foreach {
-      case (path, (shape, data)) =>
-        pc.getConst(path) { Tensor(data).reshape(shape) }
+      case (path, array) =>
+        pc.getConst(path) { Tensor(array) }
     }
     pc
   }
@@ -120,17 +120,16 @@ case class ParamCollection() {
       paramMap.mapValuesNow { param =>
         val node = param.node
         val paramData = Map[String, Serializable](
-          "shape" -> node.shape,
-          "data" -> node.value.data,
+          "array" -> node.value.array,
           "attributes" -> param.attributes.toList,
           "path" -> param.path
         )
         paramData
       }.toList
 
-    val constantData: List[(SymbolPath, (Shape, Array[Real]))] =
+    val constantData: List[(SymbolPath, INDArray)] =
       constMap.mapValuesNow { t =>
-        (t.shape, t.data)
+        t.array
       }.toList
 
     ParamCollection.SerializableFormat(parameterData, constantData)

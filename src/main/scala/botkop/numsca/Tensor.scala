@@ -16,10 +16,10 @@ class Tensor(val array: INDArray) extends Serializable {
 
   def rows: IndexedSeq[Array[Double]] = {
     val Shape(Vector(rows, _)) = shape
-    (0 until rows.toInt).map{ r => this(r, :>).data}
+    (0 until rows.toInt).map{ r => this(r, :>).dataSlow}
   }
 
-  lazy val data: Array[Double] = array.dup.data.asDouble
+  def dataSlow: Array[Double] =  array.dup.data.asDouble()
 
   def newTensor(array: INDArray): Tensor = new Tensor(array)
 
@@ -39,9 +39,6 @@ class Tensor(val array: INDArray) extends Serializable {
     val newShape = Shape(axes.map(a => shape(a)).toVector)
     reshape(newShape)
   }
-
-  def round: Tensor =
-    Tensor(data.map(math.round(_).toDouble)).reshape(this.shape)
 
   def dot(other: Tensor) = Tensor(array mmul other.array)
 
@@ -237,17 +234,20 @@ class Tensor(val array: INDArray) extends Serializable {
   }
 
   def sameShape(other: Tensor): Boolean = shape == other.shape
-  def sameElements(other: Tensor): Boolean = data sameElements other.data
 
   def rank: Int = array.rank()
 
-  def clip(min: Double, max: Double): Tensor =
-    Tensor(data.map { x =>
-      if (x < min) min
-      else if (x > max)
-        max
-      else x
-    }).reshape(shape)
+  def clip(min: Double, max: Double): Tensor = {
+//    Tensor(dataSlow.map { x =>
+//      if (x < min) min
+//      else if (x > max)
+//        max
+//      else x
+//    }).reshape(shape)
+
+    //todo: using boolean indexing: https://github.com/deeplearning4j/nd4j/pull/2030/commits/de0b2318fc5245d23ad77d903b96171e18412d9c
+    ???
+  }
 
   def clipNorm(maxNorm: Real): Tensor = {
     val maxNorm2 = maxNorm * maxNorm
