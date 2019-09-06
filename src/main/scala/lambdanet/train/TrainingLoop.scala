@@ -32,7 +32,7 @@ import scala.language.reflectiveCalls
 import scala.util.Random
 
 object TrainingLoop extends TrainingLoopTrait {
-  val toyMod: Boolean = true
+  val toyMod: Boolean = false
   val onlySeqModel = false
   val useDropout: Boolean = true
   val useOracleForIsLib: Boolean = true
@@ -61,7 +61,7 @@ object TrainingLoop extends TrainingLoopTrait {
 
   def scaleLearningRate(epoch: Int): Double = {
     val min = 0.3
-    val epochToSlowDown = if (toyMod) 300 else 40
+    val epochToSlowDown = if (toyMod) 100 else 30
     SimpleMath
       .linearInterpolate(1.0, min)(epoch.toDouble / epochToSlowDown)
       .max(min)
@@ -90,7 +90,8 @@ object TrainingLoop extends TrainingLoopTrait {
       val architecture = GruArchitecture(state.dimMessage, pc)
       val seqArchitecture =
         SequenceModel.SeqArchitecture(state.dimMessage, pc)
-      val dataSet = DataSet.loadDataSet(taskSupport, architecture, toyMod)
+      val dataSet =
+        DataSet.loadDataSet(taskSupport, architecture, toyMod, maxLibRatio)
       trainOnProjects(dataSet, state, pc, logger, architecture, seqArchitecture)
         .result()
     }
@@ -107,6 +108,10 @@ object TrainingLoop extends TrainingLoopTrait {
       import dataSet._
       import trainingState._
 
+      val maxBatchSize = dataSet
+        .signalSizeMedian(maxLibRatio)
+        .tap(s => printResult(s"maxBatchSize: $s"))
+
       var isTraining = false
 
       val labelCoverage =
@@ -115,7 +120,8 @@ object TrainingLoop extends TrainingLoopTrait {
           coverageGoal = 0.90,
           architecture,
           dropoutProb = 0.1,
-          dropoutThreshold = 500
+          dropoutThreshold = 500,
+          randomLabelId
         )
 
       private val rand = new Random(1)
@@ -155,7 +161,7 @@ object TrainingLoop extends TrainingLoopTrait {
       var shouldAnnounce: Boolean = true
 
       def result(): Unit = {
-        val saveInterval = if (toyMod) 100 else 6
+        val saveInterval = if (toyMod) 40 else 6
 
         (trainingState.epoch0 + 1 to maxTrainingEpochs).foreach { epoch =>
           shouldAnnounce = epoch == 1 // only announce in the first epoch for debugging purpose
@@ -233,7 +239,8 @@ object TrainingLoop extends TrainingLoopTrait {
                 (loss, fwd, _) <- forward(
                   datum,
                   shouldDownsample = true,
-                  shouldDropout = useDropout
+                  shouldDropout = useDropout,
+                  maxBatchSize = Some(maxBatchSize)
                 ).tap(
                   _.foreach(r => printResult(r._2))
                 )
@@ -342,7 +349,8 @@ object TrainingLoop extends TrainingLoopTrait {
               forward(
                 datum,
                 shouldDownsample = !isTestSet,
-                shouldDropout = false
+                shouldDropout = false,
+                maxBatchSize = Some(maxBatchSize)
               ).map {
                 case (_, fwd, pred) =>
                   val (fse1, _, _) = datum.fseAcc
@@ -352,11 +360,13 @@ object TrainingLoop extends TrainingLoopTrait {
                       onlyCountInSpaceTypes = true
                     )
                   val projTop5 = {
-                    val nodesMap = datum.nodesToPredict.collect {
-                      case (n, ty) if !ty.madeFromLibTypes => n.n -> ty
-                    }
                     val predictions = pred.map {
                       case (n, distr) => n -> distr.distr.take(5).map(_._2)
+                    }
+                    val nodesMap = datum.nodesToPredict.collect {
+                      case (n, ty)
+                          if predictions.contains(n.n) && !ty.madeFromLibTypes =>
+                        n.n -> ty
                     }
                     QLangAccuracy
                       .countTopNCorrect(
@@ -497,19 +507,22 @@ object TrainingLoop extends TrainingLoopTrait {
       private def forward(
           datum: Datum,
           shouldDownsample: Boolean,
-          shouldDropout: Boolean
+          shouldDropout: Boolean,
+          maxBatchSize: Option[Int]
       ): Option[(Loss, ForwardResult, Map[PNode, TopNDistribution[PType]])] =
         limitTimeOpt(s"forward: $datum", Timeouts.forwardTimeout) {
           import datum._
-
-          val shouldDropout = useDropout && isTraining
 
           val predSpace = predictor.predictionSpace
 
           val annotsToUse =
             if (shouldDownsample) datum.downsampleLibAnnots(maxLibRatio, random)
             else nodesToPredict
-          val (nodes, groundTruths) = annotsToUse.toVector.unzip
+
+          val (nodes, groundTruths) = annotsToUse.toVector
+            .pipe(random.shuffle(_))
+            .take(maxBatchSize.getOrElse(Int.MaxValue))
+            .unzip
           val targets = groundTruths.map(predSpace.indexOfType)
           val isLibOracle =
             if (useOracleForIsLib) Some(targets.map(predSpace.isLibType))
@@ -637,7 +650,12 @@ object TrainingLoop extends TrainingLoopTrait {
               s"(progress: ${progress.tap(_ => progress += 1)}) test on $datum",
               shouldAnnounce
             ) {
-              forward(datum, shouldDownsample = false, shouldDropout = false).map {
+              forward(
+                datum,
+                shouldDownsample = false,
+                shouldDropout = false,
+                maxBatchSize = None
+              ).map {
                 case (_, fwd, pred) =>
                   DebugTime.logTime("printQSource") {
                     QLangDisplay.renderProjectToDirectory(

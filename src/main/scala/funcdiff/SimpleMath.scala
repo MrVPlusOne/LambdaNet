@@ -125,6 +125,11 @@ object SimpleMath {
     else Some(xs.sum / xs.length)
   }
 
+  def median[T](xs: Seq[T])(implicit ordering: Ordering[T]): T = {
+    require(xs.nonEmpty)
+    xs.sorted.apply(xs.length/2)
+  }
+
   @inline
   def square(x: Double): Double = x * x
 

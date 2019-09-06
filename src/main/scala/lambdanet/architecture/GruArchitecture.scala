@@ -5,7 +5,7 @@ import funcdiff._
 import lambdanet.translation.PredicateGraph.ProjNode
 
 case class GruArchitecture(dimEmbedding: Int, pc: ParamCollection)
-    extends NNArchitecture(s"gru-$dimEmbedding", dimEmbedding, pc) {
+    extends NNArchitecture(s"sum-$dimEmbedding", dimEmbedding, pc) {
 
   def initialEmbedding(projectNodes: Set[ProjNode]): Embedding = {
     val nodeVec = randomVar('nodeInitVec)
@@ -28,7 +28,7 @@ case class GruArchitecture(dimEmbedding: Int, pc: ParamCollection)
     }
     verticalBatching2[K](
       inputs,
-      (old, msg) => gru(name / 'updateEmbedding)(old, msg)
+      (old, msg) => old + msg // gru(name / 'updateEmbedding)(old, msg)
     ).map {
       case (k, chain) =>
         val Vector(x) = chain.toVector

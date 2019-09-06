@@ -81,7 +81,8 @@ object LabelEncoder {
       coverageGoal: Double,
       architecture: NNArchitecture,
       dropoutProb: Real,
-      dropoutThreshold: Int
+      dropoutThreshold: Int,
+      randomLabelId: () => Int
   ) extends LabelEncoder {
     import cats.implicits._
 
@@ -123,12 +124,13 @@ object LabelEncoder {
         label: Symbol,
         shouldDropout: () => Boolean
     ): CompNode = {
+      def dropoutImpl: CompNode = {
+        val i = randomLabelId()
+        architecture.randomUnitVar('segments / Symbol(s"?$i"))
+      }
       if (!commonLabels.contains(label) && shouldDropout()) dropoutImpl
       else labelsMap.getOrElse(label, dropoutImpl)
     }
-
-    protected def dropoutImpl: CompNode =
-      architecture.randomVar('label / '?)
 
     private def nameUsages(name: Symbol): Map[Symbol, Int] = {
       Map(name -> 1)
@@ -191,7 +193,7 @@ object LabelEncoder {
     ): CompNode = {
       def dropoutImpl: CompNode = {
         val i = randomLabelId()
-        architecture.randomVar('segments / Symbol(s"?$i"))
+        architecture.randomUnitVar('segments / Symbol(s"?$i"))
       }
 
       def encodeSeg(seg: Segment): CompNode = {
