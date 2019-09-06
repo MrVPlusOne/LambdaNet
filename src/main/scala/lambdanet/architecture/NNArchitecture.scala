@@ -469,7 +469,7 @@ abstract class NNArchitecture(
     }.combineAll
   }
 
-  val singleLayerModel = "Linear"
+  val singleLayerModel = "2 FC"
   def linearLayer(
       path: SymbolPath,
       input: CompNode
