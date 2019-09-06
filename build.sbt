@@ -15,13 +15,9 @@ scalacOptions ++= Seq(
 // to make the classpath right
 fork in run := true
 
-val (heapLimit, offHeapLimit) = {
-  // for some reason, the memory usage keeps going up on the server
-  if (System.getProperty("os.name") == "Mac OS X")
-    (12, 12)
-  else
-    (24, 32) // linux server
-}
+val runOnMac = System.getProperty("os.name") == "Mac OS X"
+val heapLimit = if(runOnMac) 12 else 24
+val offHeapLimit = if(runOnMac) 12 else 32
 
 val nd4jBinary = {
   val useCuda = new File("configs/useCuda.txt").exists()
