@@ -168,6 +168,7 @@ object TrainingLoop extends TrainingLoopTrait {
           announced(s"epoch $epoch") {
             TensorExtension.checkNaN = (epoch - 1) % 10 == 0
             handleExceptions(epoch) {
+              trainStep(epoch)
               if (epoch == 1 || epoch % saveInterval == 0)
                 DebugTime.logTime("saveTraining") {
                   saveTraining(epoch, s"epoch$epoch")
@@ -177,7 +178,6 @@ object TrainingLoop extends TrainingLoopTrait {
                   testStep(epoch, isTestSet = false)
                   testStep(epoch, isTestSet = true)
                 }
-              trainStep(epoch)
             }
           }
         }
