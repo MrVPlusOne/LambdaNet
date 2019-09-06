@@ -26,7 +26,7 @@ val nd4jBinary = {
 
 javaOptions ++= Seq(
   s"-Xms2G",
-  s"-Xmx$heapLimit",
+  s"-Xmx${heapLimit}G",
   s"-Dorg.bytedeco.javacpp.maxbytes=${offHeapLimit}G",
   s"-Dorg.bytedeco.javacpp.maxphysicalbytes=${offHeapLimit + heapLimit + 1}G"
 )
