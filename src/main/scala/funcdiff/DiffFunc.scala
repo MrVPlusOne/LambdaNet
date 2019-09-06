@@ -48,6 +48,18 @@ private[funcdiff] object DiffFunc {
     def backprop1(grad: Gradient): Gradient
   }
 
+  case class Reshape(newShape: Shape, x1: CompNode) extends UnaryFunc {
+    def name = s"reshape{newShape=$newShape}"
+
+    override def shortName = "reshape"
+
+    val value = x1.value.reshape(newShape)
+
+    def backprop1(grad: Gradient): Gradient = {
+      grad.reshape(x1.shape)
+    }
+  }
+
   case class Sqrt(x1: CompNode) extends UnaryFunc {
     x1.value.requirePositive()
 

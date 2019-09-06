@@ -2,18 +2,10 @@ package lambdanet.architecture
 
 import lambdanet._
 import botkop.numsca
-import botkop.numsca.{:>, Tensor}
+import botkop.numsca.{:>, Shape, Tensor}
 import cats.data.Chain
 import funcdiff._
-import lambdanet.NeuralInference.{
-  AccessFieldUsage,
-  ClassFieldUsage,
-  LabelUsages,
-  LabelVector,
-  Message,
-  MessageKind,
-  MessageModel
-}
+import lambdanet.NeuralInference.{AccessFieldUsage, ClassFieldUsage, LabelUsages, LabelVector, Message, MessageKind, MessageModel}
 import lambdanet.train.{DecodingResult, Joint, TwoStage}
 import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 
@@ -62,8 +54,8 @@ abstract class NNArchitecture(
     ): UpdateMessages = {
       val name = name0 / iterSymbol
       toVars(
-        verticalBatching(n1s.zip(inputs), linearLayer(name / 'left, _)) |+|
-          verticalBatching(n2s.zip(inputs), linearLayer(name / 'right, _))
+        verticalBatching(n1s.zip(inputs), messageLayer(name / 'left)) |+|
+          verticalBatching(n2s.zip(inputs), messageLayer(name / 'right))
       )
     }
 
@@ -92,12 +84,12 @@ abstract class NNArchitecture(
       val weightedSum =
         concatN(axis = 0, fromRows = true)(inKeys1.map(encodeNode))
           .dot(concatN(axis = 0, fromRows = true)(keys1).t)
-          .pipe(softmax) //todo: sharpen mechanism?
+          .pipe(softmax)
           .dot(concatN(axis = 0, fromRows = true)(values1))
       val messages =
         concatN(axis = 0, fromRows = true)(nodes1.map(encodeNode))
           .concat(weightedSum, axis = 1)
-          .pipe(linearLayer(name, _))
+          .pipe(messageLayer(name / 'messages))
       nodes1.zipWithIndex.map {
         case (n, i) =>
           Map(ProjNode(n) -> Chain(messages.slice(i, :>))) //todo: use rows operator
@@ -113,7 +105,7 @@ abstract class NNArchitecture(
           val paired = models
             .asInstanceOf[Vector[Single]]
             .map(s => s.n -> encodeNode(s.n))
-          verticalBatching(paired, linearLayer(name / iterSymbol, _))
+          verticalBatching(paired, messageLayer(name / iterSymbol))
             .pipe(toVars)
         case KindBinary(name) =>
           val (n1s, n2s, inputs) = models
@@ -129,7 +121,7 @@ abstract class NNArchitecture(
           val paired = models
             .asInstanceOf[Vector[Naming]]
             .map(s => s.n -> encodeName(s.name))
-          verticalBatching(paired, linearLayer(name / iterSymbol, _))
+          verticalBatching(paired, messageLayer(name / iterSymbol))
             .pipe(toVars)
         case KindBinaryLabeled(name, LabelType.Position) =>
           val (n1s, n2s, inputs) = models
@@ -236,25 +228,19 @@ abstract class NNArchitecture(
       candidates: Vector[CompNode],
       name: SymbolPath
   ): Joint = {
-    val inputs1 =
-      concatN(axis = 0, fromRows = true)(inputs)
-        .pipe(nonLinearLayer(name / 'inputs))
-    val candidates1 =
-      concatN(axis = 0, fromRows = true)(candidates)
-        .pipe(nonLinearLayer(name / 'candidates))
-    val similarities =
-      for (candId <- candidates.indices) yield {
-        val cand = candidates1.slice(candId, :>)
-        val cands = Vector
-          .fill(inputs.length)(cand)
-          .pipe(concatN(0, fromRows = true))
-        inputs1.concat(cands, axis = 1) ~>
-          linear(name / 'sim0, dimMessage) ~> relu ~>
-          linear(name / 'sim1, dimMessage / 2) ~> relu ~>
-          linear(name / 'sim2, 1)
-      }
+    val rows = for{
+      input <- inputs
+      cand <- candidates
+    } yield {
+      input.concat(cand, axis=1)
+    }
+    val logits0 = concatN(0, fromRows = true)(rows) ~>
+      linear(name / 'sim0, dimMessage) ~> relu ~>
+      linear(name / 'sim1, dimMessage / 2) ~> relu ~>
+      linear(name / 'sim1, dimMessage / 4) ~> relu ~>
+      linear(name / 'sim2, 1)
 
-    val logits = concatN(axis = 1)(similarities)
+    val logits = logits0.reshape(Shape.make(inputs.length, candidates.length))
     Joint(logits)
   }
 
@@ -489,6 +475,10 @@ abstract class NNArchitecture(
       input: CompNode
   ): CompNode = {
     linear(path / 'L1, dimMessage)(input)
+  }
+
+  def messageLayer(path: SymbolPath)(input: CompNode): CompNode = {
+    fcNetwork(path, numLayer = 2)(input)
   }
 
   def nonLinearLayer(path: SymbolPath)(input: CompNode): CompNode = {

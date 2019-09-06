@@ -10,6 +10,8 @@ import TensorExtension._
 sealed trait Gradient {
   def shape(): Shape
 
+  def reshape(shape: Shape): Gradient
+
   def unary_- : Gradient
 
   /** only true when this is ZeroGradient */
@@ -118,6 +120,8 @@ case class ZeroGradient(shape: Shape) extends Gradient {
   }
 
   def clipNorm(maxNorm: Real): Gradient = this
+
+  def reshape(shape: Shape): Gradient = ZeroGradient(shape)
 }
 
 case class DenseGradient(value: Tensor) extends Gradient {
@@ -172,6 +176,9 @@ case class DenseGradient(value: Tensor) extends Gradient {
   }
 
   def clipNorm(maxNorm: Real): Gradient = copy(value = value.clipNorm(maxNorm))
+
+  def reshape(shape: Shape): Gradient =
+    DenseGradient(value.reshape(shape))
 }
 
 /**
@@ -313,6 +320,8 @@ case class InflatedGradient(
   }
 
   def clipNorm(maxNorm: Real): Gradient = copy(core = core.clipNorm(maxNorm))
+
+  def reshape(shape: Shape): Gradient = toDense.reshape(shape)
 }
 
 /** Mutable buffer used to accumulate gradients */

@@ -209,6 +209,8 @@ class GradientMatrixTest extends TestUtils {
       "_.slice(1:>2, :>)" -> (_.slice(1 :> 2, :>)),
       "_.slice(1:>3, 1:>).slice(1:>2, 1:>3)" -> (_.slice(1 :> 3, 1 :>)
         .slice(1 :> 2, 1 :> 3)),
+      "_.reshape(Shape.make(24))" -> (_.reshape(Shape.make(24))),
+      "_.reshape(Shape.make(2,3,4))" -> (_.reshape(Shape.make(2,3,4))),
       "square" -> square,
       "x => sqrt(abs(x) + 0.1)" -> (x => sqrt(abs(x) + 0.1)),
       "x => total(IS(x,x,x,x))" -> (x => plusN(IS(x, x, x, x))),
@@ -224,7 +226,7 @@ class GradientMatrixTest extends TestUtils {
     )
   }
 
-  "Unary broadcasting operators" should "pass numerical gradient checks" in {
+  "Unary operators" should "pass numerical gradient checks" in {
 
     unaryOps.foreach {
       case (name, op) =>

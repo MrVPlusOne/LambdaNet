@@ -3,8 +3,9 @@ package funcdiff
 import java.util.concurrent.TimeoutException
 
 import botkop.numsca._
-import funcdiff.DiffFunc.ConstFunc
+import funcdiff.DiffFunc.{ConstFunc, Reshape}
 import SimpleMath.Extensions._
+
 import scala.concurrent._
 
 class CompNode(val func: DiffFunc) {
@@ -13,6 +14,8 @@ class CompNode(val func: DiffFunc) {
   def toDouble: Real = value.squeeze()
 
   def shape: Shape = value.shape
+
+  def reshape(newShape: Shape): CompNode = funcNode(Reshape(newShape, this))
 
   def backprop: Map[CompNode, Gradient] = CompNode.backprop(this)
 

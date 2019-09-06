@@ -629,53 +629,62 @@ object TrainingLoop extends TrainingLoopTrait {
           if (!exists(saveDir)) {
             mkdir(saveDir)
           }
-          val savePath = saveDir / "state.serialized"
-          TrainingState(epoch, dimMessage, iterationNum, optimizer)
-            .saveToFile(savePath)
-          pc.saveToFile(saveDir / "params.serialized")
-          val currentLogFile = resultsDir / "log.txt"
-          if (exists(currentLogFile)) {
-            cp.over(currentLogFile, saveDir / "log.txt")
-          }
+          // do the following tasks in parallel
+          val tasks = Vector(
+            () => {
+              val savePath = saveDir / "state.serialized"
+              TrainingState(epoch, dimMessage, iterationNum, optimizer)
+                .saveToFile(savePath)
+            },
+            () => {
+              pc.saveToFile(saveDir / "params.serialized")
+            },
+            () => {
+              val currentLogFile = resultsDir / "log.txt"
+              if (exists(currentLogFile)) {
+                cp.over(currentLogFile, saveDir / "log.txt")
+              }
+            },
+            () => if (testSet.nonEmpty && !skipTest) {
+              import cats.implicits._
 
-          if (testSet.isEmpty || skipTest)
-            return
+              var progress = 0
+              val (right, wrong) = testSet.flatMap { datum =>
+                checkShouldStop(epoch)
+                announced(
+                  s"(progress: ${progress.tap(_ => progress += 1)}) test on $datum",
+                  shouldAnnounce
+                ) {
+                  forward(
+                    datum,
+                    shouldDownsample = false,
+                    shouldDropout = false,
+                    maxBatchSize = None
+                  ).map {
+                    case (_, fwd, pred) =>
+                      DebugTime.logTime("printQSource") {
+                        QLangDisplay.renderProjectToDirectory(
+                          datum.projectName.toString,
+                          datum.qModules,
+                          pred,
+                          datum.predictor.predictionSpace.allTypes
+                        )(saveDir / "predictions")
+                      }
+                      (fwd.correctSet, fwd.incorrectSet)
+                  }.toVector
+                }
+              }.combineAll
 
-          import cats.implicits._
-
-          var progress = 0
-          val (right, wrong) = testSet.flatMap { datum =>
-            checkShouldStop(epoch)
-            announced(
-              s"(progress: ${progress.tap(_ => progress += 1)}) test on $datum",
-              shouldAnnounce
-            ) {
-              forward(
-                datum,
-                shouldDownsample = false,
-                shouldDropout = false,
-                maxBatchSize = None
-              ).map {
-                case (_, fwd, pred) =>
-                  DebugTime.logTime("printQSource") {
-                    QLangDisplay.renderProjectToDirectory(
-                      datum.projectName.toString,
-                      datum.qModules,
-                      pred,
-                      datum.predictor.predictionSpace.allTypes
-                    )(saveDir / "predictions")
-                  }
-                  (fwd.correctSet, fwd.incorrectSet)
-              }.toVector
+              QLangDisplay.renderPredictionIndexToDir(
+                right,
+                wrong,
+                saveDir,
+                sourcePath = "predictions"
+              )
             }
-          }.combineAll
-
-          QLangDisplay.renderPredictionIndexToDir(
-            right,
-            wrong,
-            saveDir,
-            sourcePath = "predictions"
           )
+
+          tasks.par.foreach(_.apply())
 
           val dateTime = Calendar.getInstance().getTime
           write.over(saveDir / "time.txt", dateTime.toString)
