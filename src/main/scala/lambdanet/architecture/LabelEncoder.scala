@@ -1,8 +1,8 @@
 package lambdanet.architecture
 
 import botkop.numsca.Tensor
+import funcdiff.SimpleMath.Coverage
 import funcdiff._
-
 import lambdanet._
 import lambdanet.train.Datum
 import lambdanet.translation.PredicateGraph._
@@ -84,31 +84,11 @@ object LabelEncoder {
       dropoutThreshold: Int,
       randomLabelId: () => Int
   ) extends LabelEncoder {
-    import cats.implicits._
-
     def name: String = "TrainableLabelEncoder"
 
     private val (labelsMap, commonLabels) = {
-      val totalUsages = trainSet.foldMap { p =>
-        val predsUsage = p.predictor.graph.predicates.toVector.collect {
-          case DefineRel(_, expr) =>
-            expr.allLabels.toVector.foldMap(nameUsages)
-          case HasName(_, name) =>
-            nameUsages(name)
-        }.combineAll
-
-        val annotsUsage = p.nodesToPredict.toVector.foldMap {
-          case (_, t) => t.allLabels.toVector.foldMap(nameUsages)
-        }
-
-        Vector(predsUsage, annotsUsage).combineAll
-      }
-
-      val (labels, achieved) =
-        SM.selectBasedOnFrequency(totalUsages.toSeq, coverageGoal)
-      printResult(s"number of labels selected: ${labels.length}")
-      printResult(s"coverage achieved: $achieved")
-      printResult(s"Fist 100 labels: ${labels.take(100)}")
+      val (labels, _) =
+        selectSegmentsBasedOnUsages(trainSet, nameUsages, coverageGoal)
 
       labels.map {
         case (s, _) =>
@@ -157,26 +137,8 @@ object LabelEncoder {
     def name: String = "SegmentedLabelEncoder"
 
     private val (segmentsMap, commonSegments) = {
-      val totalUsages = trainSet.foldMap { p =>
-        val predsUsage = p.predictor.graph.predicates.toVector.collect {
-          case DefineRel(_, expr) =>
-            expr.allLabels.toVector.foldMap(nameUsages)
-          case HasName(_, name) =>
-            nameUsages(name)
-        }.combineAll
-
-        val annotsUsage = p.nodesToPredict.toVector.foldMap {
-          case (_, t) => t.allLabels.toVector.foldMap(nameUsages)
-        }
-
-        Vector(predsUsage, annotsUsage).combineAll
-      }
-
-      val (segments, achieved) =
-        SM.selectBasedOnFrequency(totalUsages.toSeq, coverageGoal)
-      printResult(s"number of segments selected: ${segments.length}")
-      printResult(s"coverage achieved: $achieved")
-      printResult(s"Fist 100 segs: ${segments.take(100)}")
+      val (segments, _) =
+        selectSegmentsBasedOnUsages(trainSet, nameToSegUsages, coverageGoal)
 
       val commonSegments =
         segments.takeWhile(_._2 > dropoutThreshold).map(_._1).toSet
@@ -211,9 +173,6 @@ object LabelEncoder {
           .pipe(sum(_, 0))
     }
 
-    def nameUsages(name: Symbol): Map[Segment, Int] = {
-      segmentName(name).foldMap(s => Map(s -> 1))
-    }
   }
 
   case class Segment(symbol: Symbol)
@@ -249,5 +208,40 @@ object LabelEncoder {
 
     if (symbol.name.endsWith("Token")) Vector(Segment(symbol))
     else symbol.name.split("_+").toVector.flatMap(splitCamelCase)
+  }
+
+  def nameToSegUsages(name: Symbol): Map[Segment, Int] = {
+    import cats.implicits._
+    segmentName(name).foldMap(s => Map(s -> 1))
+  }
+
+  def selectSegmentsBasedOnUsages[Seg](
+      dataSet: Vector[Datum],
+      nameUsages: Symbol => Map[Seg, Int],
+      coverageGoal: Double
+  ): (Seq[(Seg, Int)], Coverage) = {
+    import cats.implicits._
+
+    val totalUsages = dataSet.foldMap { p =>
+      val predsUsage = p.predictor.graph.predicates.toVector.collect {
+        case DefineRel(_, expr) =>
+          expr.allLabels.toVector.foldMap(nameUsages)
+        case HasName(_, name) =>
+          nameUsages(name)
+      }.combineAll
+
+      val annotsUsage = p.nodesToPredict.toVector.foldMap {
+        case (_, t) => t.allLabels.toVector.foldMap(nameUsages)
+      }
+
+      Vector(predsUsage, annotsUsage).combineAll
+    }
+
+    val (segments, achieved) =
+      SM.selectBasedOnFrequency(totalUsages.toSeq, coverageGoal)
+    printResult(s"number of segments selected: ${segments.length}")
+    printResult(s"coverage achieved: $achieved")
+    printResult(s"Fist 100 segs: ${segments.take(100)}")
+    (segments, achieved)
   }
 }

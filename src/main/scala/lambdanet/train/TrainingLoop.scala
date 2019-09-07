@@ -92,8 +92,9 @@ object TrainingLoop extends TrainingLoopTrait {
         SequenceModel.SeqArchitecture(state.dimMessage, pc)
       val dataSet =
         DataSet.loadDataSet(taskSupport, architecture, toyMod, maxLibRatio)
-      trainOnProjects(dataSet, state, pc, logger, architecture, seqArchitecture)
-        .result()
+      NamingBaseline.test(dataSet)
+//      trainOnProjects(dataSet, state, pc, logger, architecture, seqArchitecture)
+//        .result()
     }
 
     //noinspection TypeAnnotation
@@ -111,8 +112,6 @@ object TrainingLoop extends TrainingLoopTrait {
       val maxBatchSize = dataSet
         .signalSizeMedian(maxLibRatio)
         .tap(s => printResult(s"maxBatchSize: $s"))
-
-      var isTraining = false
 
       val labelCoverage =
         TrainableLabelEncoder(
@@ -217,8 +216,6 @@ object TrainingLoop extends TrainingLoopTrait {
       val random = new util.Random(2)
 
       def trainStep(epoch: Int): Unit = {
-        isTraining = true
-
         DebugTime.logTime("GC") {
           System.gc()
         }
@@ -341,7 +338,6 @@ object TrainingLoop extends TrainingLoopTrait {
         val dataSet = if (isTestSet) testSet else devSet
         announced(s"test on $dataSetName set") {
           import cats.implicits._
-          isTraining = false
 
           val (stat, fse1Acc, projTop5Acc) = dataSet.flatMap { datum =>
             checkShouldStop(epoch)
@@ -539,7 +535,7 @@ object TrainingLoop extends TrainingLoopTrait {
                 labelCoverage.isLibLabel,
                 nameEncoder,
                 shouldDropout,
-                isTraining,
+                shouldDropout,
                 isLibOracle
               )
               .result
@@ -622,8 +618,6 @@ object TrainingLoop extends TrainingLoopTrait {
           dirName: String,
           skipTest: Boolean = false
       ): Unit = {
-        isTraining = false
-
         announced(s"save training to $dirName") {
           val saveDir = resultsDir / "saved" / dirName
           if (!exists(saveDir)) {

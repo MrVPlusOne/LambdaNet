@@ -4,6 +4,7 @@ import botkop.numsca
 import botkop.numsca.{Shape, Tensor}
 import cats.Monoid
 import funcdiff.CompNode
+import lambdanet.train.LabelCat
 
 package object train {
   type Logits = CompNode
@@ -42,6 +43,9 @@ package object train {
   case class Counted[V](count: Int, value: V)
 
   object Counted {
+    def fromBool(b: Boolean): Counted[Int] =
+      Counted(1, if(b) 1 else 0)
+
     def zero[V](v: V) = Counted(0, v)
   }
 
@@ -68,4 +72,15 @@ package object train {
   }
 
   case class StopException(msg: String) extends Exception
+
+  object LabelCat extends Enumeration{
+    val Library, Project = Value
+
+    def fromLib(isLib: Boolean): LabelCat.Value =
+      if(isLib) Library else Project
+  }
+
+  object DatumCat extends Enumeration{
+    val Train, Dev, Test = Value
+  }
 }
