@@ -505,14 +505,14 @@ abstract class NNArchitecture(
     linear(path / 'L0, dimMessage)(input)
   }
 
-  val messageLayerModel = "1 FC"
+  val messageLayerModel = "2 FC"
 
   def messageLayer(path: SymbolPath)(input: CompNode): CompNode = {
     fcNetwork(path, numLayer = 2)(input)
   }
 
   def nonLinearLayer(path: SymbolPath)(input: CompNode): CompNode = {
-    fcNetwork(path, numLayer = 1)(input)
+    fcNetwork(path, numLayer = 2)(input)
   }
 
   def fcNetwork(path: SymbolPath, numLayer: Int)(input: CompNode): CompNode = {

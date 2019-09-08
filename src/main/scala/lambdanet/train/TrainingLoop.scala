@@ -49,7 +49,7 @@ object TrainingLoop extends TrainingLoopTrait {
     ).map(flag).mkString
 
     if (onlySeqModel) "large-seqModel"
-    else s"attendPS-fc1-newSim" + s"$flags-${TrainingState.iterationNum}"
+    else s"attendPS-fc2-newSim" + s"$flags-${TrainingState.iterationNum}"
   }
 
   def flag(nameValue: (String, Boolean)): String = {
