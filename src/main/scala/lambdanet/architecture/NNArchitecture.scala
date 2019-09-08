@@ -296,13 +296,15 @@ abstract class NNArchitecture(
       useDropout: Boolean,
       name: SymbolPath
   ): Joint = {
-    val rows = for {
+    val (inputRows, candRows) = (for {
       input <- inputs
       cand <- candidates
     } yield {
-      input.concat(cand, axis = 1)
-    }
-    val logits0 = concatN(0, fromRows = true)(rows) ~>
+      input -> cand
+    }).unzip
+
+    val rows = stackRows(inputRows).concat(stackRows(candRows), axis = 1)
+    val logits0 = rows ~>
       linear(name / 'sim0, dimMessage) ~> relu ~>
 //      (if (useDropout) dropout(0.5) else identity) ~>
       linear(name / 'sim1, dimMessage / 2) ~> relu ~>

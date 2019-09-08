@@ -80,6 +80,8 @@ trait APITrait {
     else funcNode(ConcatN(xs, axis, fromRows))
   }
 
+  def stackRows(xs: IS[CompNode]) = concatN(axis = 0, fromRows = true)(xs)
+
   def crossEntropy(prediction: CompNode, targets: Tensor): CompNode =
     -sum(log(prediction + epsilon) * targets, axis = 1)
 
