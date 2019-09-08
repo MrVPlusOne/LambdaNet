@@ -90,12 +90,12 @@ abstract class NNArchitecture(
       val keys1 = keys.map(encodeNode) :+ exKey
       val values1 = values.map(encodeNode) :+ exValue
       val weightedSum =
-        concatN(axis = 0, fromRows = true)(inKeys1.map(encodeNode))
-          .dot(concatN(axis = 0, fromRows = true)(keys1).t)
+        stackRows(inKeys1.map(encodeNode))
+          .dot(stackRows(keys1).t)
           .pipe(softmax)
-          .dot(concatN(axis = 0, fromRows = true)(values1))
+          .dot(stackRows(values1))
       val messages =
-        concatN(axis = 0, fromRows = true)(nodes1.map(encodeNode))
+        stackRows(nodes1.map(encodeNode))
           .concat(weightedSum, axis = 1)
           .pipe(messageLayer(name / 'messages))
       nodes1
@@ -239,7 +239,7 @@ abstract class NNArchitecture(
       name: SymbolPath
   ): Embedding = {
 
-    val (keys0, values0) = concatN(0, fromRows = true)(candidates)
+    val (keys0, values0) = stackRows(candidates)
       .pipe { batch =>
         linearLayer(name / 'keys, batch) -> linearLayer(name / 'values, batch)
       }
@@ -249,7 +249,7 @@ abstract class NNArchitecture(
     val keys = keys0.concat(defaultK, axis = 0)
     val values = values0.concat(defaultV, axis = 0)
     val (nodes, nVecs) = embed.vars.toVector.unzip
-    val nodeMatrix = concatN(0, fromRows = true)(nVecs)
+    val nodeMatrix = stackRows(nVecs)
     val weightedSum = nodeMatrix
       .dot(keys.t)
       .pipe(softmax)
@@ -275,7 +275,7 @@ abstract class NNArchitecture(
           .concat(numsca.ones(nodes.length, 1), axis = 1) // guardian
           .pipe(softmax)
 
-        val values0 = concatN(0, fromRows = true)(candidates.map(_._2))
+        val values0 = stackRows(candidates.map(_._2))
         //      .pipe(linearLayer(name / 'values, _))
 
         val values = values0.concat(defaultV, axis = 0)
@@ -284,7 +284,7 @@ abstract class NNArchitecture(
         defaultV
     }
 
-    val nodeMatrix = concatN(0, fromRows = true)(nVecs)
+    val nodeMatrix = stackRows(nVecs)
     val newMatrix = nodeMatrix + weightedSum
     Embedding(nodes.zip(newMatrix.rows).toMap)
   }
@@ -322,10 +322,10 @@ abstract class NNArchitecture(
 //      name: SymbolPath
 //  ): Joint = {
 //    val inputs1 =
-//      concatN(axis = 0, fromRows = true)(inputs)
+//      stackRows(inputs)
 //        .pipe(linear(name / 'similarityInputs, dimMessage))
 //    val candidates1 =
-//      concatN(axis = 0, fromRows = true)(candidates)
+//      stackRows(candidates)
 //        .pipe(linear(name / 'similarityCandidates, dimMessage))
 //
 //    Joint(inputs1.dot(candidates1.t))
@@ -352,7 +352,7 @@ abstract class NNArchitecture(
       case Some(p) => dropout(p)(n)
       case _       => n
     }
-    concatN(axis = 0, fromRows = true)(inputs) ~>
+    stackRows(inputs) ~>
       linear('libDistr / 'L1, dimMessage) ~> relu ~> drop ~>
       linear('libDistr / 'L2, dimMessage) ~> relu ~> drop ~>
       linear('libDistr / 'L3, numLibType)
@@ -366,7 +366,7 @@ abstract class NNArchitecture(
       useDropout: Boolean
   ): DecodingResult = {
     val inputs1 =
-      concatN(axis = 0, fromRows = true)(inputs)
+      stackRows(inputs)
 
     val pIsLib = isLibOracle match {
       case None =>
@@ -443,7 +443,7 @@ abstract class NNArchitecture(
 //          }
 
 //          val n1 = embedding(n)
-//          val values = concatN(axis = 0, fromRows = true)(ms.toVector)
+//          val values = stackRows(ms.toVector)
 //          val keys = linear(name / 'mergeMsgs / 'transKey, dimMessage)(values)
 //
 //          val attention = softmax(keys.dot(n1.t).t / dimMessage)
@@ -471,7 +471,7 @@ abstract class NNArchitecture(
 
     val (nodes, vectors) = inputs.unzip
 
-    val output = transformation(concatN(axis = 0, fromRows = true)(vectors))
+    val output = transformation(stackRows(vectors))
     nodes.zipWithIndex.map {
       case (n, i) =>
         Map(n -> Chain(output.slice(i, :>)))

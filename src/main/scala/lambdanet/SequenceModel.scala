@@ -60,7 +60,7 @@ object SequenceModel {
     ): DecodingResult = {
       val states =
         encode(architecture, nameEncoder, nameDropout, nodesToPredict)
-      val input = concatN(axis = 0, fromRows = true)(states)
+      val input = stackRows(states)
       Joint(architecture.predict(input, predSpace.size))
     }
 
@@ -126,7 +126,7 @@ object SequenceModel {
         val initVec = randomVar(name / 'initVec)
         val initMat = Vector
           .fill(batched.head.length)(initVec)
-          .pipe(concatN(axis = 0, fromRows = true))
+          .pipe(stackRows)
         def iter(
             s0: CompNode,
             input: Vector[(Token, Option[PNode])]
@@ -135,7 +135,7 @@ object SequenceModel {
           val s1 = s0.slice(0 :> n1, :>)
           val (tokens, targets) = input.unzip
           val input1 =
-            concatN(axis = 0, fromRows = true)(tokens.map(encodeToken))
+            stackRows(tokens.map(encodeToken))
           val newState = gru(name / 'gru)(s1, input1)
           val preds: Map[PNode, Chain[CompNode]] = targets
             .zip(0 until n1)

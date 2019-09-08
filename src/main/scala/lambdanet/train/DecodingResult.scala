@@ -114,8 +114,7 @@ case class TwoStage(
     def lossFromRows(rows: Vector[CompNode], targets: Vector[Int]) = {
       if (rows.isEmpty) const(Tensor(0.0).reshape(1, 1))
       else
-        concatN(0, fromRows = true)(rows)
-          .pipe(crossEntropyWithLogitsLoss(_, targets))
+        stackRows(rows).pipe(crossEntropyWithLogitsLoss(_, targets))
     }
 
     val isLib = targets.map(_ < libNum)
