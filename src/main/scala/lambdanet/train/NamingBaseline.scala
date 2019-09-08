@@ -4,7 +4,7 @@ import lambdanet.architecture.LabelEncoder
 import lambdanet.architecture.LabelEncoder.{Segment, SegmentedLabelEncoder}
 import lambdanet.train
 import lambdanet.translation.PredicateGraph
-import lambdanet.translation.PredicateGraph.{PNode, PTyVar, ProjNode}
+import lambdanet.translation.PredicateGraph.{PNode, PTyVar, PType, ProjNode}
 
 object NamingBaseline {
 
@@ -41,7 +41,8 @@ object NamingBaseline {
 
   case class testOnDatum(datum: Datum, useOracle: Boolean, transformName: Name => Name) {
 
-    def result: Stats = {
+    type TruthPosition = Int
+    def predict: Map[ProjNode, (TruthPosition, PType)] = {
       import cats.implicits._
 
       val predSpace = datum.predictor.predictionSpace
@@ -51,7 +52,7 @@ object NamingBaseline {
         }
       val libCands = allCands.filter(_._1.madeFromLibTypes)
       val projCands = allCands.filterNot(_._1.madeFromLibTypes)
-      datum.nodesToPredict.toVector.foldMap {
+      datum.nodesToPredict.map {
         case (n, label) =>
           val name = nodeName(n.n)
           val candidates =
@@ -63,6 +64,15 @@ object NamingBaseline {
             .sortBy(-_._2)
             .indexWhere { case (ty, _) => ty == label }
           assert(truthPosition >= 0)
+          n -> (truthPosition, label)
+      }
+    }
+
+    def result: Stats = {
+      import cats.implicits._
+
+      predict.toVector.foldMap {
+        case (_, (truthPosition, label)) =>
           val cat = LabelCat.fromLib(label.madeFromLibTypes)
           val oracleFlag = if (useOracle) "*" else ""
           Map(

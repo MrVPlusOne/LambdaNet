@@ -34,7 +34,6 @@ object NeuralInference {
     case class run(
         architecture: NNArchitecture,
         nodesToPredict: Vector[ProjNode],
-        initEmbedding: Set[ProjNode] => Embedding,
         iterations: Int,
         labelEncoder: LabelEncoder,
         isLibLabel: Symbol => Boolean,
@@ -51,12 +50,13 @@ object NeuralInference {
 
         val embeddings = logTime("iterate") {
           (0 until iterations)
-            .scanLeft(initEmbedding(projectNodes)) { (embed, i) =>
-              updateEmbedding(encodeLibNode)(
-                embed,
-                if (fixBetweenIteration) 0
-                else i
-              )
+            .scanLeft(architecture.initialEmbedding(projectNodes)) {
+              (embed, i) =>
+                updateEmbedding(encodeLibNode)(
+                  embed,
+                  if (fixBetweenIteration) 0
+                  else i
+                )
             }
             .toVector
         }
@@ -139,7 +139,8 @@ object NeuralInference {
 
       private def decode(
           embedding: Embedding,
-          encodeSignature: Map[PType, CompNode]
+          encodeSignature: Map[PType, CompNode],
+          useDropout: Boolean
       ): DecodingResult = {
 
         val candidates = predictionSpace.typeVector
@@ -149,7 +150,7 @@ object NeuralInference {
         val inputs = nodesToPredict
           .map(embedding.vars.apply)
 
-        architecture.similarity(inputs, candidates, 'decode)
+        architecture.similarity(inputs, candidates, useDropout, 'decode)
       }
 
       private def decodeSeparate(
@@ -174,7 +175,8 @@ object NeuralInference {
           inputs,
           libCandidates,
           projCandidates,
-          isLibOracle
+          isLibOracle,
+          predictionDropout
         )
       }
 

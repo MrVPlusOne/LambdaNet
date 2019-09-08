@@ -17,7 +17,7 @@ import lambdanet.architecture.LabelEncoder.{
   SegmentedLabelEncoder,
   TrainableLabelEncoder
 }
-import lambdanet.translation.PredicateGraph.{PNode, PType}
+import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 import org.nd4j.linalg.api.buffer.DataType
 
 import scala.collection.parallel.ForkJoinTaskSupport
@@ -49,7 +49,7 @@ object TrainingLoop extends TrainingLoopTrait {
     ).map(flag).mkString
 
     if (onlySeqModel) "large-seqModel"
-    else "downsample-nonlinear" + s"$flags-${TrainingState.iterationNum}"
+    else "downsample-moreRegularization" + s"$flags-${TrainingState.iterationNum}"
   }
 
   def flag(nameValue: (String, Boolean)): String = {
@@ -88,17 +88,73 @@ object TrainingLoop extends TrainingLoopTrait {
     def result(): Unit = {
       val (state, pc, logger) = loadTrainingState(resultsDir, fileLogger)
       val architecture = GruArchitecture(state.dimMessage, pc)
+      printResult(s"NN Architecture: ${architecture.arcName}")
+      printResult(s"Single layer consists of: ${architecture.singleLayerModel}")
       val seqArchitecture =
         SequenceModel.SeqArchitecture(state.dimMessage, pc)
       val dataSet =
         DataSet.loadDataSet(taskSupport, architecture, toyMod, maxLibRatio)
-      NamingBaseline.test(dataSet)
-//      trainOnProjects(dataSet, state, pc, logger, architecture, seqArchitecture)
-//        .result()
+
+//      NamingBaseline.test(dataSet)
+
+      val run = runOnProjects(
+        dataSet,
+        state,
+        pc,
+        logger,
+        architecture,
+        seqArchitecture
+      ).train()
+
+//      namingHelpfulness(dataSet, run)
+    }
+
+    def namingHelpfulness(dataSet: DataSet, run: runOnProjects) = {
+      import cats.implicits._
+
+      def showCount(c: Counted[Int]): String = {
+        s"$c, percentage: ${toAccuracy(c)}"
+      }
+
+      val (helpSet, notHelpSet) =
+        (for {
+          datum <- dataSet.trainSet
+          predictions = NamingBaseline
+            .testOnDatum(datum, useOracle = true, identity)
+            .predict
+          fwd <- run
+            .forward(
+              datum,
+              shouldDownsample = false,
+              shouldDropout = false,
+              maxBatchSize = Some(600)
+            )
+            .map(_._2)
+          Seq(s1, s2) = Seq(fwd.incorrectSet -> false, fwd.correctSet -> true)
+            .map {
+              case (set, correctness) =>
+                set
+                  .filterNot(_._2.madeFromLibTypes)
+                  .toVector
+                  .foldMap {
+                    case (n, label, _) =>
+                      val (truthPosition, label1) = predictions(ProjNode(n))
+                      assert(label1 == label)
+                      Counted.fromBool((truthPosition == 0) != correctness)
+                  }
+                  .tap { stat =>
+                    val name = if (correctness) "unhelpful" else "help"
+                    printResult(s"$name set: ${showCount(stat)}")
+                  }
+            }
+        } yield (s1, s2)).combineAll
+
+      printResult(s"Overall helpful set: ${showCount(helpSet)}")
+      printResult(s"Overall unhelpful set: ${showCount(notHelpSet)}")
     }
 
     //noinspection TypeAnnotation
-    case class trainOnProjects(
+    case class runOnProjects(
         dataSet: DataSet,
         trainingState: TrainingState,
         pc: ParamCollection,
@@ -113,6 +169,25 @@ object TrainingLoop extends TrainingLoopTrait {
         .signalSizeMedian(maxLibRatio)
         .tap(s => printResult(s"maxBatchSize: $s"))
 
+      val rand = new Random(1)
+      def randomLabelId(): Int = rand.synchronized {
+        rand.nextInt(50)
+      }
+      val Seq(labelEncoder, nameEncoder) =
+        Seq("labelEncoder", "nameEncoder").map { name =>
+          SegmentedLabelEncoder(
+            name,
+            trainSet,
+            coverageGoal = 0.98,
+            architecture,
+            dropoutProb = 0.1,
+            dropoutThreshold = 1000,
+            randomLabelId
+          )
+        }
+      printResult(s"Label encoder: ${labelEncoder.name}")
+      printResult(s"Name encoder: ${nameEncoder.name}")
+
       val labelCoverage =
         TrainableLabelEncoder(
           trainSet,
@@ -123,43 +198,9 @@ object TrainingLoop extends TrainingLoopTrait {
           randomLabelId
         )
 
-      private val rand = new Random(1)
-      def randomLabelId(): Int = rand.synchronized {
-        rand.nextInt(50)
-      }
-      val labelEncoder =
-        SegmentedLabelEncoder(
-          "labelEncoder",
-          trainSet,
-          coverageGoal = 0.98,
-          architecture,
-          dropoutProb = 0.1,
-          dropoutThreshold = 1000,
-          randomLabelId
-        )
-
-      val nameEncoder = {
-        SegmentedLabelEncoder(
-          "nameEncoder",
-          trainSet,
-          coverageGoal = 0.98,
-          architecture,
-          dropoutProb = 0.1,
-          dropoutThreshold = 1000,
-          randomLabelId
-        )
-//        ConstantLabelEncoder(architecture)
-      }
-
-      printResult(s"Label encoder: ${labelEncoder.name}")
-      printResult(s"Name encoder: ${nameEncoder.name}")
-
-      printResult(s"NN Architecture: ${architecture.arcName}")
-      printResult(s"Single layer consists of: ${architecture.singleLayerModel}")
-
       var shouldAnnounce: Boolean = true
 
-      def result(): Unit = {
+      def train(): Unit = {
         val saveInterval = if (toyMod) 40 else 6
 
         (trainingState.epoch0 + 1 to maxTrainingEpochs).foreach { epoch =>
@@ -252,7 +293,8 @@ object TrainingLoop extends TrainingLoopTrait {
                     backPropInParallel =
                       Some(parallelCtx -> Timeouts.optimizationTimeout),
                     gradientTransform = _.clipNorm(2 * factor),
-                    scaleLearningRate = scaleLearningRate(epoch)
+                    scaleLearningRate = scaleLearningRate(epoch),
+                    weightDecay = Some(1e-4)
                   )
                 }
 
@@ -500,7 +542,7 @@ object TrainingLoop extends TrainingLoopTrait {
 //          DebugTime.logTime("seqForward") { result }
 //        }
 //      }
-      private def forward(
+      def forward(
           datum: Datum,
           shouldDownsample: Boolean,
           shouldDropout: Boolean,
@@ -529,7 +571,6 @@ object TrainingLoop extends TrainingLoopTrait {
               .run(
                 architecture,
                 nodes,
-                architecture.initialEmbedding,
                 iterationNum,
                 labelEncoder,
                 labelCoverage.isLibLabel,
@@ -639,43 +680,45 @@ object TrainingLoop extends TrainingLoopTrait {
                 cp.over(currentLogFile, saveDir / "log.txt")
               }
             },
-            () => if (testSet.nonEmpty && !skipTest) {
-              import cats.implicits._
+            () =>
+              if (testSet.nonEmpty && !skipTest) {
+                import cats.implicits._
 
-              var progress = 0
-              val (right, wrong) = testSet.flatMap { datum =>
-                checkShouldStop(epoch)
-                announced(
-                  s"(progress: ${progress.tap(_ => progress += 1)}) test on $datum",
-                  shouldAnnounce
-                ) {
-                  forward(
-                    datum,
-                    shouldDownsample = false,
-                    shouldDropout = false,
-                    maxBatchSize = None
-                  ).map {
-                    case (_, fwd, pred) =>
-                      DebugTime.logTime("printQSource") {
-                        QLangDisplay.renderProjectToDirectory(
-                          datum.projectName.toString,
-                          datum.qModules,
-                          pred,
-                          datum.predictor.predictionSpace.allTypes
-                        )(saveDir / "predictions")
-                      }
-                      (fwd.correctSet, fwd.incorrectSet)
-                  }.toVector
-                }
-              }.combineAll
+                var progress = 0
+                val (right, wrong) = testSet.flatMap {
+                  datum =>
+                    checkShouldStop(epoch)
+                    announced(
+                      s"(progress: ${progress.tap(_ => progress += 1)}) test on $datum",
+                      shouldAnnounce
+                    ) {
+                      forward(
+                        datum,
+                        shouldDownsample = false,
+                        shouldDropout = false,
+                        maxBatchSize = None
+                      ).map {
+                        case (_, fwd, pred) =>
+                          DebugTime.logTime("printQSource") {
+                            QLangDisplay.renderProjectToDirectory(
+                              datum.projectName.toString,
+                              datum.qModules,
+                              pred,
+                              datum.predictor.predictionSpace.allTypes
+                            )(saveDir / "predictions")
+                          }
+                          (fwd.correctSet, fwd.incorrectSet)
+                      }.toVector
+                    }
+                }.combineAll
 
-              QLangDisplay.renderPredictionIndexToDir(
-                right,
-                wrong,
-                saveDir,
-                sourcePath = "predictions"
-              )
-            }
+                QLangDisplay.renderPredictionIndexToDir(
+                  right,
+                  wrong,
+                  saveDir,
+                  sourcePath = "predictions"
+                )
+              }
           )
 
           tasks.par.foreach(_.apply())
@@ -740,7 +783,7 @@ object TrainingLoop extends TrainingLoopTrait {
     }
   }
 
-  private case class ForwardResult(
+  case class ForwardResult(
       loss: Counted[Double],
       correctSet: Set[(PNode, PType, ProjectPath)],
       incorrectSet: Set[(PNode, PType, ProjectPath)],

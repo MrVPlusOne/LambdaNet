@@ -41,11 +41,19 @@ object TrainingState {
       loadFromFile
         .map { p =>
           cp.over(p / "log.txt", loggerFile)
-          val s = announced("Loading training from file: " + p) {
-            TrainingState.fromFile(p / "state.serialized")
+          import concurrent.ExecutionContext.Implicits.global
+          import concurrent.{Future, Await}
+          import concurrent.duration._
+          announced("Loading training from file: " + p) {
+            val stateF = Future(TrainingState.fromFile(p / "state.serialized"))
+            val pcF =
+              Future(ParamCollection.fromFile((p / "params.serialized")))
+            Await.result(for {
+              s <- stateF
+              pc <- pcF
+            } yield (s, pc, mkEventLogger(overrideMode = false)), 1.hour)
           }
-          val pc = ParamCollection.fromFile((p / "params.serialized"))
-          (s, pc, mkEventLogger(overrideMode = false))
+
         }
         .getOrElse {
           val resultsDirEmpty = ls(resultsDir) == Seq(logger.file)

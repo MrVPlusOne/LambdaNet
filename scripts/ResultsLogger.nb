@@ -10,10 +10,10 @@
 NotebookFileLineBreakTest
 NotebookFileLineBreakTest
 NotebookDataPosition[       158,          7]
-NotebookDataLength[     45230,        974]
-NotebookOptionsPosition[     42968,        935]
-NotebookOutlinePosition[     43320,        951]
-CellTagsIndexPosition[     43277,        948]
+NotebookDataLength[     45720,        990]
+NotebookOptionsPosition[     43457,        951]
+NotebookOutlinePosition[     43809,        967]
+CellTagsIndexPosition[     43766,        964]
 WindowFrame->Normal*)
 
 (* Beginning of Notebook Content *)
@@ -920,18 +920,34 @@ Cell[BoxData[
 Cell[BoxData[
  RowBox[{
   RowBox[{"downloadEverything", "[", 
-   RowBox[{"server_", ",", "task_", ",", "epoch_"}], "]"}], ":=", 
-  "\[IndentingNewLine]", 
-  RowBox[{"Identity", "[", 
-   RowBox[{"ToString", "@", 
-    RowBox[{"StringForm", "[", 
+   RowBox[{"task_", ",", "epoch_"}], "]"}], ":=", 
+  RowBox[{"Module", "[", 
+   RowBox[{
+    RowBox[{"{", "\[IndentingNewLine]", 
      RowBox[{
-     "\"\<cd ~/Desktop;scp -r ``:~/TypingNet/running-result/``/saved/epoch`` \
-running/``-``-epoch``\>\"", ",", "server", ",", "task", ",", "epoch", ",", 
-      "server", ",", "task", ",", "epoch"}], "]"}]}], "]"}]}]], "Input",
- CellChangeTimes->{{3.773658536430666*^9, 3.773658556905562*^9}, {
-  3.774904971094236*^9, 3.774904975046784*^9}},
- CellLabel->"In[22]:=",ExpressionUUID->"cee0ac1d-32c8-40a6-b358-950ec8a35725"]
+      RowBox[{"fromDir", "=", 
+       RowBox[{"ToString", "@", 
+        RowBox[{"StringForm", "[", 
+         RowBox[{
+         "\"\<utopia1:/mnt/nas/jiayi/``/saved/epoch``\>\"", ",", "task", ",", 
+          "epoch"}], "]"}]}]}], ",", "\[IndentingNewLine]", 
+      RowBox[{"targetDir", "=", 
+       RowBox[{"ToString", "@", 
+        RowBox[{"StringForm", "[", 
+         RowBox[{
+         "\"\<~/Desktop/running/``-everthing-epoch``\>\"", ",", "task", ",", 
+          "epoch"}], "]"}]}]}]}], "\[IndentingNewLine]", "}"}], ",", 
+    "\[IndentingNewLine]", 
+    RowBox[{
+     RowBox[{"StringForm", "[", 
+      RowBox[{
+      "\"\<mkdir ``; scp -r `` ``\>\"", ",", "targetDir", ",", "fromDir", ",",
+        "targetDir"}], "]"}], "//", "Print"}]}], "\[IndentingNewLine]", 
+   "]"}]}]], "Input",
+ CellChangeTimes->{{3.776878469313272*^9, 3.77687872692977*^9}, {
+  3.776878764197006*^9, 
+  3.776878766172171*^9}},ExpressionUUID->"84ab63d9-12c6-4573-b682-\
+256cb8359c33"]
 },
 WindowSize->{850, 855},
 WindowMargins->{{2, Automatic}, {Automatic, 0}},
@@ -969,13 +985,13 @@ Cell[17667, 405, 4536, 96, 472, "Input",ExpressionUUID->"c1caf827-f9db-4da8-ad17
  CellGroupingRules->{"GroupTogetherGrouping", 10000.}],
 Cell[22206, 503, 1368, 30, 220, "Input",ExpressionUUID->"30e0e5e6-a388-48bf-b5c7-f70dc2d3b087"],
 Cell[23577, 535, 3364, 70, 304, "Input",ExpressionUUID->"8eaebe0e-c1fc-4a5d-b1b7-6ae502627527"],
-Cell[26944, 607, 10488, 195, 842, "Input",ExpressionUUID->"f17ed66f-751b-4e3f-b3ce-d9caa6ca4efa",
+Cell[26944, 607, 10488, 195, 808, "Input",ExpressionUUID->"f17ed66f-751b-4e3f-b3ce-d9caa6ca4efa",
  CellGroupingRules->{"GroupTogetherGrouping", 10000.}],
 Cell[37435, 804, 202, 4, 30, "Input",ExpressionUUID->"6805c100-a6ad-420a-b856-67d855c5aa6b"],
 Cell[37640, 810, 2088, 48, 262, "Input",ExpressionUUID->"73698989-be54-4b3c-b41e-8db8e339f51a"],
 Cell[39731, 860, 1701, 36, 220, "Input",ExpressionUUID->"7b02550c-3904-470e-9fed-c37f2db65bef"],
 Cell[41435, 898, 847, 19, 94, "Input",ExpressionUUID->"763dbf23-2eb3-4867-bcee-690e7ba19e5f"],
-Cell[42285, 919, 679, 14, 136, "Input",ExpressionUUID->"cee0ac1d-32c8-40a6-b358-950ec8a35725"]
+Cell[42285, 919, 1168, 30, 136, "Input",ExpressionUUID->"84ab63d9-12c6-4573-b682-256cb8359c33"]
 }
 ]
 *)

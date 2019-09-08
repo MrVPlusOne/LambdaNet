@@ -5,7 +5,15 @@ import botkop.numsca
 import botkop.numsca.{:>, Shape, Tensor}
 import cats.data.Chain
 import funcdiff._
-import lambdanet.NeuralInference.{AccessFieldUsage, ClassFieldUsage, LabelUsages, LabelVector, Message, MessageKind, MessageModel}
+import lambdanet.NeuralInference.{
+  AccessFieldUsage,
+  ClassFieldUsage,
+  LabelUsages,
+  LabelVector,
+  Message,
+  MessageKind,
+  MessageModel
+}
 import lambdanet.train.{DecodingResult, Joint, TwoStage}
 import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 
@@ -226,16 +234,18 @@ abstract class NNArchitecture(
   def similarity(
       inputs: Vector[CompNode],
       candidates: Vector[CompNode],
+      useDropout: Boolean,
       name: SymbolPath
   ): Joint = {
-    val rows = for{
+    val rows = for {
       input <- inputs
       cand <- candidates
     } yield {
-      input.concat(cand, axis=1)
+      input.concat(cand, axis = 1)
     }
     val logits0 = concatN(0, fromRows = true)(rows) ~>
       linear(name / 'sim0, dimMessage) ~> relu ~>
+      (if (useDropout) dropout(0.5) else identity) ~>
       linear(name / 'sim1, dimMessage / 2) ~> relu ~>
       linear(name / 'sim2, dimMessage / 4) ~> relu ~>
       linear(name / 'sim3, 1)
@@ -297,7 +307,8 @@ abstract class NNArchitecture(
       inputs: Vector[CompNode],
       libCandidates: Vector[CompNode],
       projCandidates: Vector[CompNode],
-      isLibOracle: Option[Vector[Boolean]]
+      isLibOracle: Option[Vector[Boolean]],
+      useDropout: Boolean
   ): DecodingResult = {
     val inputs1 =
       concatN(axis = 0, fromRows = true)(inputs)
@@ -306,7 +317,8 @@ abstract class NNArchitecture(
       case None =>
         inputs1 ~>
           linear('libDecider / 'L1, dimMessage) ~> relu ~>
-          linear('libDecider / 'L2, dimMessage/2) ~> relu ~>
+          linear('libDecider / 'L2, dimMessage / 2) ~> relu ~>
+          (if (useDropout) dropout(0.5) else identity) ~>
           linear('libDecider / 'L3, 1)
       case Some(truth) =>
         truth
@@ -314,53 +326,19 @@ abstract class NNArchitecture(
           .pipe(x => const(Tensor(x.toArray).reshape(-1, 1)))
     }
 
-    val libLogits = similarity(inputs, libCandidates, 'libDistr).logits
+    val libLogits = similarity(
+      inputs,
+      libCandidates,
+      useDropout,
+      'libDistr
+    ).logits
     val projLogits =
       if (projCandidates.nonEmpty)
-        Some(similarity(inputs, projCandidates, 'projDistr).logits)
+        similarity(inputs, projCandidates, useDropout, 'projDistr).logits
+          .pipe(Some.apply)
       else None
 
     TwoStage(pIsLib, libLogits, projLogits)
-  }
-
-  @deprecated
-  def separatedSimilarity(
-      inputs: Vector[CompNode],
-      libCandidates: Vector[CompNode],
-      projCandidates: Vector[CompNode],
-      isLibOracle: Option[Vector[Boolean]]
-  ): DecodingResult = {
-    val inputs1 =
-      concatN(axis = 0, fromRows = true)(inputs)
-
-    val pIsLib = isLibOracle match {
-      case None =>
-        inputs1 ~>
-          linear('libDecider / 'L1, dimMessage) ~> relu ~>
-          linear('libDecider / 'L2, dimMessage/2) ~> relu ~>
-          linear('libDecider / 'L3, 1) ~> sigmoid
-      case Some(truth) =>
-        truth
-          .map(x => if (x) 1.0 else 0.0)
-          .pipe(x => const(Tensor(x.toArray).reshape(-1, 1)))
-    }
-
-//    val libTypeNum = libCandidates.length
-//    val libDistr = inputs1 ~>
-//      linear('libDistr / 'L1, dimMessage) ~> relu ~>
-//      linear('libDistr / 'L2, dimMessage) ~> relu ~>
-//      linear('libDistr / 'L3, libTypeNum) ~> softmax
-    val epsilon = funcdiff.TensorExtension.zeroTolerance * 10
-    val libDistr = similarity(inputs, libCandidates, 'libDistr).logits ~> softmax
-    if (projCandidates.isEmpty)
-      return Joint(log(libDistr + epsilon))
-    val projDistr = similarity(inputs, projCandidates, 'projDistr).logits ~> softmax
-
-    (libDistr * pIsLib)
-      .concat(projDistr * (-pIsLib + 1), 1)
-      .pipe(_ + epsilon)
-      .pipe(log)
-      .pipe(Joint)
   }
 
   def encodeFunction(args: Vector[CompNode], to: CompNode): CompNode = {
