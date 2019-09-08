@@ -98,9 +98,8 @@ abstract class NNArchitecture(
         concatN(axis = 0, fromRows = true)(nodes1.map(encodeNode))
           .concat(weightedSum, axis = 1)
           .pipe(messageLayer(name / 'messages))
-      nodes1.zipWithIndex.map {
-        case (n, i) =>
-          Map(ProjNode(n) -> Chain(messages.slice(i, :>))) //todo: use rows operator
+      nodes1.zip(messages.rows).map {
+        case (n, r) => Map(ProjNode(n) -> Chain(r))
       }.combineAll
     }
 
@@ -231,7 +230,32 @@ abstract class NNArchitecture(
       .fold(Map())(_ |+| _)
   }
 
-  def similarity(
+  def attendPredictionSpace(
+      embed: Embedding,
+      candidates: Vector[CompNode],
+      name: SymbolPath
+  ): Embedding = {
+
+    val (keys0, values0) = concatN(0, fromRows = true)(candidates)
+      .pipe { batch =>
+        linearLayer(name / 'keys, batch) -> linearLayer(name / 'values, batch)
+      }
+    val (defaultK, defaultV) = randomVar(name / 'defaultK) -> randomVar(
+      name / 'defaultV
+    )
+    val keys = keys0.concat(defaultK, axis = 0)
+    val values = values0.concat(defaultV, axis = 0)
+    val (nodes, nVecs) = embed.vars.toVector.unzip
+    val nodeMatrix = concatN(0, fromRows = true)(nVecs)
+    val weightedSum = nodeMatrix
+      .dot(keys.t)
+      .pipe(softmax)
+      .dot(values)
+    val newMatrix = nodeMatrix + weightedSum
+    Embedding(nodes.zip(newMatrix.rows).toMap)
+  }
+
+  def newSimilarity(
       inputs: Vector[CompNode],
       candidates: Vector[CompNode],
       useDropout: Boolean,
@@ -254,9 +278,10 @@ abstract class NNArchitecture(
     Joint(logits)
   }
 
-  def oldSimilarity(
+  def similarity(
       inputs: Vector[CompNode],
       candidates: Vector[CompNode],
+      useDropout: Boolean,
       name: SymbolPath
   ): Joint = {
     val inputs1 =
@@ -266,14 +291,7 @@ abstract class NNArchitecture(
       concatN(axis = 0, fromRows = true)(candidates)
         .pipe(linear(name / 'similarityCandidates, dimMessage))
 
-//    val sim = cosineSimilarity(inputs1, candidates1)
-//    val sharpen =
-//      (sim ~> linear('sharpening / 'L1, dimMessage) ~> relu
-//        ~> linear('))
-//      .pipe(sum(_, axis = 1))
-//      .pipe(softPlus(_) + 1.0)
-    val factor = 1.0 / math.sqrt(dimMessage)
-    Joint(inputs1.dot(candidates1.t) * factor)
+    Joint(inputs1.dot(candidates1.t))
   }
 
   def encodeLibType(n: PNode, encodeName: Symbol => CompNode): CompNode = {
@@ -447,7 +465,6 @@ abstract class NNArchitecture(
     }.combineAll
   }
 
-  val singleLayerModel = "2 FC"
   def linearLayer(
       path: SymbolPath,
       input: CompNode
@@ -455,8 +472,10 @@ abstract class NNArchitecture(
     linear(path / 'L0, dimMessage)(input)
   }
 
+  val messageLayerModel = "1 FC"
+
   def messageLayer(path: SymbolPath)(input: CompNode): CompNode = {
-    fcNetwork(path, numLayer = 2)(input)
+    fcNetwork(path, numLayer = 1)(input)
   }
 
   def nonLinearLayer(path: SymbolPath)(input: CompNode): CompNode = {

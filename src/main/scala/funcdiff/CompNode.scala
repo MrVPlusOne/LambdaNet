@@ -5,6 +5,7 @@ import java.util.concurrent.TimeoutException
 import botkop.numsca._
 import funcdiff.DiffFunc.{ConstFunc, Reshape}
 import SimpleMath.Extensions._
+import lambdanet.architecture
 
 import scala.concurrent._
 

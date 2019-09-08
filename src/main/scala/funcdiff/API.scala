@@ -186,6 +186,14 @@ trait APITrait {
     def dot(x2: CompNode): CompNode = funcNode(Dot(x1, x2))
 
     def ~>[B <: CompNode](f: CompNode => B): B = f(x1)
+
+    def rows: Vector[CompNode] = {
+      //todo: use more efficient implementation
+      val numOfRows = x1.shape(0)
+      (0 until numOfRows.toInt).map { r =>
+        x1.slice(r, :>)
+      }.toVector
+    }
   }
 
 //  /** convenient import for NumscaRange */

@@ -169,7 +169,7 @@ object LabelEncoder {
         segs
           .map(encodeSeg)
           .pipe(concatN(0, fromRows = true))
-          .pipe(architecture.nonLinearLayer(symbolPath))
+          .pipe(architecture.nonLinearLayer(symbolPath / 'encodeSeg))
           .pipe(sum(_, 0))
     }
 

@@ -48,12 +48,20 @@ object NeuralInference {
       def result: Vector[DecodingResult] = {
         val encodeLibNode = computeLibNodeEncoding()
 
+        def encodeType(embed: Embedding)(ty: PType) = ty match {
+          case PTyVar(node) =>
+            if (node.fromLib) encodeLibNode(LibNode(node))
+            else embed.vars(ProjNode(node))
+          case _ => throw new Error()
+        }
+
         val embeddings = logTime("iterate") {
           (0 until iterations)
             .scanLeft(architecture.initialEmbedding(projectNodes)) {
               (embed, i) =>
                 updateEmbedding(encodeLibNode)(
                   embed,
+                  encodeType(embed),
                   if (fixBetweenIteration) 0
                   else i
                 )
@@ -63,14 +71,7 @@ object NeuralInference {
 
         embeddings.map { embed =>
           logTime("decode") {
-            def encodeType(ty: PType) = ty match {
-              case PTyVar(node) =>
-                if (node.fromLib) encodeLibNode(LibNode(node))
-                else embed.vars(ProjNode(node))
-              case _ => throw new Error()
-            }
-
-            decodeSeparate(embed, encodeType, isLibOracle)
+            decodeSeparate(embed, encodeType(embed), isLibOracle)
           }
         }
       }
@@ -104,7 +105,11 @@ object NeuralInference {
 
       private def updateEmbedding(
           encodeLibNode: LibNode => CompNode
-      )(embedding: Embedding, iteration: Int): Embedding = {
+      )(
+          embedding: Embedding,
+          encodeType: PType => CompNode,
+          iteration: Int
+      ): Embedding = {
 
         val messages = logTime("compute messages") {
           def encodeNode(n: PNode): CompNode =
@@ -133,7 +138,14 @@ object NeuralInference {
         logTime("update embedding") {
           Embedding(
             architecture.update('vars, embedding.vars, merged)
-          )
+          ).pipe { embed =>
+            val candidates = predictionSpace.typeVector.map(encodeType)
+            architecture.attendPredictionSpace(
+              embed,
+              candidates,
+              s"attendPredictionSpace$iteration"
+            )
+          }
         }
       }
 

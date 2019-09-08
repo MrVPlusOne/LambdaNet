@@ -32,7 +32,7 @@ import scala.language.reflectiveCalls
 import scala.util.Random
 
 object TrainingLoop extends TrainingLoopTrait {
-  val toyMod: Boolean = false
+  val toyMod: Boolean = true
   val onlySeqModel = false
   val useDropout: Boolean = true
   val useOracleForIsLib: Boolean = true
@@ -49,7 +49,7 @@ object TrainingLoop extends TrainingLoopTrait {
     ).map(flag).mkString
 
     if (onlySeqModel) "large-seqModel"
-    else "downsample-moreRegularization" + s"$flags-${TrainingState.iterationNum}"
+    else "attend-predSpace" + s"$flags-${TrainingState.iterationNum}"
   }
 
   def flag(nameValue: (String, Boolean)): String = {
@@ -89,7 +89,7 @@ object TrainingLoop extends TrainingLoopTrait {
       val (state, pc, logger) = loadTrainingState(resultsDir, fileLogger)
       val architecture = GruArchitecture(state.dimMessage, pc)
       printResult(s"NN Architecture: ${architecture.arcName}")
-      printResult(s"Single layer consists of: ${architecture.singleLayerModel}")
+      printResult(s"Single layer consists of: ${architecture.messageLayerModel}")
       val seqArchitecture =
         SequenceModel.SeqArchitecture(state.dimMessage, pc)
       val dataSet =
@@ -293,8 +293,7 @@ object TrainingLoop extends TrainingLoopTrait {
                     backPropInParallel =
                       Some(parallelCtx -> Timeouts.optimizationTimeout),
                     gradientTransform = _.clipNorm(2 * factor),
-                    scaleLearningRate = scaleLearningRate(epoch),
-                    weightDecay = Some(1e-4)
+                    scaleLearningRate = scaleLearningRate(epoch)
                   )
                 }
 
