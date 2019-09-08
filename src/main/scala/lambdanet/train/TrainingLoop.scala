@@ -309,6 +309,7 @@ object TrainingLoop extends TrainingLoopTrait {
                   }
                 }.toVector
 
+                println(DebugTime.show)
                 (fwd, gradInfo, datum)
               }
             }
