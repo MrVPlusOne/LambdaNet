@@ -1,8 +1,10 @@
 package lambdanet
 
+import botkop.numsca.{Shape, Tensor}
 import lambdanet.architecture.Embedding
 import lambdanet.architecture.{LabelEncoder, NNArchitecture}
 import lambdanet.train.DecodingResult
+import lambdanet.train.NamingBaseline.{nodeName, typeName}
 import lambdanet.translation.ImportsResolution.NameDef
 
 import scala.collection.mutable
@@ -139,10 +141,13 @@ object NeuralInference {
           Embedding(
             architecture.update('vars, embedding.vars, merged)
           ).pipe { embed =>
-            val candidates = predictionSpace.typeVector.map(encodeType)
-            architecture.attendPredictionSpace(
-              embed,
+            val candidates =
+              predictionSpace.projTypeVec.map(v => v -> encodeType(v))
+            architecture.attendPredictionSpaceByName(
+              projectNodes.toVector,
+              projectNodes.toVector.map{ embed.vars },
               candidates,
+              similarityScores,
               s"attendPredictionSpace$iteration"
             )
           }
@@ -346,6 +351,25 @@ object NeuralInference {
         .fold[BatchedMsgModels](Map())(_ |+| _)
         .mapValuesNow(_.filterNot(_.allNodesFromLib))
     }
+
+    private lazy val similarityScores = DebugTime.logTime("similarityScores") {
+      val nodes = projectNodes.toVector.par
+      val candidates = predictionSpace.projTypeVec
+      val scores = for {
+        n <- nodes
+        ty <- candidates
+      } yield {
+        val n1 = nodeName(n.n).toSet
+        val n2 = typeName(ty).toSet
+        val s1 = n1.size
+        val s2 = n2.size
+        val s3 = n1.intersect(n2).size
+        s3.toDouble / (s1 + s2).pipe(x => if (x == 0) 1 else x)
+      }
+      Tensor(scores.toArray)
+        .reshape(Shape.make(nodes.length, candidates.length))
+    }
+
 
     def visualizeNeuralGraph: String = {
       NeuralVisualization.toMamGraph(graph.nodes, batchedMsgModels)

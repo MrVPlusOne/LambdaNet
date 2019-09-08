@@ -98,9 +98,12 @@ abstract class NNArchitecture(
         concatN(axis = 0, fromRows = true)(nodes1.map(encodeNode))
           .concat(weightedSum, axis = 1)
           .pipe(messageLayer(name / 'messages))
-      nodes1.zip(messages.rows).map {
-        case (n, r) => Map(ProjNode(n) -> Chain(r))
-      }.combineAll
+      nodes1
+        .zip(messages.rows)
+        .map {
+          case (n, r) => Map(ProjNode(n) -> Chain(r))
+        }
+        .combineAll
     }
 
     def extractMessages(
@@ -251,6 +254,32 @@ abstract class NNArchitecture(
       .dot(keys.t)
       .pipe(softmax)
       .dot(values)
+    val newMatrix = nodeMatrix + weightedSum
+    Embedding(nodes.zip(newMatrix.rows).toMap)
+  }
+
+  def attendPredictionSpaceByName(
+      nodes: Vector[ProjNode],
+      nVecs: Vector[CompNode],
+      candidates: Vector[(PType, CompNode)],
+      similarityScores: Tensor,
+      name: SymbolPath
+  ): Embedding = {
+
+    val sharpness = getVar(name / 'sharpness)(Tensor(1.0).reshape(1, 1))
+    val attention = similarityScores
+      .pipe(x => const(x) * sharpness)
+      .concat(numsca.ones(nodes.length, 1), axis = 1) // guardian
+      .pipe(softmax)
+
+    val values0 = concatN(0, fromRows = true)(candidates.map(_._2))
+//      .pipe(linearLayer(name / 'values, _))
+
+    val defaultV = randomVar(name / 'defaultV)
+    val values = values0.concat(defaultV, axis = 0)
+
+    val weightedSum = attention.dot(values)
+    val nodeMatrix = concatN(0, fromRows = true)(nVecs)
     val newMatrix = nodeMatrix + weightedSum
     Embedding(nodes.zip(newMatrix.rows).toMap)
   }
@@ -472,10 +501,10 @@ abstract class NNArchitecture(
     linear(path / 'L0, dimMessage)(input)
   }
 
-  val messageLayerModel = "1 FC"
+  val messageLayerModel = "2 FC"
 
   def messageLayer(path: SymbolPath)(input: CompNode): CompNode = {
-    fcNetwork(path, numLayer = 1)(input)
+    fcNetwork(path, numLayer = 2)(input)
   }
 
   def nonLinearLayer(path: SymbolPath)(input: CompNode): CompNode = {

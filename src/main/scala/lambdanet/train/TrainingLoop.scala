@@ -32,7 +32,7 @@ import scala.language.reflectiveCalls
 import scala.util.Random
 
 object TrainingLoop extends TrainingLoopTrait {
-  val toyMod: Boolean = true
+  val toyMod: Boolean = false
   val onlySeqModel = false
   val useDropout: Boolean = true
   val useOracleForIsLib: Boolean = true
@@ -49,7 +49,7 @@ object TrainingLoop extends TrainingLoopTrait {
     ).map(flag).mkString
 
     if (onlySeqModel) "large-seqModel"
-    else "attend-predSpace" + s"$flags-${TrainingState.iterationNum}"
+    else "attend-predSpace-nonlinear" + s"$flags-${TrainingState.iterationNum}"
   }
 
   def flag(nameValue: (String, Boolean)): String = {

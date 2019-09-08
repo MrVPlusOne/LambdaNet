@@ -39,6 +39,23 @@ object NamingBaseline {
     }
   }
 
+  def nodeName(n: PNode): Name = {
+    n.nameOpt.toVector.flatMap(name =>
+      LabelEncoder.segmentName(name)
+    )
+  }
+
+  def typeName(ty: PredicateGraph.PType): Name = {
+    ty match {
+      case PTyVar(n) => nodeName(n)
+      case _         => Vector()
+    }
+  }
+
+  def nameSimilarity(n1: Name, n2: Name): Double = {
+    n1.toSet.intersect(n2.toSet).size
+  }
+
   case class testOnDatum(datum: Datum, useOracle: Boolean, transformName: Name => Name) {
 
     type TruthPosition = Int
@@ -48,13 +65,13 @@ object NamingBaseline {
       val predSpace = datum.predictor.predictionSpace
       val allCands = predSpace.allTypes.toVector
         .map { ty =>
-          ty -> typeName(ty)
+          ty -> transformName(typeName(ty))
         }
       val libCands = allCands.filter(_._1.madeFromLibTypes)
       val projCands = allCands.filterNot(_._1.madeFromLibTypes)
       datum.nodesToPredict.map {
         case (n, label) =>
-          val name = nodeName(n.n)
+          val name = transformName(nodeName(n.n))
           val candidates =
             if (useOracle)
               if (label.madeFromLibTypes) libCands else projCands
@@ -81,24 +98,6 @@ object NamingBaseline {
           )
       }
     }
-
-    def nodeName(n: PNode): Name = {
-      n.nameOpt.toVector.flatMap(name =>
-        LabelEncoder.segmentName(name)
-      ).pipe(transformName)
-    }
-
-    def typeName(ty: PredicateGraph.PType): Name = {
-      ty match {
-        case PTyVar(n) => nodeName(n).pipe(transformName)
-        case _         => Vector()
-      }
-    }
-
-    def nameSimilarity(n1: Name, n2: Name): Double = {
-      n1.toSet.intersect(n2.toSet).size
-    }
-
   }
 
 }
