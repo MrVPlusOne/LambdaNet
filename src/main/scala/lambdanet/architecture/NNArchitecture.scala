@@ -515,7 +515,7 @@ abstract class NNArchitecture(
   }
 
   def nonLinearLayer(path: SymbolPath)(input: CompNode): CompNode = {
-    fcNetwork(path, numLayer = 2)(input)
+    fcNetwork(path, numLayer = 1)(input)
   }
 
   def fcNetwork(path: SymbolPath, numLayer: Int)(input: CompNode): CompNode = {
