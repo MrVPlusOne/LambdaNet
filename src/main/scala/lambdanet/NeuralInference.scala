@@ -353,21 +353,26 @@ object NeuralInference {
     }
 
     private lazy val similarityScores = DebugTime.logTime("similarityScores") {
-      val nodes = projectNodes.toVector.par
-      val candidates = predictionSpace.projTypeVec
-      val scores = for {
-        n <- nodes
-        ty <- candidates
-      } yield {
-        val n1 = nodeName(n.n).toSet
-        val n2 = typeName(ty).toSet
-        val s1 = n1.size
-        val s2 = n2.size
-        val s3 = n1.intersect(n2).size
-        s3.toDouble / (s1 + s2).pipe(x => if (x == 0) 1 else x)
+      if(projectNodes.isEmpty || predictionSpace.projTypeVec.isEmpty)
+        None
+      else {
+        val nodes = projectNodes.toVector.par
+        val candidates = predictionSpace.projTypeVec
+        val scores = for {
+          n <- nodes
+          ty <- candidates
+        } yield {
+          val n1 = nodeName(n.n).toSet
+          val n2 = typeName(ty).toSet
+          val s1 = n1.size
+          val s2 = n2.size
+          val s3 = n1.intersect(n2).size
+          s3.toDouble / (s1 + s2).pipe(x => if (x == 0) 1 else x)
+        }
+        Tensor(scores.toArray)
+          .reshape(Shape.make(nodes.length, candidates.length))
+          .pipe(Some.apply)
       }
-      Tensor(scores.toArray)
-        .reshape(Shape.make(nodes.length, candidates.length))
     }
 
 

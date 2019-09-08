@@ -262,23 +262,28 @@ abstract class NNArchitecture(
       nodes: Vector[ProjNode],
       nVecs: Vector[CompNode],
       candidates: Vector[(PType, CompNode)],
-      similarityScores: Tensor,
+      similarityScoresOpt: Option[Tensor],
       name: SymbolPath
   ): Embedding = {
-
-    val sharpness = getVar(name / 'sharpness)(Tensor(1.0).reshape(1, 1))
-    val attention = similarityScores
-      .pipe(x => const(x) * sharpness)
-      .concat(numsca.ones(nodes.length, 1), axis = 1) // guardian
-      .pipe(softmax)
-
-    val values0 = concatN(0, fromRows = true)(candidates.map(_._2))
-//      .pipe(linearLayer(name / 'values, _))
-
     val defaultV = randomVar(name / 'defaultV)
-    val values = values0.concat(defaultV, axis = 0)
 
-    val weightedSum = attention.dot(values)
+    val weightedSum = similarityScoresOpt match {
+      case Some(similarityScores) =>
+        val sharpness = getVar(name / 'sharpness)(Tensor(1.0).reshape(1, 1))
+        val attention = similarityScores
+          .pipe(x => const(x) * sharpness)
+          .concat(numsca.ones(nodes.length, 1), axis = 1) // guardian
+          .pipe(softmax)
+
+        val values0 = concatN(0, fromRows = true)(candidates.map(_._2))
+        //      .pipe(linearLayer(name / 'values, _))
+
+        val values = values0.concat(defaultV, axis = 0)
+        attention.dot(values)
+      case None =>
+        defaultV
+    }
+
     val nodeMatrix = concatN(0, fromRows = true)(nVecs)
     val newMatrix = nodeMatrix + weightedSum
     Embedding(nodes.zip(newMatrix.rows).toMap)
