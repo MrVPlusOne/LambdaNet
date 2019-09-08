@@ -82,6 +82,11 @@ trait APITrait {
 
   def stackRows(xs: IS[CompNode]) = concatN(axis = 0, fromRows = true)(xs)
 
+  def concatTupledRows(rows: IS[(CompNode,CompNode)]): CompNode = {
+    val (l, r ) = rows.unzip
+    stackRows(l).concat(stackRows(r), axis = 1)
+  }
+
   def crossEntropy(prediction: CompNode, targets: Tensor): CompNode =
     -sum(log(prediction + epsilon) * targets, axis = 1)
 

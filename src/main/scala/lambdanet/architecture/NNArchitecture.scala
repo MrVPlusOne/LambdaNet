@@ -296,15 +296,14 @@ abstract class NNArchitecture(
       useDropout: Boolean,
       name: SymbolPath
   ): Joint = {
-    val (inputRows, candRows) = (for {
+    val rows = for {
       input <- inputs
       cand <- candidates
     } yield {
       input -> cand
-    }).unzip
+    }
 
-    val rows = stackRows(inputRows).concat(stackRows(candRows), axis = 1)
-    val logits0 = rows ~>
+    val logits0 = concatTupledRows(rows) ~>
       linear(name / 'sim0, dimMessage) ~> relu ~>
 //      (if (useDropout) dropout(0.5) else identity) ~>
       linear(name / 'sim1, dimMessage / 2) ~> relu ~>
@@ -400,10 +399,9 @@ abstract class NNArchitecture(
   def encodeFunction(args: Vector[CompNode], to: CompNode): CompNode = {
     (to +: args).zipWithIndex
       .map {
-        case (a, i) =>
-          a.concat(encodePosition(i - 1), axis = 1)
+        case (a, i) => a -> encodePosition(i - 1)
       }
-      .pipe(concatN(axis = 0, fromRows = true))
+      .pipe(concatTupledRows)
       .pipe(nonLinearLayer('encodeFunction))
       .pipe(sum(_, axis = 0))
   }
@@ -413,10 +411,7 @@ abstract class NNArchitecture(
       randomVar('emptyObject)
     } else {
       elements
-        .map {
-          case (v1, v2) => v1.concat(v2, axis = 1)
-        }
-        .pipe(concatN(axis = 0, fromRows = true))
+        .pipe(concatTupledRows)
         .pipe(nonLinearLayer('encodeObject))
         .pipe(sum(_, axis = 0))
     }
@@ -494,8 +489,8 @@ abstract class NNArchitecture(
     val (nodes, vectors) = inputs.unzip
     val (l, r) = vectors.unzip
 
-    val l1 = concatN(axis = 0, fromRows = true)(l)
-    val r1 = concatN(axis = 0, fromRows = true)(r)
+    val l1 = stackRows(l)
+    val r1 = stackRows(r)
     val output = transformation(l1, r1)
     nodes.zipWithIndex.map {
       case (n, i) =>
