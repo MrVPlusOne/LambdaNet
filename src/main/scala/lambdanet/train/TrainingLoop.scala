@@ -42,6 +42,7 @@ object TrainingLoop extends TrainingLoopTrait {
 
   val taskName: String = {
     val flags = Seq(
+      "newSim" -> NNArchitecture.compareDecoding,
       "oracle" -> useOracleForIsLib,
       "fix" -> NeuralInference.fixBetweenIteration,
       "toy" -> toyMod,
@@ -49,7 +50,8 @@ object TrainingLoop extends TrainingLoopTrait {
     ).map(flag).mkString
 
     if (onlySeqModel) "large-seqModel"
-    else s"attendPS-fc2-newSim" + s"$flags-${TrainingState.iterationNum}"
+//    else s"attendPS-fc${NNArchitecture.messageLayers}" + s"$flags-${TrainingState.iterationNum}"
+    else s"attend-predSpace-nonlinear-oracle-weighted-4"
   }
 
   def flag(nameValue: (String, Boolean)): String = {
@@ -89,7 +91,7 @@ object TrainingLoop extends TrainingLoopTrait {
       val (state, pc, logger) = loadTrainingState(resultsDir, fileLogger)
       val architecture = GruArchitecture(state.dimMessage, pc)
       printResult(s"NN Architecture: ${architecture.arcName}")
-      printResult(s"Single layer consists of: ${architecture.messageLayerModel}")
+      printResult(s"Message layer: ${NNArchitecture.messageLayers} FC")
       val seqArchitecture =
         SequenceModel.SeqArchitecture(state.dimMessage, pc)
       val dataSet =
@@ -667,11 +669,15 @@ object TrainingLoop extends TrainingLoopTrait {
           val tasks = Vector(
             () => {
               val savePath = saveDir / "state.serialized"
-              TrainingState(epoch, dimMessage, iterationNum, optimizer)
-                .saveToFile(savePath)
+              announced("save training state") {
+                TrainingState(epoch, dimMessage, iterationNum, optimizer)
+                  .saveToFile(savePath)
+              }
             },
             () => {
-              pc.saveToFile(saveDir / "params.serialized")
+              announced("save parameters") {
+                pc.saveToFile(saveDir / "params.serialized")
+              }
             },
             () => {
               val currentLogFile = resultsDir / "log.txt"

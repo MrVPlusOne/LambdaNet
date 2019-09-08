@@ -18,6 +18,12 @@ import lambdanet.train.{DecodingResult, Joint, TwoStage}
 import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 
 import scala.collection.GenSeq
+import NNArchitecture._
+
+object NNArchitecture {
+  val messageLayers = 2
+  val compareDecoding = false
+}
 
 abstract class NNArchitecture(
     val arcName: String,
@@ -295,41 +301,34 @@ abstract class NNArchitecture(
       candidates: Vector[CompNode],
       useDropout: Boolean,
       name: SymbolPath
-  ): Joint = {
-    val rows = for {
-      input <- inputs
-      cand <- candidates
-    } yield {
-      input -> cand
-    }
+  ): Joint =
+    if (compareDecoding) {
+      val rows = for {
+        input <- inputs
+        cand <- candidates
+      } yield {
+        input -> cand
+      }
 
-    val logits0 = concatTupledRows(rows) ~>
-      linear(name / 'sim0, dimMessage) ~> relu ~>
+      val logits0 = concatTupledRows(rows) ~>
+        linear(name / 'sim0, dimMessage) ~> relu ~>
 //      (if (useDropout) dropout(0.5) else identity) ~>
-      linear(name / 'sim1, dimMessage / 2) ~> relu ~>
-      linear(name / 'sim2, dimMessage / 4) ~> relu ~>
-      linear(name / 'sim3, 1)
+        linear(name / 'sim1, dimMessage / 2) ~> relu ~>
+        linear(name / 'sim2, dimMessage / 4) ~> relu ~>
+        linear(name / 'sim3, 1)
 
-    val logits = logits0.reshape(Shape.make(inputs.length, candidates.length))
-    Joint(logits)
-  }
+      val logits = logits0.reshape(Shape.make(inputs.length, candidates.length))
+      Joint(logits)
+    } else {
+      val inputs1 =
+        stackRows(inputs)
+          .pipe(linear(name / 'similarityInputs, dimMessage))
+      val candidates1 =
+        stackRows(candidates)
+          .pipe(linear(name / 'similarityCandidates, dimMessage))
 
-//  // simple similarity
-//  def similarity(
-//      inputs: Vector[CompNode],
-//      candidates: Vector[CompNode],
-//      useDropout: Boolean,
-//      name: SymbolPath
-//  ): Joint = {
-//    val inputs1 =
-//      stackRows(inputs)
-//        .pipe(linear(name / 'similarityInputs, dimMessage))
-//    val candidates1 =
-//      stackRows(candidates)
-//        .pipe(linear(name / 'similarityCandidates, dimMessage))
-//
-//    Joint(inputs1.dot(candidates1.t))
-//  }
+      Joint(inputs1.dot(candidates1.t))
+    }
 
   def encodeLibType(n: PNode, encodeName: Symbol => CompNode): CompNode = {
     def encodeNameOpt(nameOpt: Option[Symbol]): CompNode = {
@@ -505,10 +504,8 @@ abstract class NNArchitecture(
     linear(path / 'L0, dimMessage)(input)
   }
 
-  val messageLayerModel = "2 FC"
-
   def messageLayer(path: SymbolPath)(input: CompNode): CompNode = {
-    fcNetwork(path, numLayer = 2)(input)
+    fcNetwork(path, numLayer = messageLayers)(input)
   }
 
   def nonLinearLayer(path: SymbolPath)(input: CompNode): CompNode = {
