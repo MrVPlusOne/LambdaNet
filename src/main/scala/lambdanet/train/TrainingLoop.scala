@@ -49,7 +49,7 @@ object TrainingLoop extends TrainingLoopTrait {
     ).map(flag).mkString
 
     if (onlySeqModel) "large-seqModel"
-    else "attend-predSpace-nonlinear" + s"$flags-${TrainingState.iterationNum}"
+    else s"attendPS-fc1-newSim" + s"$flags-${TrainingState.iterationNum}"
   }
 
   def flag(nameValue: (String, Boolean)): String = {
@@ -693,9 +693,9 @@ object TrainingLoop extends TrainingLoopTrait {
                     ) {
                       forward(
                         datum,
-                        shouldDownsample = false,
+                        shouldDownsample = true, // fixme: this is for saving training time
                         shouldDropout = false,
-                        maxBatchSize = None
+                        maxBatchSize = None,
                       ).map {
                         case (_, fwd, pred) =>
                           DebugTime.logTime("printQSource") {

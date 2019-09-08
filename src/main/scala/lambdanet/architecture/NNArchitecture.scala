@@ -289,7 +289,8 @@ abstract class NNArchitecture(
     Embedding(nodes.zip(newMatrix.rows).toMap)
   }
 
-  def newSimilarity(
+  // new similarity
+  def similarity(
       inputs: Vector[CompNode],
       candidates: Vector[CompNode],
       useDropout: Boolean,
@@ -303,7 +304,7 @@ abstract class NNArchitecture(
     }
     val logits0 = concatN(0, fromRows = true)(rows) ~>
       linear(name / 'sim0, dimMessage) ~> relu ~>
-      (if (useDropout) dropout(0.5) else identity) ~>
+//      (if (useDropout) dropout(0.5) else identity) ~>
       linear(name / 'sim1, dimMessage / 2) ~> relu ~>
       linear(name / 'sim2, dimMessage / 4) ~> relu ~>
       linear(name / 'sim3, 1)
@@ -312,21 +313,22 @@ abstract class NNArchitecture(
     Joint(logits)
   }
 
-  def similarity(
-      inputs: Vector[CompNode],
-      candidates: Vector[CompNode],
-      useDropout: Boolean,
-      name: SymbolPath
-  ): Joint = {
-    val inputs1 =
-      concatN(axis = 0, fromRows = true)(inputs)
-        .pipe(linear(name / 'similarityInputs, dimMessage))
-    val candidates1 =
-      concatN(axis = 0, fromRows = true)(candidates)
-        .pipe(linear(name / 'similarityCandidates, dimMessage))
-
-    Joint(inputs1.dot(candidates1.t))
-  }
+//  // simple similarity
+//  def similarity(
+//      inputs: Vector[CompNode],
+//      candidates: Vector[CompNode],
+//      useDropout: Boolean,
+//      name: SymbolPath
+//  ): Joint = {
+//    val inputs1 =
+//      concatN(axis = 0, fromRows = true)(inputs)
+//        .pipe(linear(name / 'similarityInputs, dimMessage))
+//    val candidates1 =
+//      concatN(axis = 0, fromRows = true)(candidates)
+//        .pipe(linear(name / 'similarityCandidates, dimMessage))
+//
+//    Joint(inputs1.dot(candidates1.t))
+//  }
 
   def encodeLibType(n: PNode, encodeName: Symbol => CompNode): CompNode = {
     def encodeNameOpt(nameOpt: Option[Symbol]): CompNode = {
@@ -506,7 +508,7 @@ abstract class NNArchitecture(
     linear(path / 'L0, dimMessage)(input)
   }
 
-  val messageLayerModel = "2 FC"
+  val messageLayerModel = "1 FC"
 
   def messageLayer(path: SymbolPath)(input: CompNode): CompNode = {
     fcNetwork(path, numLayer = 2)(input)
