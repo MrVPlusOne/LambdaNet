@@ -690,7 +690,7 @@ object TrainingLoop extends TrainingLoopTrait {
                     checkShouldStop(epoch)
                     announced(
                       s"(progress: ${progress.tap(_ => progress += 1)}) test on $datum",
-                      shouldAnnounce
+                      shouldAnnounce = true
                     ) {
                       forward(
                         datum,

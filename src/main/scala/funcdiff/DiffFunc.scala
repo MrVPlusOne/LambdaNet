@@ -325,7 +325,7 @@ private[funcdiff] object DiffFunc {
 
   case class Concat(x1: CompNode, x2: CompNode, axis: Int) extends BinaryFunc {
 
-    val value: Tensor = numsca.concat(Seq(x1.value, x2.value), axis)
+    val value: Tensor = numsca.concatNd4j(Seq(x1.value, x2.value), axis)
 
     def backProp2(grad: Gradient): (Gradient, Gradient) = {
       grad.splitAlongAxis(axis, x1.shape(axis).toInt)

@@ -179,6 +179,11 @@ package object numsca {
 
   def clip(t: Tensor, min: Double, max: Double): Tensor = t.clip(min, max)
 
+  def concatNd4j(ts: Seq[Tensor], axis: Int): Tensor = {
+    val newArray = Nd4j.concat(axis, ts.map(_.array): _*)
+    new Tensor(newArray)
+  }
+
   /** only works for 2D Tensors for performance reason */
   def concat(ts: Seq[Tensor], axis: Int): Tensor = {
     require(ts.nonEmpty)
@@ -203,8 +208,6 @@ package object numsca {
       else newArray.put(Array(NDArrayIndex.all(), inter), t.array)
       pos = nextPos
     }
-
-//    val newArray = Nd4j.concat(axis, ts.map(_.array): _*)
     new Tensor(newArray)
   }
 
