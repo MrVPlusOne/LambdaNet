@@ -270,7 +270,7 @@ object TrainingLoop extends TrainingLoopTrait {
           case (datum, i) =>
             import Console.{GREEN, BLUE}
             announced(
-              s"$GREEN[epoch $epoch](progress: ${i + 1}/${trainSet.size})$BLUE train on $datum",
+              s"$GREEN[epoch $epoch]$BLUE train on $datum",
               shouldAnnounce
             ) {
 //              println(DebugTime.show)
@@ -282,7 +282,7 @@ object TrainingLoop extends TrainingLoopTrait {
                   shouldDropout = useDropout,
                   maxBatchSize = Some(maxBatchSize)
                 ).tap(
-                  _.foreach(r => printResult(r._2))
+                  _.foreach(r => printResult(s"(progress: ${i + 1}/${trainSet.size}) " + r._2))
                 )
                 _ = checkShouldStop(epoch)
               } yield {
@@ -693,28 +693,26 @@ object TrainingLoop extends TrainingLoopTrait {
                 val (right, wrong) = testSet.flatMap {
                   datum =>
                     checkShouldStop(epoch)
-                    announced(
-                      s"(progress: ${progress.tap(_ => progress += 1)}) test on $datum",
-                      shouldAnnounce = true
-                    ) {
-                      forward(
-                        datum,
-                        shouldDownsample = true, // fixme: this is for saving training time
-                        shouldDropout = false,
-                        maxBatchSize = None,
-                      ).map {
-                        case (_, fwd, pred) =>
-                          DebugTime.logTime("printQSource") {
-                            QLangDisplay.renderProjectToDirectory(
-                              datum.projectName.toString,
-                              datum.qModules,
-                              pred,
-                              datum.predictor.predictionSpace.allTypes
-                            )(saveDir / "predictions")
-                          }
-                          (fwd.correctSet, fwd.incorrectSet)
-                      }.toVector
-                    }
+                    forward(
+                      datum,
+                      shouldDownsample = true, // fixme: this is for saving training time
+                      shouldDropout = false,
+                      maxBatchSize = None
+                    ).map {
+                      case (_, fwd, pred) =>
+                        printResult(
+                          s"(progress: ${progress.tap(_ => progress += 1)}) fwd.toString"
+                        )
+                        DebugTime.logTime("printQSource") {
+                          QLangDisplay.renderProjectToDirectory(
+                            datum.projectName.toString,
+                            datum.qModules,
+                            pred,
+                            datum.predictor.predictionSpace.allTypes
+                          )(saveDir / "predictions")
+                        }
+                        (fwd.correctSet, fwd.incorrectSet)
+                    }.toVector
                 }.combineAll
 
                 QLangDisplay.renderPredictionIndexToDir(
