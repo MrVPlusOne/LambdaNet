@@ -32,6 +32,7 @@ object NeuralInference {
       libDefs: LibDefs,
       taskSupport: Option[ForkJoinTaskSupport]
   ) {
+    private val parallelism = taskSupport.get.environment.getParallelism
 
     case class run(
         architecture: NNArchitecture,
@@ -167,7 +168,7 @@ object NeuralInference {
         val inputs = nodesToPredict
           .map(embedding.vars.apply)
 
-        architecture.similarity(inputs, candidates, useDropout, 'decode)
+        architecture.similarity(inputs, candidates, useDropout, 'decode, parallelism)
       }
 
       private def decodeSeparate(
@@ -193,7 +194,8 @@ object NeuralInference {
           libCandidates,
           projCandidates,
           isLibOracle,
-          predictionDropout
+          predictionDropout,
+          parallelism
         )
       }
 

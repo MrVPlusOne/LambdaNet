@@ -5,7 +5,15 @@ import botkop.numsca
 import botkop.numsca.{:>, Shape, Tensor}
 import cats.data.Chain
 import funcdiff._
-import lambdanet.NeuralInference.{AccessFieldUsage, ClassFieldUsage, LabelUsages, LabelVector, Message, MessageKind, MessageModel}
+import lambdanet.NeuralInference.{
+  AccessFieldUsage,
+  ClassFieldUsage,
+  LabelUsages,
+  LabelVector,
+  Message,
+  MessageKind,
+  MessageModel
+}
 import lambdanet.train.{DecodingResult, Joint, TrainingLoop, TwoStage}
 import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 
@@ -292,11 +300,13 @@ abstract class NNArchitecture(
       inputs0: Vector[CompNode],
       candidates: Vector[CompNode],
       useDropout: Boolean,
-      name: SymbolPath
+      name: SymbolPath,
+      parallelism: Int
   ): Joint =
     if (compareDecoding) {
-      val parInputs = inputs0.grouped((inputs0.size / 6) + 1).toArray.par
-      val chunks = parInputs.map{ inputs =>
+      val parInputs =
+        inputs0.grouped((inputs0.size / parallelism) + 1).toArray.par
+      val chunks = parInputs.map { inputs =>
         val rows = for {
           input <- inputs
           cand <- candidates
@@ -358,7 +368,8 @@ abstract class NNArchitecture(
       libCandidates: Vector[CompNode],
       projCandidates: Vector[CompNode],
       isLibOracle: Option[Vector[Boolean]],
-      useDropout: Boolean
+      useDropout: Boolean,
+      parallelism: Int
   ): DecodingResult = {
     val inputs1 =
       stackRows(inputs)
@@ -380,11 +391,12 @@ abstract class NNArchitecture(
       inputs,
       libCandidates,
       useDropout,
-      'libDistr
+      'libDistr,
+      parallelism
     ).logits
     val projLogits =
       if (projCandidates.nonEmpty)
-        similarity(inputs, projCandidates, useDropout, 'projDistr).logits
+        similarity(inputs, projCandidates, useDropout, 'projDistr, parallelism).logits
           .pipe(Some.apply)
       else None
 
