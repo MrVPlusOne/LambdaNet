@@ -39,18 +39,21 @@ object TrainingLoop extends TrainingLoopTrait {
   /* Assign more weights to project type to battle label imbalance */
   val maxLibRatio: Real = 3.0
   val projWeight: Real = maxLibRatio
+  val weightDecay: Option[Real] = Some(1e-4)
 
   val taskName: String = {
     val flags = Seq(
       "newSim" -> NNArchitecture.compareDecoding,
       "oracle" -> useOracleForIsLib,
       "fix" -> NeuralInference.fixBetweenIteration,
-      "toy" -> toyMod,
-      "weighted" -> (projWeight != 1.0)
+      "decay" -> weightDecay.nonEmpty,
+      "toy" -> toyMod
     ).map(flag).mkString
 
     if (onlySeqModel) "large-seqModel"
-    else s"attendPS-fc${NNArchitecture.messageLayers}" + s"$flags-${TrainingState.iterationNum}"
+    else
+      s"nameDecoding-fc${NNArchitecture.messageLayers}" +
+        s"$flags-${TrainingState.iterationNum}"
 //    else s"attend-predSpace-nonlinear-oracle-weighted-4"
   }
 
@@ -282,7 +285,12 @@ object TrainingLoop extends TrainingLoopTrait {
                   shouldDropout = useDropout,
                   maxBatchSize = Some(maxBatchSize)
                 ).tap(
-                  _.foreach(r => printResult(s"(progress: ${i + 1}/${trainSet.size}) " + r._2))
+                  _.foreach(
+                    r =>
+                      printResult(
+                        s"(progress: ${i + 1}/${trainSet.size}) " + r._2
+                      )
+                  )
                 )
                 _ = checkShouldStop(epoch)
               } yield {
@@ -295,7 +303,8 @@ object TrainingLoop extends TrainingLoopTrait {
                     backPropInParallel =
                       Some(parallelCtx -> Timeouts.optimizationTimeout),
                     gradientTransform = _.clipNorm(2 * factor),
-                    scaleLearningRate = scaleLearningRate(epoch)
+                    scaleLearningRate = scaleLearningRate(epoch),
+                    weightDecay = weightDecay
                   )
                 }
 
@@ -338,6 +347,15 @@ object TrainingLoop extends TrainingLoopTrait {
             logScalar("clippedGradient", epoch, transformed.sum)
             logScalar("paramDelta", epoch, deltas.sum)
         }
+
+        logScalar("nameSharpness", epoch, {
+          architecture.layerFactory
+            .getVar('decodingSharpness)(
+              Tensor(0.1).reshape(1, 1)
+            )
+            .value
+            .squeeze()
+        })
 
         val timeInSec = (System.nanoTime() - startTime).toDouble / 1e9
         logScalar("iter-time", epoch, timeInSec)

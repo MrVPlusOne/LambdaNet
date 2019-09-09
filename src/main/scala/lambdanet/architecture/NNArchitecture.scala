@@ -369,6 +369,7 @@ abstract class NNArchitecture(
       projCandidates: Vector[CompNode],
       isLibOracle: Option[Vector[Boolean]],
       useDropout: Boolean,
+      similarityScores: Option[Tensor],
       parallelism: Int
   ): DecodingResult = {
     val inputs1 =
@@ -394,9 +395,11 @@ abstract class NNArchitecture(
       'libDistr,
       parallelism
     ).logits
+    val sharpness = getVar('decodingSharpness)(Tensor(1.0).reshape(1, 1))
     val projLogits =
       if (projCandidates.nonEmpty)
         similarity(inputs, projCandidates, useDropout, 'projDistr, parallelism).logits
+          .pipe(_ + const(similarityScores.get) * sharpness)
           .pipe(Some.apply)
       else None
 

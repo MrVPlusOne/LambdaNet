@@ -141,17 +141,18 @@ object NeuralInference {
         logTime("update embedding") {
           Embedding(
             architecture.update('vars, embedding.vars, merged)
-          ).pipe { embed =>
-            val candidates =
-              predictionSpace.projTypeVec.map(v => v -> encodeType(v))
-            architecture.attendPredictionSpaceByName(
-              projectNodes.toVector,
-              projectNodes.toVector.map{ embed.vars },
-              candidates,
-              similarityScores,
-              s"attendPredictionSpace$iteration"
-            )
-          }
+          )
+//            .pipe { embed =>
+//            val candidates =
+//              predictionSpace.projTypeVec.map(v => v -> encodeType(v))
+//            architecture.attendPredictionSpaceByName(
+//              projectNodes.toVector,
+//              projectNodes.toVector.map{ embed.vars },
+//              candidates,
+//              similarityScores,
+//              s"attendPredictionSpace$iteration"
+//            )
+//          }
         }
       }
 
@@ -189,12 +190,18 @@ object NeuralInference {
           .map(encodeSignature)
           .toVector
 
+        val scores = similarityScores.map{ s =>
+          val indicies = nodesToPredict.map(nodeOrdering)
+          Tensor(s.array.getRows(indicies :_*))
+        }
+
         architecture.twoStageSimilarity(
           inputs,
           libCandidates,
           projCandidates,
           isLibOracle,
           predictionDropout,
+          scores,
           parallelism
         )
       }
@@ -354,6 +361,7 @@ object NeuralInference {
         .mapValuesNow(_.filterNot(_.allNodesFromLib))
     }
 
+    val nodeOrdering = projectNodes.toVector.zipWithIndex.toMap
     private lazy val similarityScores = DebugTime.logTime("similarityScores") {
       if(projectNodes.isEmpty || predictionSpace.projTypeVec.isEmpty)
         None
