@@ -231,6 +231,11 @@ package object numsca {
     new Tensor(r)
   }
 
+  def stackRows(rows: Array[Tensor]): Tensor = {
+    val data = rows.map{_.dataSlow}
+    new Tensor(Nd4j.create(data))
+  }
+
   def reshape(x: Tensor, shape: Shape): Tensor = x.reshape(shape)
 
   def transpose(x: Tensor): Tensor = x.transpose()
