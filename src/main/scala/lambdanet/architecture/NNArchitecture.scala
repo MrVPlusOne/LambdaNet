@@ -5,16 +5,8 @@ import botkop.numsca
 import botkop.numsca.{:>, Shape, Tensor}
 import cats.data.Chain
 import funcdiff._
-import lambdanet.NeuralInference.{
-  AccessFieldUsage,
-  ClassFieldUsage,
-  LabelUsages,
-  LabelVector,
-  Message,
-  MessageKind,
-  MessageModel
-}
-import lambdanet.train.{DecodingResult, Joint, TwoStage}
+import lambdanet.NeuralInference.{AccessFieldUsage, ClassFieldUsage, LabelUsages, LabelVector, Message, MessageKind, MessageModel}
+import lambdanet.train.{DecodingResult, Joint, TrainingLoop, TwoStage}
 import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 
 import scala.collection.GenSeq
@@ -297,31 +289,35 @@ abstract class NNArchitecture(
 
   // new similarity
   def similarity(
-      inputs: Vector[CompNode],
+      inputs0: Vector[CompNode],
       candidates: Vector[CompNode],
       useDropout: Boolean,
       name: SymbolPath
   ): Joint =
     if (compareDecoding) {
-      val rows = for {
-        input <- inputs
-        cand <- candidates
-      } yield {
-        input -> cand
-      }
+      val parInputs = inputs0.grouped((inputs0.size / 6) + 1).toArray.par
+      val chunks = parInputs.map{ inputs =>
+        val rows = for {
+          input <- inputs
+          cand <- candidates
+        } yield {
+          input -> cand
+        }
 
-      val logits0 = concatTupledRows(rows) ~>
-        linear(name / 'sim0, dimMessage) ~> relu ~>
-//      (if (useDropout) dropout(0.5) else identity) ~>
-        linear(name / 'sim1, dimMessage / 2) ~> relu ~>
-        linear(name / 'sim2, dimMessage / 4) ~> relu ~>
-        linear(name / 'sim3, 1)
+        val logits0 = concatTupledRows(rows) ~>
+          linear(name / 'sim0, dimMessage) ~> relu ~>
+          //      (if (useDropout) dropout(0.5) else identity) ~>
+          linear(name / 'sim1, dimMessage / 2) ~> relu ~>
+          linear(name / 'sim2, dimMessage / 4) ~> relu ~>
+          linear(name / 'sim3, 1)
 
-      val logits = logits0.reshape(Shape.make(inputs.length, candidates.length))
+        logits0.reshape(Shape.make(inputs.length, candidates.length))
+      }.toVector
+      val logits = concatN(0)(chunks)
       Joint(logits)
     } else {
       val inputs1 =
-        stackRows(inputs)
+        stackRows(inputs0)
           .pipe(linear(name / 'similarityInputs, dimMessage))
       val candidates1 =
         stackRows(candidates)

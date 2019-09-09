@@ -211,12 +211,9 @@ package object numsca {
     new Tensor(newArray)
   }
 
-  def fromRows(rows: Seq[Tensor], axis: Int): Tensor = {
-    require(axis == 0 || axis == 1)
+  def fromRows(rows: IndexedSeq[Tensor], axis: Int): Tensor = {
     val first = rows.head
     assert(first.shape(0) == 1, s"shape = ${first.shape}")
-    if (axis == 0)
-      return stackTensorRows(rows.toArray)
 
     val columns = first.shape(1)
     val n = rows.length
@@ -234,15 +231,8 @@ package object numsca {
     new Tensor(r)
   }
 
-  def stackTensorRows(rows: Array[Tensor]): Tensor = {
-    val data = rows.map { _.array }.toList.asJava
-    new Tensor(
-      Nd4j.create(
-        data,
-        Array(rows.length, rows.head.shape(1).toInt),
-        NDArrayFactory.C
-      )
-    )
+  def stackTensorRows(rows: IndexedSeq[Tensor]): Tensor = {
+    fromRows(rows, axis = 0)
   }
 
   def reshape(x: Tensor, shape: Shape): Tensor = x.reshape(shape)

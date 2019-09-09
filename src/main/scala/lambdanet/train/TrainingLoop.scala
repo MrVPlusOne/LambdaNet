@@ -778,12 +778,13 @@ object TrainingLoop extends TrainingLoopTrait {
         )
     }
 
+    private val pool = new ForkJoinPool(numOfThreads)
     val taskSupport: Option[ForkJoinTaskSupport] =
       if (numOfThreads == 1) None
-      else Some(new ForkJoinTaskSupport(new ForkJoinPool(numOfThreads)))
+      else Some(new ForkJoinTaskSupport(pool))
     val parallelCtx: ExecutionContextExecutorService = {
       import ExecutionContext.fromExecutorService
-      fromExecutorService(new ForkJoinPool(numOfThreads))
+      fromExecutorService(pool)
     }
   }
 
