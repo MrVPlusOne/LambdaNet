@@ -10,7 +10,7 @@ import org.nd4j.linalg.ops.transforms.Transforms
 
 import scala.language.{implicitConversions, postfixOps}
 
-@SerialVersionUID(5750907701885392532L)
+@SerialVersionUID(975656841970053360L)
 class Tensor(val array: INDArray) extends Serializable {
 
   val shape: Shape = Shape.fromArray(array.shape())
