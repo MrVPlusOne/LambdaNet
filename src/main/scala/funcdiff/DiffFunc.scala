@@ -419,7 +419,7 @@ private[funcdiff] object DiffFunc {
 
     def name: String = "stackRows"
 
-    def value: Tensor = ns.stackRows(args.toArray.map(_.value))
+    def value: Tensor = ns.stackTensorRows(args.toArray.map(_.value))
 
     def backProp(grad: Gradient): IS[Gradient] = {
       grad match {

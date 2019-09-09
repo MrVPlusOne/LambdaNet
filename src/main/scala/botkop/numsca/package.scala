@@ -215,6 +215,9 @@ package object numsca {
     require(axis == 0 || axis == 1)
     val first = rows.head
     assert(first.shape(0) == 1, s"shape = ${first.shape}")
+    if(axis == 0)
+      return stackTensorRows(rows.toArray)
+
     val columns = first.shape(1)
     val n = rows.length
     val data = Nd4j.createUninitialized(Array(columns * n), NDArrayFactory.C)
@@ -231,7 +234,7 @@ package object numsca {
     new Tensor(r)
   }
 
-  def stackRows(rows: Array[Tensor]): Tensor = {
+  def stackTensorRows(rows: Array[Tensor]): Tensor = {
     val data = rows.map{_.dataSlow}
     new Tensor(Nd4j.create(data))
   }
