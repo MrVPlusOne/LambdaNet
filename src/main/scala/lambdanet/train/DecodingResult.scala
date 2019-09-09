@@ -90,7 +90,7 @@ case class TwoStage(
 
   def topNPredictionsWithCertainty(n: Int): Vector[TopNDistribution[Int]] = {
     def sortedRows(logits: Tensor, offset: Int) =
-      numsca.softmax(logits).rows.map {
+      numsca.softmax(logits).rowArrays.map {
         _.zip(Stream.from(offset))
           .sortBy(_._1)
           .reverse

@@ -412,6 +412,26 @@ private[funcdiff] object DiffFunc {
     }
   }
 
+  case class StackRows(args: IS[CompNode]) extends DiffFunc {
+    if(checkNaN){
+      args.forall(_.shape(0) == 1)
+    }
+
+    def name: String = "stackRows"
+
+    def value: Tensor = ns.fromRows(args.map(_.value), axis = 0)
+
+    def backProp(grad: Gradient): IS[Gradient] = {
+      grad match {
+        case _: ZeroGradient =>
+          val g = ZeroGradient(args.head.shape)
+          IS.fill(args.length)(g)
+        case _ =>
+          grad.toTensor().rows.map(DenseGradient)
+      }
+    }
+  }
+
   // ================ Loss functions ======================
   case class CrossEntropyOnSoftmax(logits: CompNode, targets: Tensor)
       extends UnaryFunc {

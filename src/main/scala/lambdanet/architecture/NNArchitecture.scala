@@ -22,7 +22,7 @@ import NNArchitecture._
 
 object NNArchitecture {
   val messageLayers = 2
-  val compareDecoding = false
+  val compareDecoding = true
 }
 
 abstract class NNArchitecture(

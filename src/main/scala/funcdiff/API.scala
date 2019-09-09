@@ -80,7 +80,7 @@ trait APITrait {
     else funcNode(ConcatN(xs, axis, fromRows))
   }
 
-  def stackRows(xs: IS[CompNode]) = concatN(axis = 0, fromRows = true)(xs)
+  def stackRows(xs: IS[CompNode]) = funcNode(StackRows(xs))
 
   def concatTupledRows(rows: IS[(CompNode,CompNode)]): CompNode = {
     val (l, r ) = rows.unzip

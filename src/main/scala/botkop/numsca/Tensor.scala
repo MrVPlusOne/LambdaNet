@@ -1,6 +1,6 @@
 package botkop.numsca
 
-import funcdiff.{Gradient, Real}
+import funcdiff.{Gradient, IS, Real}
 import org.nd4j.linalg.api.buffer.DataType
 import org.nd4j.linalg.api.iter.NdIndexIterator
 import org.nd4j.linalg.api.ndarray.INDArray
@@ -14,12 +14,14 @@ class Tensor(val array: INDArray) extends Serializable {
 
   val shape: Shape = Shape.fromArray(array.shape())
 
-  def rows: IndexedSeq[Array[Double]] = {
+  def rowArrays: IndexedSeq[Array[Double]] = {
     val Shape(Vector(rows, _)) = shape
-    (0 until rows.toInt).map{ r => this(r, :>).dataSlow}
+    (0 until rows.toInt).map { r =>
+      this(r, :>).dataSlow
+    }
   }
 
-  def dataSlow: Array[Double] =  array.dup.data.asDouble()
+  def dataSlow: Array[Double] = array.dup.data.asDouble()
 
   def newTensor(array: INDArray): Tensor = new Tensor(array)
 
@@ -154,6 +156,15 @@ class Tensor(val array: INDArray) extends Serializable {
   }
   def squeeze(index: Int*): Double = array.getDouble(index: _*)
   def squeeze(index: Array[Int]): Double = squeeze(index: _*)
+
+  def rows: IS[Tensor] = {
+    val Vector(nR, nC) = shape.sizes
+    (0 until nR.toInt).map { r =>
+      val t = array.tensorAlongDimension(r, 1)
+      assert(t.shape() sameElements  Array(1, nC))
+      Tensor(t)
+    }
+  }
 
   /**
     * returns a view
