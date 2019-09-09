@@ -161,8 +161,7 @@ class Tensor(val array: INDArray) extends Serializable {
   def rows: IS[Tensor] = {
     val Vector(nR, nC) = shape.sizes
     (0 until nR.toInt).map { r =>
-      val t = array.tensorAlongDimension(r, 1)
-      assert(t.shape() sameElements  Array(1, nC))
+      val t = array.tensorAlongDimension(r, 1).reshape(1, nC)
       Tensor(t)
     }
   }
