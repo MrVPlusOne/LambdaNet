@@ -168,7 +168,7 @@ object LabelEncoder {
       else
         segs
           .map(encodeSeg)
-          .pipe(stackRows)
+          .pipe(stackRows)  //todo: don't need to transform trainable segs
           .pipe(architecture.nonLinearLayer(symbolPath / 'encodeSeg))
           .pipe(sum(_, 0))
     }

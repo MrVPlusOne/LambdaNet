@@ -52,9 +52,9 @@ object TrainingLoop extends TrainingLoopTrait {
 
     if (onlySeqModel) "large-seqModel"
     else
-      s"nameDecoding-fc${NNArchitecture.messageLayers}" +
-        s"$flags-${TrainingState.iterationNum}"
-//    else s"attend-predSpace-nonlinear-oracle-weighted-4"
+//      s"nameDecoding-fc${NNArchitecture.messageLayers}" +
+      s"$flags-${TrainingState.iterationNum}"
+    "testBaseline"
   }
 
   def flag(nameValue: (String, Boolean)): String = {
@@ -101,15 +101,16 @@ object TrainingLoop extends TrainingLoopTrait {
         DataSet.loadDataSet(taskSupport, architecture, toyMod, maxLibRatio)
 
 //      NamingBaseline.test(dataSet)
+      MostFreqConstructorBaseline.test(dataSet, useByFreq = false)
 
-      val run = runOnProjects(
-        dataSet,
-        state,
-        pc,
-        logger,
-        architecture,
-        seqArchitecture
-      ).train()
+//      val run = runOnProjects(
+//        dataSet,
+//        state,
+//        pc,
+//        logger,
+//        architecture,
+//        seqArchitecture
+//      ).train()
 
 //      namingHelpfulness(dataSet, run)
     }

@@ -38,3 +38,24 @@ let y2: Window;
 let o2 = {a: true, b: window};
 y1 = o2.a;
 y2 = o2.b;
+
+class Loss {
+  name;  // require name based reasoning
+  param;  // require reason about usages
+  data;
+
+  constructor(name, param){
+    this.name = name; this.param = param;
+  }
+
+  // multiple type assignments
+  gradient(y){
+    return this.param * y;
+  }
+}
+
+// requires chain of uncertain reasoning
+function training(loss, epoch=0){
+  // some other code...
+  loss.data = epoch;
+}

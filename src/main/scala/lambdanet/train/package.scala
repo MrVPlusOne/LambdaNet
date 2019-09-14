@@ -13,6 +13,8 @@ package object train {
   type LibCorrect = Correct
   type ProjCorrect = Correct
   type ConfusionMatrix = Map[(Int, Int), Int]
+  type TruthPosition = Int
+
 
   def confusionMatrix(
       predictions: Vector[Int],

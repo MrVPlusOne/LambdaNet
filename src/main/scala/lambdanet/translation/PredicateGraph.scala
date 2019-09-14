@@ -276,7 +276,7 @@ object PredicateGraph {
 
   @SerialVersionUID(0L)
   case class PTyVar(node: PNode) extends PType {
-    assert(node.isType)
+    assert(node.isType, s"$node is not type")
 
     val madeFromLibTypes: Boolean = node.fromLib
 

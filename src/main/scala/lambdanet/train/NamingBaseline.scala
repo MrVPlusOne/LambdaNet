@@ -2,14 +2,13 @@ package lambdanet.train
 
 import lambdanet.architecture.LabelEncoder
 import lambdanet.architecture.LabelEncoder.{Segment, SegmentedLabelEncoder}
-import lambdanet.train
 import lambdanet.translation.PredicateGraph
 import lambdanet.translation.PredicateGraph.{PNode, PTyVar, PType, ProjNode}
 
 object NamingBaseline {
 
   type Name = Vector[Segment]
-  type Stats = Map[(LabelCat.Value, String), Counted[LibCorrect]]
+  type Stats = Map[(LabelCat.Value, String), Counted[Correct]]
 
   def test(dataSet: DataSet) = {
     import dataSet.{testSet, trainSet}
@@ -58,7 +57,6 @@ object NamingBaseline {
 
   case class testOnDatum(datum: Datum, useOracle: Boolean, transformName: Name => Name) {
 
-    type TruthPosition = Int
     def predict: Map[ProjNode, (TruthPosition, PType)] = {
       import cats.implicits._
 

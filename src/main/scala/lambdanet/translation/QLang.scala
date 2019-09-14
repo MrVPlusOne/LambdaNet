@@ -66,6 +66,35 @@ object QLang {
         })
     }
 
+    // commented for serialization compatibility
+//    def traverse_(f: QStmt => Unit): Unit = {
+//      def rec(s: QStmt): Unit = {
+//        f(s)
+//        this match {
+//          case IfStmt(_, branch1, branch2) =>
+//            rec(branch1)
+//            rec(branch2)
+//          case WhileStmt(_, body) =>
+//            rec(body)
+//          case BlockStmt(stmts) =>
+//            stmts.foreach(rec)
+//          case f: FuncDef =>
+//            rec(f.body)
+//          case c: ClassDef =>
+//            c.funcDefs.foreach(x => rec(x._2))
+//          case _ =>
+//        }
+//      }
+//
+//      rec(this)
+//    }
+//
+//    def traverse[T](f: QStmt => T): Seq[T] = {
+//      val result = mutable.ListBuffer[T]()
+//      traverse_(x => result += f(x))
+//      result
+//    }
+
   }
 
   case class VarDef(node: PNode, init: Option[QExpr], isConst: Boolean)
