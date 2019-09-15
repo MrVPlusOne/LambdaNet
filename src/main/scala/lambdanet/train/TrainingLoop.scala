@@ -73,7 +73,7 @@ object TrainingLoop extends TrainingLoopTrait {
   }
 
   def main(args: Array[String]): Unit = {
-    PrepareRepos.main(args)
+//    PrepareRepos.main(args)
 
     Tensor.floatingDataType = DataType.DOUBLE
 
