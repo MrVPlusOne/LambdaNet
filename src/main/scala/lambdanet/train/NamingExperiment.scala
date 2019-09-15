@@ -31,7 +31,7 @@ object NamingExperiment {
       ProjectType(n.nameOpt)
   }
 
-  def toData(project: ParsedProject): Map[(Symbol, Target), LibCorrect] = {
+  def toData(project: ParsedProject): Map[(Symbol, Target), Correct] = {
     import cats.implicits._
 
     val data = for {

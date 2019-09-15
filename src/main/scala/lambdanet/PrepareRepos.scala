@@ -59,7 +59,7 @@ object PrepareRepos {
 
 //    remixDividedDataSet()
 //    parseAndFilterDataSet()
-    divideDataSet()
+//    divideDataSet()
     parseAndSerializeDataSet()
   }
 

@@ -51,13 +51,17 @@ object NamingBaseline {
     }
   }
 
-  def nameSimilarity(n1: Name, n2: Name): Double = {
+  def nameSimilarity(n1: Name, n2: Name): Int = {
     n1.toSet.intersect(n2.toSet).size
+  }
+
+  def nameSimilarity(n1: Symbol, n2: Symbol): Int = {
+    nameSimilarity(LabelEncoder.segmentName(n1), LabelEncoder.segmentName(n2))
   }
 
   case class testOnDatum(datum: Datum, useOracle: Boolean, transformName: Name => Name) {
 
-    def predict: Map[ProjNode, (TruthPosition, PType)] = {
+    def predict(threshold: Double): Map[ProjNode, (TruthPosition, PType)] = {
       import cats.implicits._
 
       val predSpace = datum.predictor.predictionSpace
@@ -67,7 +71,7 @@ object NamingBaseline {
         }
       val libCands = allCands.filter(_._1.madeFromLibTypes)
       val projCands = allCands.filterNot(_._1.madeFromLibTypes)
-      datum.nodesToPredict.map {
+      val predictions = datum.nodesToPredict.toVector.flatMap {
         case (n, label) =>
           val name = transformName(nodeName(n.n))
           val candidates =
@@ -76,17 +80,21 @@ object NamingBaseline {
             else allCands
           val truthPosition = candidates
             .map { case (ty, n1) => ty -> nameSimilarity(name, n1) }
+            .filter { case (_, score) => score >= threshold }
             .sortBy(-_._2)
             .indexWhere { case (ty, _) => ty == label }
-          assert(truthPosition >= 0)
-          n -> (truthPosition, label)
-      }
+          if(truthPosition < 0) {
+            Vector()
+          }
+          else Vector(n -> (truthPosition, label))
+      }.toMap
+      predictions
     }
 
     def result: Stats = {
       import cats.implicits._
 
-      predict.toVector.foldMap {
+      predict(2.0).toVector.foldMap {
         case (_, (truthPosition, label)) =>
           val cat = LabelCat.fromLib(label.madeFromLibTypes)
           val oracleFlag = if (useOracle) "*" else ""

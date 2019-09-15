@@ -6,8 +6,10 @@ import funcdiff.SimpleMath
 import lambdanet.Surface.GStmt
 import lambdanet.translation.ImportsResolution.NameDef
 
-import scala.collection.{mutable}
+import scala.collection.mutable
 import lambdanet._
+import lambdanet.architecture.LabelEncoder
+import lambdanet.train.NamingBaseline
 
 @SerialVersionUID(1)
 case class PredicateGraph(
@@ -324,7 +326,7 @@ object PredicateGraph {
   }
 
   object BinaryRelCat extends Enumeration {
-    val subtype, assign, equal, inheritance, fixType = Value
+    val subtype, assign, equal, inheritance, fixType, similarName = Value
   }
 
   case class BinaryRel(lhs: PNode, rhs: PNode, category: BinaryRelCat.Value)
@@ -413,6 +415,7 @@ object PredicateGraphTranslation {
     val predicates = mutable.Set[TyPredicate]()
     val typeMap = mutable.HashMap[PType, PNode]()
     val fixedReturnType = mutable.HashMap[PNode, PNode]()
+    val allClasses = mutable.HashSet[ClassDef]()
 
     def add(pred: TyPredicate): Unit = {
       predicates += pred
@@ -500,6 +503,7 @@ object PredicateGraphTranslation {
               tv => add(BinaryRel(c.classNode, tv.node, inheritance))
             )
             add(DefineRel(c.classNode, c.pType))
+            allClasses += c
             c.funcDefs.values.foreach(encodeStmt)
         }
       }
@@ -517,9 +521,23 @@ object PredicateGraphTranslation {
         add(BinaryRel(n, fixedReturnType(f), BinaryRelCat.fixType))
     }
 
+    def addNameConnection(n: PNode, name: Symbol): Unit = {
+      allClasses.foreach{ d =>
+        d.classNode.nameOpt.foreach{ name1 =>
+          val sim = NamingBaseline.nameSimilarity(name, name1)
+          if(sim >= 1){
+            add(BinaryRel(n, d.classNode, BinaryRelCat.similarName))
+          }
+        }
+      }
+    }
+
     val totalMapping = modules.foldLeft(Map[PNode, PAnnot]())(_ ++ _.mapping)
     totalMapping.keySet.foreach { n =>
-      n.nameOpt.foreach(name => add(HasName(n, name)))
+      n.nameOpt.foreach{name =>
+        add(HasName(n, name))
+        addNameConnection(n, name)
+      }
     }
 
     val libInMapping = totalMapping.filter(_._1.fromLib)
