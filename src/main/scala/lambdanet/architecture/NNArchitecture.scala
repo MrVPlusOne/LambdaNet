@@ -299,7 +299,6 @@ abstract class NNArchitecture(
   def similarity(
       inputs0: Vector[CompNode],
       candidates: Vector[CompNode],
-      useDropout: Boolean,
       name: SymbolPath,
       parallelism: Int
   ): Joint =
@@ -363,6 +362,26 @@ abstract class NNArchitecture(
       linear('libDistr / 'L3, numLibType)
   }
 
+  def unifiedCompareSimilarity(
+      inputs: Vector[CompNode],
+      libCandidates: Vector[CompNode],
+      projCandidates: Vector[CompNode],
+      similarityScores: Tensor,
+      parallelism: Int
+  ): DecodingResult = {
+    val sharpness = getVar('decodingSharpness)(Tensor(1.0).reshape(1, 1))
+
+    val logits = similarity(
+      inputs,
+      libCandidates ++ projCandidates,
+      'libDistr,
+      parallelism
+    ).logits
+      .pipe(_ + const(similarityScores) * sharpness)
+
+    Joint(logits)
+  }
+
   def twoStageSimilarity(
       inputs: Vector[CompNode],
       libCandidates: Vector[CompNode],
@@ -391,14 +410,13 @@ abstract class NNArchitecture(
     val libLogits = similarity(
       inputs,
       libCandidates,
-      useDropout,
       'libDistr,
       parallelism
     ).logits
     val sharpness = getVar('decodingSharpness)(Tensor(1.0).reshape(1, 1))
     val projLogits =
       if (projCandidates.nonEmpty)
-        similarity(inputs, projCandidates, useDropout, 'projDistr, parallelism).logits
+        similarity(inputs, projCandidates, 'projDistr, parallelism).logits
           .pipe(_ + const(similarityScores.get) * sharpness)
           .pipe(Some.apply)
       else None

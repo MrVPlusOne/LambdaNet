@@ -35,7 +35,7 @@ object TrainingLoop extends TrainingLoopTrait {
   val toyMod: Boolean = false
   val onlySeqModel = false
   val useDropout: Boolean = true
-  val useOracleForIsLib: Boolean = true
+  val useOracleForIsLib: Boolean = false
   /* Assign more weights to project type to battle label imbalance */
   val maxLibRatio: Real = 3.0
   val projWeight: Real = maxLibRatio
@@ -52,7 +52,7 @@ object TrainingLoop extends TrainingLoopTrait {
 
     if (onlySeqModel) "large-seqModel"
     else
-      s"newNamingConnection-fc${NNArchitecture.messageLayers}" +
+      s"unifiedDecoding-fc${NNArchitecture.messageLayers}" +
       s"$flags-${TrainingState.iterationNum}"
 //    "testBaseline"
   }

@@ -74,7 +74,7 @@ object NeuralInference {
 
         embeddings.map { embed =>
           logTime("decode") {
-            decodeSeparate(embed, encodeType(embed), isLibOracle)
+            decode(embed, encodeType(embed), isLibOracle)
           }
         }
       }
@@ -158,22 +158,6 @@ object NeuralInference {
 
       private def decode(
           embedding: Embedding,
-          encodeSignature: Map[PType, CompNode],
-          useDropout: Boolean
-      ): DecodingResult = {
-
-        val candidates = predictionSpace.typeVector
-          .pipe(parallelize)
-          .map(encodeSignature)
-          .toVector
-        val inputs = nodesToPredict
-          .map(embedding.vars.apply)
-
-        architecture.similarity(inputs, candidates, useDropout, 'decode, parallelism)
-      }
-
-      private def decodeSeparate(
-          embedding: Embedding,
           encodeSignature: PType => CompNode,
           isLibOracle: Option[Vector[Boolean]]
       ): DecodingResult = {
@@ -190,17 +174,26 @@ object NeuralInference {
           .map(encodeSignature)
           .toVector
 
-        val scores = similarityScores.map{ s =>
+        // for TwoStageSimilarity
+        val scores = similarityScores.pipe { s =>
           val indicies = nodesToPredict.map(nodeOrdering)
-          Tensor(s.array.getRows(indicies :_*))
+          Tensor(s.array.getRows(indicies: _*))
         }
 
-        architecture.twoStageSimilarity(
+//        architecture.twoStageSimilarity(
+//          inputs,
+//          libCandidates,
+//          projCandidates,
+//          isLibOracle,
+//          predictionDropout,
+//          scores,
+//          parallelism
+//        )
+
+        architecture.unifiedCompareSimilarity(
           inputs,
           libCandidates,
           projCandidates,
-          isLibOracle,
-          predictionDropout,
           scores,
           parallelism
         )
@@ -355,51 +348,64 @@ object NeuralInference {
           }
       }
 
-      val namedOptions = predictionSpace.allTypes.collect{
-        case PTyVar(n1) if n1.nameOpt.nonEmpty => n1
-      }.toVector
-      for {
-        n <- projectNodes.par
-        nm <- n.n.nameOpt
-      } yield{
-        namedOptions.map{ n1 =>
-          val sim = NamingBaseline.nameSimilarity(nm, n1.nameOpt.get)
-          if(sim > 0) mutual(s"nameSimilar$sim", n.n, n1)
-          else Vector()
-        }
+      val nodeWithNames = for {
+        n <- projectNodes.toVector.par
+        nm = NamingBaseline.nodeName(n.n) if n.n.nameOpt.nonEmpty
+      } yield n.n -> nm
+
+      val namedOptions = predictionSpace.typeVector.par.collect {
+        case PTyVar(n1) if n1.nameOpt.nonEmpty => n1 -> NamingBaseline.nodeName(n1)
       }
 
+      val similarities = for {
+        (n, nName) <- nodeWithNames
+        (n1, n1Name) <- namedOptions
+        sim = NamingBaseline.nameSimilarity(nName, n1Name)
+        if sim > 0
+      } yield mutual(s"nameSimilar$sim", n, n1)
 
-      graph.predicates.par
-        .map(toBatched)
+      (similarities.toSet ++ graph.predicates.par.map(toBatched))
         .fold[BatchedMsgModels](Map())(_ |+| _)
         .mapValuesNow(_.filterNot(_.allNodesFromLib))
     }
 
-    val nodeOrdering = projectNodes.toVector.zipWithIndex.toMap
-    private lazy val similarityScores = DebugTime.logTime("similarityScores") {
-      if(projectNodes.isEmpty || predictionSpace.projTypeVec.isEmpty)
-        None
-      else {
-        val nodes = projectNodes.toVector.par
-        val candidates = predictionSpace.projTypeVec
-        val scores = for {
-          n <- nodes
-          ty <- candidates
-        } yield {
-          val n1 = nodeName(n.n).toSet
-          val n2 = typeName(ty).toSet
-          val s1 = n1.size
-          val s2 = n2.size
-          val s3 = n1.intersect(n2).size
-          s3.toDouble / (s1 + s2).pipe(x => if (x == 0) 1 else x)
-        }
-        Tensor(scores.toArray)
-          .reshape(Shape.make(nodes.length, candidates.length))
-          .pipe(Some.apply)
-      }
-    }
+    private val nodeOrdering = projectNodes.toVector.zipWithIndex.toMap
+//    private lazy val similarityScores = DebugTime.logTime("similarityScores") {
+//      if (projectNodes.isEmpty || predictionSpace.projTypeVec.isEmpty)
+//        None
+//      else {
+//        val nodes = projectNodes.toVector.par
+//        val candidates = predictionSpace.projTypeVec
+//        val scores = for {
+//          n <- nodes
+//          ty <- candidates
+//        } yield {
+//          val n1 = nodeName(n.n).toSet
+//          val n2 = typeName(ty).toSet
+//          val s1 = n1.size
+//          val s2 = n2.size
+//          val s3 = n1.intersect(n2).size
+//          s3.toDouble / (s1 + s2).pipe(x => if (x == 0) 1 else x)
+//        }
+//        Tensor(scores.toArray)
+//          .reshape(Shape.make(nodes.length, candidates.length))
+//          .pipe(Some.apply)
+//      }
+//    }
 
+    private lazy val similarityScores = DebugTime.logTime("similarityScores") {
+      val nodes = projectNodes.toVector.par.map{ n => nodeName(n.n)}
+      val candidates = predictionSpace.typeVector.par.map{ t => typeName(t)}
+      val scores = for {
+        n1 <- nodes
+        n2 <- candidates
+      } yield {
+        val sim = NamingBaseline.nameSimilarity(n1, n2)
+        sim.toDouble
+      }
+      Tensor(scores.toArray)
+        .reshape(Shape.make(nodes.length, candidates.length))
+    }
 
     def visualizeNeuralGraph: String = {
       NeuralVisualization.toMamGraph(graph.nodes, batchedMsgModels)

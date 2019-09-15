@@ -30,6 +30,20 @@ trait DecodingResult {
   }
 }
 
+object DecodingResult {
+  def sortedRows(n: Int)(logits: Tensor, offset: Int): IndexedSeq[TopNDistribution[Int]] =
+    numsca.softmax(logits).rowArrays.map {
+      _.zip(Stream.from(offset))
+        .sortBy(_._1)
+        .reverse
+        .take(n)
+        .toVector
+        .pipe(TopNDistribution.apply)
+    }
+}
+
+import DecodingResult._
+
 case class Joint(logits: CompNode) extends DecodingResult {
   def topPredictions: Vector[Int] = {
     numsca
@@ -65,7 +79,9 @@ case class Joint(logits: CompNode) extends DecodingResult {
     }.toVector
   }
 
-  def topNPredictionsWithCertainty(n: Int): Vector[TopNDistribution[Int]] = ???
+  def topNPredictionsWithCertainty(n: Int): Vector[TopNDistribution[Int]] = {
+    sortedRows(n)(logits.value, 0).toVector
+  }
 }
 
 case class TwoStage(
@@ -89,20 +105,11 @@ case class TwoStage(
   }
 
   def topNPredictionsWithCertainty(n: Int): Vector[TopNDistribution[Int]] = {
-    def sortedRows(logits: Tensor, offset: Int) =
-      numsca.softmax(logits).rowArrays.map {
-        _.zip(Stream.from(offset))
-          .sortBy(_._1)
-          .reverse
-          .take(n)
-          .toVector
-          .pipe(TopNDistribution.apply)
-      }
-    val libRows = sortedRows(libLogits.value, 0)
+    val libRows = sortedRows(n)(libLogits.value, 0)
     if (projLogits.isEmpty)
       return libRows.toVector
 
-    val projRows = sortedRows(projLogits.get.value, libNum)
+    val projRows = sortedRows(n)(projLogits.get.value, libNum)
     val isLib = isLibLogits.value.dataSlow.map(_ > 0)
     isLib.zipWithIndex.map {
       case (b, i) =>
