@@ -52,7 +52,7 @@ object TrainingLoop extends TrainingLoopTrait {
 
     if (onlySeqModel) "large-seqModel"
     else
-      s"namingConnection-nameDecoding-fc${NNArchitecture.messageLayers}" +
+      s"newNamingConnection-fc${NNArchitecture.messageLayers}" +
       s"$flags-${TrainingState.iterationNum}"
 //    "testBaseline"
   }
@@ -73,6 +73,8 @@ object TrainingLoop extends TrainingLoopTrait {
   }
 
   def main(args: Array[String]): Unit = {
+    PrepareRepos.main(args)
+
     Tensor.floatingDataType = DataType.DOUBLE
 
     run(

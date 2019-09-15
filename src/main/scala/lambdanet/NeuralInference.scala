@@ -3,7 +3,7 @@ package lambdanet
 import botkop.numsca.{Shape, Tensor}
 import lambdanet.architecture.Embedding
 import lambdanet.architecture.{LabelEncoder, NNArchitecture}
-import lambdanet.train.DecodingResult
+import lambdanet.train.{DecodingResult, NamingBaseline}
 import lambdanet.train.NamingBaseline.{nodeName, typeName}
 import lambdanet.translation.ImportsResolution.NameDef
 
@@ -354,6 +354,21 @@ object NeuralInference {
               )
           }
       }
+
+      val namedOptions = predictionSpace.allTypes.collect{
+        case PTyVar(n1) if n1.nameOpt.nonEmpty => n1
+      }.toVector
+      for {
+        n <- projectNodes.par
+        nm <- n.n.nameOpt
+      } yield{
+        namedOptions.map{ n1 =>
+          val sim = NamingBaseline.nameSimilarity(nm, n1.nameOpt.get)
+          if(sim > 0) mutual(s"nameSimilar$sim", n.n, n1)
+          else Vector()
+        }
+      }
+
 
       graph.predicates.par
         .map(toBatched)

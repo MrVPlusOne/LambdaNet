@@ -326,7 +326,7 @@ object PredicateGraph {
   }
 
   object BinaryRelCat extends Enumeration {
-    val subtype, assign, equal, inheritance, fixType, similarName = Value
+    val subtype, assign, equal, inheritance, fixType = Value
   }
 
   case class BinaryRel(lhs: PNode, rhs: PNode, category: BinaryRelCat.Value)
@@ -521,22 +521,10 @@ object PredicateGraphTranslation {
         add(BinaryRel(n, fixedReturnType(f), BinaryRelCat.fixType))
     }
 
-    def addNameConnection(n: PNode, name: Symbol): Unit = {
-      allClasses.foreach{ d =>
-        d.classNode.nameOpt.foreach{ name1 =>
-          val sim = NamingBaseline.nameSimilarity(name, name1)
-          if(sim >= 1){
-            add(BinaryRel(n, d.classNode, BinaryRelCat.similarName))
-          }
-        }
-      }
-    }
-
     val totalMapping = modules.foldLeft(Map[PNode, PAnnot]())(_ ++ _.mapping)
     totalMapping.keySet.foreach { n =>
       n.nameOpt.foreach{name =>
         add(HasName(n, name))
-        addNameConnection(n, name)
       }
     }
 

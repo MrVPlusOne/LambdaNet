@@ -23,7 +23,7 @@ private case class TrainingControl(resultsDir: Path) {
       val content = read(restoreFile).trim
       val p = try Path(content)
       catch {
-        case _: IllegalArgumentException => pwd / RelPath(content)
+        case _: IllegalArgumentException => restoreFile/ up / RelPath(content)
       }
       if (consumeFile) {
         rm(restoreFile)
