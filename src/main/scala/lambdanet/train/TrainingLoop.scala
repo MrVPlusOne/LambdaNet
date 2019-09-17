@@ -78,7 +78,7 @@ object TrainingLoop extends TrainingLoopTrait {
     Tensor.floatingDataType = DataType.DOUBLE
 
     run(
-      maxTrainingEpochs = if (toyMod) 1000 else 200,
+      maxTrainingEpochs = if (toyMod) 500 else 100,
       numOfThreads = readThreadNumber()
     ).result()
   }
@@ -117,7 +117,7 @@ object TrainingLoop extends TrainingLoopTrait {
 //      namingHelpfulness(dataSet, run)
     }
 
-    def namingHelpfulness(dataSet: DataSet, run: runOnProjects) = {
+    def namingHelpfulness(dataSet: DataSet, run: runOnProjects): Unit = {
       import cats.implicits._
 
       def showCount(c: Counted[Int]): String = {
