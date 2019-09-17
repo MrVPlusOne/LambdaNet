@@ -180,23 +180,20 @@ object NeuralInference {
           Tensor(s.array.getRows(indicies: _*))
         }
 
-//        architecture.twoStageSimilarity(
+        architecture.similarity(
+          inputs,
+          libCandidates ++ projCandidates,
+          'decodingSimilarity,
+          parallelism
+        )
+
+//        architecture.unifiedCompareSimilarity(
 //          inputs,
 //          libCandidates,
 //          projCandidates,
-//          isLibOracle,
-//          predictionDropout,
 //          scores,
 //          parallelism
 //        )
-
-        architecture.unifiedCompareSimilarity(
-          inputs,
-          libCandidates,
-          projCandidates,
-          scores,
-          parallelism
-        )
       }
 
       private val nodeForAny = NameDef.anyType.node
@@ -354,7 +351,8 @@ object NeuralInference {
       } yield n.n -> nm
 
       val namedOptions = predictionSpace.typeVector.par.collect {
-        case PTyVar(n1) if n1.nameOpt.nonEmpty => n1 -> NamingBaseline.nodeName(n1)
+        case PTyVar(n1) if n1.nameOpt.nonEmpty =>
+          n1 -> NamingBaseline.nodeName(n1)
       }
 
       val similarities = for {
@@ -394,8 +392,12 @@ object NeuralInference {
 //    }
 
     private lazy val similarityScores = DebugTime.logTime("similarityScores") {
-      val nodes = projectNodes.toVector.par.map{ n => nodeName(n.n)}
-      val candidates = predictionSpace.typeVector.par.map{ t => typeName(t)}
+      val nodes = projectNodes.toVector.par.map { n =>
+        nodeName(n.n)
+      }
+      val candidates = predictionSpace.typeVector.par.map { t =>
+        typeName(t)
+      }
       val scores = for {
         n1 <- nodes
         n2 <- candidates

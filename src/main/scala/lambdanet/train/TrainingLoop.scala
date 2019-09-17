@@ -52,7 +52,7 @@ object TrainingLoop extends TrainingLoopTrait {
 
     if (onlySeqModel) "large-seqModel"
     else
-      s"unifiedDecoding-fc${NNArchitecture.messageLayers}" +
+      s"unifiedDecoding-noNamingScores-fc${NNArchitecture.messageLayers}" +
       s"$flags-${TrainingState.iterationNum}"
 //    "testBaseline"
   }
