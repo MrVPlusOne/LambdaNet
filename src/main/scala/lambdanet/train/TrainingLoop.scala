@@ -52,7 +52,7 @@ object TrainingLoop extends TrainingLoopTrait {
 
     if (onlySeqModel) "large-seqModel"
     else
-      s"unifiedDecoding1-noNamingScores-fc${NNArchitecture.messageLayers}" +
+      s"GAT1-noNamingScores-fc${NNArchitecture.messageLayers}" +
       s"$flags-${TrainingState.iterationNum}"
 //    "testBaseline"
   }
@@ -94,7 +94,7 @@ object TrainingLoop extends TrainingLoopTrait {
 
     def result(): Unit = {
       val (state, pc, logger) = loadTrainingState(resultsDir, fileLogger)
-      val architecture = GruArchitecture(state.dimMessage, pc)
+      val architecture = GATArchitecture(state.dimMessage, pc)
       printResult(s"NN Architecture: ${architecture.arcName}")
       printResult(s"Message layer: ${NNArchitecture.messageLayers} FC")
       val seqArchitecture =

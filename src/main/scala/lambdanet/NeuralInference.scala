@@ -290,7 +290,7 @@ object NeuralInference {
       import MessageKind._
 
       def mutual(name: String, p1: PNode, p2: PNode): BatchedMsgModels = {
-        if(p1 == p2) Map() // get rid of self loops
+        if (p1 == p2) Map() // get rid of self loops
         else Map(KindBinary(name) -> Vector(Binary(p1, p2)))
       }
 

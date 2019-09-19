@@ -461,27 +461,7 @@ abstract class NNArchitecture(
       name: SymbolPath,
       messages: GenSeq[(K, Chain[Message])],
       embedding: K => CompNode
-  ): Map[K, Message] = {
-    messages
-      .map {
-        case (n, ms) =>
-//          val init = randomVar(name / 'mergeMsgs / 'init)
-//          n -> ms.foldLeft(init){ (acc, msg) =>
-//            gru(name / 'mergeMsgs / 'gru)(acc, msg)
-//          }
-
-//          val n1 = embedding(n)
-//          val values = stackRows(ms.toVector)
-//          val keys = linear(name / 'mergeMsgs / 'transKey, dimMessage)(values)
-//
-//          val attention = softmax(keys.dot(n1.t).t / dimMessage)
-//          n -> attention.dot(values)
-
-          n -> meanN(ms.toVector)
-      }
-      .seq
-      .toMap
-  }
+  ): Map[K, Message]
 
   def update[K](
       name: SymbolPath,
