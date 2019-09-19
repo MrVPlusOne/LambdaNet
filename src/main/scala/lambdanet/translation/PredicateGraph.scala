@@ -418,7 +418,11 @@ object PredicateGraphTranslation {
     val allClasses = mutable.HashSet[ClassDef]()
 
     def add(pred: TyPredicate): Unit = {
-      predicates += pred
+      pred match {
+        case BinaryRel(l, r, _) if l == r => return
+        case  _ =>
+          predicates += pred
+      }
     }
 
     def useCond(cond: PNode): Unit = {

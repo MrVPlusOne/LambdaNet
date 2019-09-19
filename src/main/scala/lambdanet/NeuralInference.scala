@@ -289,8 +289,10 @@ object NeuralInference {
       import MessageModel._
       import MessageKind._
 
-      def mutual(name: String, p1: PNode, p2: PNode): BatchedMsgModels =
-        Map(KindBinary(name) -> Vector(Binary(p1, p2)))
+      def mutual(name: String, p1: PNode, p2: PNode): BatchedMsgModels = {
+        if(p1 == p2) Map() // get rid of self loops
+        else Map(KindBinary(name) -> Vector(Binary(p1, p2)))
+      }
 
       def positional(
           name: String,
@@ -357,7 +359,7 @@ object NeuralInference {
 
       val similarities = for {
         (n, nName) <- nodeWithNames
-        (n1, n1Name) <- namedOptions
+        (n1, n1Name) <- namedOptions if n != n1
         sim = NamingBaseline.nameSimilarity(nName, n1Name)
         if sim > 0
       } yield mutual(s"nameSimilar$sim", n, n1)
