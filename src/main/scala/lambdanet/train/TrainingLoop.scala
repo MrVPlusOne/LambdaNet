@@ -404,7 +404,7 @@ object TrainingLoop extends TrainingLoopTrait {
         announced(s"test on $dataSetName set") {
           import cats.implicits._
 
-          val (stat, fse1Acc, projTop5Acc) = dataSet.flatMap { datum =>
+          val (stat, fse1Acc, libTop5Acc, projTop5Acc) = dataSet.flatMap { datum =>
             checkShouldStop(epoch)
             announced(s"test on $datum", shouldAnnounce) {
               forward(
@@ -420,13 +420,13 @@ object TrainingLoop extends TrainingLoopTrait {
                       pred.mapValuesNow(_.distr.map(_._2)),
                       onlyCountInSpaceTypes = true
                     )
-                  val projTop5 = {
+                  val Seq(libTop5, projTop5) = Seq(true, false).map { fromLib =>
                     val predictions = pred.map {
                       case (n, distr) => n -> distr.distr.take(5).map(_._2)
                     }
                     val nodesMap = datum.nodesToPredict.collect {
                       case (n, ty)
-                          if predictions.contains(n.n) && !ty.madeFromLibTypes =>
+                          if predictions.contains(n.n) && ty.madeFromLibTypes == fromLib =>
                         n.n -> ty
                     }
                     QLangAccuracy
@@ -438,7 +438,7 @@ object TrainingLoop extends TrainingLoopTrait {
                       )
                       ._1
                   }
-                  (fwd, fse1, projTop5)
+                  (fwd, fse1, libTop5, projTop5)
 
               }.toVector
             }
@@ -448,6 +448,7 @@ object TrainingLoop extends TrainingLoopTrait {
           import logger._
           logScalar(s"$dataSetName-loss", epoch, toAccuracyD(stat.loss))
           logScalar(s"$dataSetName-libAcc", epoch, toAccuracy(libCorrect))
+          logScalar(s"$dataSetName-libTop5Acc", epoch, toAccuracy(libTop5Acc))
           logScalar(s"$dataSetName-projAcc", epoch, toAccuracy(projCorrect))
           logScalar(s"$dataSetName-projTop5Acc", epoch, toAccuracy(projTop5Acc))
           logConfusionMatrix(
