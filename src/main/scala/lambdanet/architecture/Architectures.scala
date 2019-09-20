@@ -1,6 +1,5 @@
 package lambdanet.architecture
 
-import botkop.numsca
 import cats.data.Chain
 import funcdiff._
 import lambdanet.NeuralInference.Message

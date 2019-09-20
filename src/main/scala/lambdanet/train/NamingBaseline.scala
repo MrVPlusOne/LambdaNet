@@ -64,7 +64,7 @@ object NamingBaseline {
     def predict(threshold: Double): Map[ProjNode, (TruthPosition, PType)] = {
       import cats.implicits._
 
-      val predSpace = datum.predictor.predictionSpace
+      val predSpace = datum.predictionSpace
       val allCands = predSpace.allTypes.toVector
         .map { ty =>
           ty -> transformName(typeName(ty))

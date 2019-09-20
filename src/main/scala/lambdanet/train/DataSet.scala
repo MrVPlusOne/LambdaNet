@@ -3,7 +3,10 @@ package lambdanet.train
 import lambdanet._
 import lambdanet.translation.PredicateGraph._
 import NeuralInference._
+import lambdanet.SequenceModel.{SeqArchitecture, SeqPredictor}
 import lambdanet.architecture.NNArchitecture
+import lambdanet.translation.ImportsResolution.NameDef
+import lambdanet.translation.PredicateGraph
 import lambdanet.translation.QLang.QModule
 import lambdanet.utils.QLangAccuracy.FseAccuracy
 
@@ -32,7 +35,7 @@ case class DataSet(
 object DataSet {
   def loadDataSet(
       taskSupport: Option[ForkJoinTaskSupport],
-      architecture: NNArchitecture,
+      useSeqModel: Boolean,
       toyMod: Boolean,
       maxLibRatio: Double
   ): DataSet = {
@@ -69,20 +72,28 @@ object DataSet {
       ((trainSet ++ devSet).zip(Stream.continually(true)) ++
         testSet.zip(Stream.continually(false))).toVector.par.map {
         case (p @ ParsedProject(path, qModules, irModules, g), useInferred) =>
-          val predictor =
-            Predictor(
+          val (predictor, predSpace) = if (useSeqModel) {
+            val pSpace = PredictionSpace(
+              libTypesToPredict
+                .map(_.n.n.pipe(PTyVar): PType) - NameDef.unknownType
+            )
+            Left(SeqPredictor(irModules, libDefs, pSpace, taskSupport)) -> pSpace
+          } else {
+            val predictor = Predictor(
               path,
               g,
               libTypesToPredict,
               libDefs,
               taskSupport
             )
+            Right(predictor) -> predictor.predictionSpace
+          }
 
           val annots1 =
             (if (useInferred) p.allUserAnnots else p.nonInferredUserAnnots)
               .mapValuesNow(nonGenerifyIt)
               .filter { x =>
-                predictor.predictionSpace.allTypes.contains(x._2).tap { in =>
+                predSpace.allTypes.contains(x._2).tap { in =>
                   import cats.implicits._
                   inSpace.synchronized {
                     inSpace |+|= Counted(1, if (in) 1 else 0)
@@ -92,7 +103,7 @@ object DataSet {
 
           if (annots1.isEmpty) Vector()
           else {
-            val d = Datum(path, annots1, qModules.map { m =>
+            val d = Datum(path, annots1, g, qModules.map { m =>
               m.copy(mapping = m.mapping.mapValuesNow(_.map(nonGenerifyIt)))
             }, predictor)
             printResult(d)
@@ -156,14 +167,19 @@ case object EmptyNodesToPredict extends Exception
 case class Datum(
     projectName: ProjectPath,
     nodesToPredict: Map[ProjNode, PType],
+    graph: PredicateGraph,
     qModules: Vector[QModule],
-    predictor: Predictor
+    predictor: Either[SeqPredictor, Predictor]
 ) {
   if (nodesToPredict.isEmpty) {
     throw EmptyNodesToPredict
   }
+  val (predictionSpace, predGraphOpt) = predictor match {
+    case Left(p)  => (p.predSpace, None)
+    case Right(p) => (p.predictionSpace, Some(p.graph))
+  }
   require(nodesToPredict.forall {
-    case (_, ty) => predictor.predictionSpace.allTypes.contains(ty)
+    case (_, ty) => predictionSpace.allTypes.contains(ty)
   })
 
   val libAnnots: Int = nodesToPredict.count(_._2.madeFromLibTypes)
@@ -189,8 +205,13 @@ case class Datum(
     val info = s"{name: $projectName, " +
       s"annotations: ${nodesToPredict.size}(L:$libAnnots/P:$projAnnots, ratio:%.4f), "
         .format(libLabelRatio) +
-      s"predicates: ${predictor.graph.predicates.size}, " +
-      s"predictionSpace: ${predictor.predictionSpace.size}, "
+      predGraphOpt
+        .map(_.predicates.size.pipe { s =>
+          s"predicates: $s"
+        })
+        .getOrElse("") +
+      s"predictionSpace: ${predictionSpace.size}, "
+
     info
   }
 
@@ -200,10 +221,10 @@ case class Datum(
 
   def showDetail: String = {
     s"""$showInline
-       |${predictor.predictionSpace}
+       |${predictionSpace}
        |""".stripMargin
   }
 
-  val fseAcc: FseAccuracy = FseAccuracy(qModules, predictor.predictionSpace)
+  val fseAcc: FseAccuracy = FseAccuracy(qModules, predictionSpace)
 
 }

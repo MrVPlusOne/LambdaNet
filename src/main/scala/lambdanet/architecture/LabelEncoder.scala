@@ -6,6 +6,7 @@ import funcdiff._
 import lambdanet._
 import lambdanet.train.Datum
 import lambdanet.translation.PredicateGraph._
+import lambdanet.translation.QLang
 
 import collection.concurrent.TrieMap
 import scala.util.Random
@@ -223,7 +224,7 @@ object LabelEncoder {
     import cats.implicits._
 
     val totalUsages = dataSet.foldMap { p =>
-      val predsUsage = p.predictor.graph.predicates.toVector.collect {
+      val predsUsage = p.graph.predicates.toVector.collect {
         case DefineRel(_, expr) =>
           expr.allLabels.toVector.foldMap(nameUsages)
         case HasName(_, name) =>

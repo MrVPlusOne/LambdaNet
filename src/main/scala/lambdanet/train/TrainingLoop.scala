@@ -13,6 +13,7 @@ import lambdanet.architecture._
 import lambdanet.utils.{EventLogger, QLangAccuracy, QLangDisplay, ReportFinish}
 import TrainingState._
 import botkop.numsca.Tensor
+import lambdanet.SequenceModel.{SeqArchitecture, SeqPredictor}
 import lambdanet.architecture.LabelEncoder.{
   SegmentedLabelEncoder,
   TrainableLabelEncoder
@@ -33,7 +34,7 @@ import scala.util.Random
 
 object TrainingLoop extends TrainingLoopTrait {
   val toyMod: Boolean = false
-  val onlySeqModel = false
+  val useSeqModel = true
   val useDropout: Boolean = true
   val useOracleForIsLib: Boolean = false
   /* Assign more weights to project type to battle label imbalance */
@@ -50,10 +51,10 @@ object TrainingLoop extends TrainingLoopTrait {
       "toy" -> toyMod
     ).map(flag).mkString
 
-    if (onlySeqModel) "large-seqModel"
+    if (useSeqModel) "seqModel-ourName-node"
     else
       s"GAT1-noNamingScores-fc${NNArchitecture.messageLayers}" +
-      s"$flags-${TrainingState.iterationNum}"
+        s"$flags-${TrainingState.iterationNum}"
 //    "testBaseline"
   }
 
@@ -94,13 +95,15 @@ object TrainingLoop extends TrainingLoopTrait {
 
     def result(): Unit = {
       val (state, pc, logger) = loadTrainingState(resultsDir, fileLogger)
-      val architecture = GATArchitecture(state.dimMessage, pc)
-      printResult(s"NN Architecture: ${architecture.arcName}")
       printResult(s"Message layer: ${NNArchitecture.messageLayers} FC")
-      val seqArchitecture =
-        SequenceModel.SeqArchitecture(state.dimMessage, pc)
+
       val dataSet =
-        DataSet.loadDataSet(taskSupport, architecture, toyMod, maxLibRatio)
+        DataSet.loadDataSet(taskSupport, useSeqModel, toyMod, maxLibRatio)
+      val architecture = if(useSeqModel)
+        SequenceModel.SeqArchitecture(state.dimMessage, pc)
+       else GATArchitecture(state.dimMessage, pc)
+      printResult(s"NN Architecture: ${architecture.arcName}")
+
 
 //      NamingBaseline.test(dataSet)
 //      MostFreqConstructorBaseline.test(dataSet, useByFreq = false)
@@ -110,8 +113,7 @@ object TrainingLoop extends TrainingLoopTrait {
         state,
         pc,
         logger,
-        architecture,
-        seqArchitecture
+        architecture
       ).train()
 
 //      namingHelpfulness(dataSet, run)
@@ -168,7 +170,6 @@ object TrainingLoop extends TrainingLoopTrait {
         pc: ParamCollection,
         logger: EventLogger,
         architecture: NNArchitecture,
-        seqArchitecture: SequenceModel.SeqArchitecture
     ) {
       import dataSet._
       import trainingState._
@@ -387,7 +388,7 @@ object TrainingLoop extends TrainingLoopTrait {
         val str = stats
           .map {
             case (d, f) =>
-              val size = d.predictor.graph.predicates.size
+              val size = d.predGraphOpt.map(_.predicates.size)
               val acc = toAccuracy(
                 f.libCorrect.combine(f.projCorrect)
               )
@@ -404,44 +405,46 @@ object TrainingLoop extends TrainingLoopTrait {
         announced(s"test on $dataSetName set") {
           import cats.implicits._
 
-          val (stat, fse1Acc, libTop5Acc, projTop5Acc) = dataSet.flatMap { datum =>
-            checkShouldStop(epoch)
-            announced(s"test on $datum", shouldAnnounce) {
-              forward(
-                datum,
-                shouldDownsample = !isTestSet,
-                shouldDropout = false,
-                maxBatchSize = Some(maxBatchSize)
-              ).map {
-                case (_, fwd, pred) =>
-                  val (fse1, _, _) = datum.fseAcc
-                    .countTopNCorrect(
-                      1,
-                      pred.mapValuesNow(_.distr.map(_._2)),
-                      onlyCountInSpaceTypes = true
-                    )
-                  val Seq(libTop5, projTop5) = Seq(true, false).map { fromLib =>
-                    val predictions = pred.map {
-                      case (n, distr) => n -> distr.distr.take(5).map(_._2)
-                    }
-                    val nodesMap = datum.nodesToPredict.collect {
-                      case (n, ty)
-                          if predictions.contains(n.n) && ty.madeFromLibTypes == fromLib =>
-                        n.n -> ty
-                    }
-                    QLangAccuracy
+          val (stat, fse1Acc, libTop5Acc, projTop5Acc) = dataSet.flatMap {
+            datum =>
+              checkShouldStop(epoch)
+              announced(s"test on $datum", shouldAnnounce) {
+                forward(
+                  datum,
+                  shouldDownsample = !isTestSet,
+                  shouldDropout = false,
+                  maxBatchSize = Some(maxBatchSize)
+                ).map {
+                  case (_, fwd, pred) =>
+                    val (fse1, _, _) = datum.fseAcc
                       .countTopNCorrect(
-                        5,
-                        nodesMap,
-                        predictions,
-                        _ => 1
+                        1,
+                        pred.mapValuesNow(_.distr.map(_._2)),
+                        onlyCountInSpaceTypes = true
                       )
-                      ._1
-                  }
-                  (fwd, fse1, libTop5, projTop5)
+                    val Seq(libTop5, projTop5) = Seq(true, false).map {
+                      fromLib =>
+                        val predictions = pred.map {
+                          case (n, distr) => n -> distr.distr.take(5).map(_._2)
+                        }
+                        val nodesMap = datum.nodesToPredict.collect {
+                          case (n, ty)
+                              if predictions.contains(n.n) && ty.madeFromLibTypes == fromLib =>
+                            n.n -> ty
+                        }
+                        QLangAccuracy
+                          .countTopNCorrect(
+                            5,
+                            nodesMap,
+                            predictions,
+                            _ => 1
+                          )
+                          ._1
+                    }
+                    (fwd, fse1, libTop5, projTop5)
 
-              }.toVector
-            }
+                }.toVector
+              }
           }.combineAll
 
           import stat.{libCorrect, projCorrect, confusionMatrix, categoricalAcc}
@@ -498,9 +501,10 @@ object TrainingLoop extends TrainingLoopTrait {
 //          datum: Datum
 //      ): Option[(Loss, ForwardResult, Map[PNode, TopNDistribution[PType]])] = {
 //        def result = {
-//          val predictor = datum.seqPredictor
+//          val predictor = seqModel.get
 //          val predSpace = predictor.predSpace
 //          // the logits for very iterations
+//
 //          val nodes = datum.nodesToPredict.map { _.n }
 //          val logits = announced("run seq predictor") {
 //            predictor.run(
@@ -575,7 +579,7 @@ object TrainingLoop extends TrainingLoopTrait {
         limitTimeOpt(s"forward: $datum", Timeouts.forwardTimeout) {
           import datum._
 
-          val predSpace = predictor.predictionSpace
+          val predSpace = datum.predictionSpace
 
           val annotsToUse =
             if (shouldDownsample) datum.downsampleLibAnnots(maxLibRatio, random)
@@ -586,24 +590,26 @@ object TrainingLoop extends TrainingLoopTrait {
             .take(maxBatchSize.getOrElse(Int.MaxValue))
             .unzip
           val targets = groundTruths.map(predSpace.indexOfType)
-          val isLibOracle =
-            if (useOracleForIsLib) Some(targets.map(predSpace.isLibType))
-            else None
 
           val decodingVec = announced("run predictor", shouldAnnounce) {
-            predictor
-              .run(
-                architecture,
-                nodes,
-                iterationNum,
-                labelEncoder,
-                labelCoverage.isLibLabel,
-                nameEncoder,
-                shouldDropout,
-                shouldDropout,
-                isLibOracle
-              )
-              .result
+            datum.predictor match {
+              case Left(seqPredictor) =>
+                seqPredictor
+                  .run(architecture.asInstanceOf[SeqArchitecture], nameEncoder, nodes, shouldDropout)
+                  .pipe(Vector(_))
+              case Right(predictor) =>
+                predictor
+                  .run(
+                    architecture,
+                    nodes,
+                    iterationNum,
+                    labelEncoder,
+                    labelCoverage.isLibLabel,
+                    nameEncoder,
+                    shouldDropout
+                  )
+                  .result
+            }
           }
           val decoding = decodingVec.last
 
@@ -617,8 +623,7 @@ object TrainingLoop extends TrainingLoopTrait {
             }
 
           val loss = lossModel.predictionLoss(
-            predictor
-              .parallelize(decodingVec)
+            decodingVec.par
               .map(_.toLoss(targets, projWeight, predSpace.libTypeVec.length))
           )
 
@@ -731,7 +736,7 @@ object TrainingLoop extends TrainingLoopTrait {
                             datum.projectName.toString,
                             datum.qModules,
                             pred,
-                            datum.predictor.predictionSpace.allTypes
+                            datum.predictionSpace.allTypes
                           )(saveDir / "predictions")
                         }
                         (fwd.correctSet, fwd.incorrectSet)

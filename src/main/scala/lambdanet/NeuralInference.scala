@@ -42,8 +42,6 @@ object NeuralInference {
         isLibLabel: Symbol => Boolean,
         nameEncoder: LabelEncoder,
         labelDropout: Boolean,
-        predictionDropout: Boolean,
-        isLibOracle: Option[Vector[Boolean]]
     ) {
       import architecture.{randomVar}
 
@@ -74,7 +72,7 @@ object NeuralInference {
 
         embeddings.map { embed =>
           logTime("decode") {
-            decode(embed, encodeType(embed), isLibOracle)
+            decode(embed, encodeType(embed))
           }
         }
       }
@@ -159,7 +157,6 @@ object NeuralInference {
       private def decode(
           embedding: Embedding,
           encodeSignature: PType => CompNode,
-          isLibOracle: Option[Vector[Boolean]]
       ): DecodingResult = {
         val inputs = nodesToPredict
           .map(embedding.vars.apply)

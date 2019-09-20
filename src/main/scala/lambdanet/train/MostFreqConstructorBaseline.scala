@@ -42,7 +42,7 @@ object MostFreqConstructorBaseline {
     import cats.implicits._
 
     def predictByFreq: Map[ProjNode, (TruthPosition, PType)] = {
-      val allProjTypes = datum.predictor.predictionSpace.projTypeVec
+      val allProjTypes = datum.predictionSpace.projTypeVec
       val sortedTypes = allProjTypes.sortBy(-constructorFreqs(_))
       val typeSet = sortedTypes.toSet
       datum.nodesToPredict.collect {
@@ -67,7 +67,7 @@ object MostFreqConstructorBaseline {
     import PredicateGraph.BinaryRel
     import PredicateGraph.BinaryRelCat
 
-    private def allPreds = datum.predictor.graph.predicates.toVector
+    private def allPreds = datum.graph.predicates.toVector
 
     val constructorFreqs: PType => Int = {
       val map = allPreds.collect {

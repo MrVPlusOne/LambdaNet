@@ -2,13 +2,15 @@ package lambdanet
 
 import cats.data.Chain
 import funcdiff._
+import lambdanet.NeuralInference.Message
 import lambdanet.PrepareRepos.parseRepos
-import lambdanet.architecture.{ArchitectureHelper, LabelEncoder}
+import lambdanet.architecture.{ArchitectureHelper, LabelEncoder, NNArchitecture}
 import lambdanet.train.{DecodingResult, Joint}
 import lambdanet.translation.IR._
 import lambdanet.translation.PAnnot
-import lambdanet.translation.PredicateGraph.{PNode, PType}
+import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 
+import scala.collection.GenSeq
 import scala.collection.parallel.ForkJoinTaskSupport
 import scala.language.implicitConversions
 
@@ -55,11 +57,11 @@ object SequenceModel {
     def run(
         architecture: SeqArchitecture,
         nameEncoder: LabelEncoder,
-        nodesToPredict: Vector[PNode],
+        nodesToPredict: Vector[ProjNode],
         nameDropout: Boolean
     ): DecodingResult = {
       val states =
-        encode(architecture, nameEncoder, nameDropout, nodesToPredict)
+        encode(architecture, nameEncoder, nameDropout, nodesToPredict.map(_.n))
       val input = stackRows(states)
       Joint(architecture.predict(input, predSpace.size))
     }
@@ -98,8 +100,7 @@ object SequenceModel {
   }
 
   case class SeqArchitecture(dimEmbedding: Int, pc: ParamCollection)
-      extends ArchitectureHelper {
-    val layerFactory = LayerFactory('SeqArchitecture, pc)
+      extends NNArchitecture("SeqArchitecture", dimEmbedding, pc) {
     import layerFactory._
 
     def aggregate(
@@ -170,6 +171,23 @@ object SequenceModel {
         linear('predict / 'L2, dimEmbedding) ~> relu ~>
         linear('predict / 'L3, predSpaceSize)
     }
+
+    def nstct() = throw new Exception("Not supposed to call this")
+    // don't really need these
+    def initialEmbedding(projectNodes: Set[ProjNode]): architecture.Embedding =
+      nstct()
+
+    def mergeMessages[K](
+        name: SymbolPath,
+        messages: GenSeq[(K, Chain[Message])],
+        embedding: K => CompNode
+    ): Map[K, Message] = nstct()
+
+    def update[K](
+        name: SymbolPath,
+        embedding: Map[K, CompNode],
+        messages: Map[K, CompNode]
+    ): Map[K, CompNode] = nstct()
   }
 
   sealed trait Token
