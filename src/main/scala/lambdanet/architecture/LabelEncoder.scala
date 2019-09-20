@@ -107,7 +107,7 @@ object LabelEncoder {
     ): CompNode = {
       def dropoutImpl: CompNode = {
         val i = randomLabelId()
-        architecture.randomUnitVar('segments / Symbol(s"?$i"))
+        architecture.randomUnitVar('label / Symbol(s"?$i"))
       }
       if (!commonLabels.contains(label) && shouldDropout()) dropoutImpl
       else labelsMap.getOrElse(label, dropoutImpl)
@@ -169,7 +169,7 @@ object LabelEncoder {
       else
         segs
           .map(encodeSeg)
-          .pipe(stackRows)  //todo: don't need to transform trainable segs
+          .pipe(stackRows) //todo: don't need to transform trainable segs
           .pipe(architecture.nonLinearLayer(symbolPath / 'encodeSeg))
           .pipe(sum(_, 0))
     }
@@ -243,6 +243,7 @@ object LabelEncoder {
     printResult(s"number of segments selected: ${segments.length}")
     printResult(s"coverage achieved: $achieved")
     printResult(s"Fist 100 segs: ${segments.take(100)}")
+    printResult(s"Last 50 segs: ${segments.takeRight(50)}")
     (segments, achieved)
   }
 }

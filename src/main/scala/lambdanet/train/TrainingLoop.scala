@@ -51,7 +51,7 @@ object TrainingLoop extends TrainingLoopTrait {
       "toy" -> toyMod
     ).map(flag).mkString
 
-    if (useSeqModel) "seqModel-ourName-node"
+    if (useSeqModel) "seqModel-theirName-node"
     else
       s"GAT1-noNamingScores-fc${NNArchitecture.messageLayers}" +
         s"$flags-${TrainingState.iterationNum}"
@@ -99,11 +99,11 @@ object TrainingLoop extends TrainingLoopTrait {
 
       val dataSet =
         DataSet.loadDataSet(taskSupport, useSeqModel, toyMod, maxLibRatio)
-      val architecture = if(useSeqModel)
-        SequenceModel.SeqArchitecture(state.dimMessage, pc)
-       else GATArchitecture(state.dimMessage, pc)
+      val architecture =
+        if (useSeqModel)
+          SequenceModel.SeqArchitecture(state.dimMessage, pc)
+        else GATArchitecture(state.dimMessage, pc)
       printResult(s"NN Architecture: ${architecture.arcName}")
-
 
 //      NamingBaseline.test(dataSet)
 //      MostFreqConstructorBaseline.test(dataSet, useByFreq = false)
@@ -169,7 +169,7 @@ object TrainingLoop extends TrainingLoopTrait {
         trainingState: TrainingState,
         pc: ParamCollection,
         logger: EventLogger,
-        architecture: NNArchitecture,
+        architecture: NNArchitecture
     ) {
       import dataSet._
       import trainingState._
@@ -182,18 +182,29 @@ object TrainingLoop extends TrainingLoopTrait {
       def randomLabelId(): Int = rand.synchronized {
         rand.nextInt(50)
       }
-      val Seq(labelEncoder, nameEncoder) =
-        Seq("labelEncoder", "nameEncoder").map { name =>
-          SegmentedLabelEncoder(
-            name,
-            trainSet,
-            coverageGoal = 0.98,
-            architecture,
-            dropoutProb = 0.1,
-            dropoutThreshold = 1000,
-            randomLabelId
-          )
-        }
+//      val Seq(labelEncoder, nameEncoder) =
+//        Seq("labelEncoder", "nameEncoder").map { name =>
+//          SegmentedLabelEncoder(
+//            name,
+//            trainSet,
+//            coverageGoal = 0.98,
+//            architecture,
+//            dropoutProb = 0.1,
+//            dropoutThreshold = 1000,
+//            randomLabelId
+//          )
+//        }
+
+      val labelEncoder = TrainableLabelEncoder(
+        trainSet,
+        coverageGoal = 0.98,
+        architecture,
+        dropoutProb = 0.1,
+        dropoutThreshold = 1000,
+        randomLabelId
+      )
+      val nameEncoder = labelEncoder
+
       printResult(s"Label encoder: ${labelEncoder.name}")
       printResult(s"Name encoder: ${nameEncoder.name}")
 
@@ -595,7 +606,12 @@ object TrainingLoop extends TrainingLoopTrait {
             datum.predictor match {
               case Left(seqPredictor) =>
                 seqPredictor
-                  .run(architecture.asInstanceOf[SeqArchitecture], nameEncoder, nodes, shouldDropout)
+                  .run(
+                    architecture.asInstanceOf[SeqArchitecture],
+                    nameEncoder,
+                    nodes,
+                    shouldDropout
+                  )
                   .pipe(Vector(_))
               case Right(predictor) =>
                 predictor

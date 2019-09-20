@@ -127,7 +127,7 @@ object SimpleMath {
 
   def median[T](xs: Seq[T])(implicit ordering: Ordering[T]): T = {
     require(xs.nonEmpty)
-    xs.sorted.apply(xs.length/2)
+    xs.sorted.apply(xs.length / 2)
   }
 
   @inline
@@ -526,18 +526,22 @@ object SimpleMath {
   type Coverage = Double
   def selectBasedOnFrequency[A](
       freqs: Seq[(A, Int)],
-      coverageGoal: Coverage
+      coverageGoal: Coverage,
+      selectAtLeast: Int = 0,
+      minFreq: Int = 1
   ): (Seq[(A, Int)], Coverage) = {
 
     /** sort lib types by their usages */
-    val sorted = freqs.sortBy(p => -p._2)
+    val sorted = freqs.filter(_._2 > minFreq).sortBy(p => -p._2)
     val totalUsages = sorted.map(_._2).sum
 
-    val (selected, _) =
-      sorted
+    val selected = {
+      val s0 = sorted
         .zip(sorted.scanLeft(0.0)(_ + _._2.toDouble / totalUsages))
         .takeWhile(_._2 < coverageGoal)
-        .unzip
+        .map(_._1)
+      if (s0.length < selectAtLeast) sorted.take(selectAtLeast) else s0
+    }
 
     val achieved = selected.map(_._2).sum.toDouble / totalUsages
 
