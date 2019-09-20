@@ -51,7 +51,7 @@ object TrainingLoop extends TrainingLoopTrait {
       "toy" -> toyMod
     ).map(flag).mkString
 
-    if (useSeqModel) "seqModel-theirName-node"
+    if (useSeqModel) "seqModel-ourName-node"
     else
       s"GAT1-noNamingScores-fc${NNArchitecture.messageLayers}" +
         s"$flags-${TrainingState.iterationNum}"
@@ -182,28 +182,28 @@ object TrainingLoop extends TrainingLoopTrait {
       def randomLabelId(): Int = rand.synchronized {
         rand.nextInt(50)
       }
-//      val Seq(labelEncoder, nameEncoder) =
-//        Seq("labelEncoder", "nameEncoder").map { name =>
-//          SegmentedLabelEncoder(
-//            name,
-//            trainSet,
-//            coverageGoal = 0.98,
-//            architecture,
-//            dropoutProb = 0.1,
-//            dropoutThreshold = 1000,
-//            randomLabelId
-//          )
-//        }
+      val Seq(labelEncoder, nameEncoder) =
+        Seq("labelEncoder", "nameEncoder").map { name =>
+          SegmentedLabelEncoder(
+            name,
+            trainSet,
+            coverageGoal = 0.98,
+            architecture,
+            dropoutProb = 0.1,
+            dropoutThreshold = 1000,
+            randomLabelId
+          )
+        }
 
-      val labelEncoder = TrainableLabelEncoder(
-        trainSet,
-        coverageGoal = 0.98,
-        architecture,
-        dropoutProb = 0.1,
-        dropoutThreshold = 1000,
-        randomLabelId
-      )
-      val nameEncoder = labelEncoder
+//      val labelEncoder = TrainableLabelEncoder(
+//        trainSet,
+//        coverageGoal = 0.98,
+//        architecture,
+//        dropoutProb = 0.1,
+//        dropoutThreshold = 1000,
+//        randomLabelId
+//      )
+//      val nameEncoder = labelEncoder
 
       printResult(s"Label encoder: ${labelEncoder.name}")
       printResult(s"Name encoder: ${nameEncoder.name}")
