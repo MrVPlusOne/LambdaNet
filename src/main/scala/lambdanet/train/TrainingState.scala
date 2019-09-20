@@ -64,7 +64,7 @@ object TrainingState {
           mkdir(resultsDir / "control")
           val state = TrainingState(
             epoch0 = 0,
-            dimMessage = 32,
+            dimMessage = if(TrainingLoop.useSeqModel) 64 else 32,
             optimizer = Optimizer.Adam(learningRate = 1e-3),
             iterationNum = iterationNum
           )
