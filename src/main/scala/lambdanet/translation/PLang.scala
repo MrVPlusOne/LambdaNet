@@ -186,8 +186,13 @@ object PLangTranslation {
               ) =>
             val newTyVars: Set[Symbol] = outerTyVars ++ tyVars
             val newTy = monotype(ty)(newTyVars)
-            val node = allocate(Some(name), Annot.Fixed(newTy), isTerm = false)
-            TypeAliasStmt(name, node, superTypes, exportLevel)
+            if(newTy == ObjectType(Map()) && superTypes.size == 1){
+              val node = allocate(Some(name), Annot.Fixed(TyVar(superTypes.head)), isTerm = false)
+              TypeAliasStmt(name, node, Set(), exportLevel)
+            }else {
+              val node = allocate(Some(name), Annot.Fixed(newTy), isTerm = false)
+              TypeAliasStmt(name, node, superTypes, exportLevel)
+            }
           // uninteresting cases
           case Surface.IfStmt(cond, branch1, branch2) =>
             IfStmt(cond, translateStmt(branch1), translateStmt(branch2))

@@ -326,7 +326,7 @@ object PredicateGraph {
   }
 
   object BinaryRelCat extends Enumeration {
-    val subtype, assign, equal, inheritance, fixType = Value
+    val subtype, assign, equal, inheritance, fixType, fixAnnotation = Value
   }
 
   case class BinaryRel(lhs: PNode, rhs: PNode, category: BinaryRelCat.Value)
@@ -514,10 +514,14 @@ object PredicateGraphTranslation {
 
     modules.foreach(_.stmts.foreach(encodeStmt))
 
+    // type alias of the form 'type A = B' is used as equality;
+    // otherwise, allocate a new tVar for 'A'
     fixedAnnotations.foreach {
+      case (n, PTyVar(n1)) =>
+        add(DefineRel(n, n1))
       case (n, t) =>
         val tn = encodePType(t)
-        add(DefineRel(n, tn))
+        add(BinaryRel(n, tn, BinaryRelCat.fixAnnotation))
     }
 
     predicates.collect {

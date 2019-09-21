@@ -53,7 +53,7 @@ object TrainingLoop extends TrainingLoopTrait {
 
     if (useSeqModel) "seqModel-ourName-node"
     else
-      s"GAT8-noNamingScores-fc${NNArchitecture.messageLayers}" +
+      s"newParsing-GAT1-fc${NNArchitecture.messageLayers}" +
         s"$flags-${TrainingState.iterationNum}"
 //    "testBaseline"
   }

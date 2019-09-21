@@ -41,6 +41,7 @@ object PredicateGraphVisualization {
           case BinaryRelCat.equal => " := "
           case BinaryRelCat.inheritance => "extends"
           case BinaryRelCat.fixType => "fixed"
+          case BinaryRelCat.fixAnnotation => "fixAnnot"
         }
       case UsedAsBool(_) =>
         "BOOL"
