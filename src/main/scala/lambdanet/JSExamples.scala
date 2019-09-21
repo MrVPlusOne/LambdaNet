@@ -37,6 +37,24 @@ object JSExamples {
     name -> obj(Symbol(name.name + "_UNIQUE") -> name)
   }
 
+  val operatorTokens = Seq(
+    'LessThanToken, 'LessThanSlashToken, 'GreaterThanToken,
+    'LessThanEqualsToken, 'GreaterThanEqualsToken, 'EqualsEqualsToken,
+    'ExclamationEqualsToken, 'EqualsEqualsEqualsToken,
+    'ExclamationEqualsEqualsToken, 'EqualsGreaterThanToken, 'PlusToken,
+    'MinusToken, 'AsteriskToken, 'AsteriskAsteriskToken, 'SlashToken,
+    'PercentToken, 'PlusPlusToken, 'MinusMinusToken, 'LessThanLessThanToken,
+    'GreaterThanGreaterThanToken, 'GreaterThanGreaterThanGreaterThanToken,
+    'AmpersandToken, 'BarToken, 'CaretToken, 'ExclamationToken, 'TildeToken,
+    'AmpersandAmpersandToken, 'BarBarToken, 'QuestionToken, 'ColonToken,
+    'AtToken, 'EqualsToken, 'PlusEqualsToken, 'MinusEqualsToken,
+    'AsteriskEqualsToken, 'AsteriskAsteriskEqualsToken, 'SlashEqualsToken,
+    'PercentEqualsToken, 'LessThanLessThanEqualsToken,
+    'GreaterThanGreaterThanEqualsToken,
+    'GreaterThanGreaterThanGreaterThanEqualsToken, 'AmpersandEqualsToken,
+    'BarEqualsToken, 'CaretEqualsToken, 'FirstCompoundAssignment
+  )
+
   val specialVars = Map[Symbol, GType](
     undefinedSymbol -> any,
     '$TypeOf -> (List(any) -: string),
@@ -48,17 +66,12 @@ object JSExamples {
     '$Yield -> (List(any) -: generator),
     '$Await -> (List('Promise) -: void),
     '$Template -> (List(any) -: string),
-    // operators
-    'MinusToken -> (List(number) -: number),
-    'PlusToken -> (List(number) -: number),
-    'PlusPlusToken -> (List(number) -: number),
-    'MinusMinusToken -> (List(number) -: number),
-    'POST_PlusPlusToken -> (List(number) -: number),
-    'POST_MinusMinusToken -> (List(number) -: number),
-    'TildeToken -> (List(number) -: number),
-    'ExclamationToken -> (List(any) -: boolean),
     thisSymbol -> any
-  )
+  ) ++ operatorTokens.map { s =>
+    s -> any
+  } ++ operatorTokens.map { s =>
+    Symbol("POST_" + s.name) -> any
+  }
 
   def treatAsAny(name: String): (Symbol, AnyType.type) = {
     Symbol(name) -> any

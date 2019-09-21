@@ -1,4 +1,3 @@
-
 interface Void {
   _void: any
 }

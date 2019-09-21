@@ -56,111 +56,6 @@ class ParserTests extends WordSpec with MyTest {
     }
   }
 
-//  "Simple cases parsing test" in {
-//    val content =
-//      """
-//        |export default (x: number) => x;
-//        |const {f: [a,{w:y}], onChange} = this.props;
-//        |({reducers = {}}: {
-//        |  reducers?: object;
-//        |}) =>
-//        |  createStore(
-//        |    combineReducers(reducers),
-//        |    state,
-//        |    compose(applyMiddleware(...middleware))
-//        |  );
-//        |export default {x};
-//        |declare type ClassDecorator = <TFunction extends Function>(target: TFunction) => TFunction | void;
-//        |interface Test{
-//        |  g<T>(x:T): T
-//        |
-//        |  fight(locales?: string | string[]): number
-//        |}
-//        |
-//        |interface Test{
-//        |  again(): string
-//        |}
-//        |namespace foo {
-//        |   namespace bar {
-//        |       let z = 5;
-//        |   }
-//        |}
-//        |let y = foo.bar.z;
-//        |let z = bar.foo.z;
-//        |
-//        |type A = (_: number) => number;
-//        |[a, b[c]] = something;
-//        |class Generics {
-//        |  u: number;
-//        |  id<T>(x: T): T {}
-//        |  f(y: number): string {}
-//        |}
-//        |export interface ClassType<T> extends Function {
-//        |  new (...args: Array<any>): T;
-//        |  constructor: Function | any[];
-//        |  [propertyName: string]: any;
-//        |  name: string;
-//        |}
-//        |let x = {a: 1, b: {c: "x"}};
-//        |let myAdd: (x: number, y: number) => number = undefined;
-//        |let o: {b: any, a: number} = undefined;
-//        |let x: any = undefined;
-//        |3;
-//        |-2;
-//        |"abc";
-//        |true;
-//        |false;
-//        |null;
-//        |[1,2,3];
-//        |f(a);
-//        |new A(1,2);
-//      """.stripMargin ++ Seq(
-//        """let [a,b,c] = array;""",
-//        """let {x,y} = {x: 10, y: 5};""",
-//        """let {x,y} = o1""",
-//        """let x: number = 4;""",
-//        """const y = "yyy";""",
-//        """let x = {a: 1, b: {c: "x"}};""",
-//        """let one = {a: 1}.a;""",
-//        """let a = array[1];""",
-//        """a + b;""",
-//        """a = b + 1;""",
-//        """x = (y = 3);""",
-//        """!(a==b);""",
-//        """v++;""",
-//        """(1+1==2)? good: bad;""",
-//        """if(true) yes else no; """,
-//        """while(1+2==2) { "no escape"} """,
-//        """{i++; let v = 2;}""",
-//        """{++i; i++}""",
-//        """for(let x = 0; x < 5; x ++) { print(x) }""",
-//        """break;""",
-//        """function foo(bar: number, z): boolean {
-//          |  return z;
-//          |}""".stripMargin,
-//        """class Bare {
-//          | x: number;
-//          | y(z: number): number{
-//          |   return z;
-//          | }
-//        """.stripMargin,
-//        "let inc = (x: number) => {return x + 1;};",
-//        "let inc = x => x+1;",
-//        "let f = (x) => (y) => x + y;",
-////        """"switch(i){
-////          |  case 1:
-////          |    print(i); break;
-////          |  case a:
-////          |    a + 1;
-////          |  default:
-////          |    print("do nothing");
-////          |}
-////        """".stripMargin
-//      ).mkString("\n")
-//
-//    val stmts = ProgramParsing().parseContent(content)
-//    stmts.foreach(println)
-//  }
 
   "JSon parsing tests" in {
     assert(Js.True == ProgramParsing.parseJson("""/* abc some @text */ true"""))
@@ -269,14 +164,16 @@ class ParserTests extends WordSpec with MyTest {
   "predicate graph tests" in {
     import PrepareRepos._
 
-    val libDefs =
-      announced(s"loading library definitions from $libDefsFile...") {
-        SimpleMath.readObjectFromFile[LibDefs](libDefsFile.toIO)
-      }
+//    val libDefs =
+//      announced(s"loading library definitions from $libDefsFile...") {
+//        SimpleMath.readObjectFromFile[LibDefs](libDefsFile.toIO)
+//      }
+
+    val libDefs = parseLibDefs().tap{ SimpleMath.saveObjectToFile(libDefsFile.toIO)}
 
     val dir = pwd / RelPath(
-      "../lambda-repos/small/testSet/gigobyte_ui-stack"
-//      "data/tests/interface"
+//      "../lambda-repos/small/testSet/gigobyte_ui-stack"
+      "data/tests/syntax"
     )
     val parsed@ParsedProject(_, qModules, irModules, g) =
       prepareProject(

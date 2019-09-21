@@ -611,7 +611,7 @@ export function parseExpr(node: ts.Expression,
         let r = rec(n.right);
         let opp = n.operatorToken.kind;
 
-        return new FuncCall(new Access(l, ts.SyntaxKind[opp], "missing"), [r], infer());
+        return new FuncCall(new Var(ts.SyntaxKind[opp]), [l,r], infer());
       }
       case SyntaxKind.PrefixUnaryExpression:
       case SyntaxKind.PostfixUnaryExpression: {

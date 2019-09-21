@@ -32,7 +32,8 @@ object NeuralInference {
       libDefs: LibDefs,
       taskSupport: Option[ForkJoinTaskSupport]
   ) {
-    private val parallelism = taskSupport.get.environment.getParallelism
+    private val parallelism =
+      taskSupport.map(_.environment.getParallelism).getOrElse(1)
 
     case class run(
         architecture: NNArchitecture,
@@ -41,7 +42,7 @@ object NeuralInference {
         labelEncoder: LabelEncoder,
         isLibLabel: Symbol => Boolean,
         nameEncoder: LabelEncoder,
-        labelDropout: Boolean,
+        labelDropout: Boolean
     ) {
       import architecture.{randomVar}
 
@@ -156,7 +157,7 @@ object NeuralInference {
 
       private def decode(
           embedding: Embedding,
-          encodeSignature: PType => CompNode,
+          encodeSignature: PType => CompNode
       ): DecodingResult = {
         val inputs = nodesToPredict
           .map(embedding.vars.apply)
