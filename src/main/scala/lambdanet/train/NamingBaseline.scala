@@ -25,8 +25,8 @@ object NamingBaseline {
       testSet.par
         .map(
           datum =>
-            testOnDatum(datum, useOracle = false, transformName).result |+|
-              testOnDatum(datum, useOracle = true, transformName).result
+            testOnDatum(datum, useOracle = false, transformName).result //|+|
+              //testOnDatum(datum, useOracle = true, transformName).result
         )
         .seq
         .combineAll
@@ -34,7 +34,7 @@ object NamingBaseline {
     println("Naive segment baseline:")
     stats.toVector.sortBy(_._1).foreach {
       case ((cat, name), count) =>
-        println(s"$cat-$name: \t${toAccuracy(count)}")
+        println(s"$cat-$name (${count.count}): \t${toAccuracy(count)}")
     }
   }
 
@@ -94,7 +94,7 @@ object NamingBaseline {
     def result: Stats = {
       import cats.implicits._
 
-      predict(2.0).toVector.foldMap {
+      predict(0.0).toVector.foldMap {
         case (_, (truthPosition, label)) =>
           val cat = LabelCat.fromLib(label.madeFromLibTypes)
           val oracleFlag = if (useOracle) "*" else ""

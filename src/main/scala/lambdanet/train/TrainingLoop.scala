@@ -34,7 +34,7 @@ import scala.util.Random
 
 object TrainingLoop extends TrainingLoopTrait {
   val toyMod: Boolean = false
-  val useSeqModel = true
+  val useSeqModel = false
   val useDropout: Boolean = true
   val useOracleForIsLib: Boolean = false
   /* Assign more weights to project type to battle label imbalance */
@@ -53,7 +53,7 @@ object TrainingLoop extends TrainingLoopTrait {
 
     if (useSeqModel) "seqModel-ourName-node"
     else
-      s"GAT1-noNamingScores-fc${NNArchitecture.messageLayers}" +
+      s"GAT8-noNamingScores-fc${NNArchitecture.messageLayers}" +
         s"$flags-${TrainingState.iterationNum}"
 //    "testBaseline"
   }
@@ -229,7 +229,7 @@ object TrainingLoop extends TrainingLoopTrait {
             TensorExtension.checkNaN = false // (epoch - 1) % 10 == 0
             handleExceptions(epoch) {
               trainStep(epoch)
-              if ((epoch - 1) % 3 == 0)
+              if ((epoch - 1) % 2 == 0)
                 DebugTime.logTime("testSteps") {
                   testStep(epoch, isTestSet = false)
                   testStep(epoch, isTestSet = true)
@@ -739,7 +739,7 @@ object TrainingLoop extends TrainingLoopTrait {
                     checkShouldStop(epoch)
                     forward(
                       datum,
-                      shouldDownsample = true, // fixme: this is for saving training time
+                      shouldDownsample = false,
                       shouldDropout = false,
                       maxBatchSize = None
                     ).map {

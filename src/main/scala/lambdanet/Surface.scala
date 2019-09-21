@@ -222,7 +222,6 @@ object Surface {
 
   case class BlockStmt(stmts: Vector[GStmt]) extends GStmt
 
-  //todo: parse public vars
   case class FuncDef(
       name: Symbol,
       tyVars: Vector[Symbol],
