@@ -55,7 +55,7 @@ object TrainingLoop extends TrainingLoopTrait {
 
     if (useSeqModel) "seqModel-ourName-node"
     else
-      s"newParsing-GAT4-fc${NNArchitecture.messageLayers}" +
+      s"newParsing-GAT1-fc${NNArchitecture.messageLayers}" +
         s"$flags-${TrainingState.iterationNum}"
 //    "testBaseline"
   }
@@ -104,7 +104,7 @@ object TrainingLoop extends TrainingLoopTrait {
       val architecture =
         if (useSeqModel)
           SequenceModel.SeqArchitecture(state.dimMessage, pc)
-        else GATArchitecture(4, state.dimMessage, pc)
+        else GATArchitecture(1, state.dimMessage, pc)
       printResult(s"NN Architecture: ${architecture.arcName}")
 
 //      NamingBaseline.test(dataSet)

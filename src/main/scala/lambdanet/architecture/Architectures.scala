@@ -6,8 +6,6 @@ import lambdanet.NeuralInference.Message
 import lambdanet.translation.PredicateGraph.ProjNode
 
 import scala.collection.GenSeq
-import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, Future}
 
 case class SimpleArchitecture(dimEmbedding: Int, pc: ParamCollection)
     extends NNArchitecture(s"Simple-$dimEmbedding", dimEmbedding, pc) {
@@ -85,7 +83,7 @@ case class GATArchitecture(
         case (n, ms) =>
           val n1 = embedding(n)
           val stacked = stackRows(n1 +: ms.toVector) // [N, D]
-          val heads = for(i <- 0 until numHeads) yield {
+          val heads = for (i <- 0 until numHeads) yield {
             val prefix = name / Symbol(s"mergeMsgs$i")
             def trans(name1: Symbol, targetDim: Int)(values: CompNode) =
               linear(prefix / name1, targetDim, useBias = false)(
@@ -100,12 +98,14 @@ case class GATArchitecture(
             attention.dot(values2) // [1, D]
           }
 
-        n -> concatN(1,fromRows = true)(heads.toVector)
+          n -> concatN(1, fromRows = true)(heads.toVector)
       }
       .seq
       .toMap
   }
 
+//  import scala.concurrent.duration.Duration
+//  import scala.concurrent.{Await, Future}
 //  def mergeMessages[K](
 //      name: SymbolPath,
 //      messages: GenSeq[(K, Chain[Message])],
