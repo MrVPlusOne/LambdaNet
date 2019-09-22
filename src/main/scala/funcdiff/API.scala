@@ -51,7 +51,8 @@ trait APITrait {
   def relu(x1: CompNode): CompNode = funcNode(Threshold(x1, 0))
 
   def leakyRelu(x1: CompNode, slope: Double = 0.01): CompNode =
-    funcNode(LeakyRelu(x1, slope))
+    relu(x1) - relu(-x1) * slope
+//    funcNode(LeakyRelu(x1, slope))
 
   def sum(x1: CompNode): CompNode = funcNode(Sum(x1))
 

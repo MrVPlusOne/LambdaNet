@@ -42,6 +42,8 @@ object TrainingLoop extends TrainingLoopTrait {
   val projWeight: Real = maxLibRatio
   val weightDecay: Option[Real] = Some(1e-4)
 
+  val debugTime: Boolean = true
+
   val taskName: String = {
     val flags = Seq(
       "newSim" -> NNArchitecture.compareDecoding,
@@ -53,7 +55,7 @@ object TrainingLoop extends TrainingLoopTrait {
 
     if (useSeqModel) "seqModel-ourName-node"
     else
-      s"newParsing-GAT1-fc${NNArchitecture.messageLayers}" +
+      s"newParsing-GAT4-fc${NNArchitecture.messageLayers}" +
         s"$flags-${TrainingState.iterationNum}"
 //    "testBaseline"
   }
@@ -102,7 +104,7 @@ object TrainingLoop extends TrainingLoopTrait {
       val architecture =
         if (useSeqModel)
           SequenceModel.SeqArchitecture(state.dimMessage, pc)
-        else GATArchitecture(state.dimMessage, pc)
+        else GATArchitecture(4, state.dimMessage, pc)
       printResult(s"NN Architecture: ${architecture.arcName}")
 
 //      NamingBaseline.test(dataSet)
@@ -335,7 +337,9 @@ object TrainingLoop extends TrainingLoopTrait {
                   }
                 }.toVector
 
-//                println(DebugTime.show)
+                if(debugTime){
+                  println(DebugTime.show)
+                }
                 (fwd, gradInfo, datum)
               }
             }

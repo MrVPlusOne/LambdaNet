@@ -33,6 +33,8 @@ package object numsca {
 
   case class NumscaRange(from: Long, to: Option[Long])
 
+  def between(from: Int, to: Int) = NumscaRange(from, Some(to))
+
   def :>(end: Long) = NumscaRange(0, Some(end))
   def :> = NumscaRange(0, None)
 
