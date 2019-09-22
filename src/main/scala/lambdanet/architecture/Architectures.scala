@@ -92,8 +92,8 @@ case class GATArchitecture(
                 values
               )
 
-            val key1 = trans('key1, dimValue)(n1) // [1, D]
-            val keys2 = trans('keys2, dimValue)(stacked) // [N, D]
+            val key1 = trans('key1, dimEmbedding)(n1) // [1, D]
+            val keys2 = trans('keys2, dimEmbedding)(stacked) // [N, D]
             val values2 = trans('values2, dimValue)(stacked) // [N, D]
 
             val attention = softmax(leakyRelu(key1.dot(keys2.t), 0.2)) // [1, N]
