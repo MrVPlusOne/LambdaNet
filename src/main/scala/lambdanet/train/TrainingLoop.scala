@@ -40,6 +40,7 @@ object TrainingLoop extends TrainingLoopTrait {
   /* Assign more weights to project type to battle label imbalance */
   val maxLibRatio: Real = 3.0
   val projWeight: Real = maxLibRatio
+  val gatHead = 1
   val weightDecay: Option[Real] = Some(1e-4)
 
   val debugTime: Boolean = true
@@ -55,7 +56,7 @@ object TrainingLoop extends TrainingLoopTrait {
 
     if (useSeqModel) "seqModel-ourName-node"
     else
-      s"newParsing-GAT1-fc${NNArchitecture.messageLayers}" +
+      s"newParsing-GAT$gatHead-fc${NNArchitecture.messageLayers}" +
         s"$flags-${TrainingState.iterationNum}"
 //    "testBaseline"
   }
@@ -104,7 +105,7 @@ object TrainingLoop extends TrainingLoopTrait {
       val architecture =
         if (useSeqModel)
           SequenceModel.SeqArchitecture(state.dimMessage, pc)
-        else GATArchitecture(1, state.dimMessage, pc)
+        else GATArchitecture(gatHead, state.dimMessage, pc)
       printResult(s"NN Architecture: ${architecture.arcName}")
 
 //      NamingBaseline.test(dataSet)
