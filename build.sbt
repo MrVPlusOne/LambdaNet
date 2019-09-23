@@ -18,7 +18,7 @@ fork in run := true
 val runOnMac = System.getProperty("os.name") == "Mac OS X"
 val List(heapLimit, offHeapLimit) = {
   val s = scala.io.Source.fromFile("configs/memory.txt")
-  val r = s.getLines().toList.map(_.toInt)
+  val r = s.getLines().toList.map(_.trim.toInt).take(2)
   s.close()
   r
 }
