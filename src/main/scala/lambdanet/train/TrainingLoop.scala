@@ -34,7 +34,7 @@ import scala.util.Random
 
 object TrainingLoop extends TrainingLoopTrait {
   val toyMod: Boolean = false
-  val useSeqModel = true
+  val useSeqModel = false
   val useDropout: Boolean = true
   val useOracleForIsLib: Boolean = false
   /* Assign more weights to project type to battle label imbalance */
@@ -185,33 +185,33 @@ object TrainingLoop extends TrainingLoopTrait {
       def randomLabelId(): Int = rand.synchronized {
         rand.nextInt(50)
       }
-//      val Seq(labelEncoder, nameEncoder) =
-//        Seq("labelEncoder", "nameEncoder").map { name =>
-//          SegmentedLabelEncoder(
-//            name,
-//            trainSet,
-//            coverageGoal = 0.98,
-//            architecture,
-//            dropoutProb = 0.1,
-//            dropoutThreshold = 1000,
-//            randomLabelId
-//          )
-//        }
+      val Seq(labelEncoder, nameEncoder) =
+        Seq("labelEncoder", "nameEncoder").map { name =>
+          SegmentedLabelEncoder(
+            name,
+            trainSet,
+            coverageGoal = 0.98,
+            architecture,
+            dropoutProb = 0.1,
+            dropoutThreshold = 1000,
+            randomLabelId
+          )
+        }
 
-      def fseLabelTrans(label: Symbol): Symbol = {
-        Symbol(label.name.toLowerCase().replaceAll("[0-9]", ""))
-      }
-
-      val labelEncoder = TrainableLabelEncoder(
-        trainSet,
-        coverageGoal = 0.98,
-        architecture,
-        dropoutProb = 0.1,
-        dropoutThreshold = 1000,
-        fseLabelTrans,
-        randomLabelId
-      )
-      val nameEncoder = labelEncoder
+//      def fseLabelTrans(label: Symbol): Symbol = {
+//        Symbol(label.name.toLowerCase().replaceAll("[0-9]", ""))
+//      }
+//
+//      val labelEncoder = TrainableLabelEncoder(
+//        trainSet,
+//        coverageGoal = 0.98,
+//        architecture,
+//        dropoutProb = 0.1,
+//        dropoutThreshold = 1000,
+//        fseLabelTrans,
+//        randomLabelId
+//      )
+//      val nameEncoder = labelEncoder
 
       printResult(s"Label encoder: ${labelEncoder.name}")
       printResult(s"Name encoder: ${nameEncoder.name}")
