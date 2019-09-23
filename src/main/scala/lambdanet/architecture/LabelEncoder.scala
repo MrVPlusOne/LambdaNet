@@ -83,6 +83,7 @@ object LabelEncoder {
       architecture: NNArchitecture,
       dropoutProb: Real,
       dropoutThreshold: Int,
+      labelTransformation: Symbol => Symbol,
       randomLabelId: () => Int
   ) extends LabelEncoder {
     def name: String = "TrainableLabelEncoder"
@@ -102,19 +103,20 @@ object LabelEncoder {
     def isLibLabel(label: Symbol): Boolean = labelsMap.contains(label)
 
     protected def impl(
-        label: Symbol,
+        label0: Symbol,
         shouldDropout: () => Boolean
     ): CompNode = {
       def dropoutImpl: CompNode = {
         val i = randomLabelId()
         architecture.randomUnitVar('label / Symbol(s"?$i"))
       }
+      val label = labelTransformation(label0)
       if (!commonLabels.contains(label) && shouldDropout()) dropoutImpl
       else labelsMap.getOrElse(label, dropoutImpl)
     }
 
     private def nameUsages(name: Symbol): Map[Symbol, Int] = {
-      Map(name -> 1)
+      Map(labelTransformation(name) -> 1)
     }
 
   }
