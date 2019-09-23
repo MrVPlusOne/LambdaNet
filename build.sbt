@@ -16,12 +16,14 @@ scalacOptions ++= Seq(
 fork in run := true
 
 val runOnMac = System.getProperty("os.name") == "Mac OS X"
-val List(heapLimit, offHeapLimit) = {
+val memories = {
   val s = scala.io.Source.fromFile("configs/memory.txt")
-  val r = s.getLines().toList.map(_.trim.toInt).take(2)
+  val r = s.getLines().toList.map(_.trim.toInt)
   s.close()
   r
 }
+val heapLimit = memories.head
+val offHeapLimit = memories(1)
 //val heapLimit = if(runOnMac) 8 else 16
 //val offHeapLimit = if(runOnMac) 20 else 30
 
