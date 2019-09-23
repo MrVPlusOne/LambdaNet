@@ -43,7 +43,7 @@ object TrainingLoop extends TrainingLoopTrait {
   val gatHead = 1
   val weightDecay: Option[Real] = Some(1e-4)
 
-  val debugTime: Boolean = true
+  val debugTime: Boolean = false
 
   val taskName: String = {
     val flags = Seq(
@@ -56,7 +56,7 @@ object TrainingLoop extends TrainingLoopTrait {
 
     if (useSeqModel) "seqModel-theirName-node"
     else
-      s"newParsing-GAT$gatHead-fc${NNArchitecture.messageLayers}" +
+      s"noContextual-newParsing-GAT$gatHead-fc${NNArchitecture.messageLayers}" +
         s"$flags-${TrainingState.iterationNum}"
 //    "testBaseline"
   }

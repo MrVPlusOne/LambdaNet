@@ -22,6 +22,10 @@ object NeuralInference {
   /** When set to false, each message passing has independent parameters */
   val fixBetweenIteration = false
 
+  val noAttentional: Boolean = false
+  val noContextual: Boolean = true
+  val noLogical: Boolean = false
+
   /** Pre-computes a (batched) neural network sketch reusable
     * across multiple training steps for the given [[PredicateGraph]].
     * The actual forward propagation only happens in [[run]]. */
@@ -298,44 +302,57 @@ object NeuralInference {
         Map(KindBinaryLabeled(name, LabelType.Position) -> msgs)
       }
 
+      def unless(cond: Boolean)(msg: => BatchedMsgModels): BatchedMsgModels =
+        if (cond) Map() else msg
+
       def toBatched(pred: TyPredicate): BatchedMsgModels = pred match {
         case HasName(n, name) =>
-          Map(KindNaming("hasName") -> Vector(Naming(n, name)))
-//          Map()
+          unless(noContextual) {
+            Map(KindNaming("hasName") -> Vector(Naming(n, name)))
+          }
         case UsedAsBool(n) =>
-          Map(KindSingle("usedAsBool") -> Vector(Single(n)))
+          unless(noLogical) {
+            Map(KindSingle("usedAsBool") -> Vector(Single(n)))
+          }
         case BinaryRel(lhs, rhs, name) =>
-          mutual(name.toString, lhs, rhs)
+          unless(noLogical) {
+            mutual(name.toString, lhs, rhs)
+          }
         case DefineRel(defined, expr) =>
           expr match {
             case n: PNode =>
-              mutual("defineEqual", defined, n)
+              unless(noLogical) { mutual("defineEqual", defined, n) }
             case PFunc(args, to) =>
-              positional("defineFunc", defined, args, to)
+              unless(noLogical) { positional("defineFunc", defined, args, to) }
             case PCall(f, args) =>
               // todo: reason about generics
-              positional("defineCall", f, args, defined)
+              unless(noLogical) { positional("defineCall", f, args, defined) }
             case PObject(fields) =>
-              val msgs = fields.toVector.map {
-                case (l, v) => Labeled(defined, v, Label.Field(l))
-              }
-              val fieldMessages = fields.toVector.foldMap {
+              def logical: BatchedMsgModels = Map(
+                KindBinaryLabeled("defineObject", LabelType.Field) ->
+                  fields.toVector.map {
+                    case (l, v) => Labeled(defined, v, Label.Field(l))
+                  }
+              )
+              def attentional = fields.toVector.foldMap {
                 case (label, field) =>
                   Map(
                     (KindField(label): MessageKind) ->
                       Vector[MessageModel](ClassFieldUsage(defined, field))
                   )
               }
-              fieldMessages |+|
-                Map(KindBinaryLabeled("defineObject", LabelType.Field) -> msgs)
+              unless(noAttentional || noContextual)(attentional) |+|
+                unless(noLogical)(logical)
             case PAccess(receiver, label) =>
-              val msg = Vector(Labeled(defined, receiver, Label.Field(label)))
-              Map(
-                KindBinaryLabeled("defineAccess", LabelType.Field) -> msg,
-                KindAccess(label) -> Vector(
-                  AccessFieldUsage(receiver, defined)
-                )
+              def logical: BatchedMsgModels = Map(
+                KindBinaryLabeled("defineAccess", LabelType.Field) ->
+                  Vector(Labeled(defined, receiver, Label.Field(label)))
               )
+              def attentional: BatchedMsgModels =
+                Map(KindAccess(label) -> Vector(AccessFieldUsage(receiver, defined)))
+
+              unless(noLogical)(logical) |+|
+                unless(noAttentional || noContextual)(attentional)
           }
       }
 
