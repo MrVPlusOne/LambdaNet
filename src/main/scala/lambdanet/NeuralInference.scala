@@ -22,8 +22,8 @@ object NeuralInference {
   /** When set to false, each message passing has independent parameters */
   val fixBetweenIteration = false
 
-  val noAttentional: Boolean = false
-  val noContextual: Boolean = true
+  val noAttentional: Boolean = true
+  val noContextual: Boolean = false
   val noLogical: Boolean = false
 
   /** Pre-computes a (batched) neural network sketch reusable
