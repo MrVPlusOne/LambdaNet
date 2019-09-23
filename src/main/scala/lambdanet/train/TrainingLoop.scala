@@ -34,7 +34,7 @@ import scala.util.Random
 
 object TrainingLoop extends TrainingLoopTrait {
   val toyMod: Boolean = false
-  val useSeqModel = false
+  val useSeqModel = true
   val useDropout: Boolean = true
   val useOracleForIsLib: Boolean = false
   /* Assign more weights to project type to battle label imbalance */

@@ -232,7 +232,7 @@ class ParserTests extends WordSpec with MyTest {
         g,
         libTypesToPredict,
         libDefs,
-        None
+        None,
       ).visualizeNeuralGraph
     }
 

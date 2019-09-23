@@ -30,8 +30,8 @@ object NeuralInference {
       graph: PredicateGraph,
       libraryTypeNodes: Set[LibTypeNode],
       libDefs: LibDefs,
-      onlyPredictLibType: Boolean,
-      taskSupport: Option[ForkJoinTaskSupport]
+      taskSupport: Option[ForkJoinTaskSupport],
+      onlyPredictLibType: Boolean = false
   ) {
     private val parallelism =
       taskSupport.map(_.environment.getParallelism).getOrElse(1)

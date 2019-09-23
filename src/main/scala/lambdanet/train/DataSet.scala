@@ -84,8 +84,8 @@ object DataSet {
               g,
               libTypesToPredict,
               libDefs,
-              onlyPredictLibType = true,
-              taskSupport
+              taskSupport,
+              onlyPredictLibType = true
             )
             Right(predictor) -> predictor.predictionSpace
           }
