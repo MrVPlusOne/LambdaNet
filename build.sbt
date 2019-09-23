@@ -16,8 +16,8 @@ scalacOptions ++= Seq(
 fork in run := true
 
 val runOnMac = System.getProperty("os.name") == "Mac OS X"
-val heapLimit = if(runOnMac) 8 else 10 // 16
-val offHeapLimit = if(runOnMac) 20 else 20 // 30
+val heapLimit = if(runOnMac) 8 else 11 // 16
+val offHeapLimit = if(runOnMac) 20 else 22 // 30
 
 val nd4jBinary = {
   val useCuda = new File("configs/useCuda.txt").exists()
