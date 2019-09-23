@@ -10,10 +10,10 @@
 NotebookFileLineBreakTest
 NotebookFileLineBreakTest
 NotebookDataPosition[       158,          7]
-NotebookDataLength[     45743,        990]
-NotebookOptionsPosition[     43480,        951]
-NotebookOutlinePosition[     43832,        967]
-CellTagsIndexPosition[     43789,        964]
+NotebookDataLength[     47034,       1020]
+NotebookOptionsPosition[     44674,        980]
+NotebookOutlinePosition[     45026,        996]
+CellTagsIndexPosition[     44983,        993]
 WindowFrame->Normal*)
 
 (* Beginning of Notebook Content *)
@@ -244,7 +244,7 @@ Cell[BoxData[
    3.7709026760982227`*^9}, 3.770903076896504*^9, {3.770913199337009*^9, 
    3.770913284379654*^9}, {3.7765235478143377`*^9, 3.776523565912676*^9}, {
    3.776536624840846*^9, 3.7765366351488667`*^9}},
- CellLabel->"In[46]:=",ExpressionUUID->"acce1dea-d942-41c8-8fb9-1303ac03a22e"]
+ CellLabel->"In[7]:=",ExpressionUUID->"acce1dea-d942-41c8-8fb9-1303ac03a22e"]
 }, Open  ]],
 
 Cell[BoxData[{
@@ -631,60 +631,63 @@ Cell[BoxData[
        RowBox[{"Manipulate", "[", "\[IndentingNewLine]", 
         RowBox[{
          RowBox[{
-          RowBox[{"data", "=", 
-           RowBox[{
-            RowBox[{"Function", "[", 
-             RowBox[{
-              RowBox[{"{", "x", "}"}], ",", 
-              RowBox[{"Select", "[", 
-               RowBox[{"x", ",", 
-                RowBox[{
+          RowBox[{
+           RowBox[{"data", "=", 
+            RowBox[{
+             RowBox[{"Function", "[", 
+              RowBox[{
+               RowBox[{"{", "x", "}"}], ",", 
+               RowBox[{"Select", "[", 
+                RowBox[{"x", ",", 
                  RowBox[{
                   RowBox[{
-                  "#", "\[LeftDoubleBracket]", "1", "\[RightDoubleBracket]"}],
-                   "\[LessEqual]", "epoch"}], "&"}]}], "]"}]}], "]"}], "/@", 
-            "data0"}]}], ";", "\[IndentingNewLine]", 
-          RowBox[{"lossGraph", "=", 
-           RowBox[{"drawMultipleCurves", "[", 
-            RowBox[{"\"\<losses\>\"", ",", 
-             RowBox[{"{", 
-              RowBox[{
-              "\"\<loss\>\"", ",", "\"\<dev-loss\>\"", ",", 
-               "\"\<test-loss\>\""}], "}"}], ",", "data", ",", "0.5", ",", 
-             RowBox[{"{", "}"}]}], "]"}]}], ";", "\[IndentingNewLine]", 
-          RowBox[{"libAccGraph", "=", 
-           RowBox[{"drawMultipleCurves", "[", 
-            RowBox[{"\"\<lib acc\>\"", ",", 
-             RowBox[{"{", 
-              RowBox[{
-              "\"\<libAcc\>\"", ",", "\"\<dev-libAcc\>\"", ",", 
-               "\"\<test-libAcc\>\""}], "}"}], ",", "data", ",", "0.5", ",", 
-             RowBox[{"{", "}"}]}], "]"}]}], ";", "\[IndentingNewLine]", 
-          RowBox[{"projAccGraph", "=", 
-           RowBox[{"drawMultipleCurves", "[", 
-            RowBox[{"\"\<proj acc\>\"", ",", 
-             RowBox[{"{", 
-              RowBox[{
-              "\"\<projAcc\>\"", ",", "\"\<dev-projAcc\>\"", ",", 
-               "\"\<test-projAcc\>\"", ",", "\"\<test-projTop5Acc\>\""}], 
-              "}"}], ",", "data", ",", "0.5", ",", 
-             RowBox[{"{", "}"}]}], "]"}]}], ";", "\[IndentingNewLine]", 
-          RowBox[{"timeGraph", "=", 
-           RowBox[{"drawSingleCurve", "[", 
-            RowBox[{"\"\<iter-time\>\"", ",", "data", ",", "0.3", ",", 
-             RowBox[{"{", 
-              RowBox[{"AxesLabel", "\[Rule]", 
-               RowBox[{"{", 
-                RowBox[{"\"\<step\>\"", ",", "\"\<s\>\""}], "}"}]}], "}"}]}], 
-            "]"}]}], ";", "\[IndentingNewLine]", 
-          RowBox[{"gradsGraph", "=", 
-           RowBox[{"drawMultipleCurves", "[", 
-            RowBox[{"\"\<gradient analysis\>\"", ",", 
-             RowBox[{"{", 
-              RowBox[{
-              "\"\<clippedGradient\>\"", ",", " ", "\"\<gradient\>\"", ",", 
-               "\"\<paramDelta\>\""}], "}"}], ",", "data", ",", "0.5", ",", 
-             RowBox[{"{", "}"}]}], "]"}]}], ";", "\[IndentingNewLine]", 
+                   RowBox[{
+                   "#", "\[LeftDoubleBracket]", "1", 
+                    "\[RightDoubleBracket]"}], "\[LessEqual]", "epoch"}], 
+                  "&"}]}], "]"}]}], "]"}], "/@", "data0"}]}], ";", 
+           "\[IndentingNewLine]", 
+           RowBox[{"lossGraph", "=", 
+            RowBox[{"drawMultipleCurves", "[", 
+             RowBox[{"\"\<losses\>\"", ",", 
+              RowBox[{"{", 
+               RowBox[{
+               "\"\<loss\>\"", ",", "\"\<dev-loss\>\"", ",", 
+                "\"\<test-loss\>\""}], "}"}], ",", "data", ",", "0.5", ",", 
+              RowBox[{"{", "}"}]}], "]"}]}], ";", "\[IndentingNewLine]", 
+           RowBox[{"libAccGraph", "=", 
+            RowBox[{"drawMultipleCurves", "[", 
+             RowBox[{"\"\<lib acc\>\"", ",", 
+              RowBox[{"{", 
+               RowBox[{
+               "\"\<libAcc\>\"", ",", "\"\<dev-libAcc\>\"", ",", 
+                "\"\<test-libAcc\>\"", ",", "\"\<test-libTop5Acc\>\""}], 
+               "}"}], ",", "data", ",", "0.5", ",", 
+              RowBox[{"{", "}"}]}], "]"}]}], ";", "\[IndentingNewLine]", 
+           RowBox[{"projAccGraph", "=", 
+            RowBox[{"drawMultipleCurves", "[", 
+             RowBox[{"\"\<proj acc\>\"", ",", 
+              RowBox[{"{", 
+               RowBox[{
+               "\"\<projAcc\>\"", ",", "\"\<dev-projAcc\>\"", ",", 
+                "\"\<test-projAcc\>\"", ",", "\"\<test-projTop5Acc\>\""}], 
+               "}"}], ",", "data", ",", "0.5", ",", 
+              RowBox[{"{", "}"}]}], "]"}]}], ";", "\[IndentingNewLine]", 
+           RowBox[{"timeGraph", "=", 
+            RowBox[{"drawSingleCurve", "[", 
+             RowBox[{"\"\<iter-time\>\"", ",", "data", ",", "0.3", ",", 
+              RowBox[{"{", 
+               RowBox[{"AxesLabel", "\[Rule]", 
+                RowBox[{"{", 
+                 RowBox[{"\"\<step\>\"", ",", "\"\<s\>\""}], "}"}]}], "}"}]}],
+              "]"}]}], ";", "\[IndentingNewLine]", 
+           RowBox[{"gradsGraph", "=", 
+            RowBox[{"drawMultipleCurves", "[", 
+             RowBox[{"\"\<gradient analysis\>\"", ",", 
+              RowBox[{"{", 
+               RowBox[{
+               "\"\<clippedGradient\>\"", ",", " ", "\"\<gradient\>\"", ",", 
+                "\"\<paramDelta\>\""}], "}"}], ",", "data", ",", "0.5", ",", 
+              RowBox[{"{", "}"}]}], "]"}]}], ";"}], "\[IndentingNewLine]", 
           RowBox[{"(*", 
            RowBox[{"distAccGraph", "=", 
             RowBox[{"drawBarChar", "[", 
@@ -799,8 +802,8 @@ Cell[BoxData[
    3.7765236306177*^9, 3.7765236340506287`*^9}, {3.7765236705757027`*^9, 
    3.776523759823497*^9}, {3.776523804047064*^9, 3.77652386555764*^9}, {
    3.776523905883566*^9, 3.776523959940463*^9}, {3.7765325369810047`*^9, 
-   3.77653254407898*^9}},
- CellLabel->"In[42]:=",ExpressionUUID->"f17ed66f-751b-4e3f-b3ce-d9caa6ca4efa"],
+   3.77653254407898*^9}, {3.778186627695175*^9, 3.778186636618765*^9}},
+ CellLabel->"In[16]:=",ExpressionUUID->"f17ed66f-751b-4e3f-b3ce-d9caa6ca4efa"],
 
 Cell[BoxData[
  RowBox[{
@@ -946,8 +949,34 @@ Cell[BoxData[
    "]"}]}]], "Input",
  CellChangeTimes->{{3.776878469313272*^9, 3.77687872692977*^9}, {
   3.776878764197006*^9, 3.776878766172171*^9}},
- CellLabel->
-  "In[118]:=",ExpressionUUID->"84ab63d9-12c6-4573-b682-256cb8359c33"]
+ CellLabel->"In[22]:=",ExpressionUUID->"84ab63d9-12c6-4573-b682-256cb8359c33"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"drawGoogle", "[", "task_", "]"}], ":=", 
+  RowBox[{"Module", "[", 
+   RowBox[{
+    RowBox[{"{", "}"}], ",", "\[IndentingNewLine]", 
+    RowBox[{
+     RowBox[{"Identity", "[", 
+      RowBox[{"ToString", "@", 
+       RowBox[{"StringForm", "[", 
+        RowBox[{
+        "\"\<cd ~/Desktop; gcloud compute scp \
+``:~/TypingNet/running-result/``/log.txt running/``.txt\>\"", ",", 
+         "\"\<wjydzh1@lambdanet1\>\"", ",", "task", ",", "task"}], "]"}]}], 
+      "]"}], ";"}]}], 
+   RowBox[{"(*", 
+    RowBox[{"drawAll", "[", 
+     RowBox[{"ToString", "@", 
+      RowBox[{"StringForm", "[", 
+       RowBox[{
+       "\"\</Users/weijiayi/Desktop/running/``.txt\>\"", ",", "task"}], 
+       "]"}]}], "]"}], "*)"}], "\[IndentingNewLine]", "]"}]}]], "Input",
+ CellChangeTimes->{{3.7782410539955873`*^9, 3.7782411127400913`*^9}, {
+  3.778241146215987*^9, 3.778241177138075*^9}, {3.778241591911027*^9, 
+  3.778241612465802*^9}},ExpressionUUID->"3a345799-fe19-4f91-add8-\
+36a03f70aa4a"]
 },
 WindowSize->{850, 855},
 WindowMargins->{{2, Automatic}, {Automatic, 0}},
@@ -975,23 +1004,24 @@ Cell[3523, 93, 1506, 37, 94, "Input",ExpressionUUID->"2a55c361-2e32-41d6-8cf1-c7
  CellGroupingRules->{"GroupTogetherGrouping", 10000.}],
 Cell[5032, 132, 3007, 60, 220, "Input",ExpressionUUID->"97ea247b-76c2-45e3-a2a0-6f565c888557",
  CellGroupingRules->{"GroupTogetherGrouping", 10000.}],
-Cell[8042, 194, 2444, 52, 262, "Input",ExpressionUUID->"acce1dea-d942-41c8-8fb9-1303ac03a22e",
+Cell[8042, 194, 2443, 52, 262, "Input",ExpressionUUID->"acce1dea-d942-41c8-8fb9-1303ac03a22e",
  CellGroupingRules->{"GroupTogetherGrouping", 10000.}]
 }, Open  ]],
-Cell[10501, 249, 993, 26, 52, "Input",ExpressionUUID->"3d23ae5e-2963-49d0-97bc-d2a3881e2a94"],
-Cell[11497, 277, 1941, 49, 220, "Input",ExpressionUUID->"c21512c6-7345-47b8-aa61-308efb959930"],
-Cell[13441, 328, 4223, 75, 178, "Input",ExpressionUUID->"008d239c-568d-463f-abea-e239aca7b9a9"],
-Cell[17667, 405, 4536, 96, 472, "Input",ExpressionUUID->"c1caf827-f9db-4da8-ad17-f8d13c077216",
+Cell[10500, 249, 993, 26, 52, "Input",ExpressionUUID->"3d23ae5e-2963-49d0-97bc-d2a3881e2a94"],
+Cell[11496, 277, 1941, 49, 220, "Input",ExpressionUUID->"c21512c6-7345-47b8-aa61-308efb959930"],
+Cell[13440, 328, 4223, 75, 178, "Input",ExpressionUUID->"008d239c-568d-463f-abea-e239aca7b9a9"],
+Cell[17666, 405, 4536, 96, 472, "Input",ExpressionUUID->"c1caf827-f9db-4da8-ad17-f8d13c077216",
  CellGroupingRules->{"GroupTogetherGrouping", 10000.}],
-Cell[22206, 503, 1368, 30, 220, "Input",ExpressionUUID->"30e0e5e6-a388-48bf-b5c7-f70dc2d3b087"],
-Cell[23577, 535, 3364, 70, 304, "Input",ExpressionUUID->"8eaebe0e-c1fc-4a5d-b1b7-6ae502627527"],
-Cell[26944, 607, 10488, 195, 808, "Input",ExpressionUUID->"f17ed66f-751b-4e3f-b3ce-d9caa6ca4efa",
+Cell[22205, 503, 1368, 30, 220, "Input",ExpressionUUID->"30e0e5e6-a388-48bf-b5c7-f70dc2d3b087"],
+Cell[23576, 535, 3364, 70, 304, "Input",ExpressionUUID->"8eaebe0e-c1fc-4a5d-b1b7-6ae502627527"],
+Cell[26943, 607, 10675, 198, 808, "Input",ExpressionUUID->"f17ed66f-751b-4e3f-b3ce-d9caa6ca4efa",
  CellGroupingRules->{"GroupTogetherGrouping", 10000.}],
-Cell[37435, 804, 202, 4, 30, "Input",ExpressionUUID->"6805c100-a6ad-420a-b856-67d855c5aa6b"],
-Cell[37640, 810, 2088, 48, 262, "Input",ExpressionUUID->"73698989-be54-4b3c-b41e-8db8e339f51a"],
-Cell[39731, 860, 1701, 36, 220, "Input",ExpressionUUID->"7b02550c-3904-470e-9fed-c37f2db65bef"],
-Cell[41435, 898, 847, 19, 94, "Input",ExpressionUUID->"763dbf23-2eb3-4867-bcee-690e7ba19e5f"],
-Cell[42285, 919, 1191, 30, 136, "Input",ExpressionUUID->"84ab63d9-12c6-4573-b682-256cb8359c33"]
+Cell[37621, 807, 202, 4, 30, "Input",ExpressionUUID->"6805c100-a6ad-420a-b856-67d855c5aa6b"],
+Cell[37826, 813, 2088, 48, 262, "Input",ExpressionUUID->"73698989-be54-4b3c-b41e-8db8e339f51a"],
+Cell[39917, 863, 1701, 36, 220, "Input",ExpressionUUID->"7b02550c-3904-470e-9fed-c37f2db65bef"],
+Cell[41621, 901, 847, 19, 94, "Input",ExpressionUUID->"763dbf23-2eb3-4867-bcee-690e7ba19e5f"],
+Cell[42471, 922, 1187, 29, 136, "Input",ExpressionUUID->"84ab63d9-12c6-4573-b682-256cb8359c33"],
+Cell[43661, 953, 1009, 25, 178, "Input",ExpressionUUID->"3a345799-fe19-4f91-add8-36a03f70aa4a"]
 }
 ]
 *)

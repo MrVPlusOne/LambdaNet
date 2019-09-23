@@ -22,14 +22,14 @@ case class EmailService(userEmail: String, password: String) {
       targetEmail: String,
       timeOutSeconds: Int = 10
   )(subject: String, msg: String): Unit = {
-    val Array(targetUser, targetDomain) = targetEmail.split("@")
-
-    val mailer = Mailer("smtp.gmail.com", 587)
-      .auth(true)
-      .as(s"$user@$domain", password)
-      .startTls(true)()
-
     try {
+      val Array(targetUser, targetDomain) = targetEmail.split("@")
+
+      val mailer = Mailer("smtp.gmail.com", 587)
+        .auth(true)
+        .as(s"$user@$domain", password)
+        .startTls(true)()
+
       Await.result(
         mailer(
           Envelope
@@ -44,6 +44,10 @@ case class EmailService(userEmail: String, password: String) {
       case _: TimeoutException =>
         Console.err.println(
           s"send mail timed out: {subject: '$subject', msg: '$msg'}."
+        )
+      case e: Exception =>
+        Console.err.println(
+          s"Failed to send email: {subject: '$subject', msg: '$msg'}. Exception: ${e.getMessage}"
         )
     }
   }
