@@ -127,6 +127,16 @@ object TrainingLoop extends TrainingLoopTrait {
       ).train()
 
 //      namingHelpfulness(dataSet, run)
+//      analyzeDataSet(dataSet, run)
+    }
+
+    def analyzeDataSet(dataSet: DataSet, run: runOnProjects): Unit = {
+      import cats.implicits._
+
+      val stats = dataSet.testSet.foldMap{ data =>
+        Map("totalLib" -> data.libAnnots, "totalProj" -> data.projAnnots)
+      }
+      println(stats)
     }
 
     def namingHelpfulness(dataSet: DataSet, run: runOnProjects): Unit = {
