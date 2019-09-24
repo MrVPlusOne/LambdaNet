@@ -303,7 +303,10 @@ object NeuralInference {
       }
 
       def unless(cond: Boolean)(msg: => BatchedMsgModels): BatchedMsgModels =
-        if (cond) Map() else msg
+        unlessT(cond, Map(): BatchedMsgModels)(msg)
+
+      def unlessT[T](cond: Boolean, default: => T)(msg: => T): T =
+        if (cond) default else msg
 
       def toBatched(pred: TyPredicate): BatchedMsgModels = pred match {
         case HasName(n, name) =>
@@ -349,7 +352,11 @@ object NeuralInference {
                   Vector(Labeled(defined, receiver, Label.Field(label)))
               )
               def attentional: BatchedMsgModels =
-                Map(KindAccess(label) -> Vector(AccessFieldUsage(receiver, defined)))
+                Map(
+                  KindAccess(label) -> Vector(
+                    AccessFieldUsage(receiver, defined)
+                  )
+                )
 
               unless(noLogical)(logical) |+|
                 unless(noAttentional || noContextual)(attentional)
@@ -366,12 +373,14 @@ object NeuralInference {
           n1 -> NamingBaseline.nodeName(n1)
       }
 
-      val similarities = for {
-        (n, nName) <- nodeWithNames
-        (n1, n1Name) <- namedOptions if n != n1
-        sim = NamingBaseline.nameSimilarity(nName, n1Name)
-        if sim > 0
-      } yield mutual(s"nameSimilar$sim", n, n1)
+      val similarities = unlessT(noContextual, Set[BatchedMsgModels]()){
+        (for {
+          (n, nName) <- nodeWithNames
+          (n1, n1Name) <- namedOptions if n != n1
+          sim = NamingBaseline.nameSimilarity(nName, n1Name)
+          if sim > 0
+        } yield mutual(s"nameSimilar$sim", n, n1)).toSet.seq
+      }
 
       (similarities.toSet ++ graph.predicates.par.map(toBatched))
         .fold[BatchedMsgModels](Map())(_ |+| _)
