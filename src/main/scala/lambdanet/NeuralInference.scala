@@ -23,7 +23,7 @@ object NeuralInference {
   val fixBetweenIteration = false
 
   val noAttentional: Boolean = false
-  val noContextual: Boolean = true
+  val noContextual: Boolean = false
   val noLogical: Boolean = false
 
   /** Pre-computes a (batched) neural network sketch reusable
