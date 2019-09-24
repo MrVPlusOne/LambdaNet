@@ -60,7 +60,7 @@ object TrainingLoop extends TrainingLoopTrait {
       "noLogical" -> NeuralInference.noLogical
     ).map(flag(_, post = true)).mkString
 
-    if (useSeqModel) "seqModel-theirName-node"
+    if (useSeqModel) "seqModel-theirName1-node"
     else
       s"${ablationFlag}newParsing-GAT$gatHead-fc${NNArchitecture.messageLayers}" +
         s"$flags-${TrainingState.iterationNum}"
