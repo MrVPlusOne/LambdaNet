@@ -52,13 +52,13 @@ object TrainingLoop extends TrainingLoopTrait {
       "fix" -> NeuralInference.fixBetweenIteration,
       "decay" -> weightDecay.nonEmpty,
       "toy" -> toyMod
-    ).map(flag).mkString
+    ).map(flag(_)).mkString
 
     val ablationFlag = Seq(
       "noContextual" -> NeuralInference.noContextual,
       "noAttention" -> NeuralInference.noAttentional,
       "noLogical" -> NeuralInference.noLogical
-    ).map(flag).mkString
+    ).map(flag(_, post = true)).mkString
 
     if (useSeqModel) "seqModel-theirName-node"
     else
@@ -67,9 +67,9 @@ object TrainingLoop extends TrainingLoopTrait {
 //    "testBaseline"
   }
 
-  def flag(nameValue: (String, Boolean)): String = {
+  def flag(nameValue: (String, Boolean), post: Boolean = false): String = {
     val (name, value) = nameValue
-    if (value) s"-$name" else ""
+    if (value) (if (post) s"$name-" else s"-$name") else ""
   }
 
   import fileLogger.{println, printInfo, printWarning, printResult, announced}
