@@ -54,9 +54,15 @@ object TrainingLoop extends TrainingLoopTrait {
       "toy" -> toyMod
     ).map(flag).mkString
 
+    val ablationFlag = Seq(
+      "noContextual" -> NeuralInference.noContextual,
+      "noAttention" -> NeuralInference.noAttentional,
+      "noLogical" -> NeuralInference.noLogical
+    ).map(flag).mkString
+
     if (useSeqModel) "seqModel-theirName-node"
     else
-      s"newParsing-GAT$gatHead-fc${NNArchitecture.messageLayers}" +
+      s"$ablationFlag-newParsing-GAT$gatHead-fc${NNArchitecture.messageLayers}" +
         s"$flags-${TrainingState.iterationNum}"
 //    "testBaseline"
   }
