@@ -177,12 +177,6 @@ object NeuralInference {
           .map(encodeSignature)
           .toVector
 
-        // for TwoStageSimilarity
-        val scores = similarityScores.pipe { s =>
-          val indicies = nodesToPredict.map(nodeOrdering)
-          Tensor(s.array.getRows(indicies: _*))
-        }
-
         architecture.similarity(
           inputs,
           libCandidates ++ projCandidates,
