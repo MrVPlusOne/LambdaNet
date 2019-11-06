@@ -11,14 +11,15 @@ object DownloadRepos {
     downloadAllRepos()
   }
 
-  def downloadAllRepos() = {
+  def downloadAllRepos(): Unit = {
     implicit val workingDir: Path = pwd / up / "lambda-repos"
+    if(!exists(workingDir))
+      mkdir(workingDir)
     val random = new Random(1023)
     val repoList =
-      read(workingDir / "repo-SHAs.txt").split("\\n").toVector
+      read(pwd / "data" / "repo-SHAs.txt").split("\\n").toVector
     val testSet = repoList
       .pipe(random.shuffle(_))
-      .drop(500)
 
     val totalSize = testSet.size
     var progress = 0

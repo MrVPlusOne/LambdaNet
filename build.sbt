@@ -17,15 +17,15 @@ fork in run := true
 
 val runOnMac = System.getProperty("os.name") == "Mac OS X"
 val memories = {
-  val s = scala.io.Source.fromFile("configs/memory.txt")
-  val r = s.getLines().toList.map(_.trim.toInt)
-  s.close()
-  r
+  if(new File("configs/memory.txt").exists()) {
+    val s = scala.io.Source.fromFile("configs/memory.txt")
+    val r = s.getLines().toList.map(_.trim.toInt)
+    s.close()
+    r
+  }else List(8,20) // default heap and off-heap limit
 }
 val heapLimit = memories.head
 val offHeapLimit = memories(1)
-//val heapLimit = if(runOnMac) 8 else 16
-//val offHeapLimit = if(runOnMac) 20 else 30
 
 val nd4jBinary = {
   val useCuda = new File("configs/useCuda.txt").exists()
