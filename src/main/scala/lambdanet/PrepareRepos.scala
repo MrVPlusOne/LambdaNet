@@ -59,12 +59,12 @@ object PrepareRepos {
 
 //    remixDividedDataSet()
 //    parseAndFilterDataSet()
-//    divideDataSet()
-    parseAndSerializeDataSet()
+    divideDataSet()
+//    parseAndSerializeDataSet()
   }
 
   private def remixDividedDataSet(): Unit = {
-    val base = pwd / up / "lambda-repos" / "bigger"
+    val base = pwd / up / "lambda-repos" / "divided"
     for {
       dataSet <- Seq("trainSet", "testSet", "devSet")
       p <- ls(base / dataSet) if p.isDir && p.last != "toy"
@@ -216,17 +216,20 @@ object PrepareRepos {
       .pipe(random.shuffle(_))
 
     def tryMove(from: Path, to: Path): Unit = {
+      if(!exists(to/up)) mkdir(to/up)
       if (to != from) mv(from, to)
     }
 
+    val targetDir = base / "divided"
+
     allProjects.take(60).foreach { f =>
-      tryMove(f, base / "bigger" / "testSet" / f.last)
+      tryMove(f, targetDir / "testSet" / f.last)
     }
     allProjects.slice(60, 100).foreach { f =>
-      tryMove(f, base / "bigger" / "devSet" / f.last)
+      tryMove(f, targetDir / "devSet" / f.last)
     }
     allProjects.drop(100).foreach { f =>
-      tryMove(f, base / "bigger" / "trainSet" / f.last)
+      tryMove(f, targetDir / "trainSet" / f.last)
     }
   }
 
@@ -248,7 +251,7 @@ object PrepareRepos {
   }
 
   def parseAndSerializeDataSet(): Unit = {
-    val basePath = pwd / up / "lambda-repos" / "bigger"
+    val basePath = pwd / up / "lambda-repos" / "divided"
     val trainSetDir: Path = basePath / "trainSet"
     val devSetDir: Path = basePath / "devSet"
     val testSetDir: Path = basePath / "testSet"
