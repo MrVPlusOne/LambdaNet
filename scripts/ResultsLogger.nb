@@ -10,10 +10,10 @@
 NotebookFileLineBreakTest
 NotebookFileLineBreakTest
 NotebookDataPosition[       158,          7]
-NotebookDataLength[     47317,       1023]
-NotebookOptionsPosition[     44957,        983]
-NotebookOutlinePosition[     45309,        999]
-CellTagsIndexPosition[     45266,        996]
+NotebookDataLength[     47411,       1023]
+NotebookOptionsPosition[     45068,        984]
+NotebookOutlinePosition[     45403,        999]
+CellTagsIndexPosition[     45360,        996]
 WindowFrame->Normal*)
 
 (* Beginning of Notebook Content *)
@@ -830,8 +830,8 @@ running/``-``.txt\>\"", ",", "server", ",", "task", ",", "server", ",",
       RowBox[{"ToString", "@", 
        RowBox[{"StringForm", "[", 
         RowBox[{
-        "\"\</Users/weijiayi/Desktop/running/``-``.txt\>\"", ",", "server", 
-         ",", "task"}], "]"}]}], "]"}]}]}], "\[IndentingNewLine]", 
+        "\"\<~/Desktop/running/``-``.txt\>\"", ",", "server", ",", "task"}], 
+        "]"}]}], "]"}]}]}], "\[IndentingNewLine]", 
    "]"}]}], "\[IndentingNewLine]", 
  RowBox[{
   RowBox[{"drawServer", "[", "task_", "]"}], ":=", 
@@ -843,23 +843,24 @@ running/``-``.txt\>\"", ",", "server", ",", "task", ",", "server", ",",
       RowBox[{"ToString", "@", 
        RowBox[{"StringForm", "[", 
         RowBox[{
-        "\"\<cd ~/Desktop;scp ``:/mnt/nas/jiayi/``/log.txt \
+        "\"\<cd ~/Desktop;scp ``:/mnt/nas/jiayi/LambdaNetResults/``/log.txt \
 running/``.txt\>\"", ",", "\"\<utopia1\>\"", ",", "task", ",", "task"}], 
         "]"}]}], "]"}], ";", 
      RowBox[{"drawAll", "[", 
       RowBox[{"ToString", "@", 
        RowBox[{"StringForm", "[", 
-        RowBox[{
-        "\"\</Users/weijiayi/Desktop/running/``.txt\>\"", ",", "task"}], 
-        "]"}]}], "]"}]}]}], "\[IndentingNewLine]", "]"}]}]}], "Input",
+        RowBox[{"\"\<~/Desktop/running/``.txt\>\"", ",", "task"}], "]"}]}], 
+      "]"}]}]}], "\[IndentingNewLine]", "]"}]}]}], "Input",
  CellChangeTimes->{{3.772152200796813*^9, 3.7721522720217657`*^9}, {
   3.772152335116086*^9, 3.7721523705808287`*^9}, {3.772152511512216*^9, 
   3.772152516279338*^9}, {3.772156304656146*^9, 3.772156304963563*^9}, {
   3.772156335194048*^9, 3.7721563651135674`*^9}, {3.772157167679998*^9, 
   3.772157226414977*^9}, {3.77215725684726*^9, 3.772157259740436*^9}, {
   3.7723159314219027`*^9, 3.7723159857471848`*^9}, {3.772374131405843*^9, 
-  3.772374177308598*^9}, {3.775610575956396*^9, 3.775610681660583*^9}},
- CellLabel->"In[18]:=",ExpressionUUID->"73698989-be54-4b3c-b41e-8db8e339f51a"],
+  3.772374177308598*^9}, {3.775610575956396*^9, 3.775610681660583*^9}, {
+  3.7822273113464108`*^9, 3.7822273457091103`*^9}, {3.7822274247502737`*^9, 
+  3.782227425075289*^9}, {3.782227492558031*^9, 3.782227503483398*^9}},
+ CellLabel->"In[34]:=",ExpressionUUID->"73698989-be54-4b3c-b41e-8db8e339f51a"],
 
 Cell[BoxData[
  RowBox[{
@@ -970,21 +971,20 @@ wjydzh1@lambdanet``:~/TypingNet/running-result/``/log.txt running/``.txt\>\"",
      RowBox[{"drawAll", "[", 
       RowBox[{"ToString", "@", 
        RowBox[{"StringForm", "[", 
-        RowBox[{
-        "\"\</Users/weijiayi/Desktop/running/``.txt\>\"", ",", "task"}], 
-        "]"}]}], "]"}]}]}], "\[IndentingNewLine]", "]"}]}]], "Input",
+        RowBox[{"\"\<~/Desktop/running/``.txt\>\"", ",", "task"}], "]"}]}], 
+      "]"}]}]}], "\[IndentingNewLine]", "]"}]}]], "Input",
  CellChangeTimes->{{3.7782410539955873`*^9, 3.7782411127400913`*^9}, {
-  3.778241146215987*^9, 3.778241177138075*^9}, {3.778241591911027*^9, 
-  3.778241635203301*^9}, {3.7782420337436438`*^9, 3.778242047183638*^9}, {
-  3.778242119072404*^9, 3.7782422049075403`*^9}, {3.778243154498165*^9, 
-  3.7782431625320997`*^9}, {3.778260069222006*^9, 3.778260103577948*^9}, {
-  3.77828485034723*^9, 3.778284907982203*^9}},
- CellLabel->"In[83]:=",ExpressionUUID->"3a345799-fe19-4f91-add8-36a03f70aa4a"]
+   3.778241146215987*^9, 3.778241177138075*^9}, {3.778241591911027*^9, 
+   3.778241635203301*^9}, {3.7782420337436438`*^9, 3.778242047183638*^9}, {
+   3.778242119072404*^9, 3.7782422049075403`*^9}, {3.778243154498165*^9, 
+   3.7782431625320997`*^9}, {3.778260069222006*^9, 3.778260103577948*^9}, {
+   3.77828485034723*^9, 3.778284907982203*^9}, 
+   3.782227539715485*^9},ExpressionUUID->"3a345799-fe19-4f91-add8-\
+36a03f70aa4a"]
 },
 WindowSize->{850, 855},
 WindowMargins->{{2, Automatic}, {Automatic, 0}},
-FrontEndVersion->"11.3 for Mac OS X x86 (32-bit, 64-bit Kernel) (March 5, \
-2018)",
+FrontEndVersion->"12.0 for Mac OS X x86 (64-bit) (April 8, 2019)",
 StyleDefinitions->"Default.nb"
 ]
 (* End of Notebook Content *)
@@ -1020,11 +1020,11 @@ Cell[23576, 535, 3364, 70, 304, "Input",ExpressionUUID->"8eaebe0e-c1fc-4a5d-b1b7
 Cell[26943, 607, 10675, 198, 808, "Input",ExpressionUUID->"f17ed66f-751b-4e3f-b3ce-d9caa6ca4efa",
  CellGroupingRules->{"GroupTogetherGrouping", 10000.}],
 Cell[37621, 807, 202, 4, 30, "Input",ExpressionUUID->"6805c100-a6ad-420a-b856-67d855c5aa6b"],
-Cell[37826, 813, 2088, 48, 262, "Input",ExpressionUUID->"73698989-be54-4b3c-b41e-8db8e339f51a"],
-Cell[39917, 863, 1701, 36, 220, "Input",ExpressionUUID->"7b02550c-3904-470e-9fed-c37f2db65bef"],
-Cell[41621, 901, 847, 19, 94, "Input",ExpressionUUID->"763dbf23-2eb3-4867-bcee-690e7ba19e5f"],
-Cell[42471, 922, 1187, 29, 136, "Input",ExpressionUUID->"84ab63d9-12c6-4573-b682-256cb8359c33"],
-Cell[43661, 953, 1292, 28, 233, "Input",ExpressionUUID->"3a345799-fe19-4f91-add8-36a03f70aa4a"]
+Cell[37826, 813, 2215, 49, 325, "Input",ExpressionUUID->"73698989-be54-4b3c-b41e-8db8e339f51a"],
+Cell[40044, 864, 1701, 36, 220, "Input",ExpressionUUID->"7b02550c-3904-470e-9fed-c37f2db65bef"],
+Cell[41748, 902, 847, 19, 94, "Input",ExpressionUUID->"763dbf23-2eb3-4867-bcee-690e7ba19e5f"],
+Cell[42598, 923, 1187, 29, 136, "Input",ExpressionUUID->"84ab63d9-12c6-4573-b682-256cb8359c33"],
+Cell[43788, 954, 1276, 28, 199, "Input",ExpressionUUID->"3a345799-fe19-4f91-add8-36a03f70aa4a"]
 }
 ]
 *)

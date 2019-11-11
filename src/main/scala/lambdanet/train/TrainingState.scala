@@ -11,13 +11,12 @@ object TrainingState {
       .readObjectFromFile[List[(String, Any)]](file.toIO)
       .toMap
     val step = map("epoch").asInstanceOf[Int]
-    val dimMessage = map("dimMessage").asInstanceOf[Int]
     val optimizer = map("optimizer").asInstanceOf[Optimizer]
     val iterationNum = map("iterationNum").asInstanceOf[Int]
-    TrainingState(step, dimMessage, iterationNum, optimizer)
+    TrainingState(step, iterationNum, optimizer)
   }
 
-  val iterationNum: Int = 4
+  val iterationNum: Int = 6
 
   def loadTrainingState(
       resultsDir: Path,
@@ -64,7 +63,6 @@ object TrainingState {
           mkdir(resultsDir / "control")
           val state = TrainingState(
             epoch0 = 0,
-            dimMessage = if(TrainingLoop.useSeqModel) 64 else 32,
             optimizer = Optimizer.Adam(learningRate = 1e-3),
             iterationNum = iterationNum
           )
@@ -78,7 +76,6 @@ object TrainingState {
 
 case class TrainingState(
     epoch0: Int,
-    dimMessage: Int,
     iterationNum: Int,
     optimizer: Optimizer
 ) {
@@ -86,7 +83,6 @@ case class TrainingState(
     val toSave =
       List[(String, Any)](
         "epoch" -> epoch0,
-        "dimMessage" -> dimMessage,
         "iterationNum" -> iterationNum,
         "optimizer" -> optimizer
       )
@@ -96,7 +92,6 @@ case class TrainingState(
   override def toString: String = {
     s"""TrainingState:
        |  epoch: $epoch0
-       |  dimMessage: $dimMessage
        |  iterationNum: $iterationNum
        |  optimizer: $optimizer
        """.stripMargin

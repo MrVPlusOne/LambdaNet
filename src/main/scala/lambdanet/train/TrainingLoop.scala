@@ -10,30 +10,21 @@ import cats.Monoid
 import funcdiff.{SimpleMath => SM}
 import funcdiff._
 import lambdanet.architecture._
-import lambdanet.utils.{EventLogger, QLangAccuracy, QLangDisplay, ReportFinish}
+import lambdanet.utils.{EmailService, EventLogger, FileLogger, QLangAccuracy, QLangDisplay, ReportFinish}
 import TrainingState._
 import botkop.numsca.Tensor
-import lambdanet.SequenceModel.{SeqArchitecture, SeqPredictor}
-import lambdanet.architecture.LabelEncoder.{
-  SegmentedLabelEncoder,
-  TrainableLabelEncoder
-}
-import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
+import lambdanet.SequenceModel.SeqArchitecture
+import lambdanet.architecture.LabelEncoder.{SegmentedLabelEncoder, TrainableLabelEncoder}
+import lambdanet.translation.PredicateGraph.{PAny, PNode, PType, ProjNode}
 import org.nd4j.linalg.api.buffer.DataType
 
 import scala.collection.parallel.ForkJoinTaskSupport
-import scala.concurrent.{
-  Await,
-  ExecutionContext,
-  ExecutionContextExecutorService,
-  Future,
-  TimeoutException
-}
+import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutorService, Future, TimeoutException}
 import scala.language.reflectiveCalls
 import scala.util.Random
 
-object TrainingLoop extends TrainingLoopTrait {
-  val toyMod: Boolean = false
+object TrainingLoop {
+  val toyMode: Boolean = false
   val useSeqModel = false
   val useDropout: Boolean = true
   val useOracleForIsLib: Boolean = false
@@ -51,7 +42,7 @@ object TrainingLoop extends TrainingLoopTrait {
       "oracle" -> useOracleForIsLib,
       "fix" -> NeuralInference.fixBetweenIteration,
       "decay" -> weightDecay.nonEmpty,
-      "toy" -> toyMod
+      "toy" -> toyMode
     ).map(flag(_)).mkString
 
     val ablationFlag = Seq(
@@ -72,11 +63,9 @@ object TrainingLoop extends TrainingLoopTrait {
     if (value) (if (post) s"$name-" else s"-$name") else ""
   }
 
-  import fileLogger.{println, printInfo, printWarning, printResult, announced}
-
   def scaleLearningRate(epoch: Int): Double = {
     val min = 0.3
-    val epochToSlowDown = if (toyMod) 100 else 30
+    val epochToSlowDown = if (toyMode) 100 else 30
     SimpleMath
       .linearInterpolate(1.0, min)(epoch.toDouble / epochToSlowDown)
       .max(min)
@@ -87,49 +76,89 @@ object TrainingLoop extends TrainingLoopTrait {
 
     Tensor.floatingDataType = DataType.DOUBLE
 
-    run(
-      maxTrainingEpochs = if (toyMod) 500 else 100,
-      numOfThreads = readThreadNumber()
+    val threadNumber: Int = {
+      import ammonite.ops._
+      val f = pwd / "configs" / "threads.txt"
+      if (exists(f)) {
+        read(f).trim.toInt
+      } else {
+        Runtime.getRuntime.availableProcessors() / 2
+      }
+    }
+    val resultsDir: ammonite.ops.Path = {
+      import ammonite.ops._
+      val pathText = read(pwd / "configs" / "resultsDir.txt").trim
+      val path = util.Try{
+        pwd / RelPath(pathText)
+      }.getOrElse(Path(pathText))
+      (path / taskName).tap{ d =>
+        lambdanet.printResult(s"save results to directory: $d")
+      }
+    }
+
+    val (mName, eService) = ReportFinish.readEmailInfo(taskName)
+
+    config(
+      threadNumber,
+      resultsDir,
+      Some(EmailRelated(mName, eService))
     ).result()
   }
 
-  case class run(
-      maxTrainingEpochs: Int,
-      numOfThreads: Int
+  case class EmailRelated(machineName: String, emailService: EmailService)
+
+  case class config(
+      numOfThreads: Int,
+      resultsDir: ammonite.ops.Path,
+      emailRelated: Option[EmailRelated],
   ) {
+    val fileLogger =
+      new FileLogger(resultsDir / "console.txt", printToConsole = true)
+    import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
     printInfo(s"Task: $taskName")
-    printInfo(s"maxEpochs = $maxTrainingEpochs, threads = $numOfThreads")
+    printInfo(s"threads = $numOfThreads")
     Timeouts.readFromFile()
+
+    def makeModel(pc: ParamCollection, dataSet: DataSet) = {
+      printResult(s"Message layer: ${NNArchitecture.messageLayers} FC")
+
+      val dimMessage = if (TrainingLoop.useSeqModel) 64 else 32
+      val architecture =
+        if (useSeqModel)
+          SequenceModel.SeqArchitecture(dimMessage, pc)
+        else GATArchitecture(gatHead, dimMessage, pc)
+      //        else SimpleArchitecture(state.dimMessage, pc)
+      printResult(s"NN Architecture: ${architecture.arcName}")
+
+      //      NamingBaseline.test(dataSet)
+      //      MostFreqConstructorBaseline.test(dataSet, useByFreq = false)
+
+      buildModel(
+        dataSet,
+        pc,
+        architecture
+      )
+    }
 
     def result(): Unit = {
       val (state, pc, logger) = loadTrainingState(resultsDir, fileLogger)
-      printResult(s"Message layer: ${NNArchitecture.messageLayers} FC")
 
-      val dataSet =
-        DataSet.loadDataSet(taskSupport, useSeqModel, toyMod, maxLibRatio)
-      val architecture =
-        if (useSeqModel)
-          SequenceModel.SeqArchitecture(state.dimMessage, pc)
-        else GATArchitecture(gatHead, state.dimMessage, pc)
-//        else SimpleArchitecture(state.dimMessage, pc)
-      printResult(s"NN Architecture: ${architecture.arcName}")
+      val repos = DataSet.loadRepos(toyMode)
+      val dataSet = DataSet.makeDataSet(
+        repos,
+        taskSupport,
+        useSeqModel,
+        toyMode,
+      )
+      makeModel(pc,dataSet)
+        .train(maxTrainingEpochs = if (toyMode) 500 else 100, state, logger)
 
-//      NamingBaseline.test(dataSet)
-//      MostFreqConstructorBaseline.test(dataSet, useByFreq = false)
+//      namingHelpfulness(run)
 
-      val run = runOnProjects(
-        dataSet,
-        state,
-        pc,
-        logger,
-        architecture
-      ).train()
-
-//      namingHelpfulness(dataSet, run)
     }
 
-    def namingHelpfulness(dataSet: DataSet, run: runOnProjects): Unit = {
+    def namingHelpfulness(dataSet: DataSet, run: buildModel): Unit = {
       import cats.implicits._
 
       def showCount(c: Counted[Int]): String = {
@@ -138,7 +167,7 @@ object TrainingLoop extends TrainingLoopTrait {
 
       val (helpSet, notHelpSet) =
         (for {
-          datum <- dataSet.trainSet
+          datum <- run.dataSet.trainSet
           predictions = NamingBaseline
             .testOnDatum(datum, useOracle = true, identity)
             .predict(0)
@@ -174,16 +203,14 @@ object TrainingLoop extends TrainingLoopTrait {
     }
 
     //noinspection TypeAnnotation
-    case class runOnProjects(
+    case class buildModel(
         dataSet: DataSet,
-        trainingState: TrainingState,
         pc: ParamCollection,
-        logger: EventLogger,
-        architecture: NNArchitecture
+        architecture: NNArchitecture,
+
     ) {
       import dataSet._
-      import trainingState._
-
+      val dimMessage = architecture.dimEmbedding
       val maxBatchSize = dataSet
         .signalSizeMedian(maxLibRatio)
         .tap(s => printResult(s"maxBatchSize: $s"))
@@ -236,165 +263,375 @@ object TrainingLoop extends TrainingLoopTrait {
 
       var shouldAnnounce: Boolean = true
 
-      def train(): Unit = {
-        val saveInterval = if (toyMod) 40 else 6
+      case class train(
+          maxTrainingEpochs: Int,
+          trainingState: TrainingState,
+          logger: EventLogger
+      ) {
+        import trainingState._
 
-        (trainingState.epoch0 + 1 to maxTrainingEpochs).foreach { epoch =>
-          shouldAnnounce = epoch == 1 // only announce in the first epoch for debugging purpose
-          announced(s"epoch $epoch") {
-            TensorExtension.checkNaN = false // (epoch - 1) % 10 == 0
-            handleExceptions(epoch) {
-              trainStep(epoch)
-              if ((epoch - 1) % 2 == 0)
-                DebugTime.logTime("testSteps") {
-                  testStep(epoch, isTestSet = false)
-                  testStep(epoch, isTestSet = true)
-                }
-              if (epoch == 1 || epoch % saveInterval == 0)
-                DebugTime.logTime("saveTraining") {
-                  saveTraining(epoch, s"epoch$epoch")
-                }
+        def run(): Unit = {
+          (trainingState.epoch0 + 1 to maxTrainingEpochs).foreach { epoch =>
+            shouldAnnounce = epoch == 1 // only announce in the first epoch for debugging purpose
+            announced(s"epoch $epoch") {
+              TensorExtension.checkNaN = false // (epoch - 1) % 10 == 0
+              handleExceptions(epoch) {
+                trainStep(epoch)
+                if ((epoch - 1) % 2 == 0)
+                  DebugTime.logTime("testSteps") {
+                    testStep(epoch, isTestSet = false)
+                    testStep(epoch, isTestSet = true)
+                  }
+                if (epoch == 1 || epoch % saveInterval == 0)
+                  DebugTime.logTime("saveTraining") {
+                    saveTraining(epoch, s"epoch$epoch")
+                  }
+              }
             }
+          }
+
+          saveTraining(maxTrainingEpochs, "finished")
+          emailRelated.foreach{ params =>
+            import params._
+            emailService.sendMail(emailService.userEmail)(
+              s"TypingNet: Training finished on $machineName!",
+              "Training finished!"
+            )
+          }
+
+        }
+
+        val saveInterval = if (toyMode) 40 else 6
+
+        def logAccuracyDetails(
+            stats: Vector[(Datum, ForwardResult)],
+            epoch: Int
+        ) = {
+          import cats.implicits._
+          val str = stats
+            .map {
+              case (d, f) =>
+                val size = d.predGraphOpt.map(_.predicates.size)
+                val acc = toAccuracy(
+                  f.libCorrect.combine(f.projCorrect)
+                )
+                val name = d.projectName
+                s"""{$size, $acc, "$name"}"""
+            }
+            .mkString("{", ",", "}")
+          logger.logString("accuracy-distr", epoch, str)
+        }
+
+        def trainStep(epoch: Int): Unit = {
+          DebugTime.logTime("GC") {
+            System.gc()
+          }
+
+          val startTime = System.nanoTime()
+          val oldOrder = random.shuffle(trainSet)
+          val (h, t) = oldOrder.splitAt(119)
+          val stats = (t ++ h).zipWithIndex.map {
+            case (datum, i) =>
+              import Console.{GREEN, BLUE}
+              announced(
+                s"$GREEN[epoch $epoch]$BLUE train on $datum",
+                shouldAnnounce
+              ) {
+                //              println(DebugTime.show)
+                checkShouldStop(epoch)
+                for {
+                  (loss, fwd, _) <- forward(
+                    datum,
+                    shouldDownsample = true,
+                    shouldDropout = useDropout,
+                    maxBatchSize = Some(maxBatchSize)
+                  ).tap(
+                    _.foreach(
+                      r =>
+                        printResult(
+                          s"(progress: ${i + 1}/${trainSet.size}) " + r._2
+                        )
+                    )
+                  )
+                  _ = checkShouldStop(epoch)
+                } yield {
+                  checkShouldStop(epoch)
+                  def optimize(loss: CompNode) = {
+                    val factor = fwd.loss.count.toDouble / avgAnnotations
+                    optimizer.minimize(
+                      loss * factor,
+                      pc.allParams,
+                      backPropInParallel =
+                        Some(parallelCtx -> Timeouts.optimizationTimeout),
+                      gradientTransform = _.clipNorm(2 * factor),
+                      scaleLearningRate = scaleLearningRate(epoch),
+                      weightDecay = weightDecay
+                    )
+                  }
+
+                  val gradInfo = limitTimeOpt(
+                    s"optimization: $datum",
+                    Timeouts.optimizationTimeout
+                  ) {
+                    announced("optimization", shouldAnnounce) {
+                      val stats = DebugTime.logTime("optimization") {
+                        optimize(loss)
+                      }
+                      calcGradInfo(stats)
+                    }
+                  }.toVector
+
+                  if (debugTime) {
+                    println(DebugTime.show)
+                  }
+                  (fwd, gradInfo, datum)
+                }
+              }
+          }
+
+          import cats.implicits._
+          val (fws, gs, data) = stats.flatMap(_.toVector).unzip3
+
+          import logger._
+
+          fws.combineAll.tap { fwd =>
+            import fwd._
+            logScalar("loss", epoch, toAccuracyD(loss))
+            logScalar("libAcc", epoch, toAccuracy(libCorrect))
+            logScalar("projAcc", epoch, toAccuracy(projCorrect))
+            logConfusionMatrix("confusionMat", epoch, confusionMatrix.value, 2)
+            logAccuracyDetails(data zip fws, epoch)
+          }
+
+          val gradInfo = gs.combineAll
+          gradInfo.unzip3.tap {
+            case (grads, transformed, deltas) =>
+              logScalar("gradient", epoch, grads.sum)
+              logScalar("clippedGradient", epoch, transformed.sum)
+              logScalar("paramDelta", epoch, deltas.sum)
+          }
+
+          logScalar("nameSharpness", epoch, {
+            architecture.layerFactory
+              .getVar('decodingSharpness)(
+                Tensor(0.1).reshape(1, 1)
+              )
+              .value
+              .squeeze()
+          })
+
+          val timeInSec = (System.nanoTime() - startTime).toDouble / 1e9
+          logScalar("iter-time", epoch, timeInSec)
+
+          println(DebugTime.show)
+        }
+
+        def testStep(epoch: Int, isTestSet: Boolean): Unit = {
+          val dataSetName = if (isTestSet) "test" else "dev"
+          val dataSet = if (isTestSet) testSet else devSet
+          announced(s"test on $dataSetName set") {
+            import cats.implicits._
+
+            val (stat, fse1Acc, libTop5Acc, projTop5Acc) = dataSet.flatMap {
+              datum =>
+                checkShouldStop(epoch)
+                announced(s"test on $datum", shouldAnnounce) {
+                  forward(
+                    datum,
+                    shouldDownsample = !isTestSet,
+                    shouldDropout = false,
+                    maxBatchSize = Some(maxBatchSize)
+                  ).map {
+                    case (_, fwd, pred) =>
+                      val (fse1, _, _) = datum.fseAcc
+                        .countTopNCorrect(
+                          1,
+                          pred.mapValuesNow(_.distr.map(_._2)),
+                          onlyCountInSpaceTypes = true
+                        )
+                      val Seq(libTop5, projTop5) = Seq(true, false).map {
+                        fromLib =>
+                          val predictions = pred.map {
+                            case (n, distr) =>
+                              n -> distr.distr.take(5).map(_._2)
+                          }
+                          val nodesMap = datum.nodesToPredict.collect {
+                            case (n, ty)
+                                if predictions.contains(n.n) && ty.madeFromLibTypes == fromLib =>
+                              n.n -> ty
+                          }
+                          QLangAccuracy
+                            .countTopNCorrect(
+                              5,
+                              nodesMap,
+                              predictions,
+                              _ => 1
+                            )
+                            ._1
+                      }
+                      (fwd, fse1, libTop5, projTop5)
+
+                  }.toVector
+                }
+            }.combineAll
+
+            import stat.{
+              libCorrect,
+              projCorrect,
+              confusionMatrix,
+              categoricalAcc
+            }
+            import logger._
+            logScalar(s"$dataSetName-loss", epoch, toAccuracyD(stat.loss))
+            logScalar(s"$dataSetName-libAcc", epoch, toAccuracy(libCorrect))
+            logScalar(s"$dataSetName-libTop5Acc", epoch, toAccuracy(libTop5Acc))
+            logScalar(s"$dataSetName-projAcc", epoch, toAccuracy(projCorrect))
+            logScalar(
+              s"$dataSetName-projTop5Acc",
+              epoch,
+              toAccuracy(projTop5Acc)
+            )
+            printResult(
+              s"lib targets: ${libCorrect.count}, proj targets: ${projCorrect.count}"
+            )
+            logConfusionMatrix(
+              s"$dataSetName-confusionMat",
+              epoch,
+              confusionMatrix.value,
+              2
+            )
+            logScalar(s"$dataSetName-fse-top1", epoch, toAccuracy(fse1Acc))
+            val libTypeAcc = categoricalAcc.filter(_._1.madeFromLibTypes)
+            logString(
+              s"$dataSetName-typeAcc",
+              epoch,
+              typeAccString(libTypeAcc)
+            )
+            val projTypeAcc = categoricalAcc.filterNot(_._1.madeFromLibTypes)
+            logString(
+              s"$dataSetName-proj-typeAcc",
+              epoch,
+              typeAccString(projTypeAcc)
+            )
           }
         }
 
-        saveTraining(maxTrainingEpochs, "finished")
-        emailService.sendMail(emailService.userEmail)(
-          s"TypingNet: Training finished on $machineName!",
-          "Training finished!"
-        )
-      }
+        import ammonite.ops._
 
-      val (machineName, emailService) = ReportFinish.readEmailInfo(taskName)
-      private def handleExceptions(epoch: Int)(f: => Unit): Unit = {
-        try f
-        catch {
-          case ex: Throwable =>
-            val isTimeout = ex.isInstanceOf[TimeoutException]
-            val errorName = if (isTimeout) "timeout" else "stopped"
-            emailService.sendMail(emailService.userEmail)(
-              s"TypingNet: $errorName on $machineName at epoch $epoch",
-              s"Details:\n" + ex.getMessage
-            )
-            if (isTimeout && Timeouts.restartOnTimeout) {
-              printWarning(
-                "Timeout... training restarted (skip one training epoch)..."
-              )
-            } else {
-              if (!ex.isInstanceOf[StopException]) {
-                ex.printStackTrace()
-                saveTraining(epoch, "error-save", skipTest = true)
-              }
-              throw ex
+        private def saveTraining(
+            epoch: Int,
+            dirName: String,
+            skipTest: Boolean = false
+        ): Unit = {
+          announced(s"save training to $dirName") {
+            val saveDir = resultsDir / "saved" / dirName
+            if (!exists(saveDir)) {
+              mkdir(saveDir)
             }
+            // do the following tasks in parallel
+            val tasks = Vector(
+              () => {
+                val savePath = saveDir / "state.serialized"
+                announced("save training state") {
+                  TrainingState(epoch, iterationNum, optimizer)
+                    .saveToFile(savePath)
+                }
+              },
+              () => {
+                announced("save parameters") {
+                  pc.saveToFile(saveDir / "params.serialized")
+                }
+              },
+              () => {
+                val currentLogFile = resultsDir / "log.txt"
+                if (exists(currentLogFile)) {
+                  cp.over(currentLogFile, saveDir / "log.txt")
+                }
+              },
+              () =>
+                if (testSet.nonEmpty && !skipTest) {
+                  import cats.implicits._
+
+                  var progress = 0
+                  val (right, wrong) = testSet.flatMap {
+                    datum =>
+                      checkShouldStop(epoch)
+                      forward(
+                        datum,
+                        shouldDownsample = false,
+                        shouldDropout = false,
+                        maxBatchSize = None
+                      ).map {
+                        case (_, fwd, pred) =>
+                          printResult(
+                            s"(progress: ${progress.tap(_ => progress += 1)}) fwd.toString"
+                          )
+                          DebugTime.logTime("printQSource") {
+                            QLangDisplay.renderProjectToDirectory(
+                              datum.projectName.toString,
+                              datum.qModules,
+                              pred,
+                              datum.predictionSpace.allTypes
+                            )(saveDir / "predictions")
+                          }
+                          (fwd.correctSet, fwd.incorrectSet)
+                      }.toVector
+                  }.combineAll
+
+                  QLangDisplay.renderPredictionIndexToDir(
+                    right,
+                    wrong,
+                    saveDir,
+                    sourcePath = "predictions"
+                  )
+                }
+            )
+
+            tasks.par.foreach(_.apply())
+
+            val dateTime = Calendar.getInstance().getTime
+            write.over(saveDir / "time.txt", dateTime.toString)
+          }
+        }
+
+        @throws[StopException]
+        private def checkShouldStop(epoch: Int): Unit = {
+          if (TrainingControl(resultsDir).shouldStop(consumeFile = true)) {
+            saveTraining(epoch, s"stopped-epoch$epoch")
+            throw StopException("Stopped by 'stop.txt'.")
+          }
+        }
+
+        private def handleExceptions(epoch: Int)(f: => Unit): Unit = {
+          try f
+          catch {
+            case ex: Throwable =>
+              val isTimeout = ex.isInstanceOf[TimeoutException]
+              val errorName = if (isTimeout) "timeout" else "stopped"
+              emailRelated.foreach{ p =>
+                import p._
+                emailService.sendMail(emailService.userEmail)(
+                  s"TypingNet: $errorName on $machineName at epoch $epoch",
+                  s"Details:\n" + ex.getMessage
+                )
+              }
+
+              if (isTimeout && Timeouts.restartOnTimeout) {
+                printWarning(
+                  "Timeout... training restarted (skip one training epoch)..."
+                )
+              } else {
+                if (!ex.isInstanceOf[StopException]) {
+                  ex.printStackTrace()
+                  saveTraining(epoch, "error-save", skipTest = true)
+                }
+                throw ex
+              }
+          }
         }
       }
 
       val random = new util.Random(2)
-
-      def trainStep(epoch: Int): Unit = {
-        DebugTime.logTime("GC") {
-          System.gc()
-        }
-
-        val startTime = System.nanoTime()
-        val oldOrder = random.shuffle(trainSet)
-        val (h, t) = oldOrder.splitAt(119)
-        val stats = (t ++ h).zipWithIndex.map {
-          case (datum, i) =>
-            import Console.{GREEN, BLUE}
-            announced(
-              s"$GREEN[epoch $epoch]$BLUE train on $datum",
-              shouldAnnounce
-            ) {
-//              println(DebugTime.show)
-              checkShouldStop(epoch)
-              for {
-                (loss, fwd, _) <- forward(
-                  datum,
-                  shouldDownsample = true,
-                  shouldDropout = useDropout,
-                  maxBatchSize = Some(maxBatchSize)
-                ).tap(
-                  _.foreach(
-                    r =>
-                      printResult(
-                        s"(progress: ${i + 1}/${trainSet.size}) " + r._2
-                      )
-                  )
-                )
-                _ = checkShouldStop(epoch)
-              } yield {
-                checkShouldStop(epoch)
-                def optimize(loss: CompNode) = {
-                  val factor = fwd.loss.count.toDouble / avgAnnotations
-                  optimizer.minimize(
-                    loss * factor,
-                    pc.allParams,
-                    backPropInParallel =
-                      Some(parallelCtx -> Timeouts.optimizationTimeout),
-                    gradientTransform = _.clipNorm(2 * factor),
-                    scaleLearningRate = scaleLearningRate(epoch),
-                    weightDecay = weightDecay
-                  )
-                }
-
-                val gradInfo = limitTimeOpt(
-                  s"optimization: $datum",
-                  Timeouts.optimizationTimeout
-                ) {
-                  announced("optimization", shouldAnnounce) {
-                    val stats = DebugTime.logTime("optimization") {
-                      optimize(loss)
-                    }
-                    calcGradInfo(stats)
-                  }
-                }.toVector
-
-                if (debugTime) {
-                  println(DebugTime.show)
-                }
-                (fwd, gradInfo, datum)
-              }
-            }
-        }
-
-        import cats.implicits._
-        val (fws, gs, data) = stats.flatMap(_.toVector).unzip3
-
-        import logger._
-
-        fws.combineAll.tap { fwd =>
-          import fwd._
-          logScalar("loss", epoch, toAccuracyD(loss))
-          logScalar("libAcc", epoch, toAccuracy(libCorrect))
-          logScalar("projAcc", epoch, toAccuracy(projCorrect))
-          logConfusionMatrix("confusionMat", epoch, confusionMatrix.value, 2)
-          logAccuracyDetails(data zip fws, epoch)
-        }
-
-        val gradInfo = gs.combineAll
-        gradInfo.unzip3.tap {
-          case (grads, transformed, deltas) =>
-            logScalar("gradient", epoch, grads.sum)
-            logScalar("clippedGradient", epoch, transformed.sum)
-            logScalar("paramDelta", epoch, deltas.sum)
-        }
-
-        logScalar("nameSharpness", epoch, {
-          architecture.layerFactory
-            .getVar('decodingSharpness)(
-              Tensor(0.1).reshape(1, 1)
-            )
-            .value
-            .squeeze()
-        })
-
-        val timeInSec = (System.nanoTime() - startTime).toDouble / 1e9
-        logScalar("iter-time", epoch, timeInSec)
-
-        println(DebugTime.show)
-      }
 
       private def typeAccString(accs: Map[PType, Counted[Correct]]): String = {
         val (tys, counts) = accs.toVector.sortBy { c =>
@@ -407,103 +644,6 @@ object TrainingLoop extends TrainingLoopTrait {
           .map(c => s"{${c.count}, ${c.value}}")
           .mkString("{", ",", "}")
         s"{$typeStr,$countStr}"
-      }
-
-      private def logAccuracyDetails(
-          stats: Vector[(Datum, ForwardResult)],
-          epoch: Int
-      ) = {
-        import cats.implicits._
-        val str = stats
-          .map {
-            case (d, f) =>
-              val size = d.predGraphOpt.map(_.predicates.size)
-              val acc = toAccuracy(
-                f.libCorrect.combine(f.projCorrect)
-              )
-              val name = d.projectName
-              s"""{$size, $acc, "$name"}"""
-          }
-          .mkString("{", ",", "}")
-        logger.logString("accuracy-distr", epoch, str)
-      }
-
-      def testStep(epoch: Int, isTestSet: Boolean): Unit = {
-        val dataSetName = if (isTestSet) "test" else "dev"
-        val dataSet = if (isTestSet) testSet else devSet
-        announced(s"test on $dataSetName set") {
-          import cats.implicits._
-
-          val (stat, fse1Acc, libTop5Acc, projTop5Acc) = dataSet.flatMap {
-            datum =>
-              checkShouldStop(epoch)
-              announced(s"test on $datum", shouldAnnounce) {
-                forward(
-                  datum,
-                  shouldDownsample = !isTestSet,
-                  shouldDropout = false,
-                  maxBatchSize = Some(maxBatchSize)
-                ).map {
-                  case (_, fwd, pred) =>
-                    val (fse1, _, _) = datum.fseAcc
-                      .countTopNCorrect(
-                        1,
-                        pred.mapValuesNow(_.distr.map(_._2)),
-                        onlyCountInSpaceTypes = true
-                      )
-                    val Seq(libTop5, projTop5) = Seq(true, false).map {
-                      fromLib =>
-                        val predictions = pred.map {
-                          case (n, distr) => n -> distr.distr.take(5).map(_._2)
-                        }
-                        val nodesMap = datum.nodesToPredict.collect {
-                          case (n, ty)
-                              if predictions.contains(n.n) && ty.madeFromLibTypes == fromLib =>
-                            n.n -> ty
-                        }
-                        QLangAccuracy
-                          .countTopNCorrect(
-                            5,
-                            nodesMap,
-                            predictions,
-                            _ => 1
-                          )
-                          ._1
-                    }
-                    (fwd, fse1, libTop5, projTop5)
-
-                }.toVector
-              }
-          }.combineAll
-
-          import stat.{libCorrect, projCorrect, confusionMatrix, categoricalAcc}
-          import logger._
-          logScalar(s"$dataSetName-loss", epoch, toAccuracyD(stat.loss))
-          logScalar(s"$dataSetName-libAcc", epoch, toAccuracy(libCorrect))
-          logScalar(s"$dataSetName-libTop5Acc", epoch, toAccuracy(libTop5Acc))
-          logScalar(s"$dataSetName-projAcc", epoch, toAccuracy(projCorrect))
-          logScalar(s"$dataSetName-projTop5Acc", epoch, toAccuracy(projTop5Acc))
-          printResult(s"lib targets: ${libCorrect.count}, proj targets: ${projCorrect.count}")
-          logConfusionMatrix(
-            s"$dataSetName-confusionMat",
-            epoch,
-            confusionMatrix.value,
-            2
-          )
-          logScalar(s"$dataSetName-fse-top1", epoch, toAccuracy(fse1Acc))
-          val libTypeAcc = categoricalAcc.filter(_._1.madeFromLibTypes)
-          logString(
-            s"$dataSetName-typeAcc",
-            epoch,
-            typeAccString(libTypeAcc)
-          )
-          val projTypeAcc = categoricalAcc.filterNot(_._1.madeFromLibTypes)
-          logString(
-            s"$dataSetName-proj-typeAcc",
-            epoch,
-            typeAccString(projTypeAcc)
-          )
-        }
       }
 
       def calcGradInfo(stats: Optimizer.OptimizeStats) = {
@@ -690,12 +830,6 @@ object TrainingLoop extends TrainingLoopTrait {
           (loss, fwd, predictions)
         }
 
-      @throws[TimeoutException]
-      private def limitTime[A](timeLimit: Timeouts.Duration)(f: => A): A = {
-        val exec = scala.concurrent.ExecutionContext.global
-        Await.result(Future(f)(exec), timeLimit)
-      }
-
       private def limitTimeOpt[A](
           name: String,
           timeLimit: Timeouts.Duration
@@ -706,100 +840,24 @@ object TrainingLoop extends TrainingLoopTrait {
           case _: TimeoutException =>
             val msg = s"$name exceeded time limit $timeLimit."
             printWarning(msg)
-            emailService.atFirstTime {
-              emailService.sendMail(emailService.userEmail)(
-                s"TypingNet: timeout on $machineName during $name",
-                s"Details:\n" + msg
-              )
+            emailRelated.foreach{ e=>
+              import e._
+              emailService.atFirstTime {
+                emailService.sendMail(emailService.userEmail)(
+                  s"TypingNet: timeout on $machineName during $name",
+                  s"Details:\n" + msg
+                )
+              }
             }
+
             None
         }
       }
 
-      import ammonite.ops._
-
-      private def saveTraining(
-          epoch: Int,
-          dirName: String,
-          skipTest: Boolean = false
-      ): Unit = {
-        announced(s"save training to $dirName") {
-          val saveDir = resultsDir / "saved" / dirName
-          if (!exists(saveDir)) {
-            mkdir(saveDir)
-          }
-          // do the following tasks in parallel
-          val tasks = Vector(
-            () => {
-              val savePath = saveDir / "state.serialized"
-              announced("save training state") {
-                TrainingState(epoch, dimMessage, iterationNum, optimizer)
-                  .saveToFile(savePath)
-              }
-            },
-            () => {
-              announced("save parameters") {
-                pc.saveToFile(saveDir / "params.serialized")
-              }
-            },
-            () => {
-              val currentLogFile = resultsDir / "log.txt"
-              if (exists(currentLogFile)) {
-                cp.over(currentLogFile, saveDir / "log.txt")
-              }
-            },
-            () =>
-              if (testSet.nonEmpty && !skipTest) {
-                import cats.implicits._
-
-                var progress = 0
-                val (right, wrong) = testSet.flatMap {
-                  datum =>
-                    checkShouldStop(epoch)
-                    forward(
-                      datum,
-                      shouldDownsample = false,
-                      shouldDropout = false,
-                      maxBatchSize = None
-                    ).map {
-                      case (_, fwd, pred) =>
-                        printResult(
-                          s"(progress: ${progress.tap(_ => progress += 1)}) fwd.toString"
-                        )
-                        DebugTime.logTime("printQSource") {
-                          QLangDisplay.renderProjectToDirectory(
-                            datum.projectName.toString,
-                            datum.qModules,
-                            pred,
-                            datum.predictionSpace.allTypes
-                          )(saveDir / "predictions")
-                        }
-                        (fwd.correctSet, fwd.incorrectSet)
-                    }.toVector
-                }.combineAll
-
-                QLangDisplay.renderPredictionIndexToDir(
-                  right,
-                  wrong,
-                  saveDir,
-                  sourcePath = "predictions"
-                )
-              }
-          )
-
-          tasks.par.foreach(_.apply())
-
-          val dateTime = Calendar.getInstance().getTime
-          write.over(saveDir / "time.txt", dateTime.toString)
-        }
-      }
-
-      @throws[StopException]
-      private def checkShouldStop(epoch: Int): Unit = {
-        if (TrainingControl(resultsDir).shouldStop(consumeFile = true)) {
-          saveTraining(epoch, s"stopped-epoch$epoch")
-          throw StopException("Stopped by 'stop.txt'.")
-        }
+      @throws[TimeoutException]
+      private def limitTime[A](timeLimit: Timeouts.Duration)(f: => A): A = {
+        val exec = scala.concurrent.ExecutionContext.global
+        Await.result(Future(f)(exec), timeLimit)
       }
 
       private def analyzeDecoding(
@@ -864,8 +922,14 @@ object TrainingLoop extends TrainingLoopTrait {
     }
 
     private def countCorrect(isLibType: Boolean) = {
-      val correct = correctSet.count(_._2.madeFromLibTypes == isLibType)
-      val incorrect = incorrectSet.count(_._2.madeFromLibTypes == isLibType)
+      filterCount(_._2.madeFromLibTypes == isLibType)
+    }
+
+    private def filterCount(
+        filter: ((PNode, PType, ProjectPath)) => Boolean
+    ) = {
+      val correct = correctSet.count(filter)
+      val incorrect = incorrectSet.count(filter)
       Counted(correct + incorrect, correct)
     }
 

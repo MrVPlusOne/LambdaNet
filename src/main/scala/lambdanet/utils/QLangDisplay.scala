@@ -125,7 +125,7 @@ object QLangDisplay {
                   }
                 val idToDisplay = s"annot-${x.getId}"
                 span(id := idToDisplay)(annot)
-              case Annot.Fixed(t) => span(": [fix]", "t")
+              case Annot.Fixed(t) => span(": [fix]", t)
               case Annot.Missing  => ""
             }
           case None => error("[Truth Missing]")

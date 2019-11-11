@@ -470,7 +470,7 @@ object PrepareRepos {
       ProgramParsing
         .parseGProjectFromRoot(
           declarationsDir,
-          declarationFileMod = true
+          declarationFileMode = true
         )
 
     println("parsing PModules...")
@@ -606,7 +606,7 @@ object PrepareRepos {
         projectRoot,
         filter = (path: Path) => {
           path.segments.forall(!skipSet.contains(_))
-        }
+        },
       )
 
       if (shouldPrintProject) println { p.prettyPrint }
@@ -648,6 +648,7 @@ object PrepareRepos {
 
       errorHandler.warnErrors()
       printResult(s"Project parsed: '$projectRoot'")
+      println("number of nodes: " + graph.nodes.size)
 
       ParsedProject(projectName, qModules, irModules, graph)
     }

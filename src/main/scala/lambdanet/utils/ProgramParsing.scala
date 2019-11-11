@@ -29,6 +29,7 @@ object ProgramParsing {
       devDependencies: Set[ProjectPath]
   )
   def parsePackageFile(path: Path): PackageFile = {
+    println(s"parse package file: $path, segs: ${path.segments}")
     val map = asObj(parseJsonFromFile(path))
     PackageFile(
       moduleName = map.get("name").map(s => RelPath(asString(s))),
@@ -86,13 +87,17 @@ object ProgramParsing {
 
   def parseGProjectFromRoot(
       root: Path,
-      declarationFileMod: Boolean = false,
+      declarationFileMode: Boolean = false,
       filter: Path => Boolean = _ => true
   ): GProject = {
+    val packageFiles =
+      ls.rec(root)
+        .filter(f => filter(f) && f.last == "package.json")
+        .map(f => f -> parsePackageFile(f))
     val subProjects =
       (for {
-        f <- ls.rec(root) if f.last == "package.json"
-        name <- parsePackageFile(f).moduleName
+        (f, pkg) <- packageFiles
+        name <- pkg.moduleName
       } yield {
         def isIndexFile(p: FilePath): Boolean = {
           p.last == "index.ts" || p.last == "index.d.ts"
@@ -142,11 +147,12 @@ object ProgramParsing {
       .filter(_.isFile)
       .filter { f =>
         val name = f.last
-        if (declarationFileMod) name.endsWith(".d.ts")
-        else
+        if (declarationFileMode) name.endsWith(".d.ts")
+        else {
           name.endsWith(".ts") ||
           name.endsWith(".d.ts") ||
           name.endsWith(".tsx")
+        }
       }
       .map(_.relativeTo(root))
 
@@ -155,9 +161,8 @@ object ProgramParsing {
       else Set(p)
     }
 
-    val devDependencies = (for {
-      f <- ls.rec(root) if f.last == "package.json"
-    } yield parsePackageFile(f))
+    val devDependencies = packageFiles
+      .map(_._2)
       .toSet[PackageFile]
       .flatMap(_.devDependencies.flatMap(handleTypesPrefix))
 
@@ -648,13 +653,19 @@ case class ProgramParsing() {
 
           val tyVars = asVector(map("tyVars")).map(asSymbol)
           val ms = parseModifiers(map("modifiers"))
-          val name = if(ms.isAsync) "$Async_" + name0 else name0
+          val name = if (ms.isAsync) "$Async_" + name0 else name0
           Vector(
-            FuncDef(Symbol(name), tyVars, args, returnType, body, ms.exportLevel).tap {
-              f =>
-                map.get("publicVars").foreach { pv =>
-                  f.publicVars = asVector(pv).map(asSymbol).toSet
-                }
+            FuncDef(
+              Symbol(name),
+              tyVars,
+              args,
+              returnType,
+              body,
+              ms.exportLevel
+            ).tap { f =>
+              map.get("publicVars").foreach { pv =>
+                f.publicVars = asVector(pv).map(asSymbol).toSet
+              }
             }
           )
         case "TypeAliasStmt" =>

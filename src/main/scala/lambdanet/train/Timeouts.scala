@@ -20,6 +20,7 @@ object Timeouts {
       printWarning(
         s"Timeouts file not found under '$file', use default timeout values"
       )
+      return
     }
     import ProgramParsing._
     val text = read(file)

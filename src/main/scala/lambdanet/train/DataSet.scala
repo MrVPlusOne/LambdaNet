@@ -3,6 +3,7 @@ package lambdanet.train
 import lambdanet._
 import lambdanet.translation.PredicateGraph._
 import NeuralInference._
+import lambdanet.PrepareRepos.ParsedRepos
 import lambdanet.SequenceModel.{SeqArchitecture, SeqPredictor}
 import lambdanet.architecture.NNArchitecture
 import lambdanet.translation.ImportsResolution.NameDef
@@ -33,31 +34,36 @@ case class DataSet(
 }
 
 object DataSet {
-  def loadDataSet(
-      taskSupport: Option[ForkJoinTaskSupport],
-      useSeqModel: Boolean,
-      toyMod: Boolean,
-      maxLibRatio: Double
-  ): DataSet = {
+  def loadRepos(toyMode: Boolean): PrepareRepos.ParsedRepos = {
     import PrepareRepos._
     import ammonite.ops._
 
-    printResult(s"Is toy data set? : $toyMod")
-    val repos @ ParsedRepos(libDefs, trainSet, devSet, testSet) =
-      if (toyMod) {
-        val base = pwd / up / "lambda-repos" / "small"
-        val (libDefs, Seq(trainSet, devSet, testSet)) = parseRepos(
-          Seq(base / "trainSet", base / "devSet", base / "testSet"),
-          loadFromFile = true,
-          inParallel = true
-        )
-        ParsedRepos(libDefs, trainSet, devSet, testSet)
-      } else {
-        announced(s"read data set from dir '$parsedReposDir'") {
-          ParsedRepos.readFromDir(parsedReposDir)
-        }
+    printResult(s"Is toy data set? : $toyMode")
+    if (toyMode) {
+      val base = pwd / up / "lambda-repos" / "small"
+      val (libDefs, Seq(trainSet, devSet, testSet)) = parseRepos(
+        Seq(base / "trainSet", base / "devSet", base / "testSet"),
+        loadFromFile = true,
+        inParallel = true
+      )
+      ParsedRepos(libDefs, trainSet, devSet, testSet)
+    } else {
+      announced(s"read data set from dir '$parsedReposDir'") {
+        ParsedRepos.readFromDir(parsedReposDir)
       }
+    }
+  }
 
+  def makeDataSet(
+      repos: ParsedRepos,
+      taskSupport: Option[ForkJoinTaskSupport],
+      useSeqModel: Boolean,
+      toyMode: Boolean,
+      testSetUseInferred: Boolean = false
+  ) = {
+    import PrepareRepos._
+
+    val ParsedRepos(libDefs, trainSet, devSet, testSet) = repos
     val libTypesToPredict: Set[LibTypeNode] =
       selectLibTypes(
         libDefs,
@@ -70,7 +76,7 @@ object DataSet {
     var inSpace = Counted(0, 0)
     val data: Vector[Vector[Datum]] = {
       ((trainSet ++ devSet).zip(Stream.continually(true)) ++
-        testSet.zip(Stream.continually(false))).toVector.par.map {
+        testSet.zip(Stream.continually(testSetUseInferred))).toVector.par.map {
         case (p @ ParsedProject(path, qModules, irModules, g), useInferred) =>
           val (predictor, predSpace) = if (useSeqModel) {
             val pSpace = PredictionSpace(

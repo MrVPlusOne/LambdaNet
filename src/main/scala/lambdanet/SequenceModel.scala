@@ -14,7 +14,7 @@ import scala.collection.GenSeq
 import scala.collection.parallel.ForkJoinTaskSupport
 import scala.language.implicitConversions
 
-/** fixme: some PNode type annotations are missing when tokenizing */
+/** An adaption of the architecture from DeepTyper */
 object SequenceModel {
 
   def main(args: Array[String]): Unit = {
