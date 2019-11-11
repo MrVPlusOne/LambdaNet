@@ -59,6 +59,7 @@ object DataSet {
       taskSupport: Option[ForkJoinTaskSupport],
       useSeqModel: Boolean,
       toyMode: Boolean,
+      onlyPredictLibType: Boolean,
       testSetUseInferred: Boolean = false
   ) = {
     import PrepareRepos._
@@ -91,7 +92,7 @@ object DataSet {
               libTypesToPredict,
               libDefs,
               taskSupport,
-              onlyPredictLibType = false
+              onlyPredictLibType
             )
             Right(predictor) -> predictor.predictionSpace
           }

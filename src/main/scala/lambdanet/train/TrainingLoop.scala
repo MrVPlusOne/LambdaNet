@@ -33,6 +33,7 @@ object TrainingLoop {
   val projWeight: Real = maxLibRatio
   val gatHead = 1
   val weightDecay: Option[Real] = Some(1e-4)
+  val onlyPredictLibType = false
 
   val debugTime: Boolean = false
 
@@ -150,6 +151,7 @@ object TrainingLoop {
         taskSupport,
         useSeqModel,
         toyMode,
+        onlyPredictLibType
       )
       makeModel(pc,dataSet)
         .train(maxTrainingEpochs = if (toyMode) 500 else 100, state, logger)
