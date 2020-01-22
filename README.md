@@ -10,4 +10,4 @@ After cloning this repo, here are the steps to reproduce our experimental result
  - filter and prepare the TS projects into a serialization format
  - start the training
 
-The results of manual comparison with JSNice is available under the directory `data/comparison/`.
+Our main results are present in the paper. The Typescript files used for manual comparison with JSNice are put under the directory `data/comparison/`.
