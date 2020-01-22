@@ -39,7 +39,7 @@ object RunTrainedModel {
       Some(new ForkJoinTaskSupport(new ForkJoinPool(numOfThreads))),
       useSeqModel = false,
       toyMode = false,
-      testSetUseInferred = true,
+      testSetUseInferred = false,
       onlyPredictLibType = true,
     )
 
@@ -132,8 +132,8 @@ object RunTrainedModel {
 //      "../lambda-repos/newParsing-GAT1-fc2-newSim-decay-6/params.serialized"
       "../lambda-repos/newParsing-lib-GAT1-fc2-newSim-decay-6/params.serialized"
     )
-//    val sourcePath = pwd / RelPath("data/js-algorithms")
-    val sourcePath = pwd / RelPath("../lambda-repos/playground")
+    val sourcePath = pwd / RelPath("data/comparison")
+//    val sourcePath = pwd / RelPath("../lambda-repos/playground")
 
     val outputPath = sourcePath
 
