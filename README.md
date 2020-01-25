@@ -1,5 +1,3 @@
-# LambdaNet
-
 <img src="images/Logo.png" width="200" height="215" alt="Logo"/>
 
 This is the source code repo for the ICLR paper [*LambdaNet: Probabilistic Type Inference using Graph Neural Networks*](https://openreview.net/forum?id=Hkx6hANtwH).
