@@ -40,7 +40,8 @@ object RunTrainedModel {
       useSeqModel = false,
       toyMode = false,
       testSetUseInferred = false,
-      onlyPredictLibType = true,
+      // todo: change this if you want to predict user defined types
+      onlyPredictLibType = true
     )
 
     val pc = ParamCollection.fromFile(paramPath)
@@ -51,6 +52,7 @@ object RunTrainedModel {
     }
 
     val datum = dataSet.testSet.head
+    // runs the model on the test set
     val (_, fwd, pred) = model
       .forward(
         datum,
@@ -71,19 +73,23 @@ object RunTrainedModel {
     println("projectAccuracy: " + toAccuracy(fwd.projCorrect))
   }
 
+  /** Renames js files as ts files (needed to run our tool on js files)  */
   def renameToTs() = {
-    val r = pwd / RelPath("../lambda-repos/javascript-algorithms-ts")
-    for { f <- ls.rec(r) if f.ext == "js" } {
+    val jsFiles = pwd / RelPath("../lambda-repos/javascript-algorithms-ts")
+    for { f <- ls.rec(jsFiles) if f.ext == "js" } {
       def changeExtension(name: String, old: String, newExt: String): String = {
         name.dropRight(old.length) + newExt
       }
       mv(
         f,
-        r / RelPath(changeExtension(f.relativeTo(r).toString(), "js", "ts"))
+        jsFiles / RelPath(
+          changeExtension(f.relativeTo(jsFiles).toString(), "js", "ts")
+        )
       )
     }
   }
 
+  /** Checks predictions on a class of simple functions */
   def searchForFunctions() = {
     import translation.QLang._
     val unknownType = NameDef.unknownType
@@ -97,7 +103,7 @@ object RunTrainedModel {
     }
 
     def isValidName(name: String): Boolean = {
-      ! name.contains("$Lambda") && ! name.contains("CONSTRUCTOR")
+      !name.contains("$Lambda") && !name.contains("CONSTRUCTOR")
     }
 
     val random = new Random(1)
@@ -128,10 +134,12 @@ object RunTrainedModel {
   def main(args: Array[String]): Unit = {
 //    searchForFunctions()
 
+    // todo: choose the trained weights depending on if to predict user defined types
     val paramPath = pwd / RelPath(
 //      "../lambda-repos/newParsing-GAT1-fc2-newSim-decay-6/params.serialized"
       "../lambda-repos/newParsing-lib-GAT1-fc2-newSim-decay-6/params.serialized"
     )
+    // todo: change this to the root directory of the target TS project to predict
     val sourcePath = pwd / RelPath("data/comparison")
 //    val sourcePath = pwd / RelPath("../lambda-repos/playground")
 
