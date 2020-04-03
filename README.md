@@ -1,4 +1,4 @@
-<img src="images/Logo.png" width="800" alt="Logo"/>
+<img src="images/Header.png" width="800" alt="LambdaNet Header"/>
 
 This is the source code repo for the ICLR paper [*LambdaNet: Probabilistic Type Inference using Graph Neural Networks*](https://openreview.net/forum?id=Hkx6hANtwH). For an overview of how LambdaNet works, see [our poster](LambdaNet-Poster.pdf) (Github might not display the fonts correctly).
 
