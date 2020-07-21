@@ -7,8 +7,8 @@ After cloning this repo, here are the steps to reproduce our experimental result
 
  1. Install all the dependencies (Java, sbt, Typescript, etc.) See the "Using Docker" section below.
  2. To run pre-trained model
-    1. download the model weights and put them under `<project root>/models`. 
-    2. Check the file `src/main/scala/lambdanet/RunTrainedModel.scala` and change the parameters under the todo comments depending on which model you want to run and where your target TS files are located. 
+    1. download the model weights using [this Google Drive link](https://drive.google.com/file/d/1NvEVQ4-5tC3Nc-Mzpu3vYeyEcaM_zEgV/view?usp=sharing), unzip the file, and put the `models` file under the project root. 
+    2. Check the file `src/main/scala/lambdanet/RunTrainedModel.scala` and change the parameters under the todo comments depending on which model you want to run and where your test TypeScript files are located. (Currently, LambdaNet only works with Typescript files, so if you want to run it on Javascript files, you will need to change the file extensions to `.ts`.)
     3. Under project root, use `sbt runTrained` to run the model.
  3. To train LambdaNet from scratch 
     1. Download the Typescript projects used in our experiments.
