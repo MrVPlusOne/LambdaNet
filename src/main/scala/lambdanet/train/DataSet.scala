@@ -36,11 +36,9 @@ case class DataSet(
 object DataSet {
   def loadRepos(toyMode: Boolean): PrepareRepos.ParsedRepos = {
     import PrepareRepos._
-    import ammonite.ops._
-
     printResult(s"Is toy data set? : $toyMode")
     if (toyMode) {
-      val base = pwd / up / "lambda-repos" / "small"
+      val base = reposDir / "small"
       val (libDefs, Seq(trainSet, devSet, testSet)) = parseRepos(
         Seq(base / "trainSet", base / "devSet", base / "testSet"),
         loadFromFile = true,

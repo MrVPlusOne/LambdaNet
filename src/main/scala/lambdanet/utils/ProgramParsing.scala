@@ -202,7 +202,12 @@ object ProgramParsing {
   def parseGModulesFromFiles(
       srcFiles: Seq[RelPath],
       projectRoot: Path
-  ): Vector[GModule] = {
+  ): Vector[GModule] = SimpleMath.withErrorMessage{
+    val command = s"node ${pwd / RelPath("scripts/ts/parsingFromFile.js")} " +
+      s"--src ${srcFiles.mkString(" ")}" +
+      s"--lib ${srcFiles.mkString(" ")}"
+    s"Failed command: $command"
+  }{
     val r = %%(
       'node,
       pwd / RelPath("scripts/ts/parsingFromFile.js"),

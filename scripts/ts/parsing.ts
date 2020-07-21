@@ -1,5 +1,5 @@
 import * as ts from "typescript";
-import {SyntaxKind} from "typescript";
+import {ExportSpecifier, NodeArray, SyntaxKind} from "typescript";
 
 
 export class GModule {
@@ -159,8 +159,8 @@ function parseTypeMember(member: ts.NamedDeclaration): NamedValue<GType> {
     } else {
       throw new Error("Unknown type member kind: " + SyntaxKind[member.kind]);
     }
-  } else if ([SyntaxKind.IndexSignature, SyntaxKind.CallSignature,
-    SyntaxKind.ConstructSignature].includes(member.kind)) {
+  } else if (([SyntaxKind.IndexSignature, SyntaxKind.CallSignature,
+    SyntaxKind.ConstructSignature] as SyntaxKind[]).includes(member.kind)) {
     let sig = member as ts.IndexSignatureDeclaration | ts.CallSignatureDeclaration | ts.ConstructSignatureDeclaration;
     let methodName = sig.kind == SyntaxKind.IndexSignature ? "access"
       : (sig.kind == SyntaxKind.ConstructSignature ? "CONSTRUCTOR" : "call");
@@ -631,7 +631,8 @@ export function parseExpr(node: ts.Expression,
 
       // Special treatments:
       case SyntaxKind.SpreadElement: {
-        return new FuncCall(SpecialVars.spread, [rec(n.expression)], infer());
+        const n1 = (n as ts.SpreadElement).expression
+        return new FuncCall(SpecialVars.spread, [rec(n1)], infer());
       }
       case SyntaxKind.TypeOfExpression: {
         return new FuncCall(SpecialVars.typeOf, [rec(n.expression)], infer());
@@ -783,7 +784,7 @@ export class StmtParser {
     function parseFunction(name: string,
                            n: ts.FunctionLikeDeclaration | ts.IndexSignatureDeclaration,
                            modifiers: string[]): FuncDef {
-      function inferRetType() {
+      function inferRetType(): GMark {
         if (n.type) {
           return parseMark(n.type, undefined);
         }
@@ -999,7 +1000,7 @@ export class StmtParser {
           case SyntaxKind.SetAccessor:
           case SyntaxKind.Constructor: {
             let name = (node.kind == SyntaxKind.Constructor) ? "Constructor" :
-              useOrElse((node as any).name, x => parsePropertyName(x), "defaultFunc");
+              useOrElse((node as any).name, (x: any) => parsePropertyName(x), "defaultFunc");
             let n = <ts.FunctionLikeDeclaration>node;
             const modifiers = parseModifiers(n.modifiers);
             if (node.kind == SyntaxKind.SetAccessor) {
@@ -1159,7 +1160,8 @@ export class StmtParser {
             const n = node as ts.ExportDeclaration;
             const path = n.moduleSpecifier ? (n.moduleSpecifier as ts.StringLiteral).text : null;
             if (n.exportClause) {
-              const exports = n.exportClause.elements.map(s => {
+              const clause: ts.NamespaceExport = n.exportClause
+              const exports = clause.elements.map((s: ExportSpecifier) => {
                 const newName = s.name.text;
                 if (s.propertyName) {
                   return new ExportSingle(s.propertyName.text, newName, path);

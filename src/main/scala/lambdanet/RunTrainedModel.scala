@@ -13,15 +13,17 @@ import scala.util.Random
 
 object RunTrainedModel {
 
+  val modelDir: Path = pwd / "models"
+
   def runTrainedModel(
       paramPath: Path,
       sourcePath: Path,
       outputPath: Path,
       numOfThreads: Int = 8
-  ) = {
+  ): Unit = {
     import PrepareRepos._
 
-    val repos = DataSet.loadRepos(toyMode = false)
+    val repos = ParsedRepos.readFromDir(parsedReposDir)
     val libDefs = repos.libDefs
     val handler = ErrorHandler(ErrorHandler.StoreError, ErrorHandler.StoreError)
     val testProject =
@@ -40,12 +42,12 @@ object RunTrainedModel {
       useSeqModel = false,
       toyMode = false,
       testSetUseInferred = false,
-      // todo: change this if you want to predict user defined types
-      onlyPredictLibType = true
+      //todo: change this if you want to predict user defined types
+      onlyPredictLibType = false
     )
 
-    val pc = ParamCollection.fromFile(paramPath)
     val model = announced("Loading model...") {
+      val pc = ParamCollection.fromFile(paramPath)
       TrainingLoop
         .config(numOfThreads = 8, pwd / "test-trained", None)
         .makeModel(pc, dataSet)
@@ -75,7 +77,7 @@ object RunTrainedModel {
 
   /** Renames js files as ts files (needed to run our tool on js files)  */
   def renameToTs() = {
-    val jsFiles = pwd / RelPath("../lambda-repos/javascript-algorithms-ts")
+    val jsFiles = PrepareRepos.reposDir / RelPath("javascript-algorithms-ts")
     for { f <- ls.rec(jsFiles) if f.ext == "js" } {
       def changeExtension(name: String, old: String, newExt: String): String = {
         name.dropRight(old.length) + newExt
@@ -133,15 +135,13 @@ object RunTrainedModel {
 
   def main(args: Array[String]): Unit = {
 //    searchForFunctions()
-
     // todo: choose the trained weights depending on if to predict user defined types
-    val paramPath = pwd / RelPath(
-//      "../lambda-repos/newParsing-GAT1-fc2-newSim-decay-6/params.serialized"
-      "../lambda-repos/newParsing-lib-GAT1-fc2-newSim-decay-6/params.serialized"
+    val paramPath = modelDir / RelPath(
+      "newParsing-GAT1-fc2-newSim-decay-6/params.serialized"
+//      "newParsing-lib-GAT1-fc2-newSim-decay-6/params.serialized"
     )
     // todo: change this to the root directory of the target TS project to predict
-    val sourcePath = pwd / RelPath("data/comparison")
-//    val sourcePath = pwd / RelPath("../lambda-repos/playground")
+    val sourcePath = pwd / RelPath("data/ts-algorithms")
 
     val outputPath = sourcePath
 

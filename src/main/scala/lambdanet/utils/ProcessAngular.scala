@@ -24,8 +24,9 @@ object ProcessAngular {
   }
 
   def main(args: Array[String]): Unit = {
+    import lambdanet.PrepareRepos
     process(
-      Path("/Users/weijiayi/Programming/lambda-repos/declarations/angular")
+      PrepareRepos.reposDir / RelPath("/declarations/angular")
     )
   }
 

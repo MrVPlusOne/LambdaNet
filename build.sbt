@@ -3,7 +3,7 @@ name := "LambdaNet"
 version := "0.3"
 
 organization in ThisBuild := "mrvplusone.github.io"
-scalaVersion in ThisBuild := "2.12.9"
+scalaVersion in ThisBuild := "2.12.10"
 
 scalacOptions ++= Seq(
   "-feature",
@@ -22,7 +22,7 @@ val memories = {
     val r = s.getLines().toList.map(_.trim.toInt)
     s.close()
     r
-  }else List(8,20) // default heap and off-heap limit
+  }else List(5,7) // default heap and off-heap limit
 }
 val heapLimit = memories.head
 val offHeapLimit = memories(1)
@@ -79,3 +79,7 @@ prepareRepos :=
   (runMain in Compile).toTask(" lambdanet.PrepareRepos").value
 
 TaskKey[Unit]("prepareAndTrain") := Def.sequential(prepareRepos, train).value
+
+val runTrained = taskKey[Unit]("run trained model")
+runTrained :=
+  (runMain in Compile).toTask(" lambdanet.RunTrainedModel").value

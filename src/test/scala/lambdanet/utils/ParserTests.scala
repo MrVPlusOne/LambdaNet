@@ -169,10 +169,7 @@ class ParserTests extends WordSpec with MyTest {
         SimpleMath.readObjectFromFile[LibDefs](libDefsFile.toIO)
       }
 
-//    val libDefs = parseLibDefs().tap{ SimpleMath.saveObjectToFile(libDefsFile.toIO)}
-
     val dir = pwd / RelPath(
-//      "../lambda-repos/small/testSet/gigobyte_ui-stack"
       "data/tests/weirdInterfaces"
     )
     val parsed@ParsedProject(_, qModules, irModules, g) =

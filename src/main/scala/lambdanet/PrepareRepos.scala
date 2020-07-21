@@ -23,6 +23,7 @@ import lambdanet.translation.PredicateGraph.{
 import lambdanet.translation.QLang.QModule
 import lambdanet.utils.ProgramParsing
 import lambdanet.utils.ProgramParsing.GProject
+import lambdanet.train.DataSet
 
 import scala.collection.{immutable, mutable}
 import scala.util.Random
@@ -46,11 +47,12 @@ case class LibDefs(
 }
 
 object PrepareRepos {
-  val libDefsFile: Path = pwd / up / "lambda-repos" / "libDefs.serialized"
+  val reposDir: Path = pwd / up / "lambda-repos"
+  val libDefsFile: Path = reposDir / "libDefs.serialized"
 //  val parsedRepoPath: Path = pwd / "data" / "parsedDataSet.serialized"
   val parsedReposDir: Path = pwd / 'data / "parsedRepos"
 
-  val allReposDir: Path = pwd / up / "lambda-repos" / "allRepos"
+  val allReposDir: Path = reposDir / "allRepos"
 
   def main(args: Array[String]): Unit = {
 //    val defs = parseLibDefs()
@@ -64,7 +66,7 @@ object PrepareRepos {
   }
 
   private def remixDividedDataSet(): Unit = {
-    val base = pwd / up / "lambda-repos" / "divided"
+    val base = reposDir / "divided"
     for {
       dataSet <- Seq("trainSet", "testSet", "devSet")
       p <- ls(base / dataSet) if p.isDir && p.last != "toy"
@@ -210,7 +212,7 @@ object PrepareRepos {
 
   def divideDataSet(): Unit = {
     val random = new Random(1)
-    val base = pwd / up / "lambda-repos"
+    val base = reposDir
     val allProjects = ls(base / "filteredRepos")
       .filter(f => f.isDir && f.last != "toy")
       .pipe(random.shuffle(_))
@@ -251,7 +253,7 @@ object PrepareRepos {
   }
 
   def parseAndSerializeDataSet(): Unit = {
-    val basePath = pwd / up / "lambda-repos" / "divided"
+    val basePath = reposDir / "divided"
     val trainSetDir: Path = basePath / "trainSet"
     val devSetDir: Path = basePath / "devSet"
     val testSetDir: Path = basePath / "testSet"
@@ -458,7 +460,7 @@ object PrepareRepos {
 
   def parseLibDefs(): LibDefs = {
     import cats.implicits._
-    val declarationsDir = pwd / up / "lambda-repos" / "declarations"
+    val declarationsDir = reposDir / "declarations"
 
     println("parsing default module...")
     val (baseCtx, libAllocator, defaultMapping, defaultModule) =
