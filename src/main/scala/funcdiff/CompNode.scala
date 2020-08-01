@@ -9,7 +9,7 @@ import lambdanet.architecture
 
 import scala.concurrent._
 
-class CompNode(val func: DiffFunc) {
+class CompNode(val func: DiffFunc) extends Serializable {
   val value: Tensor = func.value
 
   def toDouble: Real = value.squeeze()
@@ -47,6 +47,7 @@ class CompNode(val func: DiffFunc) {
   }
 }
 
+@SerialVersionUID(2L)
 class ParamNode(v: Tensor, val path: SymbolPath)
     extends CompNode(ConstFunc(v)) {
 

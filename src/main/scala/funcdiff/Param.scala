@@ -5,6 +5,8 @@ import java.io._
 import botkop.numsca.{Shape, Tensor}
 import SimpleMath.Extensions._
 import ammonite.ops.Path
+import funcdiff.ParamCollection.SerializableFormat
+import lambdanet.ChainingSyntax
 import org.nd4j.linalg.api.ndarray.INDArray
 
 trait ParameterAttribute extends Serializable
@@ -14,11 +16,11 @@ object ParameterAttribute {
   case object NeedRegularization extends ParameterAttribute
 }
 
-@SerialVersionUID(0)
+@SerialVersionUID(1)
 class Param(
     var node: ParamNode,
     val attributes: Set[ParameterAttribute] = Set()
-) {
+) extends Serializable {
   def path: SymbolPath = node.path
 
   override def toString: String = {
@@ -49,27 +51,10 @@ object ParamCollection {
       constantData: List[(SymbolPath, INDArray)]
   )
 
-  def fromSerializable(data: SerializableFormat): ParamCollection = {
-    val SerializableFormat(paramMap, constMap) = data
-    val pc = ParamCollection()
-
-    paramMap.foreach {
-      case (path, param) =>
-        val data = param("array").asInstanceOf[INDArray]
-        val attributes =
-          param("attributes").asInstanceOf[List[ParameterAttribute]].toSet
-        val p1 = param("path").asInstanceOf[SymbolPath]
-        assert(p1 == path, s"path: $path, restored: $p1")
-
-        val value = Tensor(data)
-        pc.getParam(path, attributes) { value }
+  def fromSerializable(data: SerializableFormat): ParamCollection =
+    ParamCollection().tap{
+      _.appendDataFromSerializable(data)
     }
-    constMap.foreach {
-      case (path, array) =>
-        pc.getConst(path) { Tensor(array) }
-    }
-    pc
-  }
 
   def fromFile(file: Path): ParamCollection = {
     fromFile(file.toIO)
@@ -142,4 +127,32 @@ case class ParamCollection() {
   def saveToFile(file: File): Unit = {
     SimpleMath.saveObjectToFile(file)(toSerializable)
   }
+
+  private def appendDataFromSerializable(data: SerializableFormat): Unit = {
+    val SerializableFormat(paramMap, constMap) = data
+    paramMap.foreach {
+      case (path, param) =>
+        val data = param("array").asInstanceOf[INDArray]
+        val attributes =
+          param("attributes").asInstanceOf[List[ParameterAttribute]].toSet
+        val p1 = param("path").asInstanceOf[SymbolPath]
+        assert(p1 == path, s"path: $path, restored: $p1")
+
+        val value = Tensor(data)
+        getParam(path, attributes) { value }
+    }
+    constMap.foreach {
+      case (path, array) =>
+        getConst(path) { Tensor(array) }
+    }
+  }
+
+//  private def readObject(stream: ObjectInputStream): Unit = {
+//    val o = stream.readObject()
+//    appendDataFromSerializable(o.asInstanceOf[SerializableFormat])
+//  }
+//
+//  private def writeObject(stream: ObjectOutputStream): Unit = {
+//    stream.writeObject(toSerializable)
+//  }
 }

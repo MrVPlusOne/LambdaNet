@@ -50,6 +50,6 @@ RUN tsc || echo "tsc errors encountered."
 WORKDIR /usr/src/lambdanet
 
 # Compile Scala files
-RUN sbt compile
+RUN sbt "runMain lambdanet.TypeInferenceService"
 
 CMD ["/bin/sh"]

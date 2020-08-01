@@ -70,35 +70,58 @@ object LabelEncoder {
     }
   }
 
-  import scala.collection.GenSeq
+  object TrainableLabelEncoder {
 
-  /**
-    * @param dropoutThreshold if a label appears more than this number of times
-    *                         in the training set, it won't be dropped out during
-    *                         training time.
-    */
+    /**
+      * @param dropoutThreshold if a label appears more than this number of times
+      *                         in the training set, it won't be dropped out during
+      *                         training time.
+      */
+    def fromData(
+        trainSet: Vector[Datum],
+        coverageGoal: Double,
+        architecture: NNArchitecture,
+        dropoutProb: Real,
+        dropoutThreshold: Int,
+        labelTransformation: Symbol => Symbol,
+        randomLabelId: () => Int
+    ): TrainableLabelEncoder = {
+      def nameUsages(name: Symbol): Map[Symbol, Int] = {
+        Map(labelTransformation(name) -> 1)
+      }
+
+      val (labelsMap: Map[Symbol, CompNode], commonLabels: Set[Symbol]) = {
+        val (labels, _) =
+          selectSegmentsBasedOnUsages(trainSet, nameUsages, coverageGoal)
+
+        labels.map {
+          case (s, _) =>
+            s -> architecture.randomVar('label / s)
+        }.toMap -> labels.collect {
+          case (l, freq) if freq > dropoutThreshold => l
+        }.toSet
+      }
+
+      TrainableLabelEncoder(
+        architecture,
+        dropoutProb,
+        labelTransformation,
+        randomLabelId,
+        labelsMap,
+        commonLabels
+      )
+    }
+  }
+
   case class TrainableLabelEncoder(
-      trainSet: Vector[Datum],
-      coverageGoal: Double,
       architecture: NNArchitecture,
       dropoutProb: Real,
-      dropoutThreshold: Int,
       labelTransformation: Symbol => Symbol,
-      randomLabelId: () => Int
+      randomLabelId: () => Int,
+      labelsMap: Map[Symbol, CompNode],
+      commonLabels: Set[Symbol]
   ) extends LabelEncoder {
     def name: String = "TrainableLabelEncoder"
-
-    private val (labelsMap, commonLabels) = {
-      val (labels, _) =
-        selectSegmentsBasedOnUsages(trainSet, nameUsages, coverageGoal)
-
-      labels.map {
-        case (s, _) =>
-          s -> architecture.randomVar('label / s)
-      }.toMap -> labels.collect {
-        case (l, freq) if freq > dropoutThreshold => l
-      }.toSet
-    }
 
     def isLibLabel(label: Symbol): Boolean = labelsMap.contains(label)
 
@@ -115,42 +138,59 @@ object LabelEncoder {
       else labelsMap.getOrElse(label, dropoutImpl)
     }
 
-    private def nameUsages(name: Symbol): Map[Symbol, Int] = {
-      Map(labelTransformation(name) -> 1)
-    }
-
   }
 
-  /**
-    * @param dropoutThreshold if a segment appears more than this number of times
-    *                         in the training set, it won't be dropped out during
-    *                         training time.
-    */
+  object SegmentedLabelEncoder {
+
+    /**
+      * @param dropoutThreshold if a segment appears more than this number of times
+      *                         in the training set, it won't be dropped out during
+      *                         training time.
+      */
+    def fromData(
+        symbolPath: SymbolPath,
+        trainSet: Vector[Datum],
+        coverageGoal: Double,
+        architecture: NNArchitecture,
+        dropoutProb: Real,
+        dropoutThreshold: Int,
+        randomLabelId: () => Int
+    ): SegmentedLabelEncoder = {
+
+      val (segmentsMap, commonSegments) = {
+        val (segments, _) =
+          selectSegmentsBasedOnUsages(trainSet, nameToSegUsages, coverageGoal)
+
+        val commonSegments =
+          segments.takeWhile(_._2 > dropoutThreshold).map(_._1).toSet
+        val segmentsMap = segments.map {
+          case (s, _) =>
+            s -> architecture.randomUnitVar("segments" / s.symbol)
+        }.toMap
+        (segmentsMap, commonSegments)
+      }
+
+      SegmentedLabelEncoder(
+        symbolPath,
+        architecture,
+        dropoutProb,
+        randomLabelId,
+        segmentsMap,
+        commonSegments
+      )
+    }
+  }
+
   case class SegmentedLabelEncoder(
       symbolPath: SymbolPath,
-      trainSet: Vector[Datum],
-      coverageGoal: Double,
       architecture: NNArchitecture,
       dropoutProb: Real,
-      dropoutThreshold: Int,
-      randomLabelId: () => Int
+      randomLabelId: () => Int,
+      segmentsMap: Map[Segment, CompNode],
+      commonSegments: Set[Segment]
   ) extends LabelEncoder {
-    import cats.implicits._
 
     def name: String = "SegmentedLabelEncoder"
-
-    private val (segmentsMap, commonSegments) = {
-      val (segments, _) =
-        selectSegmentsBasedOnUsages(trainSet, nameToSegUsages, coverageGoal)
-
-      val commonSegments =
-        segments.takeWhile(_._2 > dropoutThreshold).map(_._1).toSet
-      val segmentsMap = segments.map {
-        case (s, _) =>
-          s -> architecture.randomUnitVar("segments" / s.symbol)
-      }.toMap
-      (segmentsMap, commonSegments)
-    }
 
     protected def impl(
         label: Symbol,
@@ -175,7 +215,6 @@ object LabelEncoder {
           .pipe(architecture.nonLinearLayer(symbolPath / 'encodeSeg))
           .pipe(sum(_, 0))
     }
-
   }
 
   case class Segment(symbol: Symbol)

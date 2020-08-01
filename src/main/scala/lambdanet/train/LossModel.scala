@@ -32,7 +32,7 @@ trait LossModel {
 }
 
 object LossModel {
-  object EchoLoss extends LossModel {
+  case object EchoLoss extends LossModel {
     def name = "EchoLoss"
 
     def impl(
@@ -48,7 +48,7 @@ object LossModel {
     }
   }
 
-  object NormalLoss extends LossModel {
+  case object NormalLoss extends LossModel {
     def name = "NormalLoss"
 
     def impl(

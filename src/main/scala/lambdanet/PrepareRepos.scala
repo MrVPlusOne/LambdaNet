@@ -15,7 +15,6 @@ import lambdanet.translation.PredicateGraph.{
   PNode,
   PNodeAllocator,
   PObject,
-  PTyVar,
   PType,
   ProjNode,
   TyPredicate
@@ -23,7 +22,6 @@ import lambdanet.translation.PredicateGraph.{
 import lambdanet.translation.QLang.QModule
 import lambdanet.utils.ProgramParsing
 import lambdanet.utils.ProgramParsing.GProject
-import lambdanet.train.DataSet
 
 import scala.collection.{immutable, mutable}
 import scala.util.Random
@@ -218,7 +216,7 @@ object PrepareRepos {
       .pipe(random.shuffle(_))
 
     def tryMove(from: Path, to: Path): Unit = {
-      if(!exists(to/up)) mkdir(to/up)
+      if (!exists(to / up)) mkdir(to / up)
       if (to != from) mv(from, to)
     }
 
@@ -608,7 +606,7 @@ object PrepareRepos {
         projectRoot,
         filter = (path: Path) => {
           path.segments.forall(!skipSet.contains(_))
-        },
+        }
       )
 
       if (shouldPrintProject) println { p.prettyPrint }

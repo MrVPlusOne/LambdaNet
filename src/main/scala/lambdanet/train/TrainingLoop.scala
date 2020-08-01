@@ -10,16 +10,32 @@ import cats.Monoid
 import funcdiff.{SimpleMath => SM}
 import funcdiff._
 import lambdanet.architecture._
-import lambdanet.utils.{EmailService, EventLogger, FileLogger, QLangAccuracy, QLangDisplay, ReportFinish}
+import lambdanet.utils.{
+  EmailService,
+  EventLogger,
+  FileLogger,
+  QLangAccuracy,
+  QLangDisplay,
+  ReportFinish
+}
 import TrainingState._
 import botkop.numsca.Tensor
 import lambdanet.SequenceModel.SeqArchitecture
-import lambdanet.architecture.LabelEncoder.{SegmentedLabelEncoder, TrainableLabelEncoder}
+import lambdanet.architecture.LabelEncoder.{
+  SegmentedLabelEncoder,
+  TrainableLabelEncoder
+}
 import lambdanet.translation.PredicateGraph.{PAny, PNode, PType, ProjNode}
 import org.nd4j.linalg.api.buffer.DataType
 
 import scala.collection.parallel.ForkJoinTaskSupport
-import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutorService, Future, TimeoutException}
+import scala.concurrent.{
+  Await,
+  ExecutionContext,
+  ExecutionContextExecutorService,
+  Future,
+  TimeoutException
+}
 import scala.language.reflectiveCalls
 import scala.util.Random
 
@@ -89,10 +105,12 @@ object TrainingLoop {
     val resultsDir: ammonite.ops.Path = {
       import ammonite.ops._
       val pathText = read(pwd / "configs" / "resultsDir.txt").trim
-      val path = util.Try{
-        pwd / RelPath(pathText)
-      }.getOrElse(Path(pathText))
-      (path / taskName).tap{ d =>
+      val path = util
+        .Try {
+          pwd / RelPath(pathText)
+        }
+        .getOrElse(Path(pathText))
+      (path / taskName).tap { d =>
         lambdanet.printResult(s"save results to directory: $d")
       }
     }
@@ -153,14 +171,14 @@ object TrainingLoop {
         toyMode,
         onlyPredictLibType
       )
-      makeModel(pc,dataSet)
+      makeModel(pc, dataSet)
         .train(maxTrainingEpochs = if (toyMode) 500 else 100, state, logger)
 
 //      namingHelpfulness(run)
 
     }
 
-    def namingHelpfulness(dataSet: DataSet, run: buildModel): Unit = {
+    def namingHelpfulness(dataSet: DataSet, run: Model): Unit = {
       import cats.implicits._
 
       def showCount(c: Counted[Int]): String = {
@@ -169,18 +187,18 @@ object TrainingLoop {
 
       val (helpSet, notHelpSet) =
         (for {
-          datum <- run.dataSet.trainSet
+          datum <- dataSet.trainSet
           predictions = NamingBaseline
             .testOnDatum(datum, useOracle = true, identity)
             .predict(0)
-          fwd <- run
+          fwd = run
             .forward(
               datum,
               shouldDownsample = false,
               shouldDropout = false,
               maxBatchSize = Some(600)
             )
-            .map(_._2)
+            ._2
           Seq(s1, s2) = Seq(fwd.incorrectSet -> false, fwd.correctSet -> true)
             .map {
               case (set, correctness) =>
@@ -209,61 +227,29 @@ object TrainingLoop {
         dataSet: DataSet,
         pc: ParamCollection,
         architecture: NNArchitecture,
-
     ) {
       import dataSet._
-      val dimMessage = architecture.dimEmbedding
+      val rand = new Random(1)
+      val model = Model.fromData(dataSet, architecture, rand)
+
       val maxBatchSize = dataSet
         .signalSizeMedian(maxLibRatio)
         .tap(s => printResult(s"maxBatchSize: $s"))
 
-      val rand = new Random(1)
-      def randomLabelId(): Int = rand.synchronized {
-        rand.nextInt(50)
-      }
-      val Seq(labelEncoder, nameEncoder) =
-        Seq("labelEncoder", "nameEncoder").map { name =>
-          SegmentedLabelEncoder(
-            name,
-            trainSet,
-            coverageGoal = 0.98,
-            architecture,
-            dropoutProb = 0.1,
-            dropoutThreshold = 1000,
-            randomLabelId
-          )
-        }
-
-//      def fseLabelTrans(label: Symbol): Symbol = {
-//        Symbol(label.name.toLowerCase().replaceAll("[0-9]", ""))
-//      }
-//
-//      val labelEncoder = TrainableLabelEncoder(
-//        trainSet,
-//        coverageGoal = 0.98,
-//        architecture,
-//        dropoutProb = 0.1,
-//        dropoutThreshold = 1000,
-//        fseLabelTrans,
-//        () => 0,
-//      )
-//      val nameEncoder = labelEncoder
-
-      printResult(s"Label encoder: ${labelEncoder.name}")
-      printResult(s"Name encoder: ${nameEncoder.name}")
-
-      val labelCoverage =
-        TrainableLabelEncoder(
-          trainSet,
-          coverageGoal = 0.90,
-          architecture,
-          dropoutProb = 0.1,
-          dropoutThreshold = 500,
-          identity,
-          randomLabelId
-        )
+      printResult(s"Label encoder: ${model.labelEncoder.name}")
+      printResult(s"Name encoder: ${model.nameEncoder.name}")
 
       var shouldAnnounce: Boolean = true
+
+      def forward(
+          datum: Datum,
+          shouldDownsample: Boolean,
+          shouldDropout: Boolean,
+          maxBatchSize: Option[Int]
+      ) =
+        limitTimeOpt("train-forward", Timeouts.forwardTimeout)(
+          model.forward(datum, shouldDownsample, shouldDownsample, maxBatchSize)
+        )
 
       case class train(
           maxTrainingEpochs: Int,
@@ -293,7 +279,7 @@ object TrainingLoop {
           }
 
           saveTraining(maxTrainingEpochs, "finished")
-          emailRelated.foreach{ params =>
+          emailRelated.foreach { params =>
             import params._
             emailService.sendMail(emailService.userEmail)(
               s"TypingNet: Training finished on $machineName!",
@@ -610,7 +596,7 @@ object TrainingLoop {
             case ex: Throwable =>
               val isTimeout = ex.isInstanceOf[TimeoutException]
               val errorName = if (isTimeout) "timeout" else "stopped"
-              emailRelated.foreach{ p =>
+              emailRelated.foreach { p =>
                 import p._
                 emailService.sendMail(emailService.userEmail)(
                   s"TypingNet: $errorName on $machineName at epoch $epoch",
@@ -668,170 +654,6 @@ object TrainingLoop {
       val lossModel: LossModel = LossModel.NormalLoss
         .tap(m => printResult(s"loss model: ${m.name}"))
 
-//      /** Forward propagation for the sequential model */
-//      private def seqForward(
-//          datum: Datum
-//      ): Option[(Loss, ForwardResult, Map[PNode, TopNDistribution[PType]])] = {
-//        def result = {
-//          val predictor = seqModel.get
-//          val predSpace = predictor.predSpace
-//          // the logits for very iterations
-//
-//          val nodes = datum.nodesToPredict.map { _.n }
-//          val logits = announced("run seq predictor") {
-//            predictor.run(
-//              seqArchitecture,
-//              nameEncoder,
-//              nodes,
-//              nameDropout = useDropout && isTraining
-//            )
-//          }
-//
-//          val nonGenerifyIt = DataSet.nonGenerify(predictor.libDefs)
-//
-//          val groundTruths = nodes.map {
-//            case n if n.fromLib =>
-//              nonGenerifyIt(predictor.libDefs.nodeMapping(n).get)
-//            case n if n.fromProject =>
-//              datum.nodesToPredict(ProjNode(n))
-//          }
-//
-//          val targets = groundTruths.map(predSpace.indexOfType)
-//          val nodeDistances = nodes.map(_.pipe(datum.distanceToConsts))
-//
-//          val (correctness, confMat, typeAccs) =
-//            announced("compute training accuracy") {
-//              analyzeDecoding(
-//                logits,
-//                groundTruths,
-//                predSpace,
-//                nodeDistances
-//              )
-//            }
-//
-//          val loss =
-//            logits.toLoss(targets, projWeight, predSpace.libTypeVec.length)
-//
-//          val totalCount = groundTruths.length
-//          val mapped = nodes
-//            .zip(groundTruths)
-//            .zip(correctness)
-//            .groupBy(_._2)
-//            .mapValuesNow { pairs =>
-//              pairs.map { case ((n, ty), _) => (n, ty, datum.projectName) }.toSet
-//            }
-//          val fwd = ForwardResult(
-//            Counted(totalCount, loss.value.squeeze() * totalCount),
-//            mapped.getOrElse(true, Set()),
-//            mapped.getOrElse(false, Set()),
-//            confMat,
-//            typeAccs
-//          )
-//
-//          val predictions = {
-//            val predVec = logits
-//              .topNPredictionsWithCertainty(6)
-//              .map { _.map(predSpace.typeVector) }
-//            nodes.zip(predVec).toMap
-//          }
-//
-//          (loss, fwd, predictions)
-//        }
-//
-//        limitTimeOpt(s"forward: $datum", Timeouts.forwardTimeout) {
-//          DebugTime.logTime("seqForward") { result }
-//        }
-//      }
-      def forward(
-          datum: Datum,
-          shouldDownsample: Boolean,
-          shouldDropout: Boolean,
-          maxBatchSize: Option[Int]
-      ): Option[(Loss, ForwardResult, Map[PNode, TopNDistribution[PType]])] =
-        limitTimeOpt(s"forward: $datum", Timeouts.forwardTimeout) {
-          import datum._
-
-          val predSpace = datum.predictionSpace
-
-          val annotsToUse =
-            if (shouldDownsample) datum.downsampleLibAnnots(maxLibRatio, random)
-            else nodesToPredict
-
-          val (nodes, groundTruths) = annotsToUse.toVector
-            .pipe(random.shuffle(_))
-            .take(maxBatchSize.getOrElse(Int.MaxValue))
-            .unzip
-          val targets = groundTruths.map(predSpace.indexOfType)
-
-          val decodingVec = announced("run predictor", shouldAnnounce) {
-            datum.predictor match {
-              case Left(seqPredictor) =>
-                seqPredictor
-                  .run(
-                    architecture.asInstanceOf[SeqArchitecture],
-                    nameEncoder,
-                    nodes,
-                    shouldDropout
-                  )
-                  .pipe(Vector(_))
-              case Right(predictor) =>
-                predictor
-                  .run(
-                    architecture,
-                    nodes,
-                    iterationNum,
-                    labelEncoder,
-                    labelCoverage.isLibLabel,
-                    nameEncoder,
-                    shouldDropout
-                  )
-                  .result
-            }
-          }
-          val decoding = decodingVec.last
-
-          val (correctness, confMat, typeAccs) =
-            announced("compute training accuracy", shouldAnnounce) {
-              analyzeDecoding(
-                decoding,
-                groundTruths,
-                predSpace
-              )
-            }
-
-          val loss = lossModel.predictionLoss(
-            decodingVec.par
-              .map(_.toLoss(targets, projWeight, predSpace.libTypeVec.length))
-          )
-
-          val totalCount = groundTruths.length
-          val mapped = nodes
-            .map(_.n)
-            .zip(groundTruths)
-            .zip(correctness)
-            .groupBy(_._2)
-            .mapValuesNow { pairs =>
-              pairs.map { case ((n, ty), _) => (n, ty, datum.projectName) }.toSet
-            }
-
-          val fwd = ForwardResult(
-            Counted(totalCount, loss.value.squeeze() * totalCount),
-            mapped.getOrElse(true, Set()),
-            mapped.getOrElse(false, Set()),
-            confMat,
-            typeAccs
-          ).tap(r => assert(r.isConsistent))
-
-          val predictions = {
-            val predVec = decoding
-              .topNPredictionsWithCertainty(6)
-              .map { _.map(predSpace.typeOfIndex) }
-            nodes.map(_.n).zip(predVec).toMap
-          }
-
-          (loss, fwd, predictions)
-        }
-
       private def limitTimeOpt[A](
           name: String,
           timeLimit: Timeouts.Duration
@@ -842,7 +664,7 @@ object TrainingLoop {
           case _: TimeoutException =>
             val msg = s"$name exceeded time limit $timeLimit."
             printWarning(msg)
-            emailRelated.foreach{ e=>
+            emailRelated.foreach { e =>
               import e._
               emailService.atFirstTime {
                 emailService.sendMail(emailService.userEmail)(
@@ -860,38 +682,6 @@ object TrainingLoop {
       private def limitTime[A](timeLimit: Timeouts.Duration)(f: => A): A = {
         val exec = scala.concurrent.ExecutionContext.global
         Await.result(Future(f)(exec), timeLimit)
-      }
-
-      private def analyzeDecoding(
-          results: DecodingResult,
-          groundTruths: Vector[PType],
-          predictionSpace: PredictionSpace
-      ): (
-          Vector[Boolean],
-          Counted[ConfusionMatrix],
-          Map[PType, Counted[Correct]]
-      ) = {
-        val predictions = results.topPredictions
-        val targets = groundTruths.map(predictionSpace.indexOfType)
-        val correctness = predictions.zip(targets).map { case (x, y) => x == y }
-        val targetFromLibrary = groundTruths.map { _.madeFromLibTypes }
-
-        val confMat = {
-          def toCat(isLibType: Boolean): Int = if (isLibType) 0 else 1
-          val predictionCats = predictions.map { i =>
-            toCat(predictionSpace.isLibType(i))
-          }
-          val truthCats = targetFromLibrary.map(toCat)
-          val mat = confusionMatrix(predictionCats, truthCats, categories = 2)
-          Counted(predictionCats.length, mat)
-        }
-
-        val typeAccs =
-          groundTruths.zip(correctness).groupBy(_._1).mapValuesNow { bools =>
-            Counted(bools.length, bools.count(_._2))
-          }
-
-        (correctness, confMat, typeAccs)
       }
 
       private val avgAnnotations =
