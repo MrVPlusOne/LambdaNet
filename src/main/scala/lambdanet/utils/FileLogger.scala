@@ -45,10 +45,12 @@ class FileLogger(val file: Path, printToConsole: Boolean) {
     println(resultStr(a.toString))
   }
 
-  def announced[A](actionName: String, shouldAnnounce: Boolean = true)(action: => A): A = {
+  def announced[A](actionName: String, shouldAnnounce: Boolean = true)(
+      action: => A
+  ): A = {
     import SimpleMath.prettyPrintTime
 
-    if(!shouldAnnounce)
+    if (!shouldAnnounce)
       return action
 
     println(infoStr(s"  [start] '$actionName' started..."))

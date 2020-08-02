@@ -152,7 +152,7 @@ class ParserTests extends WordSpec with MyTest {
     val f = pwd / RelPath("data/tests/export-import")
     lambdanet.shouldWarn = true
     val parsed =
-      prepareProject(libDefs, f/up, f, skipSet = Set(), shouldPruneGraph = false)
+      parseProject(libDefs, f/up, f, skipSet = Set(), shouldPruneGraph = false)
     val g = parsed.pGraph
     g.predicates.foreach(println)
     g.predicates.collect {
@@ -173,7 +173,7 @@ class ParserTests extends WordSpec with MyTest {
       "data/tests/weirdInterfaces"
     )
     val parsed@ParsedProject(_, qModules, irModules, g) =
-      prepareProject(
+      parseProject(
         libDefs,
         dir/up,
         dir,

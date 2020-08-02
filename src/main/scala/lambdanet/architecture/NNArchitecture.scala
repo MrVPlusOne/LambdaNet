@@ -5,7 +5,15 @@ import botkop.numsca
 import botkop.numsca.{:>, Shape, Tensor, argmaxAxis}
 import cats.data.Chain
 import funcdiff._
-import lambdanet.NeuralInference.{AccessFieldUsage, ClassFieldUsage, LabelUsages, LabelVector, Message, MessageKind, MessageModel}
+import lambdanet.NeuralInference.{
+  AccessFieldUsage,
+  ClassFieldUsage,
+  LabelUsages,
+  LabelVector,
+  Message,
+  MessageKind,
+  MessageModel
+}
 import lambdanet.train.{DecodingResult, Joint, TrainingLoop, TwoStage}
 import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 
@@ -21,7 +29,8 @@ abstract class NNArchitecture(
     val arcName: String,
     dimMessage: Int,
     pc: ParamCollection
-) extends ArchitectureHelper with Serializable {
+) extends ArchitectureHelper
+    with Serializable {
 
   type UpdateMessages = Map[ProjNode, Chain[Message]]
   val emptyMessages: UpdateMessages = Map()

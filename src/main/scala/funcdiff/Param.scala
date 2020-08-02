@@ -52,7 +52,7 @@ object ParamCollection {
   )
 
   def fromSerializable(data: SerializableFormat): ParamCollection =
-    ParamCollection().tap{
+    ParamCollection().tap {
       _.appendDataFromSerializable(data)
     }
 

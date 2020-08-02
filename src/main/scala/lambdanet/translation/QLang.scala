@@ -234,7 +234,7 @@ object QLangTranslation {
     val libAllocator = new PNodeAllocator(forLib = true)
     val pModule = PLangTranslation.fromGModule(defaultModule, libAllocator)
 
-    val errorHandler = ErrorHandler.alwaysThrow
+    val errorHandler = ErrorHandler.alwaysThrowError
     val exports = ImportsResolution
       .resolveExports(
         ImportsResolution.ProjectInfo(

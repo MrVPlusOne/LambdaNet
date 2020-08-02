@@ -36,11 +36,11 @@ object PredicateGraphVisualization {
         "Name"
       case BinaryRel(_, _, name) =>
         name match {
-          case BinaryRelCat.subtype => " <: "
-          case BinaryRelCat.assign => "  ⃪ "
-          case BinaryRelCat.equal => " := "
-          case BinaryRelCat.inheritance => "extends"
-          case BinaryRelCat.fixType => "fixed"
+          case BinaryRelCat.subtype       => " <: "
+          case BinaryRelCat.assign        => "  ⃪ "
+          case BinaryRelCat.equal         => " := "
+          case BinaryRelCat.inheritance   => "extends"
+          case BinaryRelCat.fixType       => "fixed"
           case BinaryRelCat.fixAnnotation => "fixAnnot"
         }
       case UsedAsBool(_) =>

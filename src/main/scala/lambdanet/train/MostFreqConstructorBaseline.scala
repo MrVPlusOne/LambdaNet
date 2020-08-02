@@ -38,7 +38,7 @@ object MostFreqConstructorBaseline {
     }
   }
 
-  case class useDatum(datum: Datum) {
+  case class useDatum(datum: ProcessedProject) {
     import cats.implicits._
 
     def predictByFreq: Map[ProjNode, (TruthPosition, PType)] = {

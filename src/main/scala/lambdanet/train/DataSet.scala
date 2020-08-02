@@ -4,8 +4,7 @@ import lambdanet._
 import lambdanet.translation.PredicateGraph._
 import NeuralInference._
 import lambdanet.PrepareRepos.ParsedRepos
-import lambdanet.SequenceModel.{SeqArchitecture, SeqPredictor}
-import lambdanet.architecture.NNArchitecture
+import lambdanet.SequenceModel.SeqPredictor
 import lambdanet.translation.ImportsResolution.NameDef
 import lambdanet.translation.PredicateGraph
 import lambdanet.translation.QLang.QModule
@@ -15,9 +14,11 @@ import scala.collection.parallel.ForkJoinTaskSupport
 import scala.util.Random
 
 case class DataSet(
-    trainSet: Vector[Datum],
-    devSet: Vector[Datum],
-    testSet: Vector[Datum]
+    libDefs: LibDefs,
+    libTypesToPredict: Set[LibTypeNode],
+    trainSet: Vector[ProcessedProject],
+    devSet: Vector[ProcessedProject],
+    testSet: Vector[ProcessedProject]
 ) {
   override def toString: String =
     s"DataSet(train: ${trainSet.size}, dev: ${devSet.size}, test:${testSet.size})"
@@ -59,7 +60,7 @@ object DataSet {
       toyMode: Boolean,
       onlyPredictLibType: Boolean,
       testSetUseInferred: Boolean = false
-  ) = {
+  ): DataSet = {
     import PrepareRepos._
 
     val ParsedRepos(libDefs, trainSet, devSet, testSet) = repos
@@ -73,7 +74,7 @@ object DataSet {
     val nonGenerifyIt = nonGenerify(libDefs)
 
     var inSpace = Counted(0, 0)
-    val data: Vector[Vector[Datum]] = {
+    val data: Vector[Vector[ProcessedProject]] = {
       ((trainSet ++ devSet).zip(Stream.continually(true)) ++
         testSet.zip(Stream.continually(testSetUseInferred))).toVector.par.map {
         case (p @ ParsedProject(path, qModules, irModules, g), useInferred) =>
@@ -109,7 +110,7 @@ object DataSet {
 
           if (annots1.isEmpty) Vector()
           else {
-            val d = Datum(path, annots1, g, qModules.map { m =>
+            val d = ProcessedProject(path, annots1, g, qModules.map { m =>
               m.copy(mapping = m.mapping.mapValuesNow(_.map(nonGenerifyIt)))
             }, predictor)
             printResult(d)
@@ -120,6 +121,8 @@ object DataSet {
 
     val (n1, n2) = (trainSet.length, devSet.length)
     DataSet(
+      repos.libDefs,
+      libTypesToPredict,
       data.take(n1).flatten,
       data.slice(n1, n1 + n2).flatten,
       data.drop(n1 + n2).flatten
@@ -170,7 +173,7 @@ object DataSet {
 
 case object EmptyNodesToPredict extends Exception
 
-case class Datum(
+case class ProcessedProject(
     projectName: ProjectPath,
     nodesToPredict: Map[ProjNode, PType],
     graph: PredicateGraph,
@@ -207,23 +210,18 @@ case class Datum(
     nodesToPredict.filter(!_._2.madeFromLibTypes) ++ libLabels
   }
 
-  def showInline: String = {
-    val info = s"{name: $projectName, " +
+  def showInline: String =
+    s"{name: $projectName, " +
       s"annotations: ${nodesToPredict.size}(L:$libAnnots/P:$projAnnots, ratio:%.4f), "
         .format(libLabelRatio) +
       predGraphOpt
         .map(_.predicates.size.pipe { s =>
-          s"predicates: $s"
+          s"predicates: $s,"
         })
         .getOrElse("") +
-      s"predictionSpace: ${predictionSpace.size}, "
+      s"predictionSpace: ${predictionSpace.size}}"
 
-    info
-  }
-
-  override def toString: String = {
-    showInline
-  }
+  override def toString: String = showInline
 
   def showDetail: String = {
     s"""$showInline

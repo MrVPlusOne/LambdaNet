@@ -15,7 +15,6 @@ package object train {
   type ConfusionMatrix = Map[(Int, Int), Int]
   type TruthPosition = Int
 
-
   def confusionMatrix(
       predictions: Vector[Int],
       groundTruths: Vector[Int],
@@ -46,7 +45,7 @@ package object train {
 
   object Counted {
     def fromBool(b: Boolean): Counted[Int] =
-      Counted(1, if(b) 1 else 0)
+      Counted(1, if (b) 1 else 0)
 
     def zero[V](v: V) = Counted(0, v)
   }
@@ -75,14 +74,14 @@ package object train {
 
   case class StopException(msg: String) extends Exception
 
-  object LabelCat extends Enumeration{
+  object LabelCat extends Enumeration {
     val Library, Project = Value
 
     def fromLib(isLib: Boolean): LabelCat.Value =
-      if(isLib) Library else Project
+      if (isLib) Library else Project
   }
 
-  object DatumCat extends Enumeration{
+  object DatumCat extends Enumeration {
     val Train, Dev, Test = Value
   }
 }

@@ -2,7 +2,21 @@ package lambdanet.translation
 
 import ammonite.ops.RelPath
 import funcdiff.SimpleMath
-import lambdanet.{Annot, AnyType, ExportLevel, ExportStmt, FuncType, GType, ImportStmt, ObjectType, ProjectPath, Surface, TyAnnot, TyVar, printWarning}
+import lambdanet.{
+  Annot,
+  AnyType,
+  ExportLevel,
+  ExportStmt,
+  FuncType,
+  GType,
+  ImportStmt,
+  ObjectType,
+  ProjectPath,
+  Surface,
+  TyAnnot,
+  TyVar,
+  printWarning
+}
 import lambdanet.Surface.{GExpr, GModule}
 import lambdanet.translation.PLang._
 import lambdanet.translation.PredicateGraph.{PNode, PNodeAllocator}
@@ -186,11 +200,16 @@ object PLangTranslation {
               ) =>
             val newTyVars: Set[Symbol] = outerTyVars ++ tyVars
             val newTy = monotype(ty)(newTyVars)
-            if(newTy == ObjectType(Map()) && superTypes.size == 1){
-              val node = allocate(Some(name), Annot.Fixed(TyVar(superTypes.head)), isTerm = false)
+            if (newTy == ObjectType(Map()) && superTypes.size == 1) {
+              val node = allocate(
+                Some(name),
+                Annot.Fixed(TyVar(superTypes.head)),
+                isTerm = false
+              )
               TypeAliasStmt(name, node, Set(), exportLevel)
-            }else {
-              val node = allocate(Some(name), Annot.Fixed(newTy), isTerm = false)
+            } else {
+              val node =
+                allocate(Some(name), Annot.Fixed(newTy), isTerm = false)
               TypeAliasStmt(name, node, superTypes, exportLevel)
             }
           // uninteresting cases

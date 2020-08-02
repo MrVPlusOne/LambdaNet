@@ -13,7 +13,7 @@ object DownloadRepos {
 
   def downloadAllRepos(): Unit = {
     implicit val workingDir: Path = PrepareRepos.reposDir
-    if(!exists(workingDir))
+    if (!exists(workingDir))
       mkdir(workingDir)
     val random = new Random(1023)
     val repoList =

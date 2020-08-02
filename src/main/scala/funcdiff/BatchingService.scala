@@ -1,6 +1,5 @@
 package funcdiff
 
-
 import scala.concurrent.{Future, Promise}
 import collection.concurrent.TrieMap
 
@@ -17,8 +16,9 @@ class BatchingService(f: CompNode => CompNode) {
   def compute(): Unit = {
     val (xs, ps) = registered.toVector.unzip
     val ys = f(stackRows(xs))
-    ys.rows.zip(ps).foreach{ case (y, p ) =>
-      p.success(y)
+    ys.rows.zip(ps).foreach {
+      case (y, p) =>
+        p.success(y)
     }
   }
 }
@@ -26,4 +26,3 @@ class BatchingService(f: CompNode => CompNode) {
 object BatchingService {
   def apply(f: CompNode => CompNode) = new BatchingService(f)
 }
-

@@ -14,7 +14,11 @@ object NamingBaseline {
     import dataSet.{testSet, trainSet}
     import LabelEncoder.{selectSegmentsBasedOnUsages, nameToSegUsages}
 
-    val (segs, _) = selectSegmentsBasedOnUsages(trainSet, nameToSegUsages, coverageGoal = 0.98)
+    val (segs, _) = selectSegmentsBasedOnUsages(
+      trainSet,
+      nameToSegUsages,
+      coverageGoal = 0.98
+    )
     val segSet = segs.map(_._1).toSet
     def transformName(name: Name): Name = {
       name.filter(segSet.contains)
@@ -26,7 +30,7 @@ object NamingBaseline {
         .map(
           datum =>
             testOnDatum(datum, useOracle = false, transformName).result //|+|
-              //testOnDatum(datum, useOracle = true, transformName).result
+          //testOnDatum(datum, useOracle = true, transformName).result
         )
         .seq
         .combineAll
@@ -39,9 +43,7 @@ object NamingBaseline {
   }
 
   def nodeName(n: PNode): Name = {
-    n.nameOpt.toVector.flatMap(name =>
-      LabelEncoder.segmentName(name)
-    )
+    n.nameOpt.toVector.flatMap(name => LabelEncoder.segmentName(name))
   }
 
   def typeName(ty: PredicateGraph.PType): Name = {
@@ -59,7 +61,11 @@ object NamingBaseline {
     nameSimilarity(LabelEncoder.segmentName(n1), LabelEncoder.segmentName(n2))
   }
 
-  case class testOnDatum(datum: Datum, useOracle: Boolean, transformName: Name => Name) {
+  case class testOnDatum(
+      datum: ProcessedProject,
+      useOracle: Boolean,
+      transformName: Name => Name
+  ) {
 
     def predict(threshold: Double): Map[ProjNode, (TruthPosition, PType)] = {
       import cats.implicits._
@@ -83,10 +89,9 @@ object NamingBaseline {
             .filter { case (_, score) => score >= threshold }
             .sortBy(-_._2)
             .indexWhere { case (ty, _) => ty == label }
-          if(truthPosition < 0) {
+          if (truthPosition < 0) {
             Vector()
-          }
-          else Vector(n -> (truthPosition, label))
+          } else Vector(n -> (truthPosition, label))
       }.toMap
       predictions
     }

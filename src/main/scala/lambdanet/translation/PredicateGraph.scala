@@ -215,7 +215,8 @@ object PredicateGraph {
     )(implicit convert: String => S, aggregate: Vector[S] => S): S = {
       def rec(envPriority: Int)(ty: PType): S = {
         def wrap(priority: Int)(content: S): S = {
-          if (priority < envPriority) aggregate(Vector("(", content, ")")) else content
+          if (priority < envPriority) aggregate(Vector("(", content, ")"))
+          else content
         }
 
         ty match {
@@ -233,7 +234,8 @@ object PredicateGraph {
               .map {
                 case (l, t) =>
                   aggregate(Vector[S](l.name, ": ", rec(0)(t)))
-              }.toVector
+              }
+              .toVector
               .pipe(SM.joinWithSep[S](_, "{", ", ", "}"))
         }
       }
@@ -420,7 +422,7 @@ object PredicateGraphTranslation {
     def add(pred: TyPredicate): Unit = {
       pred match {
         case BinaryRel(l, r, _) if l == r => return
-        case  _ =>
+        case _ =>
           predicates += pred
       }
     }
@@ -531,7 +533,7 @@ object PredicateGraphTranslation {
 
     val totalMapping = modules.foldLeft(Map[PNode, PAnnot]())(_ ++ _.mapping)
     totalMapping.keySet.foreach { n =>
-      n.nameOpt.foreach{name =>
+      n.nameOpt.foreach { name =>
         add(HasName(n, name))
       }
     }

@@ -367,7 +367,7 @@ object NeuralInference {
           n1 -> NamingBaseline.nodeName(n1)
       }
 
-      val similarities = unlessT(noContextual, Set[BatchedMsgModels]()){
+      val similarities = unlessT(noContextual, Set[BatchedMsgModels]()) {
         (for {
           (n, nName) <- nodeWithNames
           (n1, n1Name) <- namedOptions if n != n1

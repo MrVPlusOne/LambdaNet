@@ -31,7 +31,9 @@ trait DecodingResult {
 }
 
 object DecodingResult {
-  def sortedRows(n: Int)(logits: Tensor, offset: Int): IndexedSeq[TopNDistribution[Int]] =
+  def sortedRows(
+      n: Int
+  )(logits: Tensor, offset: Int): IndexedSeq[TopNDistribution[Int]] =
     numsca.softmax(logits).rowArrays.map {
       _.zip(Stream.from(offset))
         .sortBy(_._1)

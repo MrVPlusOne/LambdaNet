@@ -1,20 +1,29 @@
 package lambdanet
 
+import ammonite.{ops => amm}
+import ammonite.ops.Path
+import lambdanet.NeuralInference.Predictor
+import lambdanet.PrepareRepos.{ParsedProject, parseProject}
 import lambdanet.SequenceModel.SeqArchitecture
 import lambdanet.architecture.LabelEncoder.TrainableLabelEncoder
 import lambdanet.architecture.{LabelEncoder, NNArchitecture}
+import lambdanet.train.DataSet.{nonGenerify, selectLibTypes}
 import lambdanet.train.TrainingLoop.{ForwardResult, maxLibRatio, projWeight}
 import lambdanet.train.TrainingState.iterationNum
 import lambdanet.train.{
   Counted,
   DataSet,
-  Datum,
   Loss,
   LossModel,
+  ProcessedProject,
   TopNDistribution
 }
-import lambdanet.translation.PredicateGraph.{PNode, PType}
+import lambdanet.translation.ImportsResolution.ErrorHandler
+import lambdanet.translation.PredicateGraph.{LibTypeNode, PNode, PType}
+import lambdanet.utils.QLangDisplay
 
+import scala.collection.parallel.ForkJoinTaskSupport
+import scala.concurrent.forkjoin.ForkJoinPool
 import scala.util.Random
 
 case object Model {
@@ -53,7 +62,15 @@ case object Model {
         randomLabelId(rand, vocabSize = 50),
       )
 
-    Model(architecture, labelEncoder, nameEncoder, labelCoverage, random)
+    Model(
+      architecture,
+      libDefs,
+      libTypesToPredict,
+      labelEncoder,
+      nameEncoder,
+      labelCoverage,
+      random
+    )
   }
 
   def randomLabelId(rand: Random, vocabSize: Int): () => Int =
@@ -66,6 +83,8 @@ case object Model {
 
 case class Model(
     architecture: NNArchitecture,
+    libDefs: LibDefs,
+    libTypesToPredict: Set[LibTypeNode],
     labelEncoder: LabelEncoder,
     nameEncoder: LabelEncoder,
     labelCoverage: TrainableLabelEncoder,
@@ -81,7 +100,7 @@ case class Model(
   }
 
   def forward(
-      datum: Datum,
+      datum: ProcessedProject,
       shouldDownsample: Boolean,
       shouldDropout: Boolean,
       maxBatchSize: Option[Int]
@@ -167,6 +186,80 @@ case class Model(
     }
 
     (loss, fwd, predictions)
+  }
+
+  case class PredictionService(
+      numOfThreads: Int,
+      handler: ErrorHandler = ErrorHandler.alwaysStoreError,
+  ) {
+    val taskSupport: Option[ForkJoinTaskSupport] =
+      if (numOfThreads > 1)
+        Some(new ForkJoinTaskSupport(new ForkJoinPool(numOfThreads)))
+      else None
+
+    def predict(
+        datum: ProcessedProject,
+        outputPath: Path,
+        maxBatchSize: Option[Int]
+    ): Unit = {
+      val (_, fwd, pred) = forward(
+        datum,
+        shouldDownsample = false,
+        shouldDropout = false,
+        maxBatchSize = maxBatchSize
+      )
+
+      QLangDisplay.renderProjectToDirectory(
+        datum.projectName.toString,
+        datum.qModules,
+        pred,
+        datum.predictionSpace.allTypes
+      )(outputPath / "predictions")
+
+      import train.toAccuracy
+      println("libAccuracy: " + toAccuracy(fwd.libCorrect))
+      println("projectAccuracy: " + toAccuracy(fwd.projCorrect))
+    }
+
+    def processProject(
+        sourcePath: Path,
+        skipSet: Set[String] = Set("node_modules"),
+        useInferred: Boolean = true,
+        onlyPredictLibType: Boolean = false,
+    ): ProcessedProject = {
+
+      val project =
+        parseProject(
+          libDefs,
+          sourcePath / amm.up,
+          sourcePath,
+          skipSet = skipSet,
+          shouldPruneGraph = false,
+          errorHandler = handler
+        )
+
+      val ParsedProject(path, qModules, _, g) = project
+      val predictor = Predictor(
+        path,
+        g,
+        libTypesToPredict,
+        libDefs,
+        taskSupport,
+        onlyPredictLibType
+      )
+      val typeTransform = nonGenerify(libDefs)
+      val annots1 =
+        (if (useInferred) project.allUserAnnots
+         else project.nonInferredUserAnnots)
+          .mapValuesNow(typeTransform)
+          .filter { x =>
+            predictor.predictionSpace.allTypes.contains(x._2)
+          }
+      ProcessedProject(path, annots1, g, qModules.map { m =>
+        m.copy(mapping = m.mapping.mapValuesNow(_.map(typeTransform)))
+      }, Right(predictor))
+    }
+
   }
 
   private def analyzeDecoding(

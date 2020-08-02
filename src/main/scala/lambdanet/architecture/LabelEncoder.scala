@@ -4,7 +4,7 @@ import botkop.numsca.Tensor
 import funcdiff.SimpleMath.Coverage
 import funcdiff._
 import lambdanet._
-import lambdanet.train.Datum
+import lambdanet.train.ProcessedProject
 import lambdanet.translation.PredicateGraph._
 import lambdanet.translation.QLang
 
@@ -78,7 +78,7 @@ object LabelEncoder {
       *                         training time.
       */
     def fromData(
-        trainSet: Vector[Datum],
+        trainSet: Vector[ProcessedProject],
         coverageGoal: Double,
         architecture: NNArchitecture,
         dropoutProb: Real,
@@ -149,7 +149,7 @@ object LabelEncoder {
       */
     def fromData(
         symbolPath: SymbolPath,
-        trainSet: Vector[Datum],
+        trainSet: Vector[ProcessedProject],
         coverageGoal: Double,
         architecture: NNArchitecture,
         dropoutProb: Real,
@@ -258,7 +258,7 @@ object LabelEncoder {
   }
 
   def selectSegmentsBasedOnUsages[Seg](
-      dataSet: Vector[Datum],
+      dataSet: Vector[ProcessedProject],
       nameUsages: Symbol => Map[Seg, Int],
       coverageGoal: Double
   ): (Seq[(Seg, Int)], Coverage) = {

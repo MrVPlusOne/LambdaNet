@@ -2,7 +2,13 @@ package lambdanet
 
 import ammonite.ops._
 import funcdiff.{Optimizer, ParamCollection, SimpleMath}
-import lambdanet.train.{DataSet, Datum, Timeouts, TrainingLoop, TrainingState}
+import lambdanet.train.{
+  DataSet,
+  ProcessedProject,
+  Timeouts,
+  TrainingLoop,
+  TrainingState
+}
 import lambdanet.translation.ImportsResolution.{ErrorHandler, NameDef}
 import lambdanet.translation.PredicateGraph.{PAny, PNode}
 import lambdanet.utils.QLangDisplay
@@ -27,7 +33,7 @@ object RunTrainedModel {
     val libDefs = repos.libDefs
     val handler = ErrorHandler(ErrorHandler.StoreError, ErrorHandler.StoreError)
     val testProject =
-      prepareProject(
+      parseProject(
         libDefs,
         sourcePath / up,
         sourcePath,

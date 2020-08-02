@@ -202,26 +202,27 @@ object ProgramParsing {
   def parseGModulesFromFiles(
       srcFiles: Seq[RelPath],
       projectRoot: Path
-  ): Vector[GModule] = SimpleMath.withErrorMessage{
-    val command = s"node ${pwd / RelPath("scripts/ts/parsingFromFile.js")} " +
-      s"--src ${srcFiles.mkString(" ")}" +
-      s"--lib ${srcFiles.mkString(" ")}"
-    s"Failed command: $command"
-  }{
-    val r = %%(
-      'node,
-      pwd / RelPath("scripts/ts/parsingFromFile.js"),
-      "--src",
-      srcFiles.map(_.toString()),
-      "--lib",
-      srcFiles.toList.map(_.toString())
-    )(projectRoot)
-    if (r.exitCode != 0) {
-      throw new Error(s"TS compiler parsing failed: ${r.out.string}")
+  ): Vector[GModule] =
+    SimpleMath.withErrorMessage {
+      val command = s"node ${pwd / RelPath("scripts/ts/parsingFromFile.js")} " +
+        s"--src ${srcFiles.mkString(" ")}" +
+        s"--lib ${srcFiles.mkString(" ")}"
+      s"Failed command: $command"
+    } {
+      val r = %%(
+        'node,
+        pwd / RelPath("scripts/ts/parsingFromFile.js"),
+        "--src",
+        srcFiles.map(_.toString()),
+        "--lib",
+        srcFiles.toList.map(_.toString())
+      )(projectRoot)
+      if (r.exitCode != 0) {
+        throw new Error(s"TS compiler parsing failed: ${r.out.string}")
+      }
+      val parsedJson = r.out.string
+      ProgramParsing().parseGModulesFromJson(parsedJson)
     }
-    val parsedJson = r.out.string
-    ProgramParsing().parseGModulesFromJson(parsedJson)
-  }
 
   def asString(v: Js.Val): String = v.asInstanceOf[Str].value
 

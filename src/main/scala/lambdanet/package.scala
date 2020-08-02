@@ -165,9 +165,9 @@ package object lambdanet extends SimpleMath.ExtensionsTrait {
     } catch {
       case e: Exception => throw e
     }).tap { _ =>
-        val took = prettyPrintTime(System.nanoTime() - startTime, 2)
-        println(infoStr(s"  [finish] '$actionName' finished. (took $took)"))
-      }
+      val took = prettyPrintTime(System.nanoTime() - startTime, 2)
+      println(infoStr(s"  [finish] '$actionName' finished. (took $took)"))
+    }
   }
 
   def announcedAndLogTime[A](actionName: String)(action: => A): A = {

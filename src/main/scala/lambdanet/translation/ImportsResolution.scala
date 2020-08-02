@@ -255,8 +255,9 @@ object ImportsResolution {
       }
     }
 
-    def alwaysThrow: ErrorHandler = apply(ThrowError, ThrowError)
+    def alwaysThrowError: ErrorHandler = apply(ThrowError, ThrowError)
 
+    def alwaysStoreError: ErrorHandler = apply(StoreError, StoreError)
   }
 
   /** Note: parameter `resolvedModules` should also include the namespaces in the baseCtx */

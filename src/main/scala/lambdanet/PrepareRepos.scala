@@ -110,7 +110,7 @@ object PrepareRepos {
         .flatMap { f =>
           val r = if (countTsCode(f, dir) < maxLinesOfCode) {
             try {
-              val p0 = prepareProject(
+              val p0 = parseProject(
                 libDefs,
                 dir,
                 f,
@@ -589,7 +589,7 @@ object PrepareRepos {
     }
   }
 
-  def prepareProject(
+  def parseProject(
       libDefs: LibDefs,
       projectsBase: Path,
       projectRoot: Path,

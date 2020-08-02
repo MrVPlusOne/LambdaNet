@@ -6,12 +6,7 @@ import lambdanet._
 import lambdanet.train.TopNDistribution
 import lambdanet.translation.ImportsResolution.NameDef
 import lambdanet.translation.{PAnnot, PredicateGraph}
-import lambdanet.translation.PredicateGraph.{
-  PAny,
-  PNode,
-  PTyVar,
-  PType
-}
+import lambdanet.translation.PredicateGraph.{PAny, PNode, PTyVar, PType}
 import lambdanet.translation.QLang._
 
 import scala.language.implicitConversions
@@ -393,7 +388,7 @@ object QLangDisplay {
       }
 
     val f = pwd / RelPath("data/toy")
-    val p = prepareProject(libDefs, pwd / "data", f, skipSet = Set())
+    val p = parseProject(libDefs, pwd / "data", f, skipSet = Set())
     val annts = p.allUserAnnots
 
     val groundTruth = annts.map { case (k, v) => k.n -> v }
@@ -405,7 +400,12 @@ object QLangDisplay {
       ty => TopNDistribution(Vector(0.9 -> ty, 0.1 -> PAny))
     )
     val outDir = pwd / "predictions"
-    renderProjectToDirectory("toy", p.qModules, predictions, annts.values.toSet)(
+    renderProjectToDirectory(
+      "toy",
+      p.qModules,
+      predictions,
+      annts.values.toSet
+    )(
       outDir
     )
   }

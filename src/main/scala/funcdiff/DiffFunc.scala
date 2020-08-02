@@ -413,7 +413,7 @@ private[funcdiff] object DiffFunc {
   }
 
   case class StackRows(args: IS[CompNode]) extends DiffFunc {
-    if(checkNaN){
+    if (checkNaN) {
       args.forall(_.shape(0) == 1)
     }
 
@@ -460,14 +460,15 @@ private[funcdiff] object DiffFunc {
     }
   }
 
-  case class CrossEntropyOnSigmoid(logits: CompNode, targets: Tensor) extends UnaryFunc {
+  case class CrossEntropyOnSigmoid(logits: CompNode, targets: Tensor)
+      extends UnaryFunc {
     require(targets.shape(1) == 1)
     require(logits.shape(1) == 1)
 
     def x1: CompNode = logits
 
     val value = {
-      val l = ns.log(ns.exp(-logits.value)+1)
+      val l = ns.log(ns.exp(-logits.value) + 1)
       l * targets + (-targets + 1) * (logits.value + l)
     }
 

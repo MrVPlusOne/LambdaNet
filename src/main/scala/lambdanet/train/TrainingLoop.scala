@@ -242,7 +242,7 @@ object TrainingLoop {
       var shouldAnnounce: Boolean = true
 
       def forward(
-          datum: Datum,
+          datum: ProcessedProject,
           shouldDownsample: Boolean,
           shouldDropout: Boolean,
           maxBatchSize: Option[Int]
@@ -292,7 +292,7 @@ object TrainingLoop {
         val saveInterval = if (toyMode) 40 else 6
 
         def logAccuracyDetails(
-            stats: Vector[(Datum, ForwardResult)],
+            stats: Vector[(ProcessedProject, ForwardResult)],
             epoch: Int
         ) = {
           import cats.implicits._

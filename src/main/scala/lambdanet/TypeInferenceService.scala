@@ -2,7 +2,6 @@ package lambdanet
 
 import ammonite.ops.Path
 import ammonite.{ops => amm}
-import amm.RelPath
 import funcdiff.ParamCollection
 import funcdiff.SimpleMath.{readObjectFromFile, saveObjectToFile}
 import lambdanet.PrepareRepos.ParsedRepos
@@ -71,9 +70,24 @@ object TypeInferenceService {
     val modelCachePath = modelDir / "model.serialized"
     val modelConfig = ModelConfig()
 
-    loadModel(paramPath, modelCachePath, modelConfig,
-      numOfThreads = 8,
-    )
-    println("Model load!")
+    val model =
+      loadModel(paramPath, modelCachePath, modelConfig, numOfThreads = 8)
+
+    val service = model.PredictionService(numOfThreads = 8)
+    printResult("Type Inference Service successfully started.")
+    printResult(s"Current working directory: ${amm.pwd}")
+    while (true) {
+      print("Project path: ")
+      try {
+        val sourcePath = Path(scala.io.StdIn.readLine(), amm.pwd)
+        val p = service.processProject(sourcePath)
+        println(p.showDetail)
+        service.predict(p, sourcePath, maxBatchSize = Some(600))
+      } catch {
+        case e: Throwable =>
+          println(s"Got exception: ${e.getMessage}")
+          e.printStackTrace(System.out)
+      }
+    }
   }
 }

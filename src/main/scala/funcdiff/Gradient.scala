@@ -233,7 +233,7 @@ case class InflatedGradient(
   }
 
   def *(t: Tensor): Gradient = {
-    if(t.shape.elements == 1) this * t.squeeze()
+    if (t.shape.elements == 1) this * t.squeeze()
     else transformCore(t, _ * _)
   }
 
