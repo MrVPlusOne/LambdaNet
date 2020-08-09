@@ -97,11 +97,11 @@ object ImportsResolution {
 
     def makeUnknownDef(allocator: PNodeAllocator): NameDef = {
       require(allocator.forLib)
-      NameDef(
-        Some(allocator.newNode(Some(lambdanet.unknownSymbol), isType = false)),
-        Some(allocator.newNode(Some(lambdanet.unknownSymbol), isType = true)),
-        None
-      )
+      val term =
+        allocator.newNode(Some(lambdanet.unknownSymbol), isType = false, None)
+      val ty =
+        allocator.newNode(Some(lambdanet.unknownSymbol), isType = true, None)
+      NameDef(Some(term), Some(ty), None)
     }
     val unknownDef: NameDef = {
       val libAllocator = new PNodeAllocator(forLib = true)

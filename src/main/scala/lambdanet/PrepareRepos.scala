@@ -115,8 +115,8 @@ object PrepareRepos {
                 dir,
                 f,
                 shouldPruneGraph = false,
-                errorHandler =
-                  ErrorHandler(ErrorHandler.StoreError, ErrorHandler.StoreError)
+                errorHandler = ErrorHandler.alwaysStoreError,
+                warnOnErrors = true,
               ).mergeEqualities
 
               Successful(p0).tap { _ =>
@@ -295,9 +295,10 @@ object PrepareRepos {
       irModules: Vector[IRModule],
       pGraph: PredicateGraph
   ) {
+    def allAnnots: Map[PNode, PAnnot] = irModules.flatMap(_.mapping).toMap
+
     @transient
     lazy val allUserAnnots: Map[ProjNode, PType] = {
-      val allAnnots = irModules.flatMap(_.mapping).toMap
       allAnnots.collect {
         case (n, Annot.User(t, _)) if !typesNotToPredict.contains(t) =>
           ProjNode(n) -> t
@@ -306,7 +307,6 @@ object PrepareRepos {
 
     @transient
     lazy val nonInferredUserAnnots: Map[ProjNode, PType] = {
-      val allAnnots = irModules.flatMap(_.mapping).toMap
       allAnnots.collect {
         case (n, Annot.User(t, false)) if !typesNotToPredict.contains(t) =>
           ProjNode(n) -> t
@@ -596,8 +596,8 @@ object PrepareRepos {
       skipSet: Set[String] = Set("dist", "__tests__", "test", "tests"),
       shouldPruneGraph: Boolean = true,
       shouldPrintProject: Boolean = false,
-      errorHandler: ErrorHandler =
-        ErrorHandler(ErrorHandler.ThrowError, ErrorHandler.ThrowError)
+      warnOnErrors: Boolean = true,
+      errorHandler: ErrorHandler = ErrorHandler.alwaysThrowError,
   ): ParsedProject =
     SimpleMath.withErrorMessage(s"In project: $projectRoot") {
       import libDefs._
@@ -646,7 +646,8 @@ object PrepareRepos {
           pruneGraph(graph0, userAnnots.keySet ++ userTypes)
         else graph0
 
-      errorHandler.warnErrors()
+      if (warnOnErrors)
+        errorHandler.warnErrors()
       printResult(s"Project parsed: '$projectRoot'")
       println("number of nodes: " + graph.nodes.size)
 

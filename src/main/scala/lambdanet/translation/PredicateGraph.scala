@@ -8,8 +8,6 @@ import lambdanet.translation.ImportsResolution.NameDef
 
 import scala.collection.mutable
 import lambdanet._
-import lambdanet.architecture.LabelEncoder
-import lambdanet.train.NamingBaseline
 
 @SerialVersionUID(1)
 case class PredicateGraph(
@@ -24,6 +22,7 @@ case class PredicateGraph(
       .collect {
         case DefineRel(v, v1: PNode) =>
           if (v1.nameOpt.isEmpty) v1.nameOpt = v.nameOpt
+          if (v1.srcSpan.isEmpty) v1.srcSpan = v.srcSpan
           (v, v1)
       }
       .foldLeft(Map[PNode, PNode]()) { (map, pair) =>
@@ -63,17 +62,12 @@ case class PredicateGraph(
 object PredicateGraph {
 
   object PNode {
-    def toTuple(n: PNode): (Int, Option[Symbol], Boolean, Boolean) =
-      (n.id, n.nameOpt, n.isType, n.fromLib)
-    def fromTuple(t: (Int, Option[Symbol], Boolean, Boolean)): PNode =
-      new PNode(t._1, t._2, t._3, t._4)
-
     def apply(
         id: Int,
         nameOpt: Option[Symbol],
         isType: Boolean,
         fromLib: Boolean
-    ): PNode = { new PNode(id, nameOpt, isType, fromLib) }
+    ): PNode = { new PNode(id, nameOpt, isType, fromLib, None) }
 
     def unapply(n: PNode): Option[(Int, Option[Symbol], Boolean, Boolean)] = {
       Some((n.id, n.nameOpt, n.isType, n.fromLib))
@@ -99,7 +93,8 @@ object PredicateGraph {
       protected val id: Int,
       var nameOpt: Option[Symbol],
       val isType: Boolean,
-      val fromLib: Boolean
+      val fromLib: Boolean,
+      var srcSpan: Option[SrcSpan],
   ) extends PExpr
       with Serializable {
     def isTerm: Boolean = !isType
@@ -139,7 +134,7 @@ object PredicateGraph {
       extends IdAllocator[PNode]
       with Serializable {
 
-    val anyNode: PNode = newNode(Some('ANY), isType = true)
+    val anyNode: PNode = newNode(Some('ANY), isType = true, None)
     val unknownDef: NameDef =
       if (forLib) {
         NameDef.makeUnknownDef(this)
@@ -147,7 +142,8 @@ object PredicateGraph {
 
     def newNode(
         nameOpt: Option[Symbol],
-        isType: Boolean
+        isType: Boolean,
+        srcSpan: Option[SrcSpan],
     ): PNode = {
       if (!forLib) {
         nameOpt.foreach { name =>
@@ -156,23 +152,18 @@ object PredicateGraph {
           }
         }
       }
-      useNewId(id => new PNode(id, nameOpt, isType, forLib))
+      useNewId(id => new PNode(id, nameOpt, isType, forLib, srcSpan))
     }
-
-    def newDef(nameOpt: Option[Symbol]) =
-      NameDef(
-        Some(newNode(nameOpt, isType = false)),
-        Some(newNode(nameOpt, isType = true)),
-        None
-      )
 
     val namedUnknownDefs: mutable.HashMap[Symbol, NameDef] = mutable.HashMap()
 
     def newUnknownDef(nameOpt: Option[Symbol]): NameDef = {
+      // todo: might want to map the srcSpan of import statements
+      val srcSpan: Option[SrcSpan] = None
       nameOpt match {
         case None =>
           NameDef(
-            Some(newNode(None, isType = false)),
+            Some(newNode(None, isType = false, srcSpan)),
             NameDef.unknownDef.ty,
             None
           )
@@ -180,7 +171,7 @@ object PredicateGraph {
           namedUnknownDefs.getOrElseUpdate(
             name,
             NameDef(
-              Some(newNode(nameOpt, isType = false)),
+              Some(newNode(nameOpt, isType = false, srcSpan)),
               NameDef.unknownDef.ty,
               None
             )
@@ -440,12 +431,12 @@ object PredicateGraphTranslation {
           case PFuncType(args, to) =>
             val args1 = args.map(encodePType)
             val to1 = encodePType(to)
-            val n = allocator.newNode(None, isType = true)
+            val n = allocator.newNode(None, isType = true, None)
             add(DefineRel(n, PFunc(args1, to1)))
             n
           case PObjectType(fields) =>
             val fields1 = fields.mapValuesNow(encodePType)
-            val n = allocator.newNode(None, isType = true)
+            val n = allocator.newNode(None, isType = true, None)
             add(DefineRel(n, PObject(fields1)))
             n
         }

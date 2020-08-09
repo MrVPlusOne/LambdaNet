@@ -6,7 +6,8 @@ import funcdiff.ParamCollection
 import funcdiff.SimpleMath.{readObjectFromFile, saveObjectToFile}
 import lambdanet.PrepareRepos.ParsedRepos
 import lambdanet.architecture.GATArchitecture
-import lambdanet.train.DataSet
+import lambdanet.train.{DataSet, TopNDistribution}
+import lambdanet.translation.PredicateGraph
 
 import scala.collection.parallel.ForkJoinTaskSupport
 import scala.concurrent.forkjoin.ForkJoinPool
@@ -49,7 +50,6 @@ object TypeInferenceService {
           Some(new ForkJoinTaskSupport(new ForkJoinPool(numOfThreads))),
           useSeqModel = false,
           toyMode = false,
-          //todo: change this if you want to predict user defined types
           onlyPredictLibType = false
         )
       }
@@ -64,7 +64,33 @@ object TypeInferenceService {
       model
     }
 
+  case class PredictionResults(
+      map: Map[PredicateGraph.PNode, TopNDistribution[PredicateGraph.PType]]
+  ) {
+    def prettyPrint(): Unit = {
+      val byFile = map.keys.groupBy(_.srcSpan.get.srcFile).toSeq.sortBy(_._1)
+      byFile.foreach {
+        case (file, nodes) =>
+          println(s"=== File: $file ===")
+          nodes.toSeq.sortBy(_.srcSpan.get.start).foreach { n =>
+            val span = n.srcSpan.get.showShort()
+            val rankedList = map(n).distr.zipWithIndex
+              .map {
+                case ((p, ty), i) => {
+                  val acc = "%.2f".format(p * 100)
+                  s"[${i + 1}]($acc%) ${ty.showSimple}"
+                }
+              }
+              .mkString(", ")
+            println(s"$span: $rankedList")
+          }
+      }
+    }
+  }
+
   def main(args: Array[String]): Unit = {
+    lambdanet.shouldWarn = false
+
     val modelDir = amm.pwd / "models" / "newParsing-GAT1-fc2-newSim-decay-6"
     val paramPath = modelDir / "params.serialized"
     val modelCachePath = modelDir / "model.serialized"
@@ -73,16 +99,17 @@ object TypeInferenceService {
     val model =
       loadModel(paramPath, modelCachePath, modelConfig, numOfThreads = 8)
 
-    val service = model.PredictionService(numOfThreads = 8)
+    val service = model.PredictionService(numOfThreads = 8, predictTopK = 5)
     printResult("Type Inference Service successfully started.")
     printResult(s"Current working directory: ${amm.pwd}")
     while (true) {
       print("Project path: ")
       try {
-        val sourcePath = Path(scala.io.StdIn.readLine(), amm.pwd)
-        val p = service.processProject(sourcePath)
-        println(p.showDetail)
-        service.predict(p, sourcePath, maxBatchSize = Some(600))
+        val line = scala.io.StdIn.readLine()
+        require(line.strip().nonEmpty, "Specified path should not be empty.")
+        val sourcePath = Path(line, amm.pwd)
+        val results = service.predictOnProject(sourcePath, warnOnErrors = false)
+        PredictionResults(results).prettyPrint()
       } catch {
         case e: Throwable =>
           println(s"Got exception: ${e.getMessage}")

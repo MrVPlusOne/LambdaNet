@@ -90,6 +90,7 @@ object ProgramParsing {
       declarationFileMode: Boolean = false,
       filter: Path => Boolean = _ => true
   ): GProject = {
+    require(root.isDir)
     val packageFiles =
       ls.rec(root)
         .filter(f => filter(f) && f.last == "package.json")
@@ -526,7 +527,7 @@ case class ProgramParsing() {
       val r = %%('node, "./parsingFromString.js", content)(pwd / 'scripts / 'ts)
       val json = ProgramParsing.parseJson(r.out.string).asInstanceOf[Js.Arr]
       json.value.toVector.flatMap {
-        parseGStmt
+        parseGStmt(_)("<no src file>")
       }
     }
   }
@@ -591,7 +592,7 @@ case class ProgramParsing() {
 
       val stmts1 =
         SimpleMath.withErrorMessage(s"Error when parsing module: $name") {
-          asVector(obj("stmts")).flatMap(parseGStmt)
+          asVector(obj("stmts")).flatMap(parseGStmt(_)(RelPath(name)))
         }
       val stmts2 = mergeInterfaces(stmts1)
 
@@ -604,7 +605,9 @@ case class ProgramParsing() {
     }
   }
 
-  private def parseGStmt(v: Js.Val): Vector[GStmt] =
+  private def parseGStmt(
+      v: Js.Val
+  )(implicit srcFile: ProjectPath): Vector[GStmt] =
     SimpleMath.withErrorMessage(s"Error when parsing $v") {
       val map = asObj(v)
       asString(map("category")) match {
@@ -613,8 +616,9 @@ case class ProgramParsing() {
           val t = parseGTMark(map("mark"))
           val init = parseGExprOpt(map("init"))
           val ms = parseModifiers(map("modifiers"))
-          val b = asBoolean(map("isConst")) || ms.isConst
-          Vector(VarDef(Symbol(name), t, init, isConst = b, ms.exportLevel))
+          val isConst = asBoolean(map("isConst")) || ms.isConst
+          val span = asOption(map("srcSpan")).map(parseSrcSpan)
+          Vector(VarDef(Symbol(name), t, init, isConst, ms.exportLevel, span))
         case "AssignStmt" =>
           val lhs = parseGExpr(map("lhs"))
           val rhs = parseGExpr(map("rhs"))
@@ -653,8 +657,11 @@ case class ProgramParsing() {
           val name0 = asString(map("name"))
           val args = parseArgList(map("args"))
           val returnType =
-            if (name0 == "Constructor") Annot.Missing
-            else parseGTMark(map("returnType"))
+            if (name0 == "Constructor") (Annot.Missing, None)
+            else {
+              val Vector(mark, span) = asVector(map("returnType"))
+              (parseGTMark(mark), asOption(span).map(parseSrcSpan))
+            }
           val body = makeSureInBlockSurface(parseGStmt(map("body")))
 
           val tyVars = asVector(map("tyVars")).map(asSymbol)
@@ -688,11 +695,11 @@ case class ProgramParsing() {
           val tyVars = asVector(map("tyVars")).map(asSymbol)
           val vars = asVector(map("vars")).map { v1 =>
             val (name, v2) = parseNamedValue(v1)
-            val List(tyV, initV, isStaticV) = asArray(v2)
+            val List(tyV, initV, isStaticV, span) = asArray(v2)
             val ty = parseGTMark(tyV)
             val init = parseGExprOpt(initV)
             val isStatic = asBoolean(isStaticV)
-            (Symbol(name), (ty, init, isStatic))
+            (Symbol(name), (ty, init, isStatic, parseSrcSpan(span)))
           }
           val funcDefs =
             asVector(map("funcDefs")).map { v =>
@@ -706,11 +713,14 @@ case class ProgramParsing() {
             val v1 = vars.groupBy(_._2._3)
             (
               v1.getOrElse(false, Map()).map {
-                case (s, (mark, expr, _)) =>
+                case (s, (mark, expr, _, span)) =>
                   instanceInits(s) = expr
-                  s -> mark
+                  s -> (mark, span)
               },
-              v1.getOrElse(true, Map()).map(p => p._1 -> (p._2._1, p._2._2))
+              v1.getOrElse(true, Map()).map {
+                case (s, (mark, expr, _, span)) =>
+                  s -> (mark, expr, span)
+              }
             )
           }
           val (instanceMethods, staticMethods0) = {
@@ -722,7 +732,7 @@ case class ProgramParsing() {
           }
 
           val (constructor0, pubVars) = {
-            val constructorValue = map("constructor")
+            val constructorValue = map("constr")
             val f = if (constructorValue == Null) {
               // make an empty constructor
               val tyVars = Vector()
@@ -730,7 +740,7 @@ case class ProgramParsing() {
                 GStmt.constructorName,
                 tyVars,
                 Vector(),
-                Annot.Missing,
+                (Annot.Missing, None),
                 BlockStmt(Vector()),
                 ExportLevel.Unspecified
               ).tap(f => f.publicVars = Set())
@@ -739,9 +749,11 @@ case class ProgramParsing() {
             }
             f.copy(
               name = GStmt.constructorName,
-              returnType = Annot.Fixed(TyVar(name)),
+              returnType = (Annot.Fixed(TyVar(name)), None),
               tyVars = tyVars // constructor has the same tyVars as the class
-            ) -> f.args.filter(x => f.publicVars.contains(x._1))
+            ) -> f.args
+              .filter(x => f.publicVars.contains(x._1))
+              .map { case (n, ty, span) => n -> (ty, span) }
           }
 
           // public vars need to be converted into instance vars and got instantiated in the constructor
@@ -755,7 +767,8 @@ case class ProgramParsing() {
               Annot.Fixed(TyVar(name)),
               None,
               isConst = true,
-              ExportLevel.Unspecified
+              ExportLevel.Unspecified,
+              None,
             )
             val thisSuperVars = Vector(
               thisDef,
@@ -787,8 +800,8 @@ case class ProgramParsing() {
             .flatMap(parseGStmt)
             .asInstanceOf[Vector[FuncDef]]
           val staticMembers = staticLambdas ++ staticVars.map {
-            case (vn, (ty, init)) =>
-              VarDef(vn, ty, init, staticVarIsConst, ms.exportLevel)
+            case (vn, (ty, init, span)) =>
+              VarDef(vn, ty, init, staticVarIsConst, ms.exportLevel, Some(span))
           }.toVector ++ staticMethods
 
           Vector(
@@ -851,25 +864,32 @@ case class ProgramParsing() {
       }
     }
 
-  private def parseArgPair(value: Js.Val): (Symbol, GTMark) = {
+  private def parseArgPair(
+      value: Js.Val
+  )(implicit srcFile: ProjectPath): (Symbol, GTMark, SrcSpan) = {
     val (name, v) = parseNamedValue(value)
-    val ty = parseGTMark(v)
-    (Symbol(name), ty)
+    val Vector(mark, span) = asVector(v)
+    val ty = parseGTMark(mark)
+    (Symbol(name), ty, parseSrcSpan(span))
   }
 
-  private def parseArgList(value: Js.Val): Vector[(Symbol, GTMark)] = {
+  private def parseArgList(
+      value: Js.Val
+  )(implicit srcFile: ProjectPath): Vector[(Symbol, GTMark, SrcSpan)] = {
     val list = asVector(value)
     list.map(parseArgPair)
   }
 
-  private def parseGExprOpt(v: Js.Val): Option[GExpr] = {
+  private def parseGExprOpt(
+      v: Js.Val
+  )(implicit srcFile: ProjectPath): Option[GExpr] = {
     v match {
       case Null => None
       case _    => Some(parseGExpr(v))
     }
   }
 
-  private def parseGExpr(v: Js.Val): GExpr = {
+  private def parseGExpr(v: Js.Val)(implicit srcFile: ProjectPath): GExpr = {
     val map = asObj(v)
     (asString(map("category")) match {
       case "FuncCall" =>
@@ -907,6 +927,12 @@ case class ProgramParsing() {
       e.tyAnnot = Some(parseGTMark(map("mark")))
     }
   }
+
+  private def parseSrcSpan(v: Js.Val)(implicit srcFile: ProjectPath): SrcSpan =
+    (v: @unchecked) match {
+      case Arr(Arr(NumInt(l1), NumInt(c1)), Arr(NumInt(l2), NumInt(c2))) =>
+        SrcSpan((l1, c1), (l2, c2), srcFile)
+    }
 
   var numAnnotated, numInferred, numMissing = 0
   private def parseGTMark(v: Js.Val): GTMark = (v: @unchecked) match {

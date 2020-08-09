@@ -12,6 +12,7 @@ import lambdanet.{
   ImportStmt,
   ObjectType,
   ProjectPath,
+  SrcSpan,
   Surface,
   TyAnnot,
   TyVar,
@@ -120,10 +121,15 @@ object PLangTranslation {
   ): PModule = {
     val mapping = mutable.HashMap[PNode, TyAnnot]()
 
-    def allocate(nameOpt: Option[Symbol], annot: TyAnnot, isTerm: Boolean)(
+    def allocate(
+        nameOpt: Option[Symbol],
+        annot: TyAnnot,
+        srcSpan: Option[SrcSpan],
+        isTerm: Boolean
+    )(
         implicit outerTyVars: Set[Symbol]
     ): PNode = {
-      val v = allocator.newNode(nameOpt, !isTerm)
+      val v = allocator.newNode(nameOpt, !isTerm, srcSpan)
       mapping(v) = annot.map(monotype)
       v
     }
@@ -133,25 +139,28 @@ object PLangTranslation {
     )(implicit outerTyVars: Set[Symbol]): PStmt =
       SimpleMath.withErrorMessage(s"failed to translate stmt: $stmt") {
         stmt match {
-          case Surface.VarDef(name, annot, init, isConst, exportLevel) =>
-            val node = allocate(Some(name), annot, isTerm = true)
+          case Surface.VarDef(name, annot, init, isConst, exportLevel, span) =>
+            val node = allocate(Some(name), annot, span, isTerm = true)
             VarDef(name, node, init, isConst, exportLevel)
           case Surface.FuncDef(
               name,
               tyVars,
               args,
-              returnType,
+              (returnType, retSpan),
               body,
               exportLevel
               ) =>
             val newTyVars: Set[Symbol] = outerTyVars ++ tyVars
-            val funcNode = allocate(Some(name), Annot.Missing, isTerm = true)
+            val funcNode =
+              allocate(Some(name), Annot.Missing, None, isTerm = true)
             val argNodes = args.map {
-              case (n, annot) =>
-                n -> allocate(Some(n), annot, isTerm = true)(newTyVars)
+              case (n, annot, span) =>
+                n -> allocate(Some(n), annot, Some(span), isTerm = true)(
+                  newTyVars
+                )
             }
             val returnNode =
-              allocate(None, returnType, isTerm = true)(newTyVars)
+              allocate(None, returnType, retSpan, isTerm = true)(newTyVars)
             FuncDef(
               name,
               funcNode,
@@ -169,15 +178,20 @@ object PLangTranslation {
               exportLevel
               ) =>
             val newTyVars: Set[Symbol] = outerTyVars ++ tyVars
-            val classNode = allocate(Some(name), Annot.Missing, isTerm = false)
+            val classNode =
+              allocate(Some(name), Annot.Missing, None, isTerm = false)
             val thisNode = allocate(
               Some(lambdanet.thisSymbol),
               Annot.Fixed(TyVar(name)),
-              isTerm = true
+              None,
+              isTerm = true,
             )
             val varNodes = vars.map {
-              case (s, annot) =>
-                (s, allocate(Some(s), annot, isTerm = true)(newTyVars))
+              case (s, (annot, span)) =>
+                (
+                  s,
+                  allocate(Some(s), annot, Some(span), isTerm = true)(newTyVars)
+                )
             }
 
             ClassDef(
@@ -204,12 +218,13 @@ object PLangTranslation {
               val node = allocate(
                 Some(name),
                 Annot.Fixed(TyVar(superTypes.head)),
+                None,
                 isTerm = false
               )
               TypeAliasStmt(name, node, Set(), exportLevel)
             } else {
               val node =
-                allocate(Some(name), Annot.Fixed(newTy), isTerm = false)
+                allocate(Some(name), Annot.Fixed(newTy), None, isTerm = false)
               TypeAliasStmt(name, node, superTypes, exportLevel)
             }
           // uninteresting cases

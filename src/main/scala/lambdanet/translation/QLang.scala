@@ -222,7 +222,8 @@ object QLangTranslation {
           Annot.User(t, inferred = false),
           None,
           isConst = true,
-          ExportLevel.Unspecified
+          ExportLevel.Unspecified,
+          None,
         )
     }
     val defaultModule =

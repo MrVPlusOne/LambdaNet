@@ -39,7 +39,7 @@ object RunTrainedModel {
         sourcePath,
         skipSet = Set("node_modules", "__tests__", "test", "tests"),
         shouldPruneGraph = false,
-        errorHandler = handler
+        errorHandler = handler,
       )
     val repos1 = repos.copy(devSet = List(), testSet = List(testProject))
     val dataSet = DataSet.makeDataSet(

@@ -18,6 +18,8 @@ export function mustExist<T>(v?: T, msg?: string): T {
   return v;
 }
 
+type SrcSpan = [[number, number], [number, number]]
+
 // ASTs
 type GMark = UserAnnot | Inferred | "missing";
 
@@ -322,7 +324,9 @@ class VarDef implements GStmt {
   category: string = "VarDef";
 
   constructor(public x: string, public mark: GMark,
-              public init: GExpr | null, public isConst: boolean, public modifiers: string[]) {
+              public init: GExpr | null, public isConst: boolean,
+              public modifiers: string[],
+              public srcSpan: SrcSpan | null) {
     mustExist(x);
   }
 }
@@ -447,17 +451,21 @@ class NamespaceStmt implements GStmt {
 class FuncDef implements GStmt {
   category: string = "FuncDef";
 
-  constructor(public name: string, public args: NamedValue<GMark>[], public returnType: GMark,
+  constructor(public name: string,
+              public args: NamedValue<[GMark, SrcSpan]>[],
+              public returnType: [GMark, SrcSpan | null],
               public body: GStmt, public modifiers: string[], public tyVars: string[]) {
     mustExist(name);
   }
 }
 
 class Constructor extends FuncDef {
-  constructor(name: string, args: NamedValue<GMark>[], returnType: GMark,
+  constructor(name: string,
+              args: NamedValue<[GMark, SrcSpan | null]>[],
+              returnType: GMark,
               body: GStmt, modifiers: string[], tyVars: string[],
               public publicVars: string[]) {
-    super(name, args, returnType, body, modifiers, tyVars);
+    super(name, args, [returnType, null], body, modifiers, tyVars);
     mustExist(publicVars);
   }
 }
@@ -465,10 +473,10 @@ class Constructor extends FuncDef {
 class ClassDef implements GStmt {
   category: string = "ClassDef";
 
-  constructor(public name: string, public constructor: Constructor | null,
+  constructor(public name: string, public constr: Constructor | null,
               public instanceLambdas: FuncDef[],
               public staticLambdas: FuncDef[],
-              public vars: NamedValue<[GMark, GExpr | null, boolean]>[],
+              public vars: NamedValue<[GMark, GExpr | null, boolean, SrcSpan]>[],
               public funcDefs: [FuncDef, boolean][],
               public superTypes: string[], public modifiers: string[],
               public tyVars: string[]) {
@@ -611,7 +619,7 @@ export function parseExpr(node: ts.Expression,
         let r = rec(n.right);
         let opp = n.operatorToken.kind;
 
-        return new FuncCall(new Var(ts.SyntaxKind[opp]), [l,r], infer());
+        return new FuncCall(new Var(ts.SyntaxKind[opp]), [l, r], infer());
       }
       case SyntaxKind.PrefixUnaryExpression:
       case SyntaxKind.PostfixUnaryExpression: {
@@ -761,7 +769,8 @@ export class StmtParser {
             name = "$Lambda" + getNLambda[0];
             getNLambda[0] += 1;
           }
-          lambdas.push(parseFunction(name, f, parseModifiers(f.modifiers)));
+          const srcSpan = n0 ? getSrcSpan(n0) : null
+          lambdas.push(parseFunction(name, f, parseModifiers(f.modifiers), srcSpan));
           return new Var(name);
         }
 
@@ -783,7 +792,8 @@ export class StmtParser {
      */
     function parseFunction(name: string,
                            n: ts.FunctionLikeDeclaration | ts.IndexSignatureDeclaration,
-                           modifiers: string[]): FuncDef {
+                           modifiers: string[],
+                           returnSrcSpan: SrcSpan | null): FuncDef {
       function inferRetType(): GMark {
         if (n.type) {
           return parseMark(n.type, undefined);
@@ -817,7 +827,9 @@ export class StmtParser {
         if (parseModifiers(p.modifiers).includes("public")) {
           publicArgs.push(name);
         }
-        return new NamedValue(name, parseMark(p.type, undefined));
+        return new NamedValue<[GMark, SrcSpan]>(
+          name,
+          [parseMark(p.type, undefined), getSrcSpan(p.name)]);
       });
 
       let body: StmtsHolder;
@@ -843,7 +855,7 @@ export class StmtParser {
 
       return isConstructor ?
         new Constructor(name, args, retType, flattenBlock(body.stmts), modifiers, t_vars, publicArgs) :
-        new FuncDef(name, args, retType, flattenBlock(body.stmts), modifiers, t_vars);
+        new FuncDef(name, args, [retType, returnSrcSpan], flattenBlock(body.stmts), modifiers, t_vars);
     }
 
 
@@ -865,12 +877,15 @@ export class StmtParser {
             function parseBindingName(lhs: ts.BindingName, rhs: GExpr | null, ty?: ts.TypeNode): VarDef[] {
               switch (lhs.kind) {
                 case SyntaxKind.Identifier:
-                  return [new VarDef(
+                  const vd = new VarDef(
                     lhs.text,
                     parseMark(ty, lhs),
                     rhs,
                     isConst,
-                    modifiers)];
+                    modifiers,
+                    getSrcSpan(lhs),
+                  )
+                  return [vd];
                 case SyntaxKind.ObjectBindingPattern:
                   return flatMap(lhs.elements, (e: ts.BindingElement) => {
                     const fieldName = e.propertyName ? e.propertyName : e.name;
@@ -1008,7 +1023,8 @@ export class StmtParser {
             } else if (node.kind == SyntaxKind.GetAccessor) {
               modifiers.push("get");
             }
-            return EP.alongWith(parseFunction(name, n, modifiers));
+            const srcSpan = n.name ? getSrcSpan(n.name) : null
+            return EP.alongWith(parseFunction(name, n, modifiers, srcSpan));
           }
 
           case SyntaxKind.ClassDeclaration: {
@@ -1024,7 +1040,8 @@ export class StmtParser {
               }
             }
 
-            let vars: NamedValue<[GMark, (GExpr | null), boolean]>[] = [];
+            let vars: NamedValue<[GMark, GExpr | null, boolean, SrcSpan]>[] = [];
+
             let funcDefs: [FuncDef, boolean][] = [];
             let constructor: Constructor | null = null;
 
@@ -1040,7 +1057,7 @@ export class StmtParser {
                 const init = v1.initializer ? ep.processExpr(v1.initializer) : null;
                 vars.push(new NamedValue(
                   parsePropertyName(v1.name),
-                  [parseMark(v1.type, v1), init, staticQ]
+                  [parseMark(v1.type, v1), init, staticQ, getSrcSpan(v1.name)]
                 ));
               } else if (ts.isMethodDeclaration(v) || ts.isAccessor(v)) {
                 funcDefs.push([getSingleton(rec(v).stmts) as FuncDef, staticQ]);
@@ -1049,12 +1066,13 @@ export class StmtParser {
                 c.args
                   .filter(v => c.publicVars.includes(v.name))
                   .forEach(p => vars.push(
-                    new NamedValue<[GMark, GExpr | null, boolean]>(
-                      p.name, [p.value, null, false])));
+                    new NamedValue<[GMark, GExpr | null, boolean, SrcSpan]>(
+                      p.name, [p.value[0], null, false, p.value[1]])));
                 constructor = c;
               } else if (ts.isIndexSignatureDeclaration(v)) {
                 const n = v as ts.IndexSignatureDeclaration;
-                parseFunction("access", n, parseModifiers(n.modifiers));
+                const srcSpan = n.type ? getSrcSpan(n.type) : null
+                parseFunction("access", n, parseModifiers(n.modifiers), srcSpan);
               } else if (ts.isSemicolonClassElement(v)) {
                 // ignore
               } else {
@@ -1146,8 +1164,9 @@ export class StmtParser {
             } else if (e.category == "Var") {
               return EP.alongWith(new ExportDefault((e as Var).name, null));
             } else {
-              return EP.alongWith(new VarDef("defaultVar", parseMark(undefined, n.expression), e, true,
-                ["export", "default"]));
+              return EP.alongWith(
+                new VarDef("defaultVar", parseMark(undefined, n.expression), e, true,
+                ["export", "default"], null));
             }
           }
           case SyntaxKind.NamespaceExportDeclaration: {
@@ -1160,7 +1179,7 @@ export class StmtParser {
             const n = node as ts.ExportDeclaration;
             const path = n.moduleSpecifier ? (n.moduleSpecifier as ts.StringLiteral).text : null;
             if (n.exportClause) {
-              const clause: ts.NamespaceExport = n.exportClause
+              const clause: ts.NamedExports = n.exportClause
               const exports = clause.elements.map((s: ExportSpecifier) => {
                 const newName = s.name.text;
                 if (s.propertyName) {
@@ -1186,7 +1205,7 @@ export class StmtParser {
             const mds = parseModifiers(n.modifiers);
             return EP.alongWithMany([
               new VarDef(n.name.text, "missing", rhs,
-                true, mds),
+                true, mds, getSrcSpan(n.name)),
               new TypeAliasStmt(n.name.text, [], enumEquiv, mds, [])
             ]);
           }
@@ -1361,6 +1380,13 @@ export function getLineNumber(node: ts.Node): number {
   const src = node.getSourceFile();
   let {line} = src.getLineAndCharacterOfPosition(node.getStart());
   return line + 1;
+}
+
+export function getSrcSpan(node: ts.Node): SrcSpan {
+  const src = node.getSourceFile();
+  const start = src.getLineAndCharacterOfPosition(node.getStart());
+  const end = src.getLineAndCharacterOfPosition(node.getEnd());
+  return [[start.line, start.character], [end.line, end.character]]
 }
 
 export function parseFiles(sources: string[], libraryFiles: string[]): [GModule[], string[]] {

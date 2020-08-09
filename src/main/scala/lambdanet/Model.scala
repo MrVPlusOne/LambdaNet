@@ -3,11 +3,10 @@ package lambdanet
 import ammonite.{ops => amm}
 import ammonite.ops.Path
 import lambdanet.NeuralInference.Predictor
-import lambdanet.PrepareRepos.{ParsedProject, parseProject}
+import lambdanet.PrepareRepos.{ParsedProject, parseProject, parsedReposDir}
 import lambdanet.SequenceModel.SeqArchitecture
 import lambdanet.architecture.LabelEncoder.TrainableLabelEncoder
 import lambdanet.architecture.{LabelEncoder, NNArchitecture}
-import lambdanet.train.DataSet.{nonGenerify, selectLibTypes}
 import lambdanet.train.TrainingLoop.{ForwardResult, maxLibRatio, projWeight}
 import lambdanet.train.TrainingState.iterationNum
 import lambdanet.train.{
@@ -19,8 +18,12 @@ import lambdanet.train.{
   TopNDistribution
 }
 import lambdanet.translation.ImportsResolution.ErrorHandler
-import lambdanet.translation.PredicateGraph.{LibTypeNode, PNode, PType}
-import lambdanet.utils.QLangDisplay
+import lambdanet.translation.PredicateGraph.{
+  LibTypeNode,
+  PNode,
+  PType,
+  ProjNode
+}
 
 import scala.collection.parallel.ForkJoinTaskSupport
 import scala.concurrent.forkjoin.ForkJoinPool
@@ -81,6 +84,7 @@ case object Model {
 
 }
 
+@SerialVersionUID(-3921127094529696688L)
 case class Model(
     architecture: NNArchitecture,
     libDefs: LibDefs,
@@ -99,7 +103,36 @@ case class Model(
     confusionMatrix
   }
 
-  def forward(
+  def predictOnParsed(
+      p: ParsedProject,
+      predictor: Predictor,
+      predictTopK: Int,
+  ): Map[PNode, TopNDistribution[PType]] = {
+    val predSpace = predictor.predictionSpace
+    val nodesToPredict = p.allAnnots.keySet.collect {
+      case n if n.srcSpan.nonEmpty && n.fromProject => ProjNode(n)
+    }.toVector
+    val decodingVec = announced("run predictor") {
+      predictor
+        .run(
+          architecture,
+          nodesToPredict,
+          iterationNum,
+          labelEncoder,
+          labelCoverage.isLibLabel,
+          nameEncoder,
+          labelDropout = false
+        )
+        .result
+    }
+    val decoding = decodingVec.last
+    val predVec = decoding
+      .topNPredictionsWithCertainty(predictTopK)
+      .map { _.map(predSpace.typeOfIndex) }
+    nodesToPredict.map(_.n).zip(predVec).toMap
+  }
+
+  def forwardStep(
       datum: ProcessedProject,
       shouldDownsample: Boolean,
       shouldDropout: Boolean,
@@ -190,6 +223,7 @@ case class Model(
 
   case class PredictionService(
       numOfThreads: Int,
+      predictTopK: Int,
       handler: ErrorHandler = ErrorHandler.alwaysStoreError,
   ) {
     val taskSupport: Option[ForkJoinTaskSupport] =
@@ -197,37 +231,12 @@ case class Model(
         Some(new ForkJoinTaskSupport(new ForkJoinPool(numOfThreads)))
       else None
 
-    def predict(
-        datum: ProcessedProject,
-        outputPath: Path,
-        maxBatchSize: Option[Int]
-    ): Unit = {
-      val (_, fwd, pred) = forward(
-        datum,
-        shouldDownsample = false,
-        shouldDropout = false,
-        maxBatchSize = maxBatchSize
-      )
-
-      QLangDisplay.renderProjectToDirectory(
-        datum.projectName.toString,
-        datum.qModules,
-        pred,
-        datum.predictionSpace.allTypes
-      )(outputPath / "predictions")
-
-      import train.toAccuracy
-      println("libAccuracy: " + toAccuracy(fwd.libCorrect))
-      println("projectAccuracy: " + toAccuracy(fwd.projCorrect))
-    }
-
-    def processProject(
+    def predictOnProject(
         sourcePath: Path,
         skipSet: Set[String] = Set("node_modules"),
-        useInferred: Boolean = true,
         onlyPredictLibType: Boolean = false,
-    ): ProcessedProject = {
-
+        warnOnErrors: Boolean,
+    ) = {
       val project =
         parseProject(
           libDefs,
@@ -235,29 +244,19 @@ case class Model(
           sourcePath,
           skipSet = skipSet,
           shouldPruneGraph = false,
-          errorHandler = handler
+          errorHandler = handler,
+          warnOnErrors = warnOnErrors,
         )
 
-      val ParsedProject(path, qModules, _, g) = project
       val predictor = Predictor(
-        path,
-        g,
+        project.path,
+        project.pGraph,
         libTypesToPredict,
         libDefs,
         taskSupport,
         onlyPredictLibType
       )
-      val typeTransform = nonGenerify(libDefs)
-      val annots1 =
-        (if (useInferred) project.allUserAnnots
-         else project.nonInferredUserAnnots)
-          .mapValuesNow(typeTransform)
-          .filter { x =>
-            predictor.predictionSpace.allTypes.contains(x._2)
-          }
-      ProcessedProject(path, annots1, g, qModules.map { m =>
-        m.copy(mapping = m.mapping.mapValuesNow(_.map(typeTransform)))
-      }, Right(predictor))
+      predictOnParsed(project, predictor, predictTopK)
     }
 
   }

@@ -60,6 +60,8 @@ class FunctionTest{
   }
 }
 
+const lambdaTest = (x: number) => x + 1
+
 export class Node{
   element: any;
   next: Node;

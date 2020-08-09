@@ -15,6 +15,12 @@ object Js {
   case class Obj(value: Map[java.lang.String, Val]) extends AnyVal with Val
   case class Arr(value: Val*) extends AnyVal with Val
   case class Num(value: Double) extends AnyVal with Val
+  object NumInt {
+    def unapply(v: Val): Option[Int] = v match {
+      case Num(n) if n.isValidInt => Some(n.toInt)
+      case _                      => None
+    }
+  }
   case object False extends Val {
     def value = false
   }

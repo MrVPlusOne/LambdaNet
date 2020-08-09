@@ -192,7 +192,7 @@ object TrainingLoop {
             .testOnDatum(datum, useOracle = true, identity)
             .predict(0)
           fwd = run
-            .forward(
+            .forwardStep(
               datum,
               shouldDownsample = false,
               shouldDropout = false,
@@ -248,7 +248,12 @@ object TrainingLoop {
           maxBatchSize: Option[Int]
       ) =
         limitTimeOpt("train-forward", Timeouts.forwardTimeout)(
-          model.forward(datum, shouldDownsample, shouldDownsample, maxBatchSize)
+          model.forwardStep(
+            datum,
+            shouldDownsample,
+            shouldDownsample,
+            maxBatchSize
+          )
         )
 
       case class train(

@@ -201,7 +201,8 @@ object Surface {
       annot: TyAnnot,
       init: Option[GExpr],
       isConst: Boolean,
-      exportLevel: ExportLevel.Value
+      exportLevel: ExportLevel.Value,
+      srcSpan: Option[SrcSpan], // the source code location of the variable
   ) extends GStmt
 
   case class AssignStmt(lhs: GExpr, rhs: GExpr) extends GStmt {
@@ -225,8 +226,8 @@ object Surface {
   case class FuncDef(
       name: Symbol,
       tyVars: Vector[Symbol],
-      args: Vector[(Symbol, TyAnnot)],
-      returnType: TyAnnot,
+      args: Vector[(Symbol, TyAnnot, SrcSpan)],
+      returnType: (TyAnnot, Option[SrcSpan]),
       body: GStmt,
       exportLevel: ExportLevel.Value
   ) extends GStmt {
@@ -241,13 +242,13 @@ object Surface {
       name: Symbol,
       tyVars: Vector[Symbol],
       superTypes: Set[Symbol],
-      vars: Map[Symbol, TyAnnot],
+      vars: Map[Symbol, (TyAnnot, SrcSpan)],
       funcDefs: Vector[FuncDef],
       exportLevel: ExportLevel.Value
   ) extends GStmt {
     def objectType: GType = {
       ObjectType(
-        vars.mapValuesNow(_.get) ++
+        vars.mapValuesNow(_._1.get) ++
           funcDefs.map(fd => fd.name -> fd.functionType)
       )
     }
@@ -293,7 +294,7 @@ object Surface {
     def prettyPrintHelper(indent: Int, stmt: GStmt): Vector[(Int, String)] = {
       import ExportLevel.asPrefix
       stmt match {
-        case VarDef(x, ty, init, isConst, level) =>
+        case VarDef(x, ty, init, isConst, level, _) =>
           val keyword = if (isConst) "const" else "let"
           Vector(
             indent -> s"${asPrefix(level)}$keyword ${x.name}: $ty = $init;"
@@ -320,7 +321,7 @@ object Surface {
           ) :+ (indent -> "}")
         case FuncDef(funcName, tyVars, args, returnType, body, level) =>
           val argList = args
-            .map { case (v, tv) => s"${v.name}: $tv" }
+            .map { case (v, tv, _) => s"${v.name}: $tv" }
             .mkString("(", ", ", ")")
           val tyVarPart = tyVarClause(tyVars)
           Vector(
@@ -405,7 +406,7 @@ object Surface {
         funcDef: FuncDef,
         eliminateTVars: Boolean = true
     ): FuncType = {
-      val fT = funcDef.args.map(_._2.get).toList -: funcDef.returnType.get
+      val fT = funcDef.args.map(_._2.get).toList -: funcDef.returnType._1.get
         .asInstanceOf[GType]
       if (eliminateTVars) {
         PLangTranslation
