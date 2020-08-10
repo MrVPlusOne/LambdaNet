@@ -102,6 +102,7 @@ object TypeInferenceService {
     printResult(s"Current working directory: ${amm.pwd}")
     while (true) {
       print("Enter project path: ")
+      System.out.flush()
       try {
         val line = scala.io.StdIn.readLine()
         require(line.strip().nonEmpty, "Specified path should not be empty.")

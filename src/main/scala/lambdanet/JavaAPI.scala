@@ -4,6 +4,8 @@ import ammonite.{ops => amm}
 import amm.{Path, RelPath}
 import lambdanet.TypeInferenceService.ModelConfig
 
+import scala.io.StdIn
+
 object JavaAPI {
   def pwd: Path = amm.pwd
 
@@ -19,4 +21,10 @@ object JavaAPI {
 
   def predictionService(model: Model, numOfThreads: Int, predictTopK: Int) =
     model.PredictionService(numOfThreads, predictTopK)
+
+  def readLine(): String = StdIn.readLine()
+
+  def main(args: Array[String]): Unit = {
+    println("This is a test main function.")
+  }
 }

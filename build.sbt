@@ -14,6 +14,7 @@ scalacOptions ++= Seq(
 
 // to make the classpath right
 fork in run := true
+connectInput in run := true  // for StdIn to work
 
 val runOnMac = System.getProperty("os.name") == "Mac OS X"
 val memories = {
@@ -83,3 +84,5 @@ TaskKey[Unit]("prepareAndTrain") := Def.sequential(prepareRepos, train).value
 val runTrained = taskKey[Unit]("run trained model")
 runTrained :=
   (runMain in Compile).toTask(" lambdanet.RunTrainedModel").value
+
+discoveredMainClasses in Compile += "driver.JavaDriver"
