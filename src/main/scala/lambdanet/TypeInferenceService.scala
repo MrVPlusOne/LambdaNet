@@ -89,8 +89,6 @@ object TypeInferenceService {
   }
 
   def main(args: Array[String]): Unit = {
-    lambdanet.shouldWarn = false
-
     val modelDir = amm.pwd / "models" / "newParsing-GAT1-fc2-newSim-decay-6"
     val paramPath = modelDir / "params.serialized"
     val modelCachePath = modelDir / "model.serialized"
@@ -103,7 +101,7 @@ object TypeInferenceService {
     printResult("Type Inference Service successfully started.")
     printResult(s"Current working directory: ${amm.pwd}")
     while (true) {
-      print("Project path: ")
+      print("Enter project path: ")
       try {
         val line = scala.io.StdIn.readLine()
         require(line.strip().nonEmpty, "Specified path should not be empty.")

@@ -259,6 +259,19 @@ case class Model(
       predictOnParsed(project, predictor, predictTopK)
     }
 
+    def predictOnProject(
+        sourcePath: Path,
+        warnOnErrors: Boolean,
+        skipSet: Array[String],
+    ): Map[PNode, TopNDistribution[PType]] = {
+      predictOnProject(
+        sourcePath,
+        skipSet = skipSet.toSet,
+        warnOnErrors = warnOnErrors,
+        onlyPredictLibType = false
+      )
+    }
+
   }
 
   private def analyzeDecoding(
