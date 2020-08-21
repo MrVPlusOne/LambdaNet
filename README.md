@@ -1,6 +1,6 @@
 <img src="images/Header.png" width="800" alt="LambdaNet Header"/>
 
-This is the source code repo for the ICLR paper [*LambdaNet: Probabilistic Type Inference using Graph Neural Networks*](https://openreview.net/forum?id=Hkx6hANtwH). For an overview of how LambdaNet works, see [our poster](https://github.com/MrVPlusOne/LambdaNet/raw/master/LambdaNet-Poster.pdf).
+This is the source code repo for the ICLR paper [*LambdaNet: Probabilistic Type Inference using Graph Neural Networks*](https://openreview.net/forum?id=Hkx6hANtwH). For an overview of how LambdaNet works, see [our video from ICLR 2020](https://iclr.cc/virtual_2020/poster_Hkx6hANtwH.html).
 
 ## Instructions
 After cloning this repo, here are the steps to reproduce our experimental results:
