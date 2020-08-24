@@ -36,6 +36,7 @@ public class JavaDriver {
                 var results =
                         predService.predictOnProject(sourcePath, false, skipSet);
                 new TypeInferenceService.PredictionResults(results).prettyPrint();
+                System.out.println("DONE");
             } catch (Throwable e) {
                 System.out.println("Got exception: " + e.getMessage());
                 e.printStackTrace();
