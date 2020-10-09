@@ -46,7 +46,7 @@ case class LibDefs(
 
 object PrepareRepos {
   val reposDir: Path = pwd / up / "lambda-repos"
-  val libDefsFile: Path = reposDir / "libDefs.serialized"
+  val libDefsFile: Path = pwd / "models" / "libDefs.serialized"
 //  val parsedRepoPath: Path = pwd / "data" / "parsedDataSet.serialized"
   val parsedReposDir: Path = pwd / 'data / "parsedRepos"
 

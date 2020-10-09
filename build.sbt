@@ -52,8 +52,8 @@ libraryDependencies ++= Seq(
   // for building numsca
   "org.nd4j" % nd4jBinary % "1.0.0-beta4",
   "com.typesafe.scala-logging" %% "scala-logging" % "3.7.2",
-  "org.typelevel" %% "cats-core" % "2.0.0-M3",
-  "org.typelevel" %% "cats-effect" % "2.0.0-M3",
+  "org.typelevel" %% "cats-core" % "2.0.0-M3" withSources(),
+  "org.typelevel" %% "cats-effect" % "2.0.0-M3" withSources(),
   "com.github.nscala-time" %% "nscala-time" % "2.22.0",
   "com.lihaoyi" %% "upickle" % "0.7.5",
   "com.lihaoyi" %% "scalatags" % "0.7.0"

@@ -9,6 +9,11 @@ import lambdanet.translation.ImportsResolution.NameDef
 import scala.collection.mutable
 import lambdanet._
 
+/**
+  * A predicate graph (aka. type dependency graph) consists of type variables
+  * ([[PNode]]s) and hyperedges ([[TyPredicate]]s), together they encodes
+  * type-related aspects of the original program.
+  */
 @SerialVersionUID(1)
 case class PredicateGraph(
     nodes: Set[PNode],
@@ -22,7 +27,7 @@ case class PredicateGraph(
       .collect {
         case DefineRel(v, v1: PNode) =>
           if (v1.nameOpt.isEmpty) v1.nameOpt = v.nameOpt
-          if (v1.srcSpan.isEmpty) v1.srcSpan = v.srcSpan
+          if (v1.srcSpan == null || v1.srcSpan.isEmpty) v1.srcSpan = v.srcSpan
           (v, v1)
       }
       .foldLeft(Map[PNode, PNode]()) { (map, pair) =>
@@ -302,6 +307,8 @@ object PredicateGraph {
     def allNodes: Set[PNode] = fields.values.toSet.flatMap((_: PType).allNodes)
   }
 
+  /** Note that only a subset of these predicates are needed in a traditional,
+    * rule-based type checking/inference algorithm. */
   @SerialVersionUID(0)
   sealed trait TyPredicate {
     def allNodes: Set[PNode]
@@ -331,6 +338,8 @@ object PredicateGraph {
     val allNodes: Set[PNode] = Set(n)
   }
 
+  /** Used to encode structural relations between type variables. e.g.,
+    * <code>v1</code> equals to the function type <code>(v2, v3) -> v4</code>. */
   case class DefineRel(v: PNode, expr: PExpr) extends TyPredicate {
 
     val allNodes: Set[PNode] = expr.allNodes + v
@@ -338,12 +347,13 @@ object PredicateGraph {
 
   // @formatter:off
   /**
+    * A type-level expression
     * e :=                  [[PExpr]]
     *   | n                 [[PNode]]
     *   | (n, ..., n) => n  [[PFunc]]
-    *   | n(n, ..., n)
-    *   | {l: n, ..., l: n}
-    *   | n.l
+    *   | n(n, ..., n)      [[PCall]]
+    *   | {l: n, ..., l: n} [[PObject]]
+    *   | n.l               [[PAccess]]
     */
   // @formatter:on
   @SerialVersionUID(0)
@@ -386,6 +396,7 @@ object PredicateGraph {
   }
 }
 
+/** Utilities to convert IRs into Predicate Graphs */
 object PredicateGraphTranslation {
   import IR._
 
