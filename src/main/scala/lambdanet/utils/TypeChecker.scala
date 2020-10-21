@@ -93,10 +93,10 @@ case class PTypeContext(
     expr match {
       case node: PNode => Some(assignment(node))
       case PFunc(args, returnType) => Some(PFuncType(args.map(assignment(_)), assignment(returnType)))
-      // TODO: Should I check if args are assigned to the right types?
-      case PCall(f, _) =>
+      case PCall(f, args) =>
+        val argTypes = args.map(assignment(_))
         assignment(f) match {
-          case PFuncType(_, to) => Some(to)
+          case PFuncType(paramTypes, to) if argTypes == paramTypes => Some(to)
           case _ => None
         }
       case PObject(fields) => Some(PObjectType(fields.mapValues(assignment(_)))) // TODO: or mapValuesNow?
@@ -131,17 +131,15 @@ object TypeChecker {
     val dir = pwd / RelPath(
       relPath
     )
-    val parsed @ ParsedProject(_, qModules, irModules, g) =
-      parseProject(
-        libDefs,
-        dir / up,
-        dir,
-        skipSet = Set(),
-        errorHandler =
-          ErrorHandler(ErrorHandler.StoreError, ErrorHandler.StoreError),
-        shouldPrintProject = true
-      ).mergeEqualities
-    g
+    parseProject(
+      libDefs,
+      dir / up,
+      dir,
+      skipSet = Set(),
+      errorHandler =
+        ErrorHandler(ErrorHandler.StoreError, ErrorHandler.StoreError),
+      shouldPrintProject = true
+    ).mergeEqualities.pGraph
   }
 
   def violate(graph: PredicateGraph,
@@ -154,47 +152,6 @@ object TypeChecker {
     }
     binaryRels.filter(!satisfy(_, context, assignment))
   }
-
-/*
-  def sequenceMap[K, V](map: Map[K, Option[V]]): Option[Map[K, V]] =
-    map.foldLeft(Map.empty[K, V]) {
-      case (None, (_, _)) | (z, (_, None)) => None
-      case (Some(acc), (k, Some(v))) => Some(acc + (k -> v))
-    }
-
-  def toGType(pType: PType, assignment: Map[PNode, PType]): Option[GType] =
-    pType match {
-      case PredicateGraph.PAny => Some(AnyType)
-      case PredicateGraph.PTyVar(node) =>
-        toGType(assignment(node), assignment) match {
-          case Some(groundType: GroundType) => Some(TyVar(groundType.id))
-          case _ => None
-        }
-      case PredicateGraph.PFuncType(args, to) =>
-        for {
-          gArgs <- args.map(toGType(_, assignment)).toList.sequence
-          gTo <- toGType(to, assignment)
-        } yield FuncType(gArgs, gTo)
-      case PredicateGraph.PObjectType(fields) =>
-        for {
-          gFields <- sequenceMap(fields.mapValuesNow(toGType(_, assignment)))
-        } yield ObjectType(gFields)
-    }
-
-  def toGType(pExpr: PExpr, assignment: Map[PNode, PType]): Option[GType] =
-    pExpr match {
-      case node: PNode => toGType(assignment(node), assignment)
-      case PredicateGraph.PFunc(args, returnType) =>
-        toGType(PFuncType(args.map(assignment(_)), assignment(returnType)), assignment)
-      case PredicateGraph.PCall(f, args) => ???
-      case PredicateGraph.PObject(fields) =>
-        toGType(PObjectType(fields.mapValuesNow(assignment(_))), assignment)
-      case PredicateGraph.PAccess(obj, label) =>
-        for {
-          shouldBeObj <- toGType()
-        }
-    }
-*/
 
   def satisfy(predicate: BinaryRel,
               context: PTypeContext,
