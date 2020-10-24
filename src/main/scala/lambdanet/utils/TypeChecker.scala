@@ -169,7 +169,8 @@ object TypeChecker {
     )
     val context = PTypeContext(graph)
     val binaryRels = graph.predicates.collect {
-      case p: BinaryRel => p
+      // inheritance is always satisfied (from definition)
+      case p @ BinaryRel(_, _, category) if category != BinaryRelCat.inheritance => p
     }
     binaryRels.filter(!satisfy(_, context, assignment))
   }
@@ -183,17 +184,11 @@ object TypeChecker {
     val rhs = predicate.rhs
     predicate.category match {
       // use inheritance as hard constraints
-      case BinaryRelCat.subtype | BinaryRelCat.inheritance =>
+      case BinaryRelCat.subtype | BinaryRelCat.assign =>
         context.isSubtype(lhs, rhs, assignment)
-      // TODO: Should we also check rhsType <: lhsType?
-      case BinaryRelCat.assign | BinaryRelCat.equal =>
-        context.isSubtype(lhs, rhs, assignment)
-      case BinaryRelCat.fixType | BinaryRelCat.fixAnnotation =>
-        context.isSubtype(lhs, rhs, assignment) && context.isSubtype(
-          rhs,
-          lhs,
-          assignment
-        )
+      case BinaryRelCat.equal | BinaryRelCat.fixType | BinaryRelCat.fixAnnotation =>
+        context.isSubtype(lhs, rhs, assignment) &&
+          context.isSubtype(rhs, lhs, assignment)
     }
   }
 }
