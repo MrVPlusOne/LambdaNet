@@ -9,9 +9,10 @@ import lambdanet.translation.PredicateGraph._
 import lambdanet.{LibDefs, announced}
 
 case class PTypeContext(
-  typeUnfold: Map[PNode, PExpr],
-  subRel: Set[(PType, PType)]
+    typeUnfold: Map[PNode, PExpr],
+    subRel: Set[(PType, PType)]
 ) {
+
   /**
     * Plan:
     * 1. If c and p are PNode, great
@@ -21,7 +22,11 @@ case class PTypeContext(
     * 4. PObject => PObjectType, PFunc => PFuncType, PCall => PFuncType.to, PAccess => PObjectType.fields(symbol)
     * 5. Now c and p are both PTypes, recursively check
     */
-  def isSubtype(child: PNode, parent: PNode, assignment: Map[PNode, PType]): Boolean = {
+  def isSubtype(
+      child: PNode,
+      parent: PNode,
+      assignment: Map[PNode, PType]
+  ): Boolean = {
     val maybeSubRel = for {
       childType <- toType(child, assignment)
       parentType <- toType(parent, assignment)
@@ -33,7 +38,12 @@ case class PTypeContext(
   /**
     * Adapted from GType.checkSubtype
     */
-  def checkSubtype(child: PType, parent: PType, assignment: Map[PNode, PType], subRel: Set[(PType, PType)]): Option[Set[(PType, PType)]] = {
+  def checkSubtype(
+      child: PType,
+      parent: PType,
+      assignment: Map[PNode, PType],
+      subRel: Set[(PType, PType)]
+  ): Option[Set[(PType, PType)]] = {
     if (child == PAny || parent == PAny || subRel.contains(child -> parent))
       return Some(subRel)
     lazy val nowSubRel = subRel + (child -> parent)
@@ -45,7 +55,8 @@ case class PTypeContext(
           if (child == parent)
             Some(nowSubRel)
           else
-            toType(typeUnfold(id), assignment).flatMap(unf => checkSubtype(unf, parent, assignment, nowSubRel))
+            toType(typeUnfold(id), assignment)
+              .flatMap(unf => checkSubtype(unf, parent, assignment, nowSubRel))
         } else {
           assert(child.madeFromLibTypes, s"unknown type: $id")
           None
@@ -55,7 +66,8 @@ case class PTypeContext(
           if (child == parent)
             Some(nowSubRel)
           else
-            toType(typeUnfold(id), assignment).flatMap(unf => checkSubtype(child, unf, assignment, nowSubRel))
+            toType(typeUnfold(id), assignment)
+              .flatMap(unf => checkSubtype(child, unf, assignment, nowSubRel))
         } else {
           assert(parent.madeFromLibTypes, s"unknown type: $id")
           None
@@ -68,7 +80,7 @@ case class PTypeContext(
         cArgs.zip(pArgs).foreach {
           case (c, p) =>
             checkSubtype(p, c, assignment, currentSubRel) match {
-              case None => return None
+              case None     => return None
               case Some(sr) => currentSubRel = sr
             }
         }
@@ -80,7 +92,7 @@ case class PTypeContext(
             cFields.get(label).flatMap { cType =>
               checkSubtype(cType, pType, assignment, currentSubRel)
             } match {
-              case None => return None
+              case None     => return None
               case Some(sr) => currentSubRel = sr
             }
         }
@@ -92,24 +104,29 @@ case class PTypeContext(
   def toType(expr: PExpr, assignment: Map[PNode, PType]): Option[PType] =
     expr match {
       case node: PNode => Some(assignment(node))
-      case PFunc(args, returnType) => Some(PFuncType(args.map(assignment(_)), assignment(returnType)))
+      case PFunc(args, returnType) =>
+        Some(PFuncType(args.map(assignment(_)), assignment(returnType)))
       case PCall(f, args) =>
         val argTypes = args.map(assignment(_))
         assignment(f) match {
           case PFuncType(paramTypes, to) if argTypes == paramTypes => Some(to)
-          case _ => None
+          case _                                                   => None
         }
-      case PObject(fields) => Some(PObjectType(fields.mapValues(assignment(_)))) // TODO: or mapValuesNow?
+      case PObject(fields) =>
+        Some(PObjectType(fields.mapValues(assignment(_)))) // TODO: or mapValuesNow?
       case PAccess(obj, label) =>
         assignment(obj) match {
           case PObjectType(fields) => fields.get(label)
-          case _ => None
+          case _                   => None
         }
     }
 }
 
 object PTypeContext {
-  def apply(graph: PredicateGraph, subRel: Set[(PType, PType)] = Set.empty): PTypeContext = {
+  def apply(
+      graph: PredicateGraph,
+      subRel: Set[(PType, PType)] = Set.empty
+  ): PTypeContext = {
     val defineRels = graph.predicates.collect {
       case p: DefineRel => p
     }
@@ -142,10 +159,14 @@ object TypeChecker {
     ).mergeEqualities.pGraph
   }
 
-  def violate(graph: PredicateGraph,
-              assignment: Map[PNode, PType],
-             ): Set[BinaryRel] = {
-    assert(assignment.keySet == graph.nodes, "Assignment does not fully match nodes on the graph")
+  def violate(
+      graph: PredicateGraph,
+      assignment: Map[PNode, PType],
+  ): Set[BinaryRel] = {
+    assert(
+      assignment.keySet == graph.nodes,
+      "Assignment does not fully match nodes on the graph"
+    )
     val context = PTypeContext(graph)
     val binaryRels = graph.predicates.collect {
       case p: BinaryRel => p
@@ -153,18 +174,26 @@ object TypeChecker {
     binaryRels.filter(!satisfy(_, context, assignment))
   }
 
-  def satisfy(predicate: BinaryRel,
-              context: PTypeContext,
-              assignment: Map[PNode, PType]
-             ): Boolean = {
+  def satisfy(
+      predicate: BinaryRel,
+      context: PTypeContext,
+      assignment: Map[PNode, PType]
+  ): Boolean = {
     val lhs = predicate.lhs
     val rhs = predicate.rhs
     predicate.category match {
-      case BinaryRelCat.subtype | BinaryRelCat.inheritance => context.isSubtype(lhs, rhs, assignment)
+      // use inheritance as hard constraints
+      case BinaryRelCat.subtype | BinaryRelCat.inheritance =>
+        context.isSubtype(lhs, rhs, assignment)
       // TODO: Should we also check rhsType <: lhsType?
-      case BinaryRelCat.assign | BinaryRelCat.equal => context.isSubtype(lhs, rhs, assignment)
+      case BinaryRelCat.assign | BinaryRelCat.equal =>
+        context.isSubtype(lhs, rhs, assignment)
       case BinaryRelCat.fixType | BinaryRelCat.fixAnnotation =>
-        context.isSubtype(lhs, rhs, assignment) && context.isSubtype(rhs, lhs, assignment)
+        context.isSubtype(lhs, rhs, assignment) && context.isSubtype(
+          rhs,
+          lhs,
+          assignment
+        )
     }
   }
 }
