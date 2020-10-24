@@ -27,3 +27,10 @@ running-result/
 *.tgz
 /src/main/scala/learn_cats/
 
+*.zip
+node_modules/
+data/parsedRepos
+docker-sync.yml
+models/
+package-lock.json
+.DS_STORE
