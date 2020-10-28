@@ -1,15 +1,7 @@
-package lambdanet.utils
+package lambdanet.correctness
 
 import lambdanet.translation.PredicateGraph
-import lambdanet.translation.PredicateGraph.{
-  BinaryRel,
-  BinaryRelCat,
-  DefineRel,
-  PFunc,
-  PNode,
-  PObject,
-  PTyVar
-}
+import lambdanet.translation.PredicateGraph._
 import org.scalatest.WordSpec
 
 /**

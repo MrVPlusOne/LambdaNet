@@ -2,9 +2,11 @@ package lambdanet.translation
 
 import lambdanet.IdAllocator
 import PredicateGraph._
+import ammonite.ops.{RelPath, pwd, up}
 import funcdiff.SimpleMath
+import lambdanet.PrepareRepos.{libDefsFile, parseProject}
 import lambdanet.Surface.GStmt
-import lambdanet.translation.ImportsResolution.NameDef
+import lambdanet.translation.ImportsResolution.{ErrorHandler, NameDef}
 
 import scala.collection.mutable
 import lambdanet._
@@ -423,7 +425,7 @@ object PredicateGraphTranslation {
 
     def add(pred: TyPredicate): Unit = {
       pred match {
-        case BinaryRel(l, r, _) if l == r => return
+        case BinaryRel(l, r, _) if l == r =>
         case _ =>
           predicates += pred
       }
@@ -552,4 +554,26 @@ object PredicateGraphTranslation {
     )
   }
 
+}
+
+object PredicateGraphLoader {
+  def load(relPath: String): PredicateGraph = {
+    val libDefs =
+      announced(s"loading library definitions from $libDefsFile...") {
+        SimpleMath.readObjectFromFile[LibDefs](libDefsFile.toIO)
+      }
+
+    val dir = pwd / RelPath(
+      relPath
+    )
+    parseProject(
+      libDefs,
+      dir / up,
+      dir,
+      skipSet = Set(),
+      errorHandler =
+        ErrorHandler(ErrorHandler.StoreError, ErrorHandler.StoreError),
+      shouldPrintProject = true
+    ).mergeEqualities.pGraph
+  }
 }
