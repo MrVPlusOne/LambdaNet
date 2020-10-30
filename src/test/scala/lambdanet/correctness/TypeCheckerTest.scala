@@ -7,6 +7,7 @@ import org.scalatest.WordSpec
 /**
   * Adapted from GTypeTest
   */
+/*
 class TypeCheckerTest extends WordSpec {
   "the consistent-subtyping relation" should {
     "pass simple examples" in {
@@ -114,3 +115,4 @@ object TypeCheckerTest {
     )
   }
 }
+*/

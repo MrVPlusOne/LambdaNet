@@ -2,7 +2,7 @@ package lambdanet.translation
 
 import lambdanet.IdAllocator
 import PredicateGraph._
-import ammonite.ops.{RelPath, pwd, up}
+import ammonite.ops.{Path, RelPath, pwd, up}
 import funcdiff.SimpleMath
 import lambdanet.PrepareRepos.{libDefsFile, parseProject}
 import lambdanet.Surface.GStmt
@@ -201,7 +201,7 @@ object PredicateGraph {
   }
 
   @SerialVersionUID(0)
-  sealed trait PType {
+  sealed trait PType extends Serializable {
     val madeFromLibTypes: Boolean
 
     def allLabels: Set[Symbol]
@@ -557,15 +557,12 @@ object PredicateGraphTranslation {
 }
 
 object PredicateGraphLoader {
-  def load(relPath: String): PredicateGraph = {
+  def load(dir: Path): PredicateGraph = {
     val libDefs =
       announced(s"loading library definitions from $libDefsFile...") {
         SimpleMath.readObjectFromFile[LibDefs](libDefsFile.toIO)
       }
 
-    val dir = pwd / RelPath(
-      relPath
-    )
     parseProject(
       libDefs,
       dir / up,

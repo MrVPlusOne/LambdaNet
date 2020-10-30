@@ -502,6 +502,15 @@ object SimpleMath {
     }
   }
 
+  def loadObjectFromFile[T](path: File): T = {
+    val ois = new ObjectInputStream(new FileInputStream(path))
+    try {
+      ois.readObject().asInstanceOf[T]
+    } finally {
+      ois.close()
+    }
+  }
+
   val loader = Thread.currentThread().getContextClassLoader
   def readObjectFromFile[T](path: File): T = {
     val ois = new ObjectInputStream(new FileInputStream(path)) {
