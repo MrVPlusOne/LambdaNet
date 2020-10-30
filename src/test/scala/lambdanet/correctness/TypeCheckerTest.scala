@@ -7,24 +7,24 @@ import org.scalatest.WordSpec
 /**
   * Adapted from GTypeTest
   */
-/*
 class TypeCheckerTest extends WordSpec {
   "the consistent-subtyping relation" should {
     "pass simple examples" in {
       import TypeCheckerTest.SimpleProgram._
       val context = PTypeContext(graph)
+      val checker = TypeChecker(graph)
       val correct = nodes.zip(types).toMap
       assert(context.isSubtype(pointNode, pointAliasNode, assignment = correct))
       assert(context.isSubtype(pointAliasNode, pointNode, assignment = correct))
       assert(context.isSubtype(point2DNode, pointNode, assignment = correct))
       assert(!context.isSubtype(pointNode, point2DNode, assignment = correct))
       assert(!context.isSubtype(pointNode, intNode, assignment = correct))
-      assert(TypeChecker.violate(graph, correct).isEmpty)
+      assert(checker.violate(correct).isEmpty)
 
       val pointAliasIsInt = correct.updated(pointAliasNode, intType)
       assert(
-        TypeChecker.violate(graph, pointAliasIsInt) == Set(
-          BinaryRel(pointNode, pointAliasNode, BinaryRelCat.equal)
+        checker.violate(pointAliasIsInt) == Set(
+          (pointNode, pointAliasNode)
         )
       )
     }
@@ -115,4 +115,3 @@ object TypeCheckerTest {
     )
   }
 }
-*/
