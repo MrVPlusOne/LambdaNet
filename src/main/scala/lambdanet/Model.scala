@@ -18,6 +18,7 @@ import lambdanet.train.{
   TopNDistribution
 }
 import lambdanet.translation.ImportsResolution.ErrorHandler
+import lambdanet.translation.PredicateGraph
 import lambdanet.translation.PredicateGraph.{
   LibTypeNode,
   PNode,
@@ -103,15 +104,12 @@ case class Model(
     confusionMatrix
   }
 
-  def predictOnParsed(
-      p: ParsedProject,
+  def predictForNodes(
+      nodesToPredict: Vector[ProjNode],
       predictor: Predictor,
       predictTopK: Int,
   ): Map[PNode, TopNDistribution[PType]] = {
     val predSpace = predictor.predictionSpace
-    val nodesToPredict = p.allAnnots.keySet.collect {
-      case n if n.srcSpan.nonEmpty && n.fromProject => ProjNode(n)
-    }.toVector
     val decodingVec = announced("run predictor") {
       predictor
         .run(
@@ -231,12 +229,29 @@ case class Model(
         Some(new ForkJoinTaskSupport(new ForkJoinPool(numOfThreads)))
       else None
 
+    def predictOnGraph(
+        pGraph: PredicateGraph,
+        nodeSelector: PNode => Boolean = _ => true,
+        onlyPredictLibType: Boolean = false,
+    ): Map[PNode, TopNDistribution[PType]] = {
+      val predictor = Predictor(
+        pGraph,
+        libTypesToPredict,
+        libDefs,
+        taskSupport,
+        onlyPredictLibType,
+      )
+      val nodes =
+        pGraph.projNodes.filter(nodeSelector).map(ProjNode)
+      predictForNodes(nodes.toVector, predictor, predictTopK)
+    }
+
     def predictOnProject(
         sourcePath: Path,
         skipSet: Set[String] = Set("node_modules"),
         onlyPredictLibType: Boolean = false,
         warnOnErrors: Boolean,
-    ) = {
+    ): Map[PNode, TopNDistribution[PType]] = {
       val project =
         parseProject(
           libDefs,
@@ -249,14 +264,16 @@ case class Model(
         )
 
       val predictor = Predictor(
-        project.path,
         project.pGraph,
         libTypesToPredict,
         libDefs,
         taskSupport,
-        onlyPredictLibType
+        onlyPredictLibType,
       )
-      predictOnParsed(project, predictor, predictTopK)
+      val nodesToPredict = project.allAnnots.keySet.collect {
+        case n if n.fromProject => ProjNode(n)
+      }.toVector
+      predictForNodes(nodesToPredict, predictor, predictTopK)
     }
 
     def predictOnProject(
@@ -268,7 +285,7 @@ case class Model(
         sourcePath,
         skipSet = skipSet.toSet,
         warnOnErrors = warnOnErrors,
-        onlyPredictLibType = false
+        onlyPredictLibType = false,
       )
     }
 

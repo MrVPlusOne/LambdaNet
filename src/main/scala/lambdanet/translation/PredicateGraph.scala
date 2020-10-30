@@ -24,6 +24,8 @@ case class PredicateGraph(
   def showSizes: String =
     s"{nodes = ${nodes.size}, predicates = ${predicates.size}}"
 
+  lazy val projNodes: Set[PNode] = nodes.filter(_.fromProject)
+
   def mergeEqualities: (PredicateGraph, Map[PNode, PNode]) = {
     val substitution = predicates
       .collect {

@@ -29,7 +29,7 @@ object TypeInferenceService {
       parsedReposDir: Path = amm.pwd / 'data / "parsedRepos",
   ): Model =
     if (amm.exists(modelCachePath)) {
-      announced("Load model from cache") {
+      announced(s"Load model from the cache: $modelCachePath") {
         readObjectFromFile[Model](modelCachePath.toIO)
       }
     } else {

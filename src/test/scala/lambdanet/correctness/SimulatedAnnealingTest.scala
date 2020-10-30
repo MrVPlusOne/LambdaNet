@@ -20,7 +20,10 @@ class SimulatedAnnealingTest extends WordSpec {
       loadModel(paramPath, modelCachePath, modelConfig, numOfThreads = 8)
     val service = model.PredictionService(numOfThreads = 8, predictTopK = 5)
 
-    val results = service.predictOnProject(inputPath, warnOnErrors = false)
+    val results = service.predictOnProject(
+      inputPath,
+      warnOnErrors = false,
+    )
   }
 
   def test(name: String): Unit = {
@@ -40,11 +43,11 @@ class SimulatedAnnealingTest extends WordSpec {
           loadModel(paramPath, modelCachePath, modelConfig, numOfThreads = 8)
         val service = model.PredictionService(numOfThreads = 8, predictTopK = 5)
 
-        val res = service.predictOnProject(inputPath, warnOnErrors = false)
+        val res = service.predictOnGraph(graph)
         SM.saveObjectToFile(resultsPath.toIO)(res.asInstanceOf[Serializable])
         res
       }
-    assert(results.keySet == graph.nodes)
+    assert(results.keySet == graph.projNodes)
 
     val checker = TypeChecker(graph)
     val schedule = (epoch: Int) => 2 * math.pow(0.8, epoch)
@@ -66,7 +69,9 @@ class SimulatedAnnealingTest extends WordSpec {
 
   "results should be serializable" in {
     val results = Map(
-      new PNode(1, None, false, false, None) -> TopNDistribution(Vector((1.0, PAny)))
+      new PNode(1, None, false, false, None) -> TopNDistribution(
+        Vector((1.0, PAny))
+      )
     )
     val path = (amm.pwd / "testResults").toIO
     SM.saveObjectToFile(path)(results.asInstanceOf[Serializable])

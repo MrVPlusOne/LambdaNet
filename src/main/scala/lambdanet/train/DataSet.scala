@@ -86,7 +86,6 @@ object DataSet {
             Left(SeqPredictor(irModules, libDefs, pSpace, taskSupport)) -> pSpace
           } else {
             val predictor = Predictor(
-              path,
               g,
               libTypesToPredict,
               libDefs,

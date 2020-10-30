@@ -30,7 +30,6 @@ object NeuralInference {
     * across multiple training steps for the given [[PredicateGraph]].
     * The actual forward propagation only happens in [[run]]. */
   case class Predictor(
-      projectName: ProjectPath,
       graph: PredicateGraph,
       libraryTypeNodes: Set[LibTypeNode],
       libDefs: LibDefs,

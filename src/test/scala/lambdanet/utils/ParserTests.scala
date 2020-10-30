@@ -225,7 +225,6 @@ class ParserTests extends WordSpec with MyTest {
 
     println {
       Predictor(
-        projName,
         g,
         libTypesToPredict,
         libDefs,
