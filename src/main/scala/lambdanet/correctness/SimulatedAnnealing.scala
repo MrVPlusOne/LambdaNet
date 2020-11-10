@@ -18,12 +18,12 @@ object SimulatedAnnealing {
   ): Assignment = {
     val mostLikely = proposal.mapValuesNow(_.topValue)
     var x = mostLikely
-    var y = f(x)
+    var y = f(correct(x))
     var bestX = x
     var bestY = y
     (1 to numEpochs).foreach { epoch =>
-      val nextX = correct(randomNeighbor(x))
-      val nextY = f(x)
+      val nextX = randomNeighbor(x)
+      val nextY = f(correct(nextX))
       val deltaY = nextY - y
       if (deltaY >= 0 || Random.nextDouble() < math.exp(deltaY / t(epoch))) {
         x = nextX
@@ -56,15 +56,12 @@ case class OneDifferenceRandomNeighbor(proposal: Map[PNode, TopNDistribution[PTy
   }
 }
 
-case class PatchAnyCorrection(
-    checker: TypeChecker,
-    proposal: Map[PNode, TopNDistribution[PType]]
-) {
-  def correct(prediction: Assignment): Assignment = {
-    val badPairs = checker.violate(prediction)
-    patchAny(badPairs, prediction)
-  }
-
+trait PatchAny {
+  /**
+    * Try to mark as few nodes as `Any` to satisfy all the subtyping relations in `badPairs`.
+    * Treat this as the Minimum Vertex Cover problem and use the approximation algorithm.
+    */
+  // TODO: make this random
   def patchAny(
     badPairs: Set[(PNode, PNode)],
     assignment: Assignment
@@ -86,37 +83,23 @@ case class PatchAnyCorrection(
   }
 }
 
+case class PatchAnyCorrection(
+    checker: TypeChecker,
+    proposal: Map[PNode, TopNDistribution[PType]]
+) extends PatchAny {
+  def correct(prediction: Assignment): Assignment = {
+    val badPairs = checker.violate(prediction)
+    patchAny(badPairs, prediction)
+  }
+}
+
 case class LocalSearchCorrection(
     checker: TypeChecker,
     proposal: Map[PNode, TopNDistribution[PType]]
-) {
+) extends PatchAny {
   def correct(prediction: Assignment): Assignment = {
     val (badPairs, prediction1) = boundedSearch(prediction, 3)
     patchAny(badPairs, prediction1)
-  }
-
-  /**
-    * Try to mark as few nodes as `Any` to satisfy all the subtyping relations in `badPairs`.
-    * Treat this as the Minimum Vertex Cover problem and use the approximation algorithm.
-    */
-  def patchAny(
-      badPairs: Set[(PNode, PNode)],
-      assignment: Assignment
-  ): Assignment = {
-    Iterator
-      .iterate((badPairs, assignment)) {
-        case (badPairs, assignment) =>
-          val (child, parent) = badPairs.head
-          val set = Set(child, parent)
-          val remain = badPairs.filterNot {
-            case (a, b) => set.contains(a) || set.contains(b)
-          }
-          val markAsAny = assignment.updated(child, PAny).updated(parent, PAny)
-          (remain, markAsAny)
-      }
-      .dropWhile { case (remain, _) => remain.nonEmpty }
-      .next()
-      ._2
   }
 
   def boundedSearch(
@@ -147,6 +130,9 @@ case class LogLikelihood(proposal: Map[PNode, TopNDistribution[PType]]) {
   def prob(assignment: Assignment): Double =
     assignment.map {
       case (node, typ) =>
-        math.log(proposal(node).distr.find(_._2 == typ).get._1)
+        val topN = proposal(node)
+        val topNProb = topN.distr.find(_._2 == typ).map(_._1)
+        val probOther = 1 - topN.distr.map(_._1).sum
+        math.log(topNProb.getOrElse(probOther))
     }.sum
 }
