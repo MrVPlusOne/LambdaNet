@@ -56,6 +56,36 @@ case class OneDifferenceRandomNeighbor(proposal: Map[PNode, TopNDistribution[PTy
   }
 }
 
+case class PatchAnyCorrection(
+    checker: TypeChecker,
+    proposal: Map[PNode, TopNDistribution[PType]]
+) {
+  def correct(prediction: Assignment): Assignment = {
+    val badPairs = checker.violate(prediction)
+    patchAny(badPairs, prediction)
+  }
+
+  def patchAny(
+    badPairs: Set[(PNode, PNode)],
+    assignment: Assignment
+  ): Assignment = {
+    Iterator
+      .iterate((badPairs, assignment)) {
+        case (badPairs, assignment) =>
+          val (child, parent) = badPairs.head
+          val set = Set(child, parent)
+          val remain = badPairs.filterNot {
+            case (a, b) => set.contains(a) || set.contains(b)
+          }
+          val markAsAny = assignment.updated(child, PAny).updated(parent, PAny)
+          (remain, markAsAny)
+      }
+      .dropWhile { case (remain, _) => remain.nonEmpty }
+      .next()
+      ._2
+  }
+}
+
 case class LocalSearchCorrection(
     checker: TypeChecker,
     proposal: Map[PNode, TopNDistribution[PType]]

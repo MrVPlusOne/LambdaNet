@@ -55,12 +55,12 @@ class SimulatedAnnealingTest extends WordSpec {
       graph,
       results,
       OneDifferenceRandomNeighbor(results).randomNeighbor,
-      LocalSearchCorrection(checker, results).correct,
+      PatchAnyCorrection(checker, results).correct,
       schedule,
       numEpochs = 100,
       f = LogLikelihood(results).prob
     )
-    assert(checker.violate(correctPrediction).isEmpty)
+    assert(checker.violate(correctPrediction) == Set.empty)
   }
 
   "should find a correct assignment for simple" in {
