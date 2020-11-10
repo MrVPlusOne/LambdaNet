@@ -27,7 +27,7 @@ case class TypeChecker(
       assignment: Map[PNode, PType]
   ): Set[(PNode, PNode)] = {
     assert(
-      assignment.keySet == graph.nodes,
+      assignment.keySet == graph.nodes.filter(_.fromProject),
       "Assignment does not fully match nodes on the graph. \n" +
         s"Nodes only in assignment: ${assignment.keySet &~ graph.nodes}\n" +
         s"Nodes only in graph: ${graph.nodes &~ assignment.keySet}"
@@ -36,17 +36,22 @@ case class TypeChecker(
       // inheritance is always satisfied (from definition)
       case p: BinaryRel if p.category != BinaryRelCat.inheritance => p
     }
-    val subtypesToCheck: Set[(PNode, PNode)] = binaryRels.flatMap {
-      case BinaryRel(lhs, rhs, category) =>
-        category match {
-          // use inheritance as hard constraints
-          case BinaryRelCat.subtype | BinaryRelCat.assign =>
-            Set((lhs, rhs))
-          case BinaryRelCat.equal | BinaryRelCat.fixType |
-              BinaryRelCat.fixAnnotation =>
-            Set((lhs, rhs), (rhs, lhs))
+    val subtypesToCheck: Set[(PNode, PNode)] =
+      binaryRels
+        .filter {
+          case BinaryRel(lhs, rhs, _) => lhs.fromProject && rhs.fromProject
         }
-    }
+        .flatMap {
+          case BinaryRel(lhs, rhs, category) =>
+            category match {
+              // use inheritance as hard constraints
+              case BinaryRelCat.subtype | BinaryRelCat.assign =>
+                Set((lhs, rhs))
+              case BinaryRelCat.equal | BinaryRelCat.fixType |
+                  BinaryRelCat.fixAnnotation =>
+                Set((lhs, rhs), (rhs, lhs))
+            }
+        }
     subtypesToCheck.filterNot {
       case (child, parent) => context.isSubtype(child, parent, assignment)
     }
