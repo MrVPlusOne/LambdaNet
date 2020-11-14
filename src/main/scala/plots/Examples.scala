@@ -38,7 +38,7 @@ object Examples {
       vf.column(p1,p1)
     }
     plotly.save(fourCopies(plotly)(drawSine(plotly)),
-      exampleDir / "four_copies.png", "Multiple plots can be put together")
+      exampleDir / "four_copies.html", "Multiple plots can be put together")
 
     val mam = MathematicaBackend()  // requires Mathematica installed
     mam.save(drawSine(mam), exampleDir / "waves.png", "waves")
