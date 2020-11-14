@@ -1,65 +1,42 @@
 package lambdanet.correctness
 
-import lambdanet.translation.PredicateGraphLoader
+import lambdanet.translation.{PredicateGraph, PredicateGraphLoader}
 import org.scalatest.WordSpec
 import ammonite.{ops => amm}
 import lambdanet.SM
-import lambdanet.TypeInferenceService.{ModelConfig, loadModel}
+import lambdanet.TypeInferenceService.{
+  ModelConfig,
+  PredictionResults,
+  loadModel
+}
 import lambdanet.train.TopNDistribution
-import lambdanet.translation.PredicateGraph.{PAny, PNode}
+import lambdanet.translation.PredicateGraph.{
+  BinaryRel,
+  BinaryRelCat,
+  DefineRel,
+  PAny,
+  PNode
+}
 
 class SimulatedAnnealingTest extends WordSpec {
-  def prepare(name: String): Unit = {
-    val inputPath = amm.pwd / "data" / "tests" / name
-    val modelDir = amm.pwd / "models" / "newParsing-GAT1-fc2-newSim-decay-6"
-    val paramPath = modelDir / "params.serialized"
-    val modelCachePath = modelDir / "model.serialized"
-    val modelConfig = ModelConfig()
-
-    val model =
-      loadModel(paramPath, modelCachePath, modelConfig, numOfThreads = 8)
-    val service = model.PredictionService(numOfThreads = 8, predictTopK = 5)
-
-    val results = service.predictOnProject(
-      inputPath,
-      warnOnErrors = false,
-    )
-  }
-
   def test(name: String): Unit = {
     val inputPath = amm.pwd / "data" / "tests" / name
-    val graph = PredicateGraphLoader.load(inputPath)
-    val resultsPath = inputPath / "results.serialized"
-    val results =
-      if (amm.exists(resultsPath)) {
-        SM.loadObjectFromFile[TypeDistrs](resultsPath.toIO)
-      } else {
-        val modelDir = amm.pwd / "models" / "newParsing-GAT1-fc2-newSim-decay-6"
-        val paramPath = modelDir / "params.serialized"
-        val modelCachePath = modelDir / "model.serialized"
-        val modelConfig = ModelConfig()
-
-        val model =
-          loadModel(paramPath, modelCachePath, modelConfig, numOfThreads = 8)
-        val service = model.PredictionService(numOfThreads = 8, predictTopK = 5)
-
-        val res = service.predictOnGraph(graph)
-        SM.saveObjectToFile(resultsPath.toIO)(res.asInstanceOf[Serializable])
-        res
-      }
+    val (graph, results) = CorrectnessTestUtils.loadGraphAndPredict(inputPath)
     assert(results.keySet == graph.projNodes)
 
     val checker = TypeChecker(graph)
-    val schedule = (epoch: Int) => 2 * math.pow(0.8, epoch)
-    val correctPrediction = SimulatedAnnealing.search(
-      graph,
-      results,
-      OneDifferenceRandomNeighbor(results).randomNeighbor,
-      PatchAnyCorrection(checker, results).correct,
-      schedule,
-      numEpochs = 100,
-      f = LogLikelihood(results).prob
-    )
+    val schedule = (epoch: Int) => 20 * math.log(2) / math.log(epoch + 1)
+    val correctPrediction =
+      SimulatedAnnealing.search(
+        graph,
+        results,
+        OneDifferenceRandomNeighbor(results).randomNeighbor,
+        PatchAnyCorrection(checker, results).correct,
+        schedule,
+        numEpochs = 5000,
+        f = LogLikelihood(results).prob
+      )
+
     assert(checker.violate(correctPrediction) == Set.empty)
   }
 
