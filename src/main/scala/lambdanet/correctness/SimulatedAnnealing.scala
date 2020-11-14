@@ -7,6 +7,8 @@ import lambdanet.translation.PredicateGraph.{PAny, PNode, PType}
 import scala.util.Random
 
 object SimulatedAnnealing {
+  case class IntermediateValues(epochs: Seq[Int], ys: Seq[Double], bestYs: Seq[Double])
+
   def diff(
     a: Assignment,
     b: Assignment
@@ -17,6 +19,72 @@ object SimulatedAnnealing {
     set.toMap
   }
 
+  def lazySearch(
+    g: PredicateGraph,
+    proposal: Map[PNode, TopNDistribution[PType]],
+    randomNeighbor: Assignment => Assignment,
+    correct: Correction,
+    t: Int => Double,
+    numEpochs: Int,
+    f: Objective,
+    reboot: Boolean = false
+  ): Iterator[((Assignment, Double), (Assignment, Double))] = {
+    ???
+    //    val mostLikely = proposal.mapValuesNow(_.topValue)
+    //    Iterator.range(1, numEpochs).
+  }
+
+  /**
+    * Minimize f using simulated annealing. Record intermediate objective values.
+    */
+  def searchWithLog(
+    g: PredicateGraph,
+    proposal: Map[PNode, TopNDistribution[PType]],
+    randomNeighbor: Assignment => Assignment,
+    correct: Correction,
+    t: Int => Double,
+    numEpochs: Int,
+    f: Objective,
+    reboot: Boolean = false
+  ): (Assignment, IntermediateValues) = {
+    val mostLikely = proposal.mapValuesNow(_.topValue)
+    var x = mostLikely
+    var y = f(correct(x))
+    var bestX = x
+    var bestY = y
+    var lastBestEpoch = 0
+    val ys = Vector.newBuilder[Double]
+    val bestYs = Vector.newBuilder[Double]
+    ys += y
+    bestYs += y
+    (1 to numEpochs).foreach { epoch =>
+      val nextX = randomNeighbor(x)
+      val correctX = correct(nextX)
+      val nextY = f(correctX)
+      val deltaY = nextY - y
+      if (deltaY <= 0 || Random.nextDouble() < math.exp(-deltaY / t(epoch))) {
+        x = nextX
+        y = nextY
+      }
+      if (y < bestY) {
+        bestX = x
+        bestY = y
+        lastBestEpoch = epoch
+      }
+      println(s"epoch: $epoch, y: $y, bestY: $bestY")
+      if (reboot && epoch - lastBestEpoch > numEpochs / 20) {
+        x = bestX
+        y = bestY
+      }
+      ys += y
+      bestYs += bestY
+    }
+    (correct(bestX), IntermediateValues(0 to numEpochs, ys.result(), bestYs.result()))
+  }
+
+  /**
+    * Minimize f using simulated annealing. Only return the corrected best assignment.
+    */
   def search(
     g: PredicateGraph,
     proposal: Map[PNode, TopNDistribution[PType]],
@@ -24,7 +92,8 @@ object SimulatedAnnealing {
     correct: Correction,
     t: Int => Double,
     numEpochs: Int,
-    f: Objective
+    f: Objective,
+    reboot: Boolean = false
   ): Assignment = {
     val mostLikely = proposal.mapValuesNow(_.topValue)
     var x = mostLikely
@@ -35,20 +104,19 @@ object SimulatedAnnealing {
     (1 to numEpochs).foreach { epoch =>
       val nextX = randomNeighbor(x)
       val correctX = correct(nextX)
-      println(epoch)
       val nextY = f(correctX)
       val deltaY = nextY - y
-      if (deltaY >= 0 || Random.nextDouble() < math.exp(deltaY / t(epoch))) {
+      if (deltaY <= 0 || Random.nextDouble() < math.exp(-deltaY / t(epoch))) {
         x = nextX
         y = nextY
       }
-      println(s"y: $y, bestY: $bestY")
-      if (y > bestY) {
+      if (y < bestY) {
         bestX = x
         bestY = y
         lastBestEpoch = epoch
       }
-      if (epoch - lastBestEpoch > numEpochs / 20) {
+      println(s"epoch: $epoch, y: $y, bestY: $bestY")
+      if (reboot && epoch - lastBestEpoch > numEpochs / 20) {
         x = bestX
         y = bestY
       }
@@ -177,9 +245,9 @@ case class LocalSearchCorrection(
   }
 }
 
-case class LogLikelihood(proposal: Map[PNode, TopNDistribution[PType]]) {
+case class NegativeLogLikelihood(proposal: Map[PNode, TopNDistribution[PType]]) {
   def prob(assignment: Assignment): Double =
-    assignment.map {
+    -assignment.map {
       case (node, typ) =>
         val topN = proposal(node)
         val topNProb = topN.distr.find(_._2 == typ).map(_._1)

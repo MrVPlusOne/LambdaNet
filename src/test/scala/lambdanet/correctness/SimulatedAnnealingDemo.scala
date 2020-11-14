@@ -10,7 +10,7 @@ object SimulatedAnnealingDemo {
 
     println("Original result:")
     results foreach { case (node, value) => println(node, value) }
-    val originalProb = LogLikelihood(results).prob(results.mapValuesNow(_.topValue))
+    val originalProb = NegativeLogLikelihood(results).prob(results.mapValuesNow(_.topValue))
 
     val defineRels = graph.predicates.collect {
       case p: DefineRel => p
@@ -36,11 +36,11 @@ object SimulatedAnnealingDemo {
         PatchAnyCorrection(checker, results).correct,
         schedule,
         numEpochs = 5000,
-        f = LogLikelihood(results).prob
+        f = NegativeLogLikelihood(results).prob
       )
     println("correctPrediction:")
     correctPrediction.foreach { case (node, pType) => println(node, pType) }
-    val correctProb = LogLikelihood(results).prob(correctPrediction)
+    val correctProb = NegativeLogLikelihood(results).prob(correctPrediction)
     println(s"log-likelihood of correct prediction: $correctProb")
     println(s"log-likelihood of original maximum-likelihood prediction: $originalProb")
   }

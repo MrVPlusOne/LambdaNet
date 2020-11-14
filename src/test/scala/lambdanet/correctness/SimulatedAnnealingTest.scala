@@ -22,7 +22,7 @@ class SimulatedAnnealingTest extends WordSpec {
         PatchAnyCorrection(checker, results).correct,
         schedule,
         numEpochs = 5000,
-        f = LogLikelihood(results).prob
+        f = NegativeLogLikelihood(results).prob
       )
 
     assert(checker.violate(correctPrediction) == Set.empty)
