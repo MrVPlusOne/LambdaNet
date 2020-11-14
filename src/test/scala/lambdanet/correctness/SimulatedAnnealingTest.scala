@@ -1,27 +1,15 @@
 package lambdanet.correctness
 
-import lambdanet.translation.{PredicateGraph, PredicateGraphLoader}
-import org.scalatest.WordSpec
 import ammonite.{ops => amm}
 import lambdanet.SM
-import lambdanet.TypeInferenceService.{
-  ModelConfig,
-  PredictionResults,
-  loadModel
-}
 import lambdanet.train.TopNDistribution
-import lambdanet.translation.PredicateGraph.{
-  BinaryRel,
-  BinaryRelCat,
-  DefineRel,
-  PAny,
-  PNode
-}
+import lambdanet.translation.PredicateGraph.{PAny, PNode}
+import org.scalatest.WordSpec
 
 class SimulatedAnnealingTest extends WordSpec {
   def test(name: String): Unit = {
     val inputPath = amm.pwd / "data" / "tests" / name
-    val (graph, results) = CorrectnessTestUtils.loadGraphAndPredict(inputPath)
+    val (graph, results) = InputUtils.loadGraphAndPredict(inputPath)
     assert(results.keySet == graph.projNodes)
 
     val checker = TypeChecker(graph)

@@ -2,11 +2,11 @@ package lambdanet.correctness
 
 import ammonite.ops.Path
 import ammonite.{ops => amm}
-import lambdanet.{Model, SM}
 import lambdanet.TypeInferenceService.{ModelConfig, loadModel}
 import lambdanet.translation.{PredicateGraph, PredicateGraphLoader}
+import lambdanet.{Model, SM}
 
-object CorrectnessTestUtils {
+object InputUtils {
   val modelDir: Path = amm.pwd / "models" / "newParsing-GAT1-fc2-newSim-decay-6"
   val paramPath: Path = modelDir / "params.serialized"
   val modelCachePath: Path = modelDir / "model.serialized"
@@ -14,7 +14,8 @@ object CorrectnessTestUtils {
 
   lazy val model: Model =
     loadModel(paramPath, modelCachePath, modelConfig, numOfThreads = 8)
-  lazy val service: model.PredictionService = model.PredictionService(numOfThreads = 8, predictTopK = Int.MaxValue)
+  lazy val service: model.PredictionService =
+    model.PredictionService(numOfThreads = 8, predictTopK = Int.MaxValue)
 
   def loadGraphAndPredict(inputPath: Path): (PredicateGraph, TypeDistrs) = {
     val graph = PredicateGraphLoader.load(inputPath)

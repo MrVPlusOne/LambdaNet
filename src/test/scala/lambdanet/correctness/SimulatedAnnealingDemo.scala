@@ -6,7 +6,7 @@ import lambdanet.translation.PredicateGraph.{BinaryRel, BinaryRelCat, DefineRel}
 object SimulatedAnnealingDemo {
   def main(args: Array[String]): Unit = {
     val inputPath = amm.pwd / "data" / "tests" / "simple"
-    val (graph, results) = CorrectnessTestUtils.loadGraphAndPredict(inputPath)
+    val (graph, results) = InputUtils.loadGraphAndPredict(inputPath)
 
     println("Original result:")
     results foreach { case (node, value) => println(node, value) }
