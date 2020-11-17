@@ -5,6 +5,7 @@ import java.time.format.DateTimeFormatter
 
 import ammonite.ops.RelPath
 import ammonite.{ops => amm}
+import lambdanet.translation.PredicateGraphLoader.libDefs
 import plots.{CommonOptions, PlotlyBackend}
 
 import scala.util.Random
@@ -24,7 +25,7 @@ object SimulatedAnnealingExperiment {
     val inputPath = amm.pwd / "data" / relPathUnderData
     val outputPath = amm.pwd / "SA_results"
     val (graph, results) = InputUtils.loadGraphAndPredict(inputPath)
-    val checker = TypeChecker(graph)
+    val checker = TypeChecker(graph, libDefs)
     val schedule = params.schedule
 
     val fmt = DateTimeFormatter.ofPattern("uuMMdd_HHmm")

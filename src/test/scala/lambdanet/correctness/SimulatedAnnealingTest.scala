@@ -4,6 +4,7 @@ import ammonite.{ops => amm}
 import lambdanet.SM
 import lambdanet.train.TopNDistribution
 import lambdanet.translation.PredicateGraph.{PAny, PNode}
+import lambdanet.translation.PredicateGraphLoader.libDefs
 import org.scalatest.WordSpec
 
 class SimulatedAnnealingTest extends WordSpec {
@@ -12,7 +13,7 @@ class SimulatedAnnealingTest extends WordSpec {
     val (graph, results) = InputUtils.loadGraphAndPredict(inputPath)
     assert(results.keySet == graph.projNodes)
 
-    val checker = TypeChecker(graph)
+    val checker = TypeChecker(graph, libDefs)
     val schedule = (epoch: Int) => 20 * math.log(2) / math.log(epoch + 1)
     val correctPrediction =
       SimulatedAnnealing.search(

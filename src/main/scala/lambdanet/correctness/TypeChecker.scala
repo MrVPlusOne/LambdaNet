@@ -1,26 +1,18 @@
 package lambdanet.correctness
 
-import ammonite.ops.{RelPath, pwd, up}
-import funcdiff.SimpleMath
-import lambdanet.PrepareRepos.{libDefsFile, parseProject}
-import lambdanet.translation.ImportsResolution.ErrorHandler
+import lambdanet.LibDefs
 import lambdanet.translation.PredicateGraph
-import lambdanet.translation.PredicateGraph.{
-  BinaryRel,
-  BinaryRelCat,
-  PNode,
-  PType
-}
-import lambdanet.{LibDefs, announced}
+import lambdanet.translation.PredicateGraph.{BinaryRel, BinaryRelCat, PNode, PType}
 
 case class TypeChecker(
-    graph: PredicateGraph,
-    additionalSubrel: Set[(PType, PType)] = Set.empty
+  graph: PredicateGraph,
+  libDefs: LibDefs,
+  additionalSubrel: Set[(PType, PType)] = Set.empty
 ) {
   def violate(
       assignment: Map[PNode, PType],
   ): Set[(PNode, PNode)] =
-    violate(PTypeContext(graph, additionalSubrel), assignment)
+    violate(PTypeContext(graph, libDefs, additionalSubrel), assignment)
 
   def violate(
       context: PTypeContext,
@@ -38,9 +30,6 @@ case class TypeChecker(
     }
     val subtypesToCheck: Set[(PNode, PNode)] =
       binaryRels
-        .filter {
-          case BinaryRel(lhs, rhs, _) => lhs.fromProject && rhs.fromProject
-        }
         .flatMap {
           case BinaryRel(lhs, rhs, category) =>
             category match {

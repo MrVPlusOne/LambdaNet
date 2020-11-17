@@ -24,7 +24,7 @@ object InputUtils {
       if (amm.exists(resultsPath)) {
         SM.loadObjectFromFile[TypeDistrs](resultsPath.toIO)
       } else {
-        val res = service.predictOnGraph(graph)
+        val res = service.predictOnGraph(graph, nodeSelector = _.fromProject)
         SM.saveObjectToFile(resultsPath.toIO)(res.asInstanceOf[Serializable])
         res
       }

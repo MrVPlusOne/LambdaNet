@@ -2,6 +2,7 @@ package lambdanet.correctness
 
 import ammonite.{ops => amm}
 import lambdanet.translation.PredicateGraph.{BinaryRel, BinaryRelCat, DefineRel}
+import lambdanet.translation.PredicateGraphLoader.libDefs
 
 object SimulatedAnnealingDemo {
   def main(args: Array[String]): Unit = {
@@ -26,7 +27,7 @@ object SimulatedAnnealingDemo {
       case BinaryRel(lhs, rhs, category) => println(lhs, rhs, category)
     }
 
-    val checker = TypeChecker(graph)
+    val checker = TypeChecker(graph, libDefs)
     val schedule = (epoch: Int) => 20 * math.log(2) / math.log(epoch + 1)
     val correctPrediction =
       SimulatedAnnealing.search(

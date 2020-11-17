@@ -1,15 +1,14 @@
 package lambdanet.translation
 
-import lambdanet.IdAllocator
-import PredicateGraph._
-import ammonite.ops.{Path, RelPath, pwd, up}
+import ammonite.ops.{Path, up}
 import funcdiff.SimpleMath
 import lambdanet.PrepareRepos.{libDefsFile, parseProject}
 import lambdanet.Surface.GStmt
 import lambdanet.translation.ImportsResolution.{ErrorHandler, NameDef}
+import lambdanet.translation.PredicateGraph._
+import lambdanet.{IdAllocator, _}
 
 import scala.collection.mutable
-import lambdanet._
 
 /**
   * A predicate graph (aka. type dependency graph) consists of type variables
@@ -559,12 +558,12 @@ object PredicateGraphTranslation {
 }
 
 object PredicateGraphLoader {
-  def load(dir: Path): PredicateGraph = {
-    val libDefs =
-      announced(s"loading library definitions from $libDefsFile...") {
-        SimpleMath.readObjectFromFile[LibDefs](libDefsFile.toIO)
-      }
+  lazy val libDefs =
+    announced(s"loading library definitions from $libDefsFile...") {
+      SimpleMath.readObjectFromFile[LibDefs](libDefsFile.toIO)
+    }
 
+  def load(dir: Path): PredicateGraph =
     parseProject(
       libDefs,
       dir / up,
@@ -574,5 +573,4 @@ object PredicateGraphLoader {
         ErrorHandler(ErrorHandler.StoreError, ErrorHandler.StoreError),
       shouldPrintProject = true
     ).mergeEqualities.pGraph
-  }
 }

@@ -1,24 +1,13 @@
 package lambdanet.correctness
 
+import lambdanet.LibDefs
 import lambdanet.translation.PredicateGraph
-import lambdanet.translation.PredicateGraph.{
-  DefineRel,
-  PAccess,
-  PAny,
-  PCall,
-  PExpr,
-  PFunc,
-  PFuncType,
-  PNode,
-  PObject,
-  PObjectType,
-  PTyVar,
-  PType
-}
+import lambdanet.translation.PredicateGraph._
 
 case class PTypeContext(
-    typeUnfold: Map[PNode, PExpr],
-    subRel: Set[(PType, PType)]
+  typeUnfold: Map[PNode, PExpr],
+  libDefs: LibDefs,
+  subRel: Set[(PType, PType)]
 ) {
 
   /**
@@ -111,14 +100,18 @@ case class PTypeContext(
 
   def toType(expr: PExpr, assignment: Map[PNode, PType]): Option[PType] =
     expr match {
-      case node: PNode => Some(assignment(node))
+      case node: PNode =>
+        if (node.fromProject)
+          Some(assignment(node))
+        else
+          Some(libDefs.nodeMapping(node).get)
       case PFunc(args, returnType) =>
         Some(PFuncType(args.map(assignment(_)), assignment(returnType)))
       case PCall(f, args) =>
         val argTypes = args.map(assignment(_))
         assignment(f) match {
           case PFuncType(paramTypes, to) if argTypes == paramTypes => Some(to)
-          case _                                                   => None
+          case _ => None
         }
       case PObject(fields) =>
         Some(PObjectType(fields.mapValues(assignment(_)))) // TODO: or mapValuesNow?
@@ -132,16 +125,16 @@ case class PTypeContext(
 
 object PTypeContext {
   def apply(
-      graph: PredicateGraph,
-      subRel: Set[(PType, PType)] = Set.empty
+    graph: PredicateGraph,
+    libDefs: LibDefs,
+    subRel: Set[(PType, PType)] = Set.empty
   ): PTypeContext = {
     val defineRels = graph.predicates.collect {
       case p: DefineRel => p
     }
-    // TODO: When expr is PNode, we can optimize the lookup process by using union-find sets
     val typeUnfold = defineRels.map {
       case DefineRel(v, expr) => (v, expr)
     }.toMap
-    PTypeContext(typeUnfold, subRel)
+    PTypeContext(typeUnfold, libDefs, subRel)
   }
 }

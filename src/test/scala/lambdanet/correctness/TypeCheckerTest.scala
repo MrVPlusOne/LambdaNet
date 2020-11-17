@@ -1,7 +1,9 @@
 package lambdanet.correctness
 
+import ammonite.{ops => amm}
 import lambdanet.translation.PredicateGraph
 import lambdanet.translation.PredicateGraph._
+import lambdanet.translation.PredicateGraphLoader.libDefs
 import org.scalatest.WordSpec
 
 /**
@@ -11,8 +13,8 @@ class TypeCheckerTest extends WordSpec {
   "the consistent-subtyping relation" should {
     "pass simple examples" in {
       import TypeCheckerTest.SimpleProgram._
-      val context = PTypeContext(graph)
-      val checker = TypeChecker(graph)
+      val context = PTypeContext(graph, libDefs)
+      val checker = TypeChecker(graph, libDefs)
       val correct = nodes.zip(types).toMap
       assert(context.isSubtype(pointNode, pointAliasNode, assignment = correct))
       assert(context.isSubtype(pointAliasNode, pointNode, assignment = correct))
@@ -27,6 +29,30 @@ class TypeCheckerTest extends WordSpec {
           (pointNode, pointAliasNode)
         )
       )
+    }
+
+    "check library type in data/tests/simple" in {
+      val inputPath = amm.pwd / "data" / "tests" / "simple"
+      val (graph, results) = InputUtils.loadGraphAndPredict(inputPath)
+      val node32 = graph.nodes.find(_.getId == 32).get
+      println(results(node32).distr.filter(_._2.showSimple.contains("String")))
+      val arrayType = results(node32).distr(2)._2
+      val binaryRels = graph.predicates.collect {
+        // inheritance is always satisfied (from definition)
+        case p: BinaryRel if p.category != BinaryRelCat.inheritance => p
+      }
+      val stringNode =
+        binaryRels.find(x => x.lhs == node32 && x.rhs.name == "String").get.rhs
+      val pTypeContext = PTypeContext(graph, libDefs)
+      val mostLikely = results
+        .mapValuesNow(_.topValue)
+      libDefs.nodeMapping
+        .filter {
+          case (n, annot) =>
+            n.nameOpt.exists(_.name.contains("{String}"))
+        }
+        .foreach { case (n, annot) => println(n, annot) }
+      assert(pTypeContext.isSubtype(node32, stringNode, mostLikely))
     }
   }
 }

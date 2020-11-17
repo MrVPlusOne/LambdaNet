@@ -7,7 +7,11 @@ import lambdanet.translation.PredicateGraph.{PAny, PNode, PType}
 import scala.util.Random
 
 object SimulatedAnnealing {
-  case class IntermediateValues(epochs: Seq[Int], ys: Seq[Double], bestYs: Seq[Double])
+  case class IntermediateValues(
+    epochs: Seq[Int],
+    ys: Seq[Double],
+    bestYs: Seq[Double]
+  )
 
   def diff(
     a: Assignment,
@@ -79,7 +83,10 @@ object SimulatedAnnealing {
       ys += y
       bestYs += bestY
     }
-    (correct(bestX), IntermediateValues(0 to numEpochs, ys.result(), bestYs.result()))
+    (
+      correct(bestX),
+      IntermediateValues(0 to numEpochs, ys.result(), bestYs.result())
+    )
   }
 
   /**
@@ -161,10 +168,13 @@ case class WrongFirstOneDifferenceRandomNeighbor(
     val badPairs = checker.violate(x).toIndexedSeq
     if (badPairs.nonEmpty) {
       val pairIndex = Random.nextInt(badPairs.size)
-      val node = Iterator.continually {
-        val elementIndex = Random.nextInt(2)
-        badPairs(pairIndex).productElement(elementIndex)
-      }.dropWhile(n => n.asInstanceOf[PNode].fromLib).next()
+      val node = Iterator
+        .continually {
+          val elementIndex = Random.nextInt(2)
+          badPairs(pairIndex).productElement(elementIndex)
+        }
+        .dropWhile(n => n.asInstanceOf[PNode].fromLib)
+        .next()
       val nodeIndex = x.toIndexedSeq.indexWhere { case (n, _) => n == node }
       changeType(x, nodeIndex)
     } else {
@@ -176,7 +186,7 @@ case class WrongFirstOneDifferenceRandomNeighbor(
 trait PatchAny {
 
   /**
-    * Try to mark as few nodes as `Any` to satisfy all the subtyping relations in `badPairs`.
+    * Try to mark as few project nodes as `Any` to satisfy all the subtyping relations in `badPairs`.
     * Treat this as the Minimum Vertex Cover problem and use the approximation algorithm.
     */
   // TODO: make this random
@@ -188,11 +198,13 @@ trait PatchAny {
       .iterate((badPairs, assignment)) {
         case (badPairs, assignment) =>
           val (child, parent) = badPairs.head
-          val set = Set(child, parent)
+          val projNodes = Set(child, parent).filter(_.fromProject)
           val remain = badPairs.filterNot {
-            case (a, b) => set.contains(a) || set.contains(b)
+            case (a, b) => projNodes.contains(a) || projNodes.contains(b)
           }
-          val markAsAny = assignment.updated(child, PAny).updated(parent, PAny)
+          val markAsAny = projNodes.foldLeft(assignment) {
+            case (assignment, projNode) => assignment.updated(projNode, PAny)
+          }
           (remain, markAsAny)
       }
       .dropWhile { case (remain, _) => remain.nonEmpty }
@@ -245,13 +257,15 @@ case class LocalSearchCorrection(
   }
 }
 
-case class NegativeLogLikelihood(proposal: Map[PNode, TopNDistribution[PType]]) {
+case class NegativeLogLikelihood(
+  proposal: Map[PNode, TopNDistribution[PType]]
+) {
   def prob(assignment: Assignment): Double =
     -assignment.map {
       case (node, typ) =>
         val topN = proposal(node)
         val topNProb = topN.distr.find(_._2 == typ).map(_._1)
-        val probOther = 1 - topN.distr.map(_._1).sum
+        val probOther = 1 - topN.distr.map(_._1).take(10).sum
         math.log(topNProb.getOrElse(probOther))
     }.sum
 }
