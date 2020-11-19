@@ -186,7 +186,15 @@ object QLang {
     'void -> 'Void,
     'object -> 'Object,
     'array -> 'Array,
-    'bigint -> 'BigInt
+    'bigint -> 'BigInt,
+    // constructor types
+    'NumberConstructor -> 'Number,
+    'StringConstructor -> 'String,
+    'BooleanConstructor -> 'Boolean,
+    'SymbolConstructor -> 'Symbol,
+    'ObjectConstructor -> 'Object,
+    'ArrayConstructor -> 'Array,
+    'BigIntConstructor -> 'BigInt,
   )
   val basicTypes: Set[Symbol] = basicTypeRenaming.values.toSet
 }
