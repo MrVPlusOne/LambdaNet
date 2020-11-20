@@ -49,7 +49,8 @@ object RunTrainedModel {
       useSeqModel = false,
       testSetUseInferred = false,
       //todo: change this if you want to predict user defined types
-      onlyPredictLibType = false
+      onlyPredictLibType = false,
+      predictAny = false,
     )
 
     val model = announced("Loading model...") {

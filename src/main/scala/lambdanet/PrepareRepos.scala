@@ -160,7 +160,7 @@ object PrepareRepos {
     map.getOrElse("TypeScript", 0)
   }
 
-  def parseAndFilterDataSet(predictAny: Boolean, loadLibDefs:Boolean): Unit = {
+  def parseAndFilterDataSet(predictAny: Boolean, loadLibDefs: Boolean): Unit = {
     def projectDestination(p: ParsedProject): String = {
       val nodes = p.pGraph.nodes.size
       if (nodes < 500 || nodes > 10000)
@@ -256,7 +256,10 @@ object PrepareRepos {
 
   }
 
-  def parseAndSerializeDataSet(predictAny: Boolean, loadLibDefs: Boolean): Unit = {
+  def parseAndSerializeDataSet(
+      predictAny: Boolean,
+      loadLibDefs: Boolean
+  ): Unit = {
     val basePath = reposDir / "divided"
     val trainSetDir: Path = basePath / "trainSet"
     val devSetDir: Path = basePath / "devSet"
@@ -305,12 +308,12 @@ object PrepareRepos {
       pGraph: PredicateGraph,
       predictAny: Boolean,
   ) {
-    import NameDef.{anyType, unknownType}
+    import NameDef.{isAny, unknownType}
 
     def allAnnots: Map[PNode, PAnnot] = irModules.flatMap(_.mapping).toMap
 
     private def shouldExclude(a: Annot.User[PType]): Boolean = {
-      a.ty == unknownType || (a.ty == anyType && (!predictAny || a.inferred))
+      a.ty == unknownType || (isAny(a.ty) && (!predictAny || a.inferred))
     }
 
     @transient
@@ -348,6 +351,13 @@ object PrepareRepos {
       devSet: List[ParsedProject],
       testSet: List[ParsedProject]
   ) {
+    def setPredictAny(predictAny: Boolean): ParsedRepos =
+      copy(
+        trainSet = trainSet.map(_.copy(predictAny = predictAny)),
+        devSet = devSet.map(_.copy(predictAny = predictAny)),
+        testSet = testSet.map(_.copy(predictAny = predictAny)),
+      )
+
     import ParsedRepos._
 
     def meta(chunkNum: Int) =

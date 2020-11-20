@@ -5,9 +5,9 @@ import lambdanet.translation.PredicateGraph
 import lambdanet.translation.PredicateGraph._
 
 case class PTypeContext(
-  typeUnfold: Map[PNode, PExpr],
-  libDefs: LibDefs,
-  subRel: Set[(PType, PType)]
+    typeUnfold: Map[PNode, PExpr],
+    libDefs: LibDefs,
+    subRel: Set[(PType, PType)]
 ) {
 
   /**
@@ -111,7 +111,7 @@ case class PTypeContext(
         val argTypes = args.map(assignment(_))
         assignment(f) match {
           case PFuncType(paramTypes, to) if argTypes == paramTypes => Some(to)
-          case _ => None
+          case _                                                   => None
         }
       case PObject(fields) =>
         Some(PObjectType(fields.mapValues(assignment(_)))) // TODO: or mapValuesNow?
@@ -125,9 +125,9 @@ case class PTypeContext(
 
 object PTypeContext {
   def apply(
-    graph: PredicateGraph,
-    libDefs: LibDefs,
-    subRel: Set[(PType, PType)] = Set.empty
+      graph: PredicateGraph,
+      libDefs: LibDefs,
+      subRel: Set[(PType, PType)] = Set.empty
   ): PTypeContext = {
     val defineRels = graph.predicates.collect {
       case p: DefineRel => p

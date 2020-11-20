@@ -53,7 +53,7 @@ object DataSet {
       ParsedRepos(libDefs, trainSet, devSet, testSet)
     } else {
       announced(s"read data set from dir '$parsedReposDir'") {
-        ParsedRepos.readFromDir(parsedReposDir)
+        ParsedRepos.readFromDir(parsedReposDir).setPredictAny(predictAny)
       }
     }
   }
@@ -63,6 +63,7 @@ object DataSet {
       taskSupport: Option[ForkJoinTaskSupport],
       useSeqModel: Boolean,
       onlyPredictLibType: Boolean,
+      predictAny: Boolean,
       testSetUseInferred: Boolean = false
   ): DataSet = {
     import PrepareRepos._
@@ -97,7 +98,8 @@ object DataSet {
               libTypesToPredict,
               libDefs,
               taskSupport,
-              onlyPredictLibType
+              onlyPredictLibType,
+              predictAny,
             )
             Right(predictor) -> predictor.predictionSpace
           }
@@ -149,12 +151,13 @@ object DataSet {
       .map { p =>
         p.toVector.collect {
           case (_, PTyVar(v)) => Map(v -> 1)
-          case (_, PAny) => Map(anyNode -> 1)
+          case (_, PAny)      => Map(anyNode -> 1)
         }.combineAll
       }
       .fold(Map[PNode, Int]())(_ |+| _)
 
     assert(libDefs.nodeMapping.contains(anyNode))
+
     /** sort lib types by their usages */
     val typeFreqs = libDefs.nodeMapping.keys.toVector
       .collect {

@@ -34,7 +34,8 @@ object NeuralInference {
       libraryTypeNodes: Set[LibTypeNode],
       libDefs: LibDefs,
       taskSupport: Option[ForkJoinTaskSupport],
-      onlyPredictLibType: Boolean
+      onlyPredictLibType: Boolean,
+      predictAny: Boolean,
   ) {
     private val parallelism =
       taskSupport.map(_.environment.getParallelism).getOrElse(1)
@@ -58,7 +59,8 @@ object NeuralInference {
           case PTyVar(node) =>
             if (node.fromLib) encodeLibNode(LibNode(node))
             else embed.vars(ProjNode(node))
-          case _ => throw new Error()
+          case PAny => encodeLibNode(LibNode(NameDef.anyType.node))
+          case _    => throw new Error(s"Unable to encode PType: $ty")
         }
 
         val embeddings = logTime("iterate") {
@@ -67,7 +69,6 @@ object NeuralInference {
               (embed, i) =>
                 updateEmbedding(encodeLibNode)(
                   embed,
-                  encodeType(embed),
                   if (fixBetweenIteration) 0
                   else i
                 )
@@ -113,7 +114,6 @@ object NeuralInference {
           encodeLibNode: LibNode => CompNode
       )(
           embedding: Embedding,
-          encodeType: PType => CompNode,
           iteration: Int
       ): Embedding = {
 
@@ -248,7 +248,10 @@ object NeuralInference {
       graph.nodes.filter(_.fromLib).map(LibNode) ++ unknownNodes
     val predictionSpace = PredictionSpace(
       libraryTypeNodes
-        .map(_.n.n.pipe(PTyVar)) ++ projectObjectTypes - NameDef.unknownType// ++ Set(PAny),
+        .map(_.n.n.pipe(PTyVar))
+        ++ projectObjectTypes
+        -- Set(NameDef.unknownType, NameDef.anyType)
+        ++ (if (predictAny) Set(PAny) else Set()),
     )
 
     val labelUsages: LabelUsages = {

@@ -12,9 +12,9 @@ import scala.util.Random
 
 object SimulatedAnnealingExperiment {
   case class Parameters(
-    seed: Option[Long],
-    schedule: Schedule,
-    numEpochs: Int
+      seed: Option[Long],
+      schedule: Schedule,
+      numEpochs: Int
   )
 
   def run(relPathUnderData: RelPath, unseededParams: Parameters): Unit = {

@@ -238,7 +238,8 @@ class ParserTests extends WordSpec with MyTest {
         libTypesToPredict,
         libDefs,
         None,
-        onlyPredictLibType = false
+        onlyPredictLibType = false,
+        predictAny = true,
       ).visualizeNeuralGraph
     }
 

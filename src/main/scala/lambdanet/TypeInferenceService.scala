@@ -49,7 +49,8 @@ object TypeInferenceService {
           repos,
           Some(new ForkJoinTaskSupport(new ForkJoinPool(numOfThreads))),
           useSeqModel = false,
-          onlyPredictLibType = false
+          onlyPredictLibType = false,
+          predictAny = false,
         )
       }
       val model = announced("Create model") {

@@ -8,14 +8,14 @@ import scala.util.Random
 
 object SimulatedAnnealing {
   case class IntermediateValues(
-    epochs: Seq[Int],
-    ys: Seq[Double],
-    bestYs: Seq[Double]
+      epochs: Seq[Int],
+      ys: Seq[Double],
+      bestYs: Seq[Double]
   )
 
   def diff(
-    a: Assignment,
-    b: Assignment
+      a: Assignment,
+      b: Assignment
   ): Map[PNode, (PType, PType)] = {
     val set =
       for (node <- a.keySet if a(node) != b(node))
@@ -24,14 +24,14 @@ object SimulatedAnnealing {
   }
 
   def lazySearch(
-    g: PredicateGraph,
-    proposal: Map[PNode, TopNDistribution[PType]],
-    randomNeighbor: Assignment => Assignment,
-    correct: Correction,
-    t: Int => Double,
-    numEpochs: Int,
-    f: Objective,
-    reboot: Boolean = false
+      g: PredicateGraph,
+      proposal: Map[PNode, TopNDistribution[PType]],
+      randomNeighbor: Assignment => Assignment,
+      correct: Correction,
+      t: Int => Double,
+      numEpochs: Int,
+      f: Objective,
+      reboot: Boolean = false
   ): Iterator[((Assignment, Double), (Assignment, Double))] = {
     ???
     //    val mostLikely = proposal.mapValuesNow(_.topValue)
@@ -42,14 +42,14 @@ object SimulatedAnnealing {
     * Minimize f using simulated annealing. Record intermediate objective values.
     */
   def searchWithLog(
-    g: PredicateGraph,
-    proposal: Map[PNode, TopNDistribution[PType]],
-    randomNeighbor: Assignment => Assignment,
-    correct: Correction,
-    t: Int => Double,
-    numEpochs: Int,
-    f: Objective,
-    reboot: Boolean = false
+      g: PredicateGraph,
+      proposal: Map[PNode, TopNDistribution[PType]],
+      randomNeighbor: Assignment => Assignment,
+      correct: Correction,
+      t: Int => Double,
+      numEpochs: Int,
+      f: Objective,
+      reboot: Boolean = false
   ): (Assignment, IntermediateValues) = {
     val mostLikely = proposal.mapValuesNow(_.topValue)
     var x = mostLikely
@@ -93,14 +93,14 @@ object SimulatedAnnealing {
     * Minimize f using simulated annealing. Only return the corrected best assignment.
     */
   def search(
-    g: PredicateGraph,
-    proposal: Map[PNode, TopNDistribution[PType]],
-    randomNeighbor: Assignment => Assignment,
-    correct: Correction,
-    t: Int => Double,
-    numEpochs: Int,
-    f: Objective,
-    reboot: Boolean = false
+      g: PredicateGraph,
+      proposal: Map[PNode, TopNDistribution[PType]],
+      randomNeighbor: Assignment => Assignment,
+      correct: Correction,
+      t: Int => Double,
+      numEpochs: Int,
+      f: Objective,
+      reboot: Boolean = false
   ): Assignment = {
     val mostLikely = proposal.mapValuesNow(_.topValue)
     var x = mostLikely
@@ -157,12 +157,12 @@ trait OneDifferenceRandomNeighborBase {
 }
 
 case class OneDifferenceRandomNeighbor(
-  proposal: Map[PNode, TopNDistribution[PType]]
+    proposal: Map[PNode, TopNDistribution[PType]]
 ) extends OneDifferenceRandomNeighborBase
 
 case class WrongFirstOneDifferenceRandomNeighbor(
-  override val proposal: Map[PNode, TopNDistribution[PType]],
-  checker: TypeChecker
+    override val proposal: Map[PNode, TopNDistribution[PType]],
+    checker: TypeChecker
 ) extends OneDifferenceRandomNeighborBase {
   override def randomNeighbor(x: Assignment): Assignment = {
     val badPairs = checker.violate(x).toIndexedSeq
@@ -192,8 +192,8 @@ trait PatchAny {
     */
   // TODO: make this random
   def patchAny(
-    badPairs: Set[(PNode, PNode)],
-    assignment: Assignment
+      badPairs: Set[(PNode, PNode)],
+      assignment: Assignment
   ): Assignment = {
     Iterator
       .iterate((badPairs, assignment)) {
@@ -259,7 +259,7 @@ case class LocalSearchCorrection(
 }
 
 case class NegativeLogLikelihood(
-  proposal: Map[PNode, TopNDistribution[PType]]
+    proposal: Map[PNode, TopNDistribution[PType]]
 ) {
   def prob(assignment: Assignment): Double =
     -assignment.map {

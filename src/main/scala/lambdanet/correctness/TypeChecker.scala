@@ -2,12 +2,17 @@ package lambdanet.correctness
 
 import lambdanet.LibDefs
 import lambdanet.translation.PredicateGraph
-import lambdanet.translation.PredicateGraph.{BinaryRel, BinaryRelCat, PNode, PType}
+import lambdanet.translation.PredicateGraph.{
+  BinaryRel,
+  BinaryRelCat,
+  PNode,
+  PType
+}
 
 case class TypeChecker(
-  graph: PredicateGraph,
-  libDefs: LibDefs,
-  additionalSubrel: Set[(PType, PType)] = Set.empty
+    graph: PredicateGraph,
+    libDefs: LibDefs,
+    additionalSubrel: Set[(PType, PType)] = Set.empty
 ) {
   def violate(
       assignment: Map[PNode, PType],

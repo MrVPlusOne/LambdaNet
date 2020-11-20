@@ -167,13 +167,13 @@ object TrainingLoop {
     def result(): Unit = {
       val (state, pc, logger) = loadTrainingState(resultsDir, fileLogger)
 
-      val repos = DataSet.loadRepos(toyMode, predictAny = true)
+      val repos = DataSet.loadRepos(toyMode, predictAny = predictAny)
       val dataSet = DataSet.makeDataSet(
         repos,
         taskSupport,
         useSeqModel,
-        toyMode,
         onlyPredictLibType,
+        predictAny,
       )
       makeModel(pc, dataSet)
         .train(maxTrainingEpochs = if (toyMode) 90 else 100, state, logger)

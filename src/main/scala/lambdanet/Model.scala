@@ -233,6 +233,7 @@ case class Model(
         pGraph: PredicateGraph,
         nodeSelector: PNode => Boolean = _ => true,
         onlyPredictLibType: Boolean = false,
+        predictAny: Boolean = true,
     ): Map[PNode, TopNDistribution[PType]] = {
       val predictor = Predictor(
         pGraph,
@@ -240,6 +241,7 @@ case class Model(
         libDefs,
         taskSupport,
         onlyPredictLibType,
+        predictAny,
       )
       val nodes =
         pGraph.projNodes.filter(nodeSelector).map(ProjNode)
@@ -249,7 +251,7 @@ case class Model(
     def predictOnProject(
         sourcePath: Path,
         skipSet: Set[String] = Set("node_modules"),
-        predictAny: Boolean = false,
+        predictAny: Boolean = true,
         onlyPredictLibType: Boolean = false,
         warnOnErrors: Boolean,
     ): Map[PNode, TopNDistribution[PType]] = {
@@ -271,6 +273,7 @@ case class Model(
         libDefs,
         taskSupport,
         onlyPredictLibType,
+        predictAny,
       )
       val nodesToPredict = project.allAnnots.keySet.collect {
         case n if n.fromProject => ProjNode(n)
