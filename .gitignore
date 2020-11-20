@@ -29,7 +29,7 @@ running-result/
 
 *.zip
 node_modules/
-data/parsedRepos
+data/parsedRepos*
 docker-sync.yml
 models/
 package-lock.json

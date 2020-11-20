@@ -40,10 +40,11 @@ import scala.language.reflectiveCalls
 import scala.util.Random
 
 object TrainingLoop {
-  val toyMode: Boolean = false
+  val toyMode: Boolean = true
   val useSeqModel = false
   val useDropout: Boolean = true
   val useOracleForIsLib: Boolean = false
+  val predictAny = true
   /* Assign more weights to project type to battle label imbalance */
   val maxLibRatio: Real = 3.0
   val projWeight: Real = maxLibRatio
@@ -55,10 +56,12 @@ object TrainingLoop {
 
   val taskName: String = {
     val flags = Seq(
-      "newSim" -> NNArchitecture.compareDecoding,
-      "oracle" -> useOracleForIsLib,
+//      "newSim" -> NNArchitecture.compareDecoding,
+//      "oracle" -> useOracleForIsLib,
       "fix" -> NeuralInference.fixBetweenIteration,
       "decay" -> weightDecay.nonEmpty,
+      "with_any" -> predictAny,
+      "lib" -> onlyPredictLibType,
       "toy" -> toyMode
     ).map(flag(_)).mkString
 
@@ -70,9 +73,8 @@ object TrainingLoop {
 
     if (useSeqModel) "seqModel-theirName1-node"
     else
-      s"${ablationFlag}newParsing-GAT$gatHead-fc${NNArchitecture.messageLayers}" +
+      s"${ablationFlag}LambdaNet-GAT$gatHead-fc${NNArchitecture.messageLayers}" +
         s"$flags-${TrainingState.iterationNum}"
-//    "testBaseline"
   }
 
   def flag(nameValue: (String, Boolean), post: Boolean = false): String = {
@@ -115,12 +117,14 @@ object TrainingLoop {
       }
     }
 
-    val (mName, eService) = ReportFinish.readEmailInfo(taskName)
-
     config(
       threadNumber,
       resultsDir,
-      Some(EmailRelated(mName, eService))
+//      Some{
+//        val (mName, eService) = ReportFinish.readEmailInfo(taskName)
+//        EmailRelated(mName, eService)
+//      }
+      emailRelated = None,
     ).result()
   }
 
@@ -163,19 +167,18 @@ object TrainingLoop {
     def result(): Unit = {
       val (state, pc, logger) = loadTrainingState(resultsDir, fileLogger)
 
-      val repos = DataSet.loadRepos(toyMode)
+      val repos = DataSet.loadRepos(toyMode, predictAny = true)
       val dataSet = DataSet.makeDataSet(
         repos,
         taskSupport,
         useSeqModel,
         toyMode,
-        onlyPredictLibType
+        onlyPredictLibType,
       )
       makeModel(pc, dataSet)
-        .train(maxTrainingEpochs = if (toyMode) 500 else 100, state, logger)
-
+        .train(maxTrainingEpochs = if (toyMode) 90 else 100, state, logger)
+        .run()
 //      namingHelpfulness(run)
-
     }
 
     def namingHelpfulness(dataSet: DataSet, run: Model): Unit = {

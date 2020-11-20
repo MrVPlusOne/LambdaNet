@@ -65,10 +65,9 @@ object TrainingState {
             epoch0 = 0,
             optimizer = Optimizer.Adam(learningRate = 1e-3),
             iterationNum = iterationNum
-          )
+          ).tap(println)
           (state, new ParamCollection(), mkEventLogger(overrideMode = true))
         }
-        .tap(println)
     }
   }
 

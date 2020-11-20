@@ -571,6 +571,7 @@ object PredicateGraphLoader {
       skipSet = Set(),
       errorHandler =
         ErrorHandler(ErrorHandler.StoreError, ErrorHandler.StoreError),
-      shouldPrintProject = true
+      shouldPrintProject = true,
+      predictAny = true,
     ).mergeEqualities.pGraph
 }

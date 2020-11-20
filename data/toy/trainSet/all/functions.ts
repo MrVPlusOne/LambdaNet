@@ -22,6 +22,10 @@ function f4(c: boolean, x: number): Event {
   return Event.prototype;
 }
 
+function swap(x:any, y:any): [any, any] {
+  return [y, x]
+}
+
 let a1: number;
 let a2: boolean;
 let a3: Window;

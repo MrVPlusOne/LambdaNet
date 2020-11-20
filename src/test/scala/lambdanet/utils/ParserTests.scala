@@ -56,7 +56,6 @@ class ParserTests extends WordSpec with MyTest {
     }
   }
 
-
   "JSon parsing tests" in {
     assert(Js.True == ProgramParsing.parseJson("""/* abc some @text */ true"""))
   }
@@ -152,7 +151,14 @@ class ParserTests extends WordSpec with MyTest {
     val f = pwd / RelPath("data/tests/export-import")
     lambdanet.shouldWarn = true
     val parsed =
-      parseProject(libDefs, f/up, f, skipSet = Set(), shouldPruneGraph = false)
+      parseProject(
+        libDefs,
+        f / up,
+        f,
+        skipSet = Set(),
+        shouldPruneGraph = false,
+        predictAny = true
+      )
     val g = parsed.pGraph
     g.predicates.foreach(println)
     g.predicates.collect {
@@ -172,17 +178,20 @@ class ParserTests extends WordSpec with MyTest {
     val dir = pwd / RelPath(
       "data/tests/weirdInterfaces"
     )
-    val parsed@ParsedProject(_, qModules, irModules, g) =
+    val parsed @ ParsedProject(_, qModules, irModules, g, _) =
       parseProject(
         libDefs,
-        dir/up,
+        dir / up,
         dir,
         skipSet = Set(),
         errorHandler =
           ErrorHandler(ErrorHandler.StoreError, ErrorHandler.StoreError),
-        shouldPrintProject = true
+        shouldPrintProject = true,
+        predictAny = true,
       ).mergeEqualities
-    SM.saveObjectToFile((pwd/"data"/"testSerialization.serialized").toIO)(parsed)
+    SM.saveObjectToFile((pwd / "data" / "testSerialization.serialized").toIO)(
+      parsed
+    )
     val annots = parsed.allUserAnnots
     val truth = annots.map { case (k, v) => k.n -> v }
     val projName = "gigobyte_ui-stack"
@@ -229,6 +238,7 @@ class ParserTests extends WordSpec with MyTest {
         libTypesToPredict,
         libDefs,
         None,
+        onlyPredictLibType = false
       ).visualizeNeuralGraph
     }
 

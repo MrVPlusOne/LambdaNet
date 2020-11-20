@@ -49,7 +49,6 @@ object TypeInferenceService {
           repos,
           Some(new ForkJoinTaskSupport(new ForkJoinPool(numOfThreads))),
           useSeqModel = false,
-          toyMode = false,
           onlyPredictLibType = false
         )
       }

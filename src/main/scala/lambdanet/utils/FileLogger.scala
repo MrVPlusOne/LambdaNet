@@ -69,7 +69,7 @@ object EventLogger {
 
   case class MapValue(v: Vector[(String, Double)]) extends EventValue
 
-  case class Event(name: String, iteration: Double, value: EventValue)
+  case class Event(name: String, iteration: Int, value: EventValue)
 
   case class PlotConfig(options: String*)
 
@@ -98,7 +98,7 @@ class EventLogger(
     }
   }
 
-  def logScalar(name: String, iteration: Double, value: Double): Unit = {
+  def logScalar(name: String, iteration: Int, value: Double): Unit = {
     log(Event(name, iteration, DoubleValue(value)))
   }
 

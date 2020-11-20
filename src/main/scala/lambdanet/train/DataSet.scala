@@ -3,6 +3,7 @@ package lambdanet.train
 import lambdanet._
 import lambdanet.translation.PredicateGraph._
 import NeuralInference._
+import ammonite.ops.pwd
 import lambdanet.PrepareRepos.ParsedRepos
 import lambdanet.SequenceModel.SeqPredictor
 import lambdanet.translation.ImportsResolution.NameDef
@@ -35,15 +36,19 @@ case class DataSet(
 }
 
 object DataSet {
-  def loadRepos(toyMode: Boolean): PrepareRepos.ParsedRepos = {
+  def loadRepos(
+      toyMode: Boolean,
+      predictAny: Boolean
+  ): PrepareRepos.ParsedRepos = {
     import PrepareRepos._
     printResult(s"Is toy data set? : $toyMode")
     if (toyMode) {
-      val base = reposDir / "small"
+      val base = pwd / "data" / "toy"
       val (libDefs, Seq(trainSet, devSet, testSet)) = parseRepos(
         Seq(base / "trainSet", base / "devSet", base / "testSet"),
-        loadFromFile = true,
-        inParallel = true
+        predictAny = predictAny,
+        loadLibDefs = true,
+        inParallel = true,
       )
       ParsedRepos(libDefs, trainSet, devSet, testSet)
     } else {
@@ -57,7 +62,6 @@ object DataSet {
       repos: ParsedRepos,
       taskSupport: Option[ForkJoinTaskSupport],
       useSeqModel: Boolean,
-      toyMode: Boolean,
       onlyPredictLibType: Boolean,
       testSetUseInferred: Boolean = false
   ): DataSet = {
@@ -77,7 +81,10 @@ object DataSet {
     val data: Vector[Vector[ProcessedProject]] = {
       ((trainSet ++ devSet).zip(Stream.continually(true)) ++
         testSet.zip(Stream.continually(testSetUseInferred))).toVector.par.map {
-        case (p @ ParsedProject(path, qModules, irModules, g), useInferred) =>
+        case (
+            p @ ParsedProject(path, qModules, irModules, g, _),
+            useInferred
+            ) =>
           val (predictor, predSpace) = if (useSeqModel) {
             val pSpace = PredictionSpace(
               libTypesToPredict
@@ -94,6 +101,8 @@ object DataSet {
             )
             Right(predictor) -> predictor.predictionSpace
           }
+
+          printInfo(s"Prediction space: $predSpace")
 
           val annots1 =
             (if (useInferred) p.allUserAnnots else p.nonInferredUserAnnots)
@@ -135,12 +144,17 @@ object DataSet {
   ): Set[LibTypeNode] = {
     import cats.implicits._
 
+    val anyNode = NameDef.anyType.node
     val usages: Map[PNode, Int] = annotations.par
       .map { p =>
-        p.toVector.collect { case (_, PTyVar(v)) => Map(v -> 1) }.combineAll
+        p.toVector.collect {
+          case (_, PTyVar(v)) => Map(v -> 1)
+          case (_, PAny) => Map(anyNode -> 1)
+        }.combineAll
       }
       .fold(Map[PNode, Int]())(_ |+| _)
 
+    assert(libDefs.nodeMapping.contains(anyNode))
     /** sort lib types by their usages */
     val typeFreqs = libDefs.nodeMapping.keys.toVector
       .collect {

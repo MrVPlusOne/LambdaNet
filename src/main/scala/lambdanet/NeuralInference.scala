@@ -34,7 +34,7 @@ object NeuralInference {
       libraryTypeNodes: Set[LibTypeNode],
       libDefs: LibDefs,
       taskSupport: Option[ForkJoinTaskSupport],
-      onlyPredictLibType: Boolean = false
+      onlyPredictLibType: Boolean
   ) {
     private val parallelism =
       taskSupport.map(_.environment.getParallelism).getOrElse(1)
@@ -248,7 +248,7 @@ object NeuralInference {
       graph.nodes.filter(_.fromLib).map(LibNode) ++ unknownNodes
     val predictionSpace = PredictionSpace(
       libraryTypeNodes
-        .map(_.n.n.pipe(PTyVar)) ++ projectObjectTypes - NameDef.unknownType // ++ Set(PAny),
+        .map(_.n.n.pipe(PTyVar)) ++ projectObjectTypes - NameDef.unknownType// ++ Set(PAny),
     )
 
     val labelUsages: LabelUsages = {

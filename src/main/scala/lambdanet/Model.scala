@@ -249,6 +249,7 @@ case class Model(
     def predictOnProject(
         sourcePath: Path,
         skipSet: Set[String] = Set("node_modules"),
+        predictAny: Boolean = false,
         onlyPredictLibType: Boolean = false,
         warnOnErrors: Boolean,
     ): Map[PNode, TopNDistribution[PType]] = {
@@ -261,6 +262,7 @@ case class Model(
           shouldPruneGraph = false,
           errorHandler = handler,
           warnOnErrors = warnOnErrors,
+          predictAny = predictAny,
         )
 
       val predictor = Predictor(

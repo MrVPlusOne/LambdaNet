@@ -52,15 +52,18 @@ object PrepareRepos {
 
   val allReposDir: Path = reposDir / "allRepos"
 
+  /** use this function to download, parse, filter, divide, and serialize the
+  / training, dev, and test sets. */
   def main(args: Array[String]): Unit = {
 //    val defs = parseLibDefs()
 //    SimpleMath.saveObjectToFile(libDefsFile.toIO)(defs)
 //    println(s"library definitions saved to $libDefsFile")
 
 //    remixDividedDataSet()
-//    parseAndFilterDataSet()
+    val predictAny = true
+    parseAndFilterDataSet(predictAny, loadLibDefs = true)
     divideDataSet()
-//    parseAndSerializeDataSet()
+    parseAndSerializeDataSet(predictAny, loadLibDefs = true)
   }
 
   private def remixDividedDataSet(): Unit = {
@@ -85,14 +88,15 @@ object PrepareRepos {
 
   def parseRepos(
       dataSetDirs: Seq[Path],
-      loadFromFile: Boolean = true,
+      predictAny: Boolean,
+      loadLibDefs: Boolean = true,
       inParallel: Boolean = true,
       maxLinesOfCode: Int = Int.MaxValue,
       parsedCallback: (Path, RepoResult) => Unit = (_, _) => ()
   ): (LibDefs, Seq[List[ParsedProject]]) = {
     lambdanet.shouldWarn = false
 
-    val libDefs = if (loadFromFile) {
+    val libDefs = if (loadLibDefs) {
       announced(s"loading library definitions from $libDefsFile...") {
         SimpleMath.readObjectFromFile[LibDefs](libDefsFile.toIO)
       }
@@ -117,6 +121,7 @@ object PrepareRepos {
                 shouldPruneGraph = false,
                 errorHandler = ErrorHandler.alwaysStoreError,
                 warnOnErrors = true,
+                predictAny = predictAny,
               ).mergeEqualities
 
               Successful(p0).tap { _ =>
@@ -155,7 +160,7 @@ object PrepareRepos {
     map.getOrElse("TypeScript", 0)
   }
 
-  def parseAndFilterDataSet(): Unit = {
+  def parseAndFilterDataSet(predictAny: Boolean, loadLibDefs:Boolean): Unit = {
     def projectDestination(p: ParsedProject): String = {
       val nodes = p.pGraph.nodes.size
       if (nodes < 500 || nodes > 10000)
@@ -179,8 +184,9 @@ object PrepareRepos {
     announced("parsePredGraphs")(
       parseRepos(
         Seq(allReposDir),
-        loadFromFile = false,
+        loadLibDefs = loadLibDefs,
         inParallel = true,
+        predictAny = predictAny,
         maxLinesOfCode = 20000,
         parsedCallback = (file, pOpt) => {
           val dest = pOpt match {
@@ -250,7 +256,7 @@ object PrepareRepos {
 
   }
 
-  def parseAndSerializeDataSet(): Unit = {
+  def parseAndSerializeDataSet(predictAny: Boolean, loadLibDefs: Boolean): Unit = {
     val basePath = reposDir / "divided"
     val trainSetDir: Path = basePath / "trainSet"
     val devSetDir: Path = basePath / "devSet"
@@ -260,12 +266,13 @@ object PrepareRepos {
         var progress = 0
         parseRepos(
           Seq(trainSetDir, devSetDir, testSetDir),
-          loadFromFile = false,
+          loadLibDefs = loadLibDefs,
           parsedCallback = (_, _) =>
             synchronized {
               progress += 1
               printResult(s"Progress: $progress")
-            }
+            },
+          predictAny = predictAny,
         )
       }
     val stats = repoStatistics(trainSet ++ devSet ++ testSet)
@@ -284,23 +291,32 @@ object PrepareRepos {
     }
   }
 
-  // don't predict unknown and any
-  val typesNotToPredict: Set[PType] =
-    Set(NameDef.unknownType, NameDef.anyType)
-
+  /**
+    * @param predictAny when set to true, will include any into the prediction
+    *                   space. However, even if it's set to true, only user-annotated
+    *                   `any`s will be used as training signal since TS Compiler
+    *                   can infer a lot of spurious `any`s.
+    */
   @SerialVersionUID(2)
   case class ParsedProject(
       path: ProjectPath,
       qModules: Vector[QModule],
       irModules: Vector[IRModule],
-      pGraph: PredicateGraph
+      pGraph: PredicateGraph,
+      predictAny: Boolean,
   ) {
+    import NameDef.{anyType, unknownType}
+
     def allAnnots: Map[PNode, PAnnot] = irModules.flatMap(_.mapping).toMap
+
+    private def shouldExclude(a: Annot.User[PType]): Boolean = {
+      a.ty == unknownType || (a.ty == anyType && (!predictAny || a.inferred))
+    }
 
     @transient
     lazy val allUserAnnots: Map[ProjNode, PType] = {
       allAnnots.collect {
-        case (n, Annot.User(t, _)) if !typesNotToPredict.contains(t) =>
+        case (n, ant @ Annot.User(t, _)) if !shouldExclude(ant) =>
           ProjNode(n) -> t
       }
     }
@@ -308,7 +324,7 @@ object PrepareRepos {
     @transient
     lazy val nonInferredUserAnnots: Map[ProjNode, PType] = {
       allAnnots.collect {
-        case (n, Annot.User(t, false)) if !typesNotToPredict.contains(t) =>
+        case (n, ant @ Annot.User(t, false)) if !shouldExclude(ant) =>
           ProjNode(n) -> t
       }
     }
@@ -317,7 +333,7 @@ object PrepareRepos {
       val (graph1, merger) = pGraph.mergeEqualities
       val qModules1 = qModules.map { _.mapNodes(merger) }
       val irModules1 = irModules.map { _.mapNodes(merger) }
-      ParsedProject(path, qModules1, irModules1, graph1)
+      ParsedProject(path, qModules1, irModules1, graph1, predictAny)
     }
   }
 
@@ -593,6 +609,7 @@ object PrepareRepos {
       libDefs: LibDefs,
       projectsBase: Path,
       projectRoot: Path,
+      predictAny: Boolean,
       skipSet: Set[String] = Set("dist", "__tests__", "test", "tests"),
       shouldPruneGraph: Boolean = true,
       shouldPrintProject: Boolean = false,
@@ -651,7 +668,7 @@ object PrepareRepos {
       printResult(s"Project parsed: '$projectRoot'")
       println("number of nodes: " + graph.nodes.size)
 
-      ParsedProject(projectName, qModules, irModules, graph)
+      ParsedProject(projectName, qModules, irModules, graph, predictAny)
     }
 
 }

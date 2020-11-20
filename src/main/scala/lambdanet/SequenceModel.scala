@@ -20,7 +20,8 @@ object SequenceModel {
   def main(args: Array[String]): Unit = {
     import ammonite.ops._
     val (libDefs, Seq(trainSet, testSet)) = parseRepos(
-      Seq(pwd / RelPath("data/toy"), pwd / RelPath("data/toy"))
+      Seq(pwd / RelPath("data/toy"), pwd / RelPath("data/toy")),
+      predictAny = false,
     )
     val nodeMapping =
       libDefs.nodeMapping ++ trainSet.flatMap(

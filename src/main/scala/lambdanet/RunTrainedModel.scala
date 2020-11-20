@@ -40,13 +40,13 @@ object RunTrainedModel {
         skipSet = Set("node_modules", "__tests__", "test", "tests"),
         shouldPruneGraph = false,
         errorHandler = handler,
+        predictAny = false,
       )
     val repos1 = repos.copy(devSet = List(), testSet = List(testProject))
     val dataSet = DataSet.makeDataSet(
       repos1,
       Some(new ForkJoinTaskSupport(new ForkJoinPool(numOfThreads))),
       useSeqModel = false,
-      toyMode = false,
       testSetUseInferred = false,
       //todo: change this if you want to predict user defined types
       onlyPredictLibType = false
@@ -116,7 +116,7 @@ object RunTrainedModel {
 
     val random = new Random(1)
 
-    val repos = DataSet.loadRepos(toyMode = false)
+    val repos = DataSet.loadRepos(toyMode = false, predictAny = false)
     val selected = for {
       p <- repos.devSet.toVector
       m <- p.qModules
