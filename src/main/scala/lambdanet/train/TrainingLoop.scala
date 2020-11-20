@@ -40,7 +40,7 @@ import scala.language.reflectiveCalls
 import scala.util.Random
 
 object TrainingLoop {
-  val toyMode: Boolean = true
+  val toyMode: Boolean = false
   val useSeqModel = false
   val useDropout: Boolean = true
   val useOracleForIsLib: Boolean = false
@@ -116,15 +116,20 @@ object TrainingLoop {
         lambdanet.printResult(s"save results to directory: $d")
       }
     }
+    val emailRelated = try {
+      val (mName, eService) = ReportFinish.readEmailInfo(taskName)
+      Some(EmailRelated(mName, eService))
+    } catch {
+      case _: Exception =>
+        printWarning("No email service configuration founded. Will not " +
+          "report via email.")
+        None
+    }
 
     config(
       threadNumber,
       resultsDir,
-//      Some{
-//        val (mName, eService) = ReportFinish.readEmailInfo(taskName)
-//        EmailRelated(mName, eService)
-//      }
-      emailRelated = None,
+      emailRelated = emailRelated,
     ).result()
   }
 
