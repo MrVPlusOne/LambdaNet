@@ -123,8 +123,10 @@ object TrainingLoop {
       Some(EmailRelated(mName, eService))
     } catch {
       case _: Exception =>
-        printWarning("No email service configuration founded. Will not " +
-          "report via email.")
+        printWarning(
+          "No email service configuration founded. Will not " +
+            "report via email."
+        )
         None
     }
 
@@ -435,48 +437,50 @@ object TrainingLoop {
           announced(s"test on $dataSetName set") {
             import cats.implicits._
 
-            val (stat, fse1Acc, libTop5Acc, projTop5Acc) = dataSet.flatMap {
-              datum =>
-                checkShouldStop(epoch)
-                announced(s"test on $datum", shouldAnnounce) {
-                  forward(
-                    datum,
-                    shouldDownsample = !isTestSet,
-                    shouldDropout = false,
-                    maxBatchSize = Some(maxBatchSize)
-                  ).map {
-                    case (_, fwd, pred) =>
-                      val (fse1, _, _) = datum.fseAcc
-                        .countTopNCorrect(
-                          1,
-                          pred.mapValuesNow(_.distr.map(_._2)),
-                          onlyCountInSpaceTypes = true
-                        )
-                      val Seq(libTop5, projTop5) = Seq(true, false).map {
-                        fromLib =>
-                          val predictions = pred.map {
-                            case (n, distr) =>
-                              n -> distr.distr.take(5).map(_._2)
-                          }
-                          val nodesMap = datum.nodesToPredict.collect {
-                            case (n, ty)
-                                if predictions.contains(n.n) && ty.madeFromLibTypes == fromLib =>
-                              n.n -> ty
-                          }
-                          QLangAccuracy
-                            .countTopNCorrect(
-                              5,
-                              nodesMap,
-                              predictions,
-                              _ => 1
-                            )
-                            ._1
-                      }
-                      (fwd, fse1, libTop5, projTop5)
-
-                  }.toVector
-                }
-            }.combineAll
+            val (stat, fse1Acc, libTop5Acc, projTop5Acc) =
+              dataSet.zipWithIndex.flatMap {
+                case (datum, i) =>
+                  checkShouldStop(epoch)
+                  announced(s"test on $datum", shouldAnnounce) {
+                    forward(
+                      datum,
+                      shouldDownsample = !isTestSet,
+                      shouldDropout = false,
+                      maxBatchSize = Some(maxBatchSize)
+                    ).map {
+                      case (_, fwd, pred) =>
+                        val (fse1, _, _) = datum.fseAcc
+                          .countTopNCorrect(
+                            1,
+                            pred.mapValuesNow(_.distr.map(_._2)),
+                            onlyCountInSpaceTypes = true
+                          )
+                        val Seq(libTop5, projTop5) = Seq(true, false).map {
+                          fromLib =>
+                            val predictions = pred.map {
+                              case (n, distr) =>
+                                n -> distr.distr.take(5).map(_._2)
+                            }
+                            val nodesMap = datum.nodesToPredict.collect {
+                              case (n, ty)
+                                  if predictions.contains(n.n) && ty.madeFromLibTypes == fromLib =>
+                                n.n -> ty
+                            }
+                            QLangAccuracy
+                              .countTopNCorrect(
+                                5,
+                                nodesMap,
+                                predictions,
+                                _ => 1
+                              )
+                              ._1
+                        }
+                        (fwd, fse1, libTop5, projTop5).tap { _ =>
+                          printResult(s"(progress: ${i + 1}/${dataSet.size})")
+                        }
+                    }.toVector
+                  }
+              }.combineAll
 
             import stat.{
               libCorrect,
