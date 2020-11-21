@@ -376,7 +376,7 @@ object TrainingLoop {
                     s"optimization: $datum",
                     Timeouts.optimizationTimeout
                   ) {
-                    announced("optimization", shouldAnnounce) {
+                    announced("optimization", shouldAnnounce = false) {
                       val stats = DebugTime.logTime("optimization") {
                         optimize(loss)
                       }

@@ -283,8 +283,8 @@ object LabelEncoder {
       SM.selectBasedOnFrequency(totalUsages.toSeq, coverageGoal)
     printResult(s"number of segments selected: ${segments.length}")
     printResult(s"coverage achieved: $achieved")
-    printResult(s"Fist 100 segs: ${segments.take(100)}")
-    printResult(s"Last 50 segs: ${segments.takeRight(50)}")
+    printResult(s"Fist 10 segs: ${segments.take(10)}")
+    printResult(s"Last 10 segs: ${segments.takeRight(10)}")
     (segments, achieved)
   }
 }

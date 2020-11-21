@@ -136,7 +136,8 @@ case class Model(
       datum: ProcessedProject,
       shouldDownsample: Boolean,
       shouldDropout: Boolean,
-      maxBatchSize: Option[Int]
+      maxBatchSize: Option[Int],
+      announceTimes: Boolean = false,
   ): (Loss, ForwardResult, Map[PNode, TopNDistribution[PType]]) = {
     import datum._
 
@@ -152,7 +153,7 @@ case class Model(
       .unzip
     val targets = groundTruths.map(predSpace.indexOfType)
 
-    val decodingVec = announced("run predictor") {
+    val decodingVec = announced("run predictor", announceTimes) {
       datum.predictor match {
         case Left(seqPredictor) =>
           seqPredictor
@@ -180,7 +181,7 @@ case class Model(
     val decoding = decodingVec.last
 
     val (correctness, confMat, typeAccs) =
-      announced("compute training accuracy") {
+      announced("compute training accuracy", announceTimes) {
         analyzeDecoding(
           decoding,
           groundTruths,
