@@ -559,9 +559,8 @@ object TrainingLoop {
                 if (testSet.nonEmpty && !skipTest) {
                   import cats.implicits._
 
-                  var progress = 0
-                  val (right, wrong) = testSet.flatMap {
-                    datum =>
+                  val (right, wrong) = testSet.zipWithIndex.flatMap {
+                    case (datum, i) =>
                       checkShouldStop(epoch)
                       forward(
                         datum,
@@ -571,7 +570,7 @@ object TrainingLoop {
                       ).map {
                         case (_, fwd, pred) =>
                           printResult(
-                            s"(progress: ${progress.tap(_ => progress += 1)}) fwd.toString"
+                            s"(progress: ${i + 1}/${testSet.size})"
                           )
                           DebugTime.logTime("printQSource") {
                             QLangDisplay.renderProjectToDirectory(
