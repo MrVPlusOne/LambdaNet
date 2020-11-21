@@ -42,6 +42,7 @@ import scala.util.Random
 object TrainingLoop {
   val toyMode: Boolean = false
   val useSeqModel = false
+  val gnnIterations: Int = 8
   val useDropout: Boolean = true
   val useOracleForIsLib: Boolean = false
   val predictAny = true
@@ -74,7 +75,7 @@ object TrainingLoop {
     if (useSeqModel) "seqModel-theirName1-node"
     else
       s"${ablationFlag}LambdaNet-GAT$gatHead-fc${NNArchitecture.messageLayers}" +
-        s"$flags-${TrainingState.iterationNum}"
+        s"$flags-${gnnIterations}"
   }
 
   def flag(nameValue: (String, Boolean), post: Boolean = false): String = {
@@ -118,6 +119,7 @@ object TrainingLoop {
     }
     val emailRelated = try {
       val (mName, eService) = ReportFinish.readEmailInfo(taskName)
+      printInfo(s"Using email service at ${eService.user}")
       Some(EmailRelated(mName, eService))
     } catch {
       case _: Exception =>
@@ -238,7 +240,7 @@ object TrainingLoop {
     ) {
       import dataSet._
       val rand = new Random(1)
-      val model = Model.fromData(dataSet, architecture, rand)
+      val model = Model.fromData(dataSet, gnnIterations, architecture, rand)
 
       val maxBatchSize = dataSet
         .signalSizeMedian(maxLibRatio)
@@ -534,7 +536,7 @@ object TrainingLoop {
               () => {
                 val savePath = saveDir / "state.serialized"
                 announced("save training state") {
-                  TrainingState(epoch, iterationNum, optimizer)
+                  TrainingState(epoch, optimizer)
                     .saveToFile(savePath)
                 }
               },

@@ -8,7 +8,6 @@ import lambdanet.SequenceModel.SeqArchitecture
 import lambdanet.architecture.LabelEncoder.TrainableLabelEncoder
 import lambdanet.architecture.{LabelEncoder, NNArchitecture}
 import lambdanet.train.TrainingLoop.{ForwardResult, maxLibRatio, projWeight}
-import lambdanet.train.TrainingState.iterationNum
 import lambdanet.train.{
   Counted,
   DataSet,
@@ -34,6 +33,7 @@ case object Model {
 
   def fromData(
       dataSet: DataSet,
+      gnnIterations: Int,
       architecture: NNArchitecture,
       random: Random,
   ): Model = {
@@ -67,6 +67,7 @@ case object Model {
       )
 
     Model(
+      gnnIterations,
       architecture,
       libDefs,
       libTypesToPredict,
@@ -85,8 +86,9 @@ case object Model {
 
 }
 
-@SerialVersionUID(-3921127094529696688L)
+@SerialVersionUID(2L)
 case class Model(
+    gnnIterations: Int,
     architecture: NNArchitecture,
     libDefs: LibDefs,
     libTypesToPredict: Set[LibTypeNode],
@@ -115,7 +117,7 @@ case class Model(
         .run(
           architecture,
           nodesToPredict,
-          iterationNum,
+          gnnIterations,
           labelEncoder,
           labelCoverage.isLibLabel,
           nameEncoder,
@@ -166,7 +168,7 @@ case class Model(
             .run(
               architecture,
               nodes,
-              iterationNum,
+              gnnIterations,
               labelEncoder,
               labelCoverage.isLibLabel,
               nameEncoder,

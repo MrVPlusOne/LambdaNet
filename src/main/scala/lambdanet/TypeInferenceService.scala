@@ -15,7 +15,9 @@ import scala.util.Random
 
 object TypeInferenceService {
 
+  @SerialVersionUID(2L)
   case class ModelConfig(
+      gnnIterations: Int = 8,
       dimMessage: Int = 32,
       gatHeads: Int = 1,
       seed: Long = 1,
@@ -55,7 +57,7 @@ object TypeInferenceService {
       }
       val model = announced("Create model") {
         val architecture = GATArchitecture(gatHeads, dimMessage, pc)
-        Model.fromData(dataSet, architecture, new Random(seed))
+        Model.fromData(dataSet, gnnIterations, architecture, new Random(seed))
       }
 
       announced(s"Save model to '$modelCachePath'") {

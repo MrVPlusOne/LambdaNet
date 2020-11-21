@@ -104,8 +104,6 @@ object DataSet {
             Right(predictor) -> predictor.predictionSpace
           }
 
-          printInfo(s"Prediction space: $predSpace")
-
           val annots1 =
             (if (useInferred) p.allUserAnnots else p.nonInferredUserAnnots)
               .mapValuesNow(nonGenerifyIt)
