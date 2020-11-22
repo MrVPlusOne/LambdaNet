@@ -290,11 +290,10 @@ object TrainingLoop {
               TensorExtension.checkNaN = false // (epoch - 1) % 10 == 0
               handleExceptions(epoch) {
                 trainStep(epoch)
-                if ((epoch - 1) % 2 == 0)
-                  DebugTime.logTime("testSteps") {
-                    testStep(epoch, isTestSet = false)
-                    testStep(epoch, isTestSet = true)
-                  }
+                DebugTime.logTime("testSteps") {
+                  testStep(epoch, isTestSet = false)
+                  testStep(epoch, isTestSet = true)
+                }
                 if (epoch == 1 || epoch % saveInterval == 0)
                   DebugTime.logTime("saveTraining") {
                     saveTraining(epoch, s"epoch$epoch")
@@ -348,59 +347,52 @@ object TrainingLoop {
               ) {
                 //              println(DebugTime.show)
                 checkShouldStop(epoch)
-                for {
-                  (loss, fwd, _) <- forward(
-                    datum,
-                    shouldDownsample = true,
-                    shouldDropout = useDropout,
-                    maxBatchSize = Some(maxBatchSize)
-                  ).tap(
-                    _.foreach(
-                      r =>
-                        printResult(
-                          s"(progress: ${i + 1}/${trainSet.size}) " + r._2
-                        )
-                    )
+                val (loss, fwd, _) = forward(
+                  datum,
+                  shouldDownsample = true,
+                  shouldDropout = useDropout,
+                  maxBatchSize = Some(maxBatchSize)
+                ).get
+                printResult(
+                  s"[epoch $epoch] (progress: ${i + 1}/${trainSet.size}) " + fwd
+                )
+                checkShouldStop(epoch)
+
+                def optimize(loss: CompNode) = {
+                  gc()
+                  val factor = fwd.loss.count.toDouble / avgAnnotations
+                  optimizer.minimize(
+                    loss * factor,
+                    pc.allParams,
+                    backPropInParallel =
+                      Some(parallelCtx -> Timeouts.optimizationTimeout),
+                    gradientTransform = _.clipNorm(2 * factor),
+                    scaleLearningRate = scaleLearningRate(epoch),
+                    weightDecay = weightDecay
                   )
-                  _ = checkShouldStop(epoch)
-                } yield {
-                  checkShouldStop(epoch)
-                  def optimize(loss: CompNode) = {
-                    gc()
-                    val factor = fwd.loss.count.toDouble / avgAnnotations
-                    optimizer.minimize(
-                      loss * factor,
-                      pc.allParams,
-                      backPropInParallel =
-                        Some(parallelCtx -> Timeouts.optimizationTimeout),
-                      gradientTransform = _.clipNorm(2 * factor),
-                      scaleLearningRate = scaleLearningRate(epoch),
-                      weightDecay = weightDecay
-                    )
-                  }
-
-                  val gradInfo = limitTimeOpt(
-                    s"optimization: $datum",
-                    Timeouts.optimizationTimeout
-                  ) {
-                    announced("optimization", shouldAnnounce = false) {
-                      val stats = DebugTime.logTime("optimization") {
-                        optimize(loss)
-                      }
-                      calcGradInfo(stats)
-                    }
-                  }.toVector
-
-                  if (debugTime) {
-                    println(DebugTime.show)
-                  }
-                  (fwd, gradInfo, datum)
                 }
+
+                val gradInfo = limitTimeOpt(
+                  s"optimization: $datum",
+                  Timeouts.optimizationTimeout
+                ) {
+                  announced("optimization", shouldAnnounce = false) {
+                    val stats = DebugTime.logTime("optimization") {
+                      optimize(loss)
+                    }
+                    calcGradInfo(stats)
+                  }
+                }.toVector
+
+                if (debugTime) {
+                  println(DebugTime.show)
+                }
+                (fwd, gradInfo, datum)
               }
           }
 
           import cats.implicits._
-          val (fws, gs, data) = stats.flatMap(_.toVector).unzip3
+          val (fws, gs, data) = stats.unzip3
 
           import logger._
 
@@ -535,7 +527,7 @@ object TrainingLoop {
             dirName: String,
             skipTest: Boolean = false
         ): Unit = {
-          announced(s"save training to $dirName") {
+          announced(s"save training to '$dirName'") {
             val saveDir = resultsDir / "saved" / dirName
             if (!exists(saveDir)) {
               mkdir(saveDir)
@@ -631,9 +623,11 @@ object TrainingLoop {
                 printWarning(
                   "Timeout... training restarted (skip one training epoch)..."
                 )
+                gc()
               } else {
                 if (!ex.isInstanceOf[StopException]) {
                   ex.printStackTrace()
+                  gc()
                   saveTraining(epoch, "error-save", skipTest = true)
                 }
                 throw ex
