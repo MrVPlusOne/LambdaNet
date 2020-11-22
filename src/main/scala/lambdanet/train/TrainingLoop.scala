@@ -91,6 +91,10 @@ object TrainingLoop {
       .max(min)
   }
 
+  def gc(): Unit = DebugTime.logTime("GC") {
+    System.gc()
+  }
+
   def main(args: Array[String]): Unit = {
 //    PrepareRepos.main(args)
 
@@ -330,16 +334,13 @@ object TrainingLoop {
         }
 
         def trainStep(epoch: Int): Unit = {
-          DebugTime.logTime("GC") {
-            System.gc()
-          }
-
           val startTime = System.nanoTime()
           val oldOrder = random.shuffle(trainSet)
           val (h, t) = oldOrder.splitAt(119)
           val stats = (t ++ h).zipWithIndex.map {
             case (datum, i) =>
               import Console.{GREEN, BLUE}
+              gc()
               announced(
                 s"$GREEN[epoch $epoch]$BLUE train on $datum",
                 shouldAnnounce
@@ -382,6 +383,7 @@ object TrainingLoop {
                   ) {
                     announced("optimization", shouldAnnounce = false) {
                       val stats = DebugTime.logTime("optimization") {
+                        gc()
                         optimize(loss)
                       }
                       calcGradInfo(stats)
@@ -443,6 +445,7 @@ object TrainingLoop {
               dataSet.zipWithIndex.flatMap {
                 case (datum, i) =>
                   checkShouldStop(epoch)
+                  gc()
                   announced(s"test on $datum", shouldAnnounce) {
                     forward(
                       datum,
