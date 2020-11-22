@@ -1,5 +1,6 @@
 class BloomFilter {
-    size: number;
+    size;
+    storage;
     constructor(size = 100) {
         // Bloom filter size directly affects the likelihood of false positives.
         // The bigger the size the lower the likelihood of false positives.
@@ -7,7 +8,7 @@ class BloomFilter {
         this.storage = this.createStore(size);
     }
 
-    insert(item: string) {
+    insert(item) {
         const hashValues = this.getHashValues(item);
 
         // Set each hashValue index to true.
@@ -15,7 +16,7 @@ class BloomFilter {
     }
 
 
-    mayContain(item: string): boolean {
+    mayContain(item) {
         const hashValues = this.getHashValues(item);
 
         for (let hashIndex = 0; hashIndex < hashValues.length; hashIndex += 1) {
@@ -29,7 +30,7 @@ class BloomFilter {
         return true;
     }
 
-    createStore(size: number): object {
+    createStore(size) {
         const storage = [];
 
         // Initialize all indexes to false
@@ -49,7 +50,7 @@ class BloomFilter {
         return storageInterface;
     }
 
-    hash1(item: string): number {
+    hash1(item) {
         let hash = 0;
 
         for (let charIndex = 0; charIndex < item.length; charIndex += 1) {
@@ -62,7 +63,7 @@ class BloomFilter {
         return hash % this.size;
     }
 
-    hash2(item: string): number {
+    hash2(item) {
         let hash = 5381;
 
         for (let charIndex = 0; charIndex < item.length; charIndex += 1) {
@@ -73,7 +74,7 @@ class BloomFilter {
         return Math.abs(hash % this.size);
     }
 
-    hash3(item: string): number {
+    hash3(item) {
         let hash = 0;
 
         for (let charIndex = 0; charIndex < item.length; charIndex += 1) {
@@ -86,7 +87,7 @@ class BloomFilter {
         return Math.abs(hash % this.size);
     }
 
-    getHashValues(item: string): number[] {
+    getHashValues(item) {
         return [
             this.hash1(item),
             this.hash2(item),
@@ -96,14 +97,14 @@ class BloomFilter {
 }
 
 class Comparator {
-    compare: Function;
+    compare;
 
     constructor(compareFunction) {
         this.compare = compareFunction || Comparator.defaultCompareFunction;
     }
 
 
-    static defaultCompareFunction(a, b): number {
+    static defaultCompareFunction(a, b) {
         if (a === b) {
             return 0;
         }
@@ -112,20 +113,20 @@ class Comparator {
     }
 
 
-    equal(a, b): boolean {
+    equal(a, b) {
         return this.compare(a, b) === 0;
     }
 
-    lessThan(a, b): boolean {
+    lessThan(a, b) {
         return this.compare(a, b) < 0;
     }
 
 
-    greaterThan(a, b): boolean {
+    greaterThan(a, b) {
         return this.compare(a, b) > 0;
     }
 
-    lessThanOrEqual(a, b): boolean {
+    lessThanOrEqual(a, b) {
         return this.lessThan(a, b) || this.equal(a, b);
     }
 
@@ -145,6 +146,8 @@ class Comparator {
 
 
 class LinkedListNode {
+    value;
+    next;
     constructor(value, next = null) {
         this.value = value;
         this.next = next;
@@ -156,10 +159,10 @@ class LinkedListNode {
 }
 
 class LinkedList {
-    head: LinkedListNode;
-    tail: LinkedListNode;
-    compare: Comparator;
-    constructor(comparatorFunction: Function) {
+    head;
+    tail;
+    compare;
+    constructor(comparatorFunction) {
         this.head = null;
 
         this.tail = null;
@@ -168,7 +171,7 @@ class LinkedList {
     }
 
 
-    prepend(value): LinkedList {
+    prepend(value) {
         // Make new node to be a head.
         const newNode = new LinkedListNode(value, this.head);
         this.head = newNode;
@@ -181,7 +184,7 @@ class LinkedList {
         return this;
     }
 
-    append(value): LinkedList {
+    append(value) {
         const newNode = new LinkedListNode(value);
 
         // If there is no head yet let's make new node a head.
@@ -199,7 +202,7 @@ class LinkedList {
         return this;
     }
 
-    delete(value): LinkedListNode {
+    delete(value) {
         if (!this.head) {
             return null;
         }
@@ -236,7 +239,7 @@ class LinkedList {
     }
 
 
-    find({ value = undefined, callback = undefined }): LinkedListNode {
+    find({ value = undefined, callback = undefined }) {
         if (!this.head) {
             return null;
         }
@@ -260,7 +263,7 @@ class LinkedList {
         return null;
     }
 
-    deleteTail(): LinkedListNode {
+    deleteTail() {
         const deletedTail = this.tail;
 
         if (this.head === this.tail) {
@@ -288,7 +291,7 @@ class LinkedList {
         return deletedTail;
     }
 
-    deleteHead(): LinkedListNode {
+    deleteHead() {
         if (!this.head) {
             return null;
         }
@@ -306,13 +309,13 @@ class LinkedList {
     }
 
 
-    fromArray(values: any[]): LinkedList {
+    fromArray(values) {
         values.forEach(value => this.append(value));
 
         return this;
     }
 
-    toArray(): LinkedListNode[] {
+    toArray() {
         const nodes = [];
 
         let currentNode = this.head;
@@ -324,11 +327,11 @@ class LinkedList {
         return nodes;
     }
 
-    toString(callback: Function): string {
+    toString(callback) {
         return this.toArray().map(node => node.toString(callback)).toString();
     }
 
-    reverse(): LinkedList {
+    reverse() {
         let currNode = this.head;
         let prevNode = null;
         let nextNode = null;
@@ -354,7 +357,7 @@ class LinkedList {
 }
 
 class Queue {
-    linkedList: LinkedList;
+    linkedList;
     constructor() {
         // We're going to implement Queue based on LinkedList since the two
         // structures are quite similar. Namely, they both operate mostly on
@@ -364,7 +367,7 @@ class Queue {
     }
 
 
-    isEmpty(): boolean {
+    isEmpty() {
         return !this.linkedList.head;
     }
 
@@ -385,7 +388,7 @@ class Queue {
         return removedHead ? removedHead.value : null;
     }
 
-    toString(callback: Function): string {
+    toString(callback) {
         // Return string representation of the queue's linked list.
         return this.linkedList.toString(callback);
     }
@@ -394,9 +397,9 @@ class Queue {
 
 class GraphEdge {
 
-    startVertex: GraphVertex;
-    endVertex: GraphVertex;
-    weight: number;
+    startVertex;
+    endVertex;
+    weight;
 
     constructor(startVertex, endVertex, weight = 0) {
         this.startVertex = startVertex;
@@ -404,14 +407,14 @@ class GraphEdge {
         this.weight = weight;
     }
 
-    getKey(): string {
+    getKey() {
         const startVertexKey = this.startVertex.getKey();
         const endVertexKey = this.endVertex.getKey();
 
         return `${startVertexKey}_${endVertexKey}`;
     }
 
-    reverse(): GraphEdge {
+    reverse() {
         const tmp = this.startVertex;
         this.startVertex = this.endVertex;
         this.endVertex = tmp;
@@ -419,19 +422,20 @@ class GraphEdge {
         return this;
     }
 
-    toString(): string {
+    toString() {
         return this.getKey();
     }
 }
 
 class GraphVertex {
-
+    value;
+    edges;
     constructor(value) {
         if (value === undefined) {
             throw new Error('Graph vertex must have a value');
         }
 
-        const edgeComparator = (edgeA: GraphEdge, edgeB: GraphEdge) => {
+        const edgeComparator = (edgeA, edgeB) => {
             if (edgeA.getKey() === edgeB.getKey()) {
                 return 0;
             }
@@ -445,20 +449,20 @@ class GraphVertex {
         this.edges = new LinkedList(edgeComparator);
     }
 
-    addEdge(edge: GraphEdge): GraphVertex {
+    addEdge(edge) {
         this.edges.append(edge);
 
         return this;
     }
 
-    deleteEdge(edge: GraphEdge) {
+    deleteEdge(edge) {
         this.edges.delete(edge);
     }
 
-    getNeighbors(): GraphVertex[] {
+    getNeighbors() {
         const edges = this.edges.toArray();
 
-        const neighborsConverter = (node: LinkedListNode) => {
+        const neighborsConverter = (node) => {
             return node.value.startVertex === this ? node.value.endVertex : node.value.startVertex;
         };
 
@@ -468,15 +472,15 @@ class GraphVertex {
     }
 
 
-    getEdges(): GraphEdge[] {
+    getEdges() {
         return this.edges.toArray().map(linkedListNode => linkedListNode.value);
     }
 
-    getDegree(): number {
+    getDegree() {
         return this.edges.toArray().length;
     }
 
-    hasEdge(requiredEdge: GraphEdge): boolean {
+    hasEdge(requiredEdge) {
         const edgeNode = this.edges.find({
             callback: edge => edge === requiredEdge,
         });
@@ -484,7 +488,7 @@ class GraphVertex {
         return !!edgeNode;
     }
 
-    hasNeighbor(vertex: GraphVertex):boolean {
+    hasNeighbor(vertex) {
         const vertexNode = this.edges.find({
             callback: edge => edge.startVertex === vertex || edge.endVertex === vertex,
         });
@@ -492,7 +496,7 @@ class GraphVertex {
         return !!vertexNode;
     }
 
-    findEdge(vertex: GraphVertex): GraphEdge|null {
+    findEdge(vertex) {
         const edgeFinder = (edge) => {
             return edge.startVertex === vertex || edge.endVertex === vertex;
         };
@@ -503,17 +507,17 @@ class GraphVertex {
     }
 
 
-    getKey(): string {
+    getKey() {
         return this.value;
     }
 
-    deleteAllEdges(): GraphVertex {
+    deleteAllEdges() {
         this.getEdges().forEach(edge => this.deleteEdge(edge));
 
         return this;
     }
 
-    toString(callback: Function): string {
+    toString(callback) {
         return callback ? callback(this.value) : `${this.value}`;
     }
 }
@@ -521,7 +525,7 @@ class GraphVertex {
 class Graph {
     vertices;
     edges;
-    isDirected: boolean;
+    isDirected;
 
     constructor(isDirected = false) {
         this.vertices = {};
@@ -529,32 +533,32 @@ class Graph {
         this.isDirected = isDirected;
     }
 
-    addVertex(newVertex: GraphVertex): Graph {
+    addVertex(newVertex) {
         this.vertices[newVertex.getKey()] = newVertex;
 
         return this;
     }
 
 
-    getVertexByKey(vertexKey: string): GraphVertex {
+    getVertexByKey(vertexKey) {
         return this.vertices[vertexKey];
     }
 
-    getNeighbors(vertex: GraphVertex): GraphVertex[] {
+    getNeighbors(vertex) {
         return vertex.getNeighbors();
     }
 
-    getAllVertices(): GraphVertex[] {
+    getAllVertices() {
         return Object.values(this.vertices);
     }
 
 
-    getAllEdges(): GraphEdge[] {
+    getAllEdges() {
         return Object.values(this.edges);
     }
 
 
-    addEdge(edge: GraphEdge): Graph {
+    addEdge(edge) {
         // Try to find and end start vertices.
         let startVertex = this.getVertexByKey(edge.startVertex.getKey());
         let endVertex = this.getVertexByKey(edge.endVertex.getKey());
@@ -591,7 +595,7 @@ class Graph {
         return this;
     }
 
-    deleteEdge(edge: GraphEdge) {
+    deleteEdge(edge) {
         // Delete edge from the list of edges.
         if (this.edges[edge.getKey()]) {
             delete this.edges[edge.getKey()];
@@ -608,7 +612,7 @@ class Graph {
     }
 
 
-    findEdge(startVertex: GraphVertex, endVertex: GraphVertex): GraphEdge | null {
+    findEdge(startVertex, endVertex) {
         const vertex = this.getVertexByKey(startVertex.getKey());
 
         if (!vertex) {
@@ -619,13 +623,13 @@ class Graph {
     }
 
 
-    getWeight(): number {
+    getWeight() {
         return this.getAllEdges().reduce((weight, graphEdge) => {
             return weight + graphEdge.weight;
         }, 0);
     }
 
-    reverse(): Graph {
+    reverse() {
         /** @param {GraphEdge} edge */
         this.getAllEdges().forEach((edge) => {
             // Delete straight edge from graph and from vertices.
@@ -641,7 +645,7 @@ class Graph {
         return this;
     }
 
-    getVerticesIndices(): object {
+    getVerticesIndices() {
         const verticesIndices = {};
         this.getAllVertices().forEach((vertex, index) => {
             verticesIndices[vertex.getKey()] = index;
@@ -672,14 +676,14 @@ class Graph {
         return adjacencyMatrix;
     }
 
-    toString(): string {
+    toString() {
         return Object.keys(this.vertices).toString();
     }
 }
 
 
 
-function breadthFirstSearch(graph: Graph, startVertex: GraphVertex, originalCallbacks) {
+function breadthFirstSearch(graph, startVertex, originalCallbacks) {
     const callbacks = initCallbacks(originalCallbacks);
     const vertexQueue = new Queue();
 
