@@ -117,23 +117,25 @@ object TrainingLoop {
         lambdanet.printResult(s"save results to directory: $d")
       }
     }
-    val emailRelated = try {
-      val (mName, eService) = ReportFinish.readEmailInfo(taskName)
-      printInfo(s"Using email service at ${eService.user}")
-      Some(EmailRelated(mName, eService))
-    } catch {
-      case _: Exception =>
-        printWarning(
-          "No email service configuration founded. Will not " +
-            "report via email."
-        )
-        None
-    }
+
+    // the Gmail API no longer works.
+//    val emailRelated = try {
+//      val (mName, eService) = ReportFinish.readEmailInfo(taskName)
+//      printInfo(s"Using email service at ${eService.user}")
+//      Some(EmailRelated(mName, eService))
+//    } catch {
+//      case _: Exception =>
+//        printWarning(
+//          "No email service configuration founded. Will not " +
+//            "report via email."
+//        )
+//        None
+//    }
 
     config(
       threadNumber,
       resultsDir,
-      emailRelated = emailRelated,
+      emailRelated = None,
     ).result()
   }
 

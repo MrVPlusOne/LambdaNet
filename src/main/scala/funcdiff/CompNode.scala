@@ -173,7 +173,7 @@ object CompNode {
         currentTask = fut
       }
 
-      def get: Future[Gradient] = {
+      def get: Future[Gradient] = synchronized {
         currentTask.map { _ =>
           builder.retrieve
         }
