@@ -75,7 +75,7 @@ object SimulatedAnnealing {
         bestY = y
         lastBestEpoch = epoch
       }
-      println(s"epoch: $epoch, y: $y, bestY: $bestY")
+//      println(s"epoch: $epoch, y: $y, bestY: $bestY")
       if (reboot && epoch - lastBestEpoch > numEpochs / 20) {
         x = bestX
         y = bestY
@@ -166,8 +166,7 @@ case class WrongFirstOneDifferenceRandomNeighbor(
 ) extends OneDifferenceRandomNeighborBase {
   override def randomNeighbor(x: Assignment): Assignment = {
     val badPairs = checker.violate(x).toIndexedSeq
-    // fixme: can we try assigning this branch with some probability `p < 1` ?
-    if (badPairs.nonEmpty) {
+    if (badPairs.nonEmpty && Random.nextDouble() < 0.5) {
       val pairIndex = Random.nextInt(badPairs.size)
       val node = Iterator
         .continually {
@@ -258,9 +257,11 @@ case class LocalSearchCorrection(
   }
 }
 
-case class NegativeLogLikelihood(
-    proposal: Map[PNode, TopNDistribution[PType]]
-) {
+trait NegativeLogLikelihoodBase {
+  def proposal: Map[PNode, TopNDistribution[PType]]
+
+  val defaultLobProb: Double = -4.0
+
   def prob(assignment: Assignment): Double =
     -assignment.map {
       case (node, typ) =>
@@ -268,7 +269,17 @@ case class NegativeLogLikelihood(
         //fixme: this might be expensive when `N` is large. Should we turn
         // `TopNDistribution` into a map first?
         val topNProb = topN.distr.find(_._2 == typ).map(_._1)
-        val probOther = 1 - topN.distr.map(_._1).take(10).sum
-        math.log(topNProb.getOrElse(probOther))
+        topNProb.map(math.log).getOrElse(defaultLobProb)
     }.sum
+}
+
+case class NegativeLogLikelihood(
+    proposal: Map[PNode, TopNDistribution[PType]]
+) extends NegativeLogLikelihoodBase
+
+case class AverageNegativeLogLikelihood(
+    proposal: Map[PNode, TopNDistribution[PType]]
+) extends NegativeLogLikelihoodBase {
+  override def prob(assignment: Assignment): Double =
+    super.prob(assignment) / assignment.size
 }

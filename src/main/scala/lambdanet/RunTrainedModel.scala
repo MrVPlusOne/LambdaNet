@@ -2,16 +2,11 @@ package lambdanet
 
 import ammonite.ops._
 import funcdiff.{Optimizer, ParamCollection, SimpleMath}
-import lambdanet.train.{
-  DataSet,
-  ProcessedProject,
-  Timeouts,
-  TrainingLoop,
-  TrainingState
-}
+import lambdanet.train.{DataSet, ProcessedProject, Timeouts, TrainingLoop, TrainingState}
 import lambdanet.translation.ImportsResolution.{ErrorHandler, NameDef}
-import lambdanet.translation.PredicateGraph.{PAny, PNode}
+import lambdanet.translation.PredicateGraph.{BinaryRel, PAny, PNode}
 import lambdanet.utils.QLangDisplay
+import org.scalacheck.Prop.Exception
 
 import scala.collection.parallel.ForkJoinTaskSupport
 import scala.concurrent.forkjoin.ForkJoinPool
@@ -42,6 +37,10 @@ object RunTrainedModel {
         errorHandler = handler,
         predictAny = false,
       )
+    val binaryRels = testProject.pGraph.predicates.collect { case p: BinaryRel => p }
+    println(binaryRels.size)
+    println(binaryRels.count{x => x.rhs.fromLib || (x.rhs.isType && x.rhs.fromProject)})
+    throw new IllegalArgumentException("arg 1 was wrong...")
     val repos1 = repos.copy(devSet = List(), testSet = List(testProject))
     val dataSet = DataSet.makeDataSet(
       repos1,
@@ -148,7 +147,7 @@ object RunTrainedModel {
 //      "newParsing-lib-GAT1-fc2-newSim-decay-6/params.serialized"
     )
     // todo: change this to the root directory of the target TS project to predict
-    val sourcePath = pwd / RelPath("data/ts-algorithms")
+    val sourcePath = pwd / RelPath("data/train/mojiito-master")
 
     val outputPath = sourcePath
 

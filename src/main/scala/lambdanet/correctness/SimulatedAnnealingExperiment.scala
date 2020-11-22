@@ -5,6 +5,8 @@ import java.time.format.DateTimeFormatter
 
 import ammonite.ops.RelPath
 import ammonite.{ops => amm}
+import lambdanet.correctness.SimulatedAnnealing.IntermediateValues
+import lambdanet.translation.PredicateGraph.{PNode, PTyVar}
 import lambdanet.translation.PredicateGraphLoader.libDefs
 import plots.{CommonOptions, PlotlyBackend}
 
@@ -33,24 +35,47 @@ object SimulatedAnnealingExperiment {
 
     // TODO: fix this by providing an encoder
     // amm.write(outputPath / s"$currentTime.json", params.asJson.toString())
+    val mostLikely = results.map { case (k, v) => (k, v.distr(0)._2) }
+    println(mostLikely)
+    println(AverageNegativeLogLikelihood(results).prob(mostLikely))
+    checker.violate(mostLikely).foreach(println)
+    val pNodes = results.keySet.map(x => (x.getId, x)).toMap
+    val pTypes = results.values.flatMap(_.distr.map(_._2)).collect{ case (x: PTyVar) => x }.toSet.map((x: PTyVar) => (x.node.nameOpt.map(_.name).getOrElse(x.node.getId.toString), x)).toMap
+    pTypes.foreach(println)
+    val groundTruth = mostLikely
+      .updated(pNodes(5), pTypes("C1"))
+      .updated(pNodes(16), pTypes("Number"))
+      .updated(pNodes(14), pTypes("Boolean"))
+      .updated(pNodes(15), pTypes("String"))
+      .updated(pNodes(13), pTypes("Window"))
+    checker.violate(groundTruth).foreach(println)
+    println(AverageNegativeLogLikelihood(results).prob(groundTruth))
+    throw new Exception
 
-    val (correctPrediction, logValues) =
-      SimulatedAnnealing.searchWithLog(
-        graph,
-        results,
-        // TODO: store these two in parameters as well
-        OneDifferenceRandomNeighbor(results).randomNeighbor,
-        PatchAnyCorrection(checker, results).correct,
-        schedule,
-        numEpochs = params.numEpochs,
-        f = NegativeLogLikelihood(results).prob
-      )
+    val trials = 10
+    val sumLogValues =
+      Iterator.fill(trials) {
+        SimulatedAnnealing.searchWithLog(
+          graph,
+          results,
+          // TODO: store these two in parameters as well
+          OneDifferenceRandomNeighbor(results).randomNeighbor,
+          PatchAnyCorrection(checker, results).correct,
+          schedule,
+          numEpochs = params.numEpochs,
+          f = AverageNegativeLogLikelihood(results).prob
+          , reboot = false
+        )
+      }.map(_._2).reduce { (x, y) =>
+        IntermediateValues(x.epochs, (x.ys, y.ys).zipped.map(_ + _), (x.bestYs, y.bestYs).zipped.map(_ + _))
+      }
+    val averageLogValues: IntermediateValues = sumLogValues.copy(ys = sumLogValues.ys.map(_ / trials), bestYs = sumLogValues.bestYs.map(_ / trials))
     if (!amm.exists(outputPath)) {
       amm.mkdir(outputPath)
     }
     val plotly = PlotlyBackend()
-    val ys = logValues.epochs.map(_.toDouble).zip(logValues.ys)
-    val bestYs = logValues.epochs.map(_.toDouble).zip(logValues.bestYs)
+    val ys = averageLogValues.epochs.map(_.toDouble).zip(averageLogValues.ys)
+    val bestYs = averageLogValues.epochs.map(_.toDouble).zip(averageLogValues.bestYs)
     val plot = plotly.linePlot(
       Seq(ys, bestYs),
       CommonOptions(
@@ -64,8 +89,8 @@ object SimulatedAnnealingExperiment {
   }
 
   def main(args: Array[String]): Unit = {
-    val params = Parameters(None, LogSchedule(10), 10000)
-    val inputPath = RelPath("tests/simple")
+    val params = Parameters(None, LogSchedule(0.2), 20000)
+    val inputPath = RelPath("tests/c1")
     run(inputPath, params)
   }
 }

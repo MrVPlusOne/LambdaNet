@@ -28,7 +28,7 @@ object SimulatedAnnealingDemo {
     }
 
     val checker = TypeChecker(graph, libDefs)
-    val schedule = (epoch: Int) => 20 * math.log(2) / math.log(epoch + 1)
+    val schedule = (epoch: Int) => 50 * math.log(2) / math.log(epoch + 1)
     val correctPrediction =
       SimulatedAnnealing.search(
         graph,
