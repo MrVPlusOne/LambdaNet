@@ -684,20 +684,21 @@ object TrainingLoop {
         try {
           Some(limitTime(timeLimit)(f))
         } catch {
-          case _: TimeoutException =>
+          case e: TimeoutException =>
             val msg = s"$name exceeded time limit $timeLimit."
             printWarning(msg)
-            emailRelated.foreach { e =>
-              import e._
-              emailService.atFirstTime {
-                emailService.sendMail(emailService.userEmail)(
-                  s"TypingNet: timeout on $machineName during $name",
-                  s"Details:\n" + msg
-                )
-              }
-            }
-
-            None
+            throw e
+//            emailRelated.foreach { e =>
+//              import e._
+//              emailService.atFirstTime {
+//                emailService.sendMail(emailService.userEmail)(
+//                  s"TypingNet: timeout on $machineName during $name",
+//                  s"Details:\n" + msg
+//                )
+//              }
+//            }
+//
+//            None
         }
       }
 
