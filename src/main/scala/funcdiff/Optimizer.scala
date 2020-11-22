@@ -57,7 +57,7 @@ trait Optimizer extends Serializable {
         (path, g) <- transformed
         p <- paramMap.get(path).toIterable
         delta = parameterChangeAmount(p, g) * scaleLearningRate
-      } yield {
+      } yield p.synchronized{
         if (newlyCreated contains p.node) {
           delta.addToTensor(p.node.value)
         } else {
