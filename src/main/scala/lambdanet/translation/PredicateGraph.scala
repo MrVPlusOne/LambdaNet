@@ -134,6 +134,8 @@ object PredicateGraph {
 
     def name: String = nameOpt.get.name
 
+    def nameOr(default: String): String = nameOpt.map(_.name).getOrElse(default)
+
     def getId: Int = id
   }
 
