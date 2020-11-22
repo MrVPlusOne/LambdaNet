@@ -30,4 +30,13 @@ object InputUtils {
       }
     (graph, results)
   }
+
+  def loadGroundTruth(inputPath: Path): Option[Assignment] = {
+    val groundTruthPath = inputPath / "ground_truth.serialized"
+    if (amm.exists(groundTruthPath)) {
+      Some(SM.loadObjectFromFile[Assignment](groundTruthPath.toIO))
+    } else {
+      None
+    }
+  }
 }
