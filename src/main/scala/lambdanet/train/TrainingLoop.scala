@@ -264,7 +264,8 @@ object TrainingLoop {
           shouldDownsample: Boolean,
           shouldDropout: Boolean,
           maxBatchSize: Option[Int]
-      ) =
+      ) = {
+        gc()
         limitTimeOpt("train-forward", Timeouts.forwardTimeout)(
           model.forwardStep(
             datum,
@@ -273,6 +274,7 @@ object TrainingLoop {
             maxBatchSize
           )
         )
+      }
 
       case class train(
           maxTrainingEpochs: Int,
@@ -340,7 +342,6 @@ object TrainingLoop {
           val stats = (t ++ h).zipWithIndex.map {
             case (datum, i) =>
               import Console.{GREEN, BLUE}
-              gc()
               announced(
                 s"$GREEN[epoch $epoch]$BLUE train on $datum",
                 shouldAnnounce
@@ -365,6 +366,7 @@ object TrainingLoop {
                 } yield {
                   checkShouldStop(epoch)
                   def optimize(loss: CompNode) = {
+                    gc()
                     val factor = fwd.loss.count.toDouble / avgAnnotations
                     optimizer.minimize(
                       loss * factor,
@@ -383,7 +385,6 @@ object TrainingLoop {
                   ) {
                     announced("optimization", shouldAnnounce = false) {
                       val stats = DebugTime.logTime("optimization") {
-                        gc()
                         optimize(loss)
                       }
                       calcGradInfo(stats)
@@ -445,7 +446,6 @@ object TrainingLoop {
               dataSet.zipWithIndex.flatMap {
                 case (datum, i) =>
                   checkShouldStop(epoch)
-                  gc()
                   announced(s"test on $datum", shouldAnnounce) {
                     forward(
                       datum,
