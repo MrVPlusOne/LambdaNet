@@ -105,10 +105,11 @@ object TypeInferenceService {
       System.out.flush()
       try {
         val line = scala.io.StdIn.readLine()
-        require(line.strip().nonEmpty, "Specified path should not be empty.")
-        val sourcePath = Path(line, amm.pwd)
-        val results = service.predictOnProject(sourcePath, warnOnErrors = false)
-        PredictionResults(results).prettyPrint()
+        if(line.strip().nonEmpty) {
+          val sourcePath = Path(line, amm.pwd)
+          val results = service.predictOnProject(sourcePath, warnOnErrors = false)
+          PredictionResults(results).prettyPrint()
+        }
       } catch {
         case e: Throwable =>
           println(s"Got exception: ${e.getMessage}")
