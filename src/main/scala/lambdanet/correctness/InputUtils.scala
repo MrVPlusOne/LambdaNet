@@ -4,10 +4,10 @@ import ammonite.ops.Path
 import ammonite.{ops => amm}
 import lambdanet.TypeInferenceService.{ModelConfig, loadModel}
 import lambdanet.translation.{PredicateGraph, PredicateGraphLoader}
-import lambdanet.{Model, SM}
+import lambdanet.{Model, SM, TypeInferenceService}
 
 object InputUtils {
-  val modelDir: Path = amm.pwd / "models" / "newParsing-GAT1-fc2-newSim-decay-6"
+  val modelDir: Path = TypeInferenceService.newestModelDir
   val paramPath: Path = modelDir / "params.serialized"
   val modelCachePath: Path = modelDir / "model.serialized"
   val modelConfig: ModelConfig = ModelConfig()
