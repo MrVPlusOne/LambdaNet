@@ -61,6 +61,8 @@ object TypeInferenceService {
       }
 
       announced(s"Save model to '$modelCachePath'") {
+        if(!amm.exists(modelCachePath/amm.up))
+          amm.mkdir(modelCachePath/amm.up)
         saveObjectToFile(modelCachePath.toIO)(model)
       }
       model
