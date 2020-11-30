@@ -256,6 +256,7 @@ case class Model(
         skipSet: Set[String] = Set("node_modules"),
         predictAny: Boolean = true,
         onlyPredictLibType: Boolean = false,
+        alsoPredictNonSourceNodes: Boolean = false,
         warnOnErrors: Boolean,
     ): Map[PNode, TopNDistribution[PType]] = {
       val project =
@@ -278,8 +279,11 @@ case class Model(
         onlyPredictLibType,
         predictAny,
       )
+      def checkSource(node: PredicateGraph.PNode): Boolean =
+        alsoPredictNonSourceNodes || node.srcSpan.nonEmpty
+
       val nodesToPredict = project.allAnnots.keySet.collect {
-        case n if n.fromProject => ProjNode(n)
+        case n if n.fromProject && checkSource(n) => ProjNode(n)
       }.toVector
       predictForNodes(nodesToPredict, predictor, predictTopK)
     }
