@@ -44,27 +44,34 @@ object SimulatedAnnealing {
     * Minimize f using simulated annealing. Record intermediate objective values.
     */
   def searchWithLog(
-      g: PredicateGraph,
-      proposal: Map[PNode, TopNDistribution[PType]],
-      randomNeighbor: Assignment => Assignment,
-      correct: Correction,
-      t: Int => Double,
-      numEpochs: Int,
-      f: Objective,
-      reboot: Boolean = false
+    g: PredicateGraph,
+    proposal: Map[PNode, TopNDistribution[PType]],
+    randomNeighbor: Assignment => Assignment,
+    correct: Correction,
+    t: Int => Double,
+    numEpochs: Int,
+    f: Objective,
+    reboot: Boolean = false,
+    // TODO: Use this to limit reboot times
+    rebootLimit: Int = 5
   ): (Assignment, IntermediateValues) = {
     val mostLikely = proposal.mapValuesNow(_.topValue)
     var x = mostLikely
-    var y = f(correct(x))
+    val correctX = correct(x)
+    var y = f(correctX)
     var bestX = x
     var bestY = y
     var lastBestEpoch = 0
-    val ys = Vector.newBuilder[Double]
-    val bestYs = Vector.newBuilder[Double]
-    val nodeAccuracy = Vector.newBuilder[Double]
-    ys += y
-    bestYs += y
-    (1 to numEpochs).foreach { epoch =>
+
+    val ys = new Array[Double](numEpochs + 1)
+    val bestYs = new Array[Double](numEpochs + 1)
+    val nodeAccuracy = new Array[Double](numEpochs + 1)
+    ys(0) = y
+    bestYs(0) = bestY
+    nodeAccuracy(0) = 1 - x.toSet.diff(correctX.toSet).size / x.size.toDouble
+
+    var epoch = 1
+    while (epoch <= numEpochs) {
       val nextX = randomNeighbor(x)
       val correctX = correct(nextX)
       val nodeAcc = 1 - nextX.toSet.diff(correctX.toSet).size / nextX.size.toDouble
@@ -79,18 +86,21 @@ object SimulatedAnnealing {
         bestY = y
         lastBestEpoch = epoch
       }
-//      println(s"epoch: $epoch, y: $y, bestY: $bestY")
-      if (reboot && epoch - lastBestEpoch > numEpochs / 20) {
+      //      println(s"epoch: $epoch, y: $y, bestY: $bestY")
+      if (reboot && epoch - lastBestEpoch > numEpochs / 10) {
         x = bestX
         y = bestY
+        println(s"Reboot: from $epoch to $lastBestEpoch")
+        epoch = lastBestEpoch
       }
-      ys += y
-      bestYs += bestY
-      nodeAccuracy += nodeAcc
+      ys(epoch) = y
+      bestYs(epoch) = bestY
+      nodeAccuracy(epoch) = nodeAcc
+      epoch += 1
     }
     (
       correct(bestX),
-      IntermediateValues(0 to numEpochs, ys.result(), bestYs.result(), nodeAccuracy = nodeAccuracy.result(), constraintAccuracy = Vector.empty)
+      IntermediateValues(0 to numEpochs, ys, bestYs, nodeAccuracy = nodeAccuracy, constraintAccuracy = Array.empty[Double])
     )
   }
 

@@ -16,7 +16,8 @@ object SimulatedAnnealingExperiment {
     seed: Option[Long],
     schedule: Schedule,
     numEpochs: Int,
-    numSamples: Int
+    numSamples: Int,
+    reboot: Boolean
   )
 
   def run(relPathUnderData: RelPath, unseededParams: Parameters): Unit = {
@@ -59,8 +60,8 @@ object SimulatedAnnealingExperiment {
           PatchAnyCorrection(checker, results).correct,
           schedule,
           numEpochs = params.numEpochs,
-          f = criterion.prob
-          , reboot = false
+          f = criterion.prob,
+          reboot = params.reboot
         )
       }.reduce { (a, b) =>
         val (pred1, x) = a
