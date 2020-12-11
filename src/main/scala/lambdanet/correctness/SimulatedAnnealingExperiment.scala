@@ -66,7 +66,7 @@ object SimulatedAnnealingExperiment {
         val (pred1, x) = a
         val (pred2, y) = b
         val best = if (criterion.prob(pred1) < criterion.prob(pred2)) pred1 else pred2
-        val combined = IntermediateValues(x.epochs, (x.ys, y.ys).zipped.map(_ + _), (x.bestYs, y.bestYs).zipped.map(_ + _))
+        val combined = IntermediateValues(x.epochs, (x.ys, y.ys).zipped.map(_ + _), (x.bestYs, y.bestYs).zipped.map(_ + _), (x.nodeAccuracy, y.nodeAccuracy).zipped.map(_ + _), (x.constraintAccuracy, y.constraintAccuracy).zipped.map(_ + _))
         (best, combined)
       }
     val (best, sumLogValues) = runs
@@ -82,7 +82,8 @@ object SimulatedAnnealingExperiment {
     val plotly = PlotlyBackend()
     val ys = averageLogValues.epochs.map(_.toDouble).zip(averageLogValues.ys)
     val bestYs = averageLogValues.epochs.map(_.toDouble).zip(averageLogValues.bestYs)
-    val plot = plotly.linePlot(
+    val nodeAccuracy = averageLogValues.epochs.map(_.toDouble).zip(averageLogValues.nodeAccuracy)
+    val likelihoodPlot = plotly.linePlot(
       Seq(ys, bestYs),
       CommonOptions(
         plotName = Some("Negative log-likelihoods over time on simple"),
@@ -91,8 +92,17 @@ object SimulatedAnnealingExperiment {
         legends = Some(Seq("current", "best"))
       )
     )
+    val accuracyPlot = plotly.linePlot(
+      Seq(nodeAccuracy),
+      CommonOptions(
+        plotName = Some("Accuracy"),
+        axesNames =
+          (Some("Epoch"), Some("Accuracy")),
+        legends = Some(Seq("node"))
+      )
+    )
     val currentTime = LocalDateTime.now().format(fmt)
-    plotly.save(plot, outputPath / s"$currentTime.html", "Simulated Annealing")
+    plotly.save(plotly.column(likelihoodPlot, accuracyPlot), outputPath / s"$currentTime.html", "Simulated Annealing")
   }
 
   def main(args: Array[String]): Unit = {

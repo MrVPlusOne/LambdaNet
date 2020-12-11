@@ -8,9 +8,11 @@ import scala.util.Random
 
 object SimulatedAnnealing {
   case class IntermediateValues(
-      epochs: Seq[Int],
-      ys: Seq[Double],
-      bestYs: Seq[Double]
+    epochs: Seq[Int],
+    ys: Seq[Double],
+    bestYs: Seq[Double],
+    nodeAccuracy: Seq[Double],
+    constraintAccuracy: Seq[Double]
   )
 
   def diff(
@@ -59,11 +61,13 @@ object SimulatedAnnealing {
     var lastBestEpoch = 0
     val ys = Vector.newBuilder[Double]
     val bestYs = Vector.newBuilder[Double]
+    val nodeAccuracy = Vector.newBuilder[Double]
     ys += y
     bestYs += y
     (1 to numEpochs).foreach { epoch =>
       val nextX = randomNeighbor(x)
       val correctX = correct(nextX)
+      val nodeAcc = 1 - nextX.toSet.diff(correctX.toSet).size / nextX.size.toDouble
       val nextY = f(correctX)
       val deltaY = nextY - y
       if (deltaY <= 0 || Random.nextDouble() < math.exp(-deltaY / t(epoch))) {
@@ -82,10 +86,11 @@ object SimulatedAnnealing {
       }
       ys += y
       bestYs += bestY
+      nodeAccuracy += nodeAcc
     }
     (
       correct(bestX),
-      IntermediateValues(0 to numEpochs, ys.result(), bestYs.result())
+      IntermediateValues(0 to numEpochs, ys.result(), bestYs.result(), nodeAccuracy = nodeAccuracy.result(), constraintAccuracy = Vector.empty)
     )
   }
 
