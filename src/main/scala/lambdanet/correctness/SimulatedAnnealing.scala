@@ -52,7 +52,8 @@ object SimulatedAnnealing {
     numEpochs: Int,
     f: Objective,
     reboot: Boolean = false,
-    // TODO: Use this to limit reboot times
+    // TODO: Use this to limit reboot times,
+    accuracy: Accuracy,
     rebootLimit: Int = 5
   ): (Assignment, IntermediateValues) = {
     val mostLikely = proposal.mapValuesNow(_.topValue)
@@ -68,13 +69,12 @@ object SimulatedAnnealing {
     val nodeAccuracy = new Array[Double](numEpochs + 1)
     ys(0) = y
     bestYs(0) = bestY
-    nodeAccuracy(0) = 1 - x.toSet.diff(correctX.toSet).size / x.size.toDouble
+    nodeAccuracy(0) = accuracy.get(x)
 
     var epoch = 1
     while (epoch <= numEpochs) {
       val nextX = randomNeighbor(x)
       val correctX = correct(nextX)
-      val nodeAcc = 1 - nextX.toSet.diff(correctX.toSet).size / nextX.size.toDouble
       val nextY = f(correctX)
       val deltaY = nextY - y
       if (deltaY <= 0 || Random.nextDouble() < math.exp(-deltaY / t(epoch))) {
@@ -95,7 +95,7 @@ object SimulatedAnnealing {
       }
       ys(epoch) = y
       bestYs(epoch) = bestY
-      nodeAccuracy(epoch) = nodeAcc
+      nodeAccuracy(epoch) = accuracy.get(x)
       epoch += 1
     }
     (
