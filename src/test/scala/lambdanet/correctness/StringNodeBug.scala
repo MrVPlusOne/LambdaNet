@@ -8,7 +8,7 @@ import org.scalatest.WordSpec
 class StringNodeBug extends WordSpec {
   "the string node should have string type in LibDefs" in {
     val inputPath = amm.pwd / "data" / "tests" / "simple"
-    val (graph, results) = InputUtils.loadGraphAndPredict(inputPath)
+    val (graph, _, results) = InputUtils.loadGraphAndPredict(inputPath)
     val node32 = graph.nodes.find(_.getId == 32).get
     val stringNode = graph.nodes.find(_.nameOpt.contains('String)).get
     val binaryRels = graph.predicates.collect {

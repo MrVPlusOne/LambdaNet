@@ -27,7 +27,7 @@ object SimulatedAnnealingExperiment {
     Random.setSeed(params.seed.get)
     val inputPath = amm.pwd / "data" / relPathUnderData
     val outputPath = amm.pwd / "SA_results"
-    val (graph, results) = InputUtils.loadGraphAndPredict(inputPath)
+    val (graph, nodeAnnots, results) = InputUtils.loadGraphAndPredict(inputPath)
     val checker = TypeChecker(graph, libDefs)
     val schedule = params.schedule
 
@@ -107,8 +107,8 @@ object SimulatedAnnealingExperiment {
   }
 
   def main(args: Array[String]): Unit = {
-    val params = Parameters(None, LogSchedule(0.1), numEpochs = 100000, numSamples = 10)
-    val inputPath = RelPath("tests/c1")
+    val params = Parameters(None, LogSchedule(0.02), numEpochs = 100000, numSamples = 1, reboot = true)
+    val inputPath = RelPath("tests/public")
     run(inputPath, params)
   }
 }

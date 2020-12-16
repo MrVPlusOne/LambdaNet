@@ -33,7 +33,7 @@ class TypeCheckerTest extends WordSpec {
 
     "check library type in data/tests/simple" in {
       val inputPath = amm.pwd / "data" / "tests" / "simple"
-      val (graph, results) = InputUtils.loadGraphAndPredict(inputPath)
+      val (graph, _, results) = InputUtils.loadGraphAndPredict(inputPath)
       val node32 = graph.nodes.find(_.getId == 32).get
       println(results(node32).distr.filter(_._2.showSimple.contains("String")))
       val arrayType = results(node32).distr(2)._2

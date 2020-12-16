@@ -10,7 +10,7 @@ import org.scalatest.WordSpec
 class SimulatedAnnealingTest extends WordSpec {
   def test(name: String): Unit = {
     val inputPath = amm.pwd / "data" / "tests" / name
-    val (graph, results) = InputUtils.loadGraphAndPredict(inputPath)
+    val (graph, _, results) = InputUtils.loadGraphAndPredict(inputPath)
     assert(results.keySet == graph.projNodes)
 
     val checker = TypeChecker(graph, libDefs)

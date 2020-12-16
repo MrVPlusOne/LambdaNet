@@ -2,7 +2,7 @@ package lambdanet.translation
 
 import ammonite.ops.{Path, up}
 import funcdiff.SimpleMath
-import lambdanet.PrepareRepos.{libDefsFile, parseProject}
+import lambdanet.PrepareRepos.{ParsedProject, libDefsFile, parseProject}
 import lambdanet.Surface.GStmt
 import lambdanet.translation.ImportsResolution.{ErrorHandler, NameDef}
 import lambdanet.translation.PredicateGraph._
@@ -565,7 +565,7 @@ object PredicateGraphLoader {
       SimpleMath.readObjectFromFile[LibDefs](libDefsFile.toIO)
     }
 
-  def load(dir: Path): PredicateGraph =
+  def load(dir: Path): ParsedProject =
     parseProject(
       libDefs,
       dir / up,
@@ -575,5 +575,5 @@ object PredicateGraphLoader {
         ErrorHandler(ErrorHandler.StoreError, ErrorHandler.StoreError),
       shouldPrintProject = true,
       predictAny = true,
-    ).mergeEqualities.pGraph
+    ).mergeEqualities
 }

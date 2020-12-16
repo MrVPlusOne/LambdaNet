@@ -7,7 +7,7 @@ import lambdanet.translation.PredicateGraphLoader.libDefs
 object SimulatedAnnealingDemo {
   def main(args: Array[String]): Unit = {
     val inputPath = amm.pwd / "data" / "tests" / "simple"
-    val (graph, results) = InputUtils.loadGraphAndPredict(inputPath)
+    val (graph, _, results) = InputUtils.loadGraphAndPredict(inputPath)
 
     println("Original result:")
     results foreach { case (node, value) => println(node, value) }

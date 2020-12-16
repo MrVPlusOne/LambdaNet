@@ -3,8 +3,9 @@ package lambdanet.correctness
 import ammonite.ops.Path
 import ammonite.{ops => amm}
 import lambdanet.TypeInferenceService.{ModelConfig, loadModel}
-import lambdanet.translation.{PredicateGraph, PredicateGraphLoader}
 import lambdanet.{Model, SM, TypeInferenceService}
+import lambdanet.translation.PredicateGraph.PNode
+import lambdanet.translation.{PAnnot, PredicateGraph, PredicateGraphLoader}
 
 object InputUtils {
   val modelDir: Path = TypeInferenceService.newestModelDir
@@ -17,8 +18,14 @@ object InputUtils {
   lazy val service: model.PredictionService =
     model.PredictionService(numOfThreads = 8, predictTopK = Int.MaxValue)
 
-  def loadGraphAndPredict(inputPath: Path): (PredicateGraph, TypeDistrs) = {
-    val graph = PredicateGraphLoader.load(inputPath)
+  def loadGraphAndPredict(inputPath: Path): (PredicateGraph, Map[PNode, PAnnot], TypeDistrs) = {
+    val project = PredicateGraphLoader.load(inputPath)
+    val graph = project.pGraph
+    val nodeSeqAnnots: Map[PNode, Seq[PAnnot]] = project.qModules.map(_.mapping.toSeq).reduce(_ ++ _).groupBy(_._1).mapValuesNow(_.map(_._2))
+    nodeSeqAnnots.foreach { case (node, annot) =>
+      assert(annot.size == 1, s"$node has multiple annotations: $annot")
+    }
+    val nodeAnnots = nodeSeqAnnots.mapValuesNow(_.head)
     val resultsPath = inputPath / "results.serialized"
     val results =
       if (amm.exists(resultsPath)) {
@@ -28,7 +35,7 @@ object InputUtils {
         SM.saveObjectToFile(resultsPath.toIO)(res.asInstanceOf[Serializable])
         res
       }
-    (graph, results)
+    (graph, nodeAnnots, results)
   }
 
   def loadGroundTruth(inputPath: Path): Option[Assignment] = {
