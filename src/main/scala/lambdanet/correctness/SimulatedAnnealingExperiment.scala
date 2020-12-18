@@ -46,6 +46,9 @@ object SimulatedAnnealingExperiment {
     val accuracy = Accuracy(groundTruth)
     //    println("======Difference between ground truth and most likely assignment======")
     //    println(SimulatedAnnealing.diff(groundTruth, mostLikely))
+    println(s"size of mostLikely: ${mostLikely.size}")
+    println(s"size of ground truth: ${groundTruth.truth.size}")
+    println(s"number of nodes whose true types are not in predictions: ${groundTruth.truth.count { case (node, typ) => !results(node).distr.exists(_._2 == typ) }}")
     println(s"Average NLL of ground truth: ${criterion.prob(groundTruth.truth)}")
 
     val runs =
@@ -71,7 +74,13 @@ object SimulatedAnnealingExperiment {
       }
     val (best, sumLogValues) = runs
     println("======Difference between ground truth and final result======")
-    println(SimulatedAnnealing.diff(groundTruth.truth, best))
+    val difference = SimulatedAnnealing.diff(groundTruth.truth, best)
+    difference.foreach { case (node, (gold, pred)) =>
+      println(s"$node -> ($gold, $pred): (${results(node).distr.find(_._2 == gold).map(_._1)}, ${results(node).distr.find(_._2 == pred).map(_._1)})")
+    }
+    val stat = difference.groupBy(_._2).mapValuesNow(_.size).toIndexedSeq.sortBy(-_._2)
+    stat.foreach(println)
+    println(s"${difference.size} differences found")
     println(s"Average NLL of final result: ${criterion.prob(best)}")
     val averageLogValues: IntermediateValues = sumLogValues.copy(ys = sumLogValues.ys.map(_ / params.numSamples), bestYs = sumLogValues.bestYs.map(_ / params.numSamples))
     if (!amm.exists(outputPath)) {
