@@ -281,9 +281,7 @@ trait NegativeLogLikelihoodBase {
     -assignment.map {
       case (node, typ) =>
         val topN = proposal(node)
-        //fixme: this might be expensive when `N` is large. Should we turn
-        // `TopNDistribution` into a map first?
-        val topNProb = topN.distr.find(_._2 == typ).map(_._1)
+        val topNProb = topN.distrMap.get(typ)
         topNProb.map(math.log).getOrElse(defaultLobProb)
     }.sum
 }
