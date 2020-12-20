@@ -1,7 +1,8 @@
 package lambdanet.correctness
 
-import lambdanet.translation.PAnnot
+import lambdanet.train.DataSet
 import lambdanet.translation.PredicateGraph.{PNode, PType}
+import lambdanet.translation.{PAnnot, PredicateGraphLoader}
 
 // TODO: Can pre-filter annots for better performance
 case class AnnotAndType(annot: PType, typ: PType)
@@ -34,11 +35,18 @@ case class GroundTruth(truth: Assignment)
 object GroundTruth {
   // dummyImplicit needed to avoid type erasure issue
   def apply(
-    annots: Map[PNode, PAnnot]
+    annots: Map[PNode, PAnnot],
+    toPlainType: Boolean
   )(implicit dummyImplicit: DummyImplicit): GroundTruth = {
-    val truth = annots.collect {
+    val gold = annots.collect {
       case (node, annot) if annot.typeOpt.nonEmpty => (node, annot.typeOpt.get)
     }
+    val truth =
+      if (toPlainType) {
+        gold.mapValuesNow(DataSet.nonGenerify(PredicateGraphLoader.libDefs))
+      } else {
+        gold
+      }
     GroundTruth(truth)
   }
 }

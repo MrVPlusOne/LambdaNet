@@ -42,7 +42,7 @@ object SimulatedAnnealingExperiment {
     checker.violate(mostLikely).foreach(println)
     //    val pNodes = results.keySet.map(x => (x.getId, x)).toMap
     //    val pTypes = results.values.flatMap(_.distr.map(_._2)).collect{ case (x: PTyVar) => x }.toSet.map((x: PTyVar) => (x.node.nameOpt.map(_.name).getOrElse(x.node.getId.toString), x)).toMap
-    val groundTruth = GroundTruth(nodeAnnots)
+    val groundTruth = GroundTruth(nodeAnnots, toPlainType = true)
     val accuracy = Accuracy(groundTruth)
     //    println("======Difference between ground truth and most likely assignment======")
     //    println(SimulatedAnnealing.diff(groundTruth, mostLikely))
