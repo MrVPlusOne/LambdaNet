@@ -100,7 +100,13 @@ object SimulatedAnnealing {
     }
     (
       correct(bestX),
-      IntermediateValues(0 to numEpochs, ys, bestYs, nodeAccuracy = nodeAccuracy, constraintAccuracy = Array.empty[Double])
+      IntermediateValues(
+        0 to numEpochs,
+        ys,
+        bestYs,
+        nodeAccuracy = nodeAccuracy,
+        constraintAccuracy = Array.empty[Double]
+      )
     )
   }
 
@@ -275,24 +281,29 @@ case class LocalSearchCorrection(
 trait NegativeLogLikelihoodBase {
   def proposal: Map[PNode, TopNDistribution[PType]]
 
-  val defaultLobProb: Double = -4.0
-
-  def prob(assignment: Assignment): Double =
-    -assignment.map {
+  def logLikelihoods(assignment: Assignment): Iterable[Double] =
+    assignment.flatMap {
       case (node, typ) =>
         val topN = proposal(node)
         val topNProb = topN.distrMap.get(typ)
-        topNProb.map(math.log).getOrElse(defaultLobProb)
-    }.sum
+        topNProb.map(math.log)
+    }
+
+  def prob(assignment: Assignment): Double =
+    -logLikelihoods(assignment).sum
+}
+
+trait AverageNLLBase extends NegativeLogLikelihoodBase {
+  override def prob(assignment: Assignment): Double = {
+    val ll = logLikelihoods(assignment)
+    -ll.sum / ll.size
+  }
 }
 
 case class NegativeLogLikelihood(
-    proposal: Map[PNode, TopNDistribution[PType]]
+  proposal: Map[PNode, TopNDistribution[PType]]
 ) extends NegativeLogLikelihoodBase
 
 case class AverageNegativeLogLikelihood(
-    proposal: Map[PNode, TopNDistribution[PType]]
-) extends NegativeLogLikelihoodBase {
-  override def prob(assignment: Assignment): Double =
-    super.prob(assignment) / assignment.size
-}
+  proposal: Map[PNode, TopNDistribution[PType]]
+) extends AverageNLLBase

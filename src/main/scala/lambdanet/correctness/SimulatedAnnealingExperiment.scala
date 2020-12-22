@@ -49,7 +49,7 @@ object SimulatedAnnealingExperiment {
     println(s"size of mostLikely: ${mostLikely.size}")
     println(s"size of ground truth: ${groundTruth.truth.size}")
     println(s"number of nodes whose true types are not in predictions: ${groundTruth.truth.count { case (node, typ) => !results(node).distr.exists(_._2 == typ) }}")
-    println(s"Average NLL of ground truth: ${criterion.prob(groundTruth.truth)}")
+//    println(s"Average NLL of ground truth: ${criterion.prob(groundTruth.truth)}")
 
     val runs =
       Iterator.fill(params.numSamples) {
