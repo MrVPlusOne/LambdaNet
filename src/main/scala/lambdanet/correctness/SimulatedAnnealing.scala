@@ -12,7 +12,7 @@ object SimulatedAnnealing {
     ys: Seq[Double],
     bestYs: Seq[Double],
     nodeAccuracy: Seq[Double],
-    constraintAccuracy: Seq[Double]
+    proportionOfAny: Seq[Double],
   )
 
   def diff(
@@ -52,8 +52,8 @@ object SimulatedAnnealing {
     numEpochs: Int,
     f: Objective,
     reboot: Boolean = false,
-    // TODO: Use this to limit reboot times,
     accuracy: Accuracy,
+    // TODO: Use this to limit reboot times,
     rebootLimit: Int = 5
   ): (Assignment, IntermediateValues) = {
     val mostLikely = proposal.mapValuesNow(_.topValue)
@@ -67,9 +67,11 @@ object SimulatedAnnealing {
     val ys = new Array[Double](numEpochs + 1)
     val bestYs = new Array[Double](numEpochs + 1)
     val nodeAccuracy = new Array[Double](numEpochs + 1)
+    val proportionOfAny = new Array[Double](numEpochs + 1)
     ys(0) = y
     bestYs(0) = bestY
     nodeAccuracy(0) = accuracy.get(x)
+    proportionOfAny(0) = x.count { case (_, typ) => typ == PAny } / x.size.toDouble
 
     var epoch = 1
     while (epoch <= numEpochs) {
@@ -96,6 +98,7 @@ object SimulatedAnnealing {
       ys(epoch) = y
       bestYs(epoch) = bestY
       nodeAccuracy(epoch) = accuracy.get(x)
+      proportionOfAny(epoch) = x.count { case (_, typ) => typ == PAny } / x.size.toDouble
       epoch += 1
     }
     (
@@ -105,7 +108,7 @@ object SimulatedAnnealing {
         ys,
         bestYs,
         nodeAccuracy = nodeAccuracy,
-        constraintAccuracy = Array.empty[Double]
+        proportionOfAny
       )
     )
   }
