@@ -3,9 +3,9 @@ package lambdanet.correctness
 import ammonite.ops.Path
 import ammonite.{ops => amm}
 import lambdanet.TypeInferenceService.{ModelConfig, loadModel}
-import lambdanet.{Model, SM, TypeInferenceService}
 import lambdanet.translation.PredicateGraph.PNode
 import lambdanet.translation.{PAnnot, PredicateGraph, PredicateGraphLoader}
+import lambdanet.{Model, SM, TypeInferenceService}
 
 object InputUtils {
   val modelDir: Path = TypeInferenceService.newestModelDir
@@ -29,7 +29,7 @@ object InputUtils {
     val resultsPath = inputPath / "results.serialized"
     val results =
       if (amm.exists(resultsPath)) {
-        SM.loadObjectFromFile[TypeDistrs](resultsPath.toIO)
+        SM.readObjectFromFile[TypeDistrs](resultsPath.toIO)
       } else {
         val res = service.predictOnGraph(graph, nodeSelector = _.fromProject)
         SM.saveObjectToFile(resultsPath.toIO)(res.asInstanceOf[Serializable])
