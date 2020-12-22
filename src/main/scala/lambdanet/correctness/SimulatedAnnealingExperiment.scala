@@ -71,7 +71,8 @@ object SimulatedAnnealingExperiment {
             numEpochs = params.numEpochs,
             f = criterion.prob,
             reboot = params.reboot,
-            accuracy = accuracy
+            accuracy = accuracy,
+            checker = checker
           )
         }
         .reduce { (a, b) =>
@@ -84,7 +85,9 @@ object SimulatedAnnealingExperiment {
             (x.ys, y.ys).zipped.map(_ + _),
             (x.bestYs, y.bestYs).zipped.map(_ + _),
             (x.nodeAccuracy, y.nodeAccuracy).zipped.map(_ + _),
-            (x.proportionOfAny, y.proportionOfAny).zipped.map(_ + _)
+            (x.proportionOfAny, y.proportionOfAny).zipped.map(_ + _),
+            (x.proportionOfNodesCoveredByAny, y.proportionOfNodesCoveredByAny).zipped
+              .map(_ + _),
           )
           (best, combined)
         }
@@ -108,7 +111,9 @@ object SimulatedAnnealingExperiment {
       ys = sumLogValues.ys.map(_ / params.numSamples),
       bestYs = sumLogValues.bestYs.map(_ / params.numSamples),
       nodeAccuracy = sumLogValues.nodeAccuracy.map(_ / params.numSamples),
-      proportionOfAny = sumLogValues.proportionOfAny.map(_ / params.numSamples)
+      proportionOfAny = sumLogValues.proportionOfAny.map(_ / params.numSamples),
+      proportionOfNodesCoveredByAny =
+        sumLogValues.proportionOfNodesCoveredByAny.map(_ / params.numSamples),
     )
     if (!amm.exists(outputPath)) {
       amm.mkdir(outputPath)
@@ -123,6 +128,10 @@ object SimulatedAnnealingExperiment {
       averageLogValues.epochs
         .map(_.toDouble)
         .zip(averageLogValues.proportionOfAny)
+    val proportionOfNodesCoveredByAny =
+      averageLogValues.epochs
+        .map(_.toDouble)
+        .zip(averageLogValues.proportionOfNodesCoveredByAny)
     val likelihoodPlot = plotly.linePlot(
       Seq(ys, bestYs),
       CommonOptions(
@@ -141,10 +150,11 @@ object SimulatedAnnealingExperiment {
       )
     )
     val anyPlot = plotly.linePlot(
-      Seq(proportionOfAny),
+      Seq(proportionOfAny, proportionOfNodesCoveredByAny),
       CommonOptions(
         plotName = Some("Proportion of nodes with Any type"),
         axesNames = (Some("Epoch"), Some("Proportion of PAny")),
+        legends = Some(Seq("Proportion of Any nodes", "Proportion of nodes covered by Any"))
       )
     )
     val currentTime = LocalDateTime.now().format(fmt)

@@ -13,6 +13,7 @@ object SimulatedAnnealing {
     bestYs: Seq[Double],
     nodeAccuracy: Seq[Double],
     proportionOfAny: Seq[Double],
+    proportionOfNodesCoveredByAny: Seq[Double]
   )
 
   def diff(
@@ -53,6 +54,7 @@ object SimulatedAnnealing {
     f: Objective,
     reboot: Boolean = false,
     accuracy: Accuracy,
+    checker: TypeChecker,
     // TODO: Use this to limit reboot times,
     rebootLimit: Int = 5
   ): (Assignment, IntermediateValues) = {
@@ -68,10 +70,21 @@ object SimulatedAnnealing {
     val bestYs = new Array[Double](numEpochs + 1)
     val nodeAccuracy = new Array[Double](numEpochs + 1)
     val proportionOfAny = new Array[Double](numEpochs + 1)
+    val proportionOfNodesCoveredByAny = new Array[Double](numEpochs + 1)
     ys(0) = y
     bestYs(0) = bestY
     nodeAccuracy(0) = accuracy.get(x)
-    proportionOfAny(0) = x.count { case (_, typ) => typ == PAny } / x.size.toDouble
+    val constrainedNodes = checker.subtypesToCheck.flatMap { case (a, b) => Set(a, b) }.intersect(x.keySet)
+    val anyNodes = constrainedNodes.filter(x(_) == PAny)
+    proportionOfAny(0) = anyNodes.size / constrainedNodes.size.toDouble
+    val nodesCoveredByAny = constrainedNodes.to[collection.mutable.Set]
+    checker.subtypesToCheck.foreach { case (a, b) =>
+      if (!anyNodes.contains(a) && !anyNodes.contains(b)) {
+        nodesCoveredByAny -= a
+        nodesCoveredByAny -= b
+      }
+    }
+    proportionOfNodesCoveredByAny(0) = nodesCoveredByAny.size / constrainedNodes.size.toDouble
 
     var epoch = 1
     while (epoch <= numEpochs) {
@@ -98,7 +111,18 @@ object SimulatedAnnealing {
       ys(epoch) = y
       bestYs(epoch) = bestY
       nodeAccuracy(epoch) = accuracy.get(x)
-      proportionOfAny(epoch) = x.count { case (_, typ) => typ == PAny } / x.size.toDouble
+
+      val anyNodes = constrainedNodes.filter(x(_) == PAny)
+      proportionOfAny(epoch) = anyNodes.size / constrainedNodes.size.toDouble
+      val nodesCoveredByAny = constrainedNodes.to[collection.mutable.Set]
+      checker.subtypesToCheck.foreach { case (a, b) =>
+        if (!anyNodes.contains(a) && !anyNodes.contains(b)) {
+          nodesCoveredByAny -= a
+          nodesCoveredByAny -= b
+        }
+      }
+      proportionOfNodesCoveredByAny(epoch) = nodesCoveredByAny.size / constrainedNodes.size.toDouble
+
       epoch += 1
     }
     (
@@ -108,7 +132,8 @@ object SimulatedAnnealing {
         ys,
         bestYs,
         nodeAccuracy = nodeAccuracy,
-        proportionOfAny
+        proportionOfAny,
+        proportionOfNodesCoveredByAny
       )
     )
   }
@@ -285,11 +310,11 @@ trait NegativeLogLikelihoodBase {
   def proposal: Map[PNode, TopNDistribution[PType]]
 
   def logLikelihoods(assignment: Assignment): Iterable[Double] =
-    assignment.flatMap {
+    assignment.map {
       case (node, typ) =>
         val topN = proposal(node)
-        val topNProb = topN.distrMap.get(typ)
-        topNProb.map(math.log)
+        val topNProb = topN.distrMap(typ)
+        math.log(topNProb)
     }
 
   def prob(assignment: Assignment): Double =
