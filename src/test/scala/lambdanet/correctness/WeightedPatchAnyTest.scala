@@ -20,8 +20,14 @@ class WeightedPatchAnyTest extends WordSpec {
         patcher.tighten(badPairs) ==
           Map(node(1) -> 0.0, node(2) -> 0, node(3) -> 3, node(4) -> 0)
       )
-      assert(patcher.patchAny(badPairs, assignment) ==
-        Map(node(1) -> PAny, node(2) -> PAny, node(3) -> null, node(4) -> PAny)
+      assert(
+        patcher.patchAny(badPairs, assignment) ==
+          Map(
+            node(1) -> PAny,
+            node(2) -> PAny,
+            node(3) -> null,
+            node(4) -> PAny
+          )
       )
     }
   }
@@ -33,7 +39,10 @@ object WeightedPatchAnyTest {
   ): Map[PNode, TopNDistribution[PType]] =
     weights.map {
       case (id, nll) =>
-        (node(id), TopNDistribution(Vector[(Double, PType)]((math.exp(-nll), PAny))))
+        (
+          node(id),
+          TopNDistribution(Vector[(Double, PType)]((math.exp(-nll), PAny)))
+        )
     }.toMap
 
   def genBadPairs(pairs: Seq[(Int, Int)]): Seq[(PNode, PNode)] =

@@ -282,17 +282,18 @@ trait WeightedPatchAny {
     val eps = 1e-6
     val gap = collection.mutable.Map.empty[PNode, Double]
     badPairs.foreach { case (u, v) =>
-      if (!gap.contains(u)) {
-        gap += (u -> nodeNLL(u))
+      val projNodes = Set(u, v).filter(_.fromProject)
+      projNodes.foreach { u =>
+        if (!gap.contains(u)) {
+          gap += (u -> nodeNLL(u))
+        }
       }
-      if (!gap.contains(v)) {
-        gap += (v -> nodeNLL(v))
-      }
-      val (uGap, vGap) = (gap(u), gap(v))
-      if (uGap > eps && vGap > eps) {
-        val maxPrice = math.min(uGap, vGap)
-        gap += (u -> (uGap - maxPrice))
-        gap += (v -> (vGap - maxPrice))
+      val nodeGaps = projNodes.map(gap)
+      if (nodeGaps.forall(_ > eps)) {
+        val maxPrice = nodeGaps.min
+        projNodes.zip(nodeGaps).foreach { case (u, uGap) =>
+          gap += (u -> (uGap - maxPrice))
+        }
       }
     }
     gap
@@ -300,7 +301,7 @@ trait WeightedPatchAny {
 
   /**
     * Find the set of nodes with the minimum negative log-likelihood,
-    * given that it fixes bad constraint when labeled as [[PAny]].
+    * given that it fixes bad constraints when labeled as [[PAny]].
     * Use the Pricing Method to approximately find Weighted Vertex Cover.
     * See: [[http://web.cs.iastate.edu/~cs511/handout10/Approx_VC.pdf]]
     */

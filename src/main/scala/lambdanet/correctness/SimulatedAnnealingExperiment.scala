@@ -66,7 +66,7 @@ object SimulatedAnnealingExperiment {
             results,
             // TODO: store these two in parameters as well
             WrongFirstOneDifferenceRandomNeighbor(results, checker).randomNeighbor,
-            PatchAnyCorrection(checker, results).correct,
+            WeightedPatchAnyCorrection(checker, results).correct,
             schedule,
             numEpochs = params.numEpochs,
             f = criterion.prob,
