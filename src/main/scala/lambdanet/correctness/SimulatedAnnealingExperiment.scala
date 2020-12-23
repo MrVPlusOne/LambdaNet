@@ -154,7 +154,9 @@ object SimulatedAnnealingExperiment {
       CommonOptions(
         plotName = Some("Proportion of nodes with Any type"),
         axesNames = (Some("Epoch"), Some("Proportion of PAny")),
-        legends = Some(Seq("Proportion of Any nodes", "Proportion of nodes covered by Any"))
+        legends = Some(
+          Seq("Proportion of Any nodes", "Proportion of nodes covered by Any")
+        )
       )
     )
     val currentTime = LocalDateTime.now().format(fmt)

@@ -74,9 +74,10 @@ object SimulatedAnnealing {
     ys(0) = y
     bestYs(0) = bestY
     nodeAccuracy(0) = accuracy.get(x)
-    val constrainedNodes = checker.subtypesToCheck.flatMap { case (a, b) => Set(a, b) }.intersect(x.keySet)
-    val anyNodes = constrainedNodes.filter(x(_) == PAny)
-    proportionOfAny(0) = anyNodes.size / constrainedNodes.size.toDouble
+    val anyNodes = accuracy.truth.keySet.filter(correctX(_) == PAny)
+    proportionOfAny(0) = anyNodes.size / accuracy.truth.keySet.size.toDouble
+    // TODO: Is this way of calculating node coverage accurate?
+    val constrainedNodes = checker.subtypesToCheck.flatMap { case (a, b) => Set(a, b) }.intersect(accuracy.truth.keySet)
     val nodesCoveredByAny = constrainedNodes.to[collection.mutable.Set]
     checker.subtypesToCheck.foreach { case (a, b) =>
       if (!anyNodes.contains(a) && !anyNodes.contains(b)) {
@@ -84,7 +85,7 @@ object SimulatedAnnealing {
         nodesCoveredByAny -= b
       }
     }
-    proportionOfNodesCoveredByAny(0) = nodesCoveredByAny.size / constrainedNodes.size.toDouble
+    proportionOfNodesCoveredByAny(0) = nodesCoveredByAny.size / accuracy.truth.keySet.size.toDouble
 
     var epoch = 1
     while (epoch <= numEpochs) {
@@ -110,10 +111,11 @@ object SimulatedAnnealing {
       }
       ys(epoch) = y
       bestYs(epoch) = bestY
-      nodeAccuracy(epoch) = accuracy.get(x)
+      nodeAccuracy(epoch) = accuracy.get(correctX)
 
-      val anyNodes = constrainedNodes.filter(x(_) == PAny)
-      proportionOfAny(epoch) = anyNodes.size / constrainedNodes.size.toDouble
+      val constrainedNodes = checker.subtypesToCheck.flatMap { case (a, b) => Set(a, b) }.intersect(accuracy.truth.keySet)
+      val anyNodes = accuracy.truth.keySet.filter(correctX(_) == PAny)
+      proportionOfAny(epoch) = anyNodes.size / accuracy.truth.keySet.size.toDouble
       val nodesCoveredByAny = constrainedNodes.to[collection.mutable.Set]
       checker.subtypesToCheck.foreach { case (a, b) =>
         if (!anyNodes.contains(a) && !anyNodes.contains(b)) {
@@ -121,7 +123,7 @@ object SimulatedAnnealing {
           nodesCoveredByAny -= b
         }
       }
-      proportionOfNodesCoveredByAny(epoch) = nodesCoveredByAny.size / constrainedNodes.size.toDouble
+      proportionOfNodesCoveredByAny(epoch) = nodesCoveredByAny.size / accuracy.truth.keySet.size.toDouble
 
       epoch += 1
     }
