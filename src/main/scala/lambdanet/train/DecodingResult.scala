@@ -9,7 +9,7 @@ import lambdanet._
 case class TopNDistribution[T](distr: Vector[(Real, T)]) {
   def topValue: T = distr.head._2
 
-  val distrMap: Map[T, Real] = distr.map { case (k, v) => (v, k) }.toMap
+  val typeProb: Map[T, Real] = distr.map { case (k, v) => (v, k) }.toMap
 
   def map[V](f: T => V): TopNDistribution[V] =
     TopNDistribution(distr.map { case (prob, t) => (prob, f(t)) })

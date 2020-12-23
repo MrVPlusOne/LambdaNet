@@ -8,12 +8,12 @@ import scala.util.Random
 
 object SimulatedAnnealing {
   case class IntermediateValues(
-    epochs: Seq[Int],
-    ys: Seq[Double],
-    bestYs: Seq[Double],
-    nodeAccuracy: Seq[Double],
-    proportionOfAny: Seq[Double],
-    proportionOfNodesCoveredByAny: Seq[Double]
+      epochs: Seq[Int],
+      ys: Seq[Double],
+      bestYs: Seq[Double],
+      nodeAccuracy: Seq[Double],
+      proportionOfAny: Seq[Double],
+      proportionOfNodesCoveredByAny: Seq[Double]
   )
 
   def diff(
@@ -45,18 +45,18 @@ object SimulatedAnnealing {
     * Minimize f using simulated annealing. Record intermediate objective values.
     */
   def searchWithLog(
-    g: PredicateGraph,
-    proposal: Map[PNode, TopNDistribution[PType]],
-    randomNeighbor: Assignment => Assignment,
-    correct: Correction,
-    t: Int => Double,
-    numEpochs: Int,
-    f: Objective,
-    reboot: Boolean = false,
-    accuracy: Accuracy,
-    checker: TypeChecker,
-    // TODO: Use this to limit reboot times,
-    rebootLimit: Int = 5
+      g: PredicateGraph,
+      proposal: Map[PNode, TopNDistribution[PType]],
+      randomNeighbor: Assignment => Assignment,
+      correct: Correction,
+      t: Int => Double,
+      numEpochs: Int,
+      f: Objective,
+      reboot: Boolean = false,
+      accuracy: Accuracy,
+      checker: TypeChecker,
+      // TODO: Use this to limit reboot times,
+      rebootLimit: Int = 5
   ): (Assignment, IntermediateValues) = {
     val mostLikely = proposal.mapValuesNow(_.topValue)
     var x = mostLikely
@@ -77,13 +77,16 @@ object SimulatedAnnealing {
     val anyNodes = accuracy.truth.keySet.filter(correctX(_) == PAny)
     proportionOfAny(0) = anyNodes.size / accuracy.truth.keySet.size.toDouble
     // TODO: Is this way of calculating node coverage accurate?
-    val constrainedNodes = checker.subtypesToCheck.flatMap { case (a, b) => Set(a, b) }.intersect(accuracy.truth.keySet)
+    val constrainedNodes = checker.subtypesToCheck
+      .flatMap { case (a, b) => Set(a, b) }
+      .intersect(accuracy.truth.keySet)
     val nodesCoveredByAny = constrainedNodes.to[collection.mutable.Set]
-    checker.subtypesToCheck.foreach { case (a, b) =>
-      if (!anyNodes.contains(a) && !anyNodes.contains(b)) {
-        nodesCoveredByAny -= a
-        nodesCoveredByAny -= b
-      }
+    checker.subtypesToCheck.foreach {
+      case (a, b) =>
+        if (!anyNodes.contains(a) && !anyNodes.contains(b)) {
+          nodesCoveredByAny -= a
+          nodesCoveredByAny -= b
+        }
     }
     proportionOfNodesCoveredByAny(0) = nodesCoveredByAny.size / accuracy.truth.keySet.size.toDouble
 
@@ -113,15 +116,18 @@ object SimulatedAnnealing {
       bestYs(epoch) = bestY
       nodeAccuracy(epoch) = accuracy.get(correctX)
 
-      val constrainedNodes = checker.subtypesToCheck.flatMap { case (a, b) => Set(a, b) }.intersect(accuracy.truth.keySet)
+      val constrainedNodes = checker.subtypesToCheck
+        .flatMap { case (a, b) => Set(a, b) }
+        .intersect(accuracy.truth.keySet)
       val anyNodes = accuracy.truth.keySet.filter(correctX(_) == PAny)
       proportionOfAny(epoch) = anyNodes.size / accuracy.truth.keySet.size.toDouble
       val nodesCoveredByAny = constrainedNodes.to[collection.mutable.Set]
-      checker.subtypesToCheck.foreach { case (a, b) =>
-        if (!anyNodes.contains(a) && !anyNodes.contains(b)) {
-          nodesCoveredByAny -= a
-          nodesCoveredByAny -= b
-        }
+      checker.subtypesToCheck.foreach {
+        case (a, b) =>
+          if (!anyNodes.contains(a) && !anyNodes.contains(b)) {
+            nodesCoveredByAny -= a
+            nodesCoveredByAny -= b
+          }
       }
       proportionOfNodesCoveredByAny(epoch) = nodesCoveredByAny.size / accuracy.truth.keySet.size.toDouble
 
@@ -234,8 +240,10 @@ case class WrongFirstOneDifferenceRandomNeighbor(
   }
 }
 
-trait PatchAny {
+trait CorrectionBase {
 
+}
+trait PatchAny {
   /**
     * Try to mark as few project nodes as `Any` to satisfy all the subtyping relations in `badPairs`.
     * Treat this as the Minimum Vertex Cover problem and use the approximation algorithm.
@@ -264,10 +272,62 @@ trait PatchAny {
   }
 }
 
+trait WeightedPatchAny {
+  def proposal: Map[PNode, TopNDistribution[PType]]
+
+  def nodeNLL(x: PNode): Double =
+    -math.log(proposal(x).typeProb(PAny))
+
+  def tighten(badPairs: Iterable[(PNode, PNode)]): collection.mutable.Map[PNode, Double] = {
+    val eps = 1e-6
+    val gap = collection.mutable.Map.empty[PNode, Double]
+    badPairs.foreach { case (u, v) =>
+      if (!gap.contains(u)) {
+        gap += (u -> nodeNLL(u))
+      }
+      if (!gap.contains(v)) {
+        gap += (v -> nodeNLL(v))
+      }
+      val (uGap, vGap) = (gap(u), gap(v))
+      if (uGap > eps && vGap > eps) {
+        val maxPrice = math.min(uGap, vGap)
+        gap += (u -> (uGap - maxPrice))
+        gap += (v -> (vGap - maxPrice))
+      }
+    }
+    gap
+  }
+
+  /**
+    * Find the set of nodes with the minimum negative log-likelihood,
+    * given that it fixes bad constraint when labeled as [[PAny]].
+    * Use the Pricing Method to approximately find Weighted Vertex Cover.
+    * See: [[http://web.cs.iastate.edu/~cs511/handout10/Approx_VC.pdf]]
+    */
+  def patchAny(
+      badPairs: Iterable[(PNode, PNode)],
+      assignment: Assignment
+  ): Assignment = {
+    val gap = tighten(badPairs)
+    val anyNodes = gap.filter { case (_, g) => g == 0 }.keySet
+    assignment ++ anyNodes.map(x => (x, PAny)).toMap
+  }
+}
+
 case class PatchAnyCorrection(
     checker: TypeChecker,
     proposal: Map[PNode, TopNDistribution[PType]]
 ) extends PatchAny {
+  def correct(prediction: Assignment): Assignment = {
+    val badPairs = checker.violate(prediction)
+    patchAny(badPairs, prediction)
+  }
+}
+
+case class WeightedPatchAnyCorrection(
+    checker: TypeChecker,
+    proposal: Map[PNode, TopNDistribution[PType]]
+) extends WeightedPatchAny {
   def correct(prediction: Assignment): Assignment = {
     val badPairs = checker.violate(prediction)
     patchAny(badPairs, prediction)
@@ -315,7 +375,7 @@ trait NegativeLogLikelihoodBase {
     assignment.map {
       case (node, typ) =>
         val topN = proposal(node)
-        val topNProb = topN.distrMap(typ)
+        val topNProb = topN.typeProb(typ)
         math.log(topNProb)
     }
 
@@ -331,9 +391,9 @@ trait AverageNLLBase extends NegativeLogLikelihoodBase {
 }
 
 case class NegativeLogLikelihood(
-  proposal: Map[PNode, TopNDistribution[PType]]
+    proposal: Map[PNode, TopNDistribution[PType]]
 ) extends NegativeLogLikelihoodBase
 
 case class AverageNegativeLogLikelihood(
-  proposal: Map[PNode, TopNDistribution[PType]]
+    proposal: Map[PNode, TopNDistribution[PType]]
 ) extends AverageNLLBase
