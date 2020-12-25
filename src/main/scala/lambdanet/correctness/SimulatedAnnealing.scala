@@ -106,12 +106,6 @@ object SimulatedAnnealing {
         lastBestEpoch = epoch
       }
       //      println(s"epoch: $epoch, y: $y, bestY: $bestY")
-      if (reboot && epoch - lastBestEpoch > numEpochs / 10) {
-        x = bestX
-        y = bestY
-        println(s"Reboot: from $epoch to $lastBestEpoch")
-        epoch = lastBestEpoch
-      }
       ys(epoch) = y
       bestYs(epoch) = bestY
       nodeAccuracy(epoch) = accuracy.get(correctX)
@@ -131,6 +125,12 @@ object SimulatedAnnealing {
       }
       proportionOfNodesCoveredByAny(epoch) = nodesCoveredByAny.size / accuracy.truth.keySet.size.toDouble
 
+      if (reboot && epoch - lastBestEpoch > numEpochs / 10) {
+        x = bestX
+        y = bestY
+        println(s"Reboot: from $epoch to $lastBestEpoch")
+        epoch = lastBestEpoch
+      }
       epoch += 1
     }
     (
