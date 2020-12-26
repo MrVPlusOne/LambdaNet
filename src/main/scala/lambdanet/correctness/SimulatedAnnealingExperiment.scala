@@ -13,11 +13,11 @@ import scala.util.Random
 
 object SimulatedAnnealingExperiment {
   case class Parameters(
-    seed: Option[Long],
-    schedule: Schedule,
-    numEpochs: Int,
-    numSamples: Int,
-    reboot: Boolean
+      seed: Option[Long],
+      schedule: Schedule,
+      numEpochs: Int,
+      numSamples: Int,
+      reboot: Boolean
   )
 
   def run(relPathUnderData: RelPath, unseededParams: Parameters): Unit = {
@@ -50,11 +50,9 @@ object SimulatedAnnealingExperiment {
     println(s"size of ground truth: ${groundTruth.truth.size}")
     println(
       s"number of nodes whose true types are not in predictions:" +
-        s"${
-          groundTruth.truth.count {
-            case (node, typ) => !results(node).distr.exists(_._2 == typ)
-          }
-        }"
+        s"${groundTruth.truth.count {
+          case (node, typ) => !results(node).distr.exists(_._2 == typ)
+        }}"
     )
     //    println(s"Average NLL of ground truth: ${criterion.prob(groundTruth.truth)}")
 
@@ -92,14 +90,25 @@ object SimulatedAnnealingExperiment {
           (best, combined)
         }
     val (best, sumLogValues) = runs
+
+    println("======Difference between most likely and final result======")
+    val mostLikelyDifference = Assignment.diff(results, mostLikely, best)
+    println("Raw difference:")
+    println(mostLikelyDifference)
+    val mostLikelyDifferenceStat = Assignment.DiffStats(mostLikelyDifference)
+    println("Difference stats:")
+    println(mostLikelyDifferenceStat)
     println("======Difference between ground truth and final result======")
-    val difference = Assignment.diff(results, groundTruth.truth, best)
-    println(difference)
-    val stat =
-      difference.diff.groupBy(_._2).mapValuesNow(_.size).toIndexedSeq.sortBy(-_._2)
-    stat.foreach(println)
-    println(s"${difference.diff.size} differences found")
+    val groundTruthDifference =
+      Assignment.diff(results, groundTruth.truth, best)
+    println("Raw difference:")
+    println(groundTruthDifference)
+    val groundTruthDifferenceStat = Assignment.DiffStats(groundTruthDifference)
+    println("Difference stats:")
+    println(groundTruthDifferenceStat)
+    println(s"${groundTruthDifference.diff.size} differences found")
     println(s"Average NLL of final result: ${criterion.prob(best)}")
+
     val averageLogValues: IntermediateValues = sumLogValues.copy(
       ys = sumLogValues.ys.map(_ / params.numSamples),
       bestYs = sumLogValues.bestYs.map(_ / params.numSamples),
