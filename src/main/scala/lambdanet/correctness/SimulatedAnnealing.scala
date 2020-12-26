@@ -26,21 +26,6 @@ object SimulatedAnnealing {
     set.toMap
   }
 
-  def lazySearch(
-      g: PredicateGraph,
-      proposal: Map[PNode, TopNDistribution[PType]],
-      randomNeighbor: Assignment => Assignment,
-      correct: Correction,
-      t: Int => Double,
-      numEpochs: Int,
-      f: Objective,
-      reboot: Boolean = false
-  ): Iterator[((Assignment, Double), (Assignment, Double))] = {
-    ???
-    //    val mostLikely = proposal.mapValuesNow(_.topValue)
-    //    Iterator.range(1, numEpochs).
-  }
-
   /**
     * Minimize f using simulated annealing. Record intermediate objective values.
     */
