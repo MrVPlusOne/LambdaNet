@@ -93,19 +93,12 @@ object SimulatedAnnealingExperiment {
         }
     val (best, sumLogValues) = runs
     println("======Difference between ground truth and final result======")
-    val difference = SimulatedAnnealing.diff(groundTruth.truth, best)
-    difference.foreach {
-      case (node, (gold, pred)) =>
-        println(s"$node -> ($gold, $pred): (${
-          results(node).distr
-            .find(_._2 == gold)
-            .map(_._1)
-        }, ${results(node).distr.find(_._2 == pred).map(_._1)})")
-    }
+    val difference = Assignment.diff(results, groundTruth.truth, best)
+    println(difference)
     val stat =
-      difference.groupBy(_._2).mapValuesNow(_.size).toIndexedSeq.sortBy(-_._2)
+      difference.diff.groupBy(_._2).mapValuesNow(_.size).toIndexedSeq.sortBy(-_._2)
     stat.foreach(println)
-    println(s"${difference.size} differences found")
+    println(s"${difference.diff.size} differences found")
     println(s"Average NLL of final result: ${criterion.prob(best)}")
     val averageLogValues: IntermediateValues = sumLogValues.copy(
       ys = sumLogValues.ys.map(_ / params.numSamples),
@@ -118,6 +111,7 @@ object SimulatedAnnealingExperiment {
     if (!amm.exists(outputPath)) {
       amm.mkdir(outputPath)
     }
+    // fixme: Cannot display plots with 300K entries
     val plotly = PlotlyBackend()
     val ys = averageLogValues.epochs.map(_.toDouble).zip(averageLogValues.ys)
     val bestYs =

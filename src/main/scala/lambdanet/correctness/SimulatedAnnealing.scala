@@ -16,16 +16,6 @@ object SimulatedAnnealing {
       proportionOfNodesCoveredByAny: Seq[Double]
   )
 
-  def diff(
-      a: Assignment,
-      b: Assignment
-  ): Map[PNode, (PType, PType)] = {
-    val set =
-      for (node <- a.keySet if a(node) != b(node))
-        yield (node, (a(node), b(node)))
-    set.toMap
-  }
-
   /**
     * Minimize f using simulated annealing. Record intermediate objective values.
     */
