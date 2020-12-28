@@ -216,9 +216,11 @@ case class WrongFirstOneDifferenceRandomNeighbor(
 }
 
 trait CorrectionBase {
-
+  def correct(assignment: Assignment): Assignment
 }
+
 trait PatchAny {
+
   /**
     * Try to mark as few project nodes as `Any` to satisfy all the subtyping relations in `badPairs`.
     * Treat this as the Minimum Vertex Cover problem and use the approximation algorithm.
@@ -253,23 +255,27 @@ trait WeightedPatchAny {
   def nodeNLL(x: PNode): Double =
     -math.log(proposal(x).typeProb(PAny))
 
-  def tighten(badPairs: Iterable[(PNode, PNode)]): collection.mutable.Map[PNode, Double] = {
+  def tighten(
+      badPairs: Iterable[(PNode, PNode)]
+  ): collection.mutable.Map[PNode, Double] = {
     val eps = 1e-6
     val gap = collection.mutable.Map.empty[PNode, Double]
-    badPairs.foreach { case (u, v) =>
-      val projNodes = Set(u, v).filter(_.fromProject)
-      projNodes.foreach { u =>
-        if (!gap.contains(u)) {
-          gap += (u -> nodeNLL(u))
+    badPairs.foreach {
+      case (u, v) =>
+        val projNodes = Set(u, v).filter(_.fromProject)
+        projNodes.foreach { u =>
+          if (!gap.contains(u)) {
+            gap += (u -> nodeNLL(u))
+          }
         }
-      }
-      val nodeGaps = projNodes.map(gap)
-      if (nodeGaps.forall(_ > eps)) {
-        val maxPrice = nodeGaps.min
-        projNodes.zip(nodeGaps).foreach { case (u, uGap) =>
-          gap += (u -> (uGap - maxPrice))
+        val nodeGaps = projNodes.map(gap)
+        if (nodeGaps.forall(_ > eps)) {
+          val maxPrice = nodeGaps.min
+          projNodes.zip(nodeGaps).foreach {
+            case (u, uGap) =>
+              gap += (u -> (uGap - maxPrice))
+          }
         }
-      }
     }
     gap
   }
@@ -290,10 +296,14 @@ trait WeightedPatchAny {
   }
 }
 
+case object NoCorrection extends CorrectionBase {
+  def correct(assignment: Assignment): Assignment = assignment
+}
+
 case class PatchAnyCorrection(
     checker: TypeChecker,
     proposal: Map[PNode, TopNDistribution[PType]]
-) extends PatchAny {
+) extends CorrectionBase with PatchAny {
   def correct(prediction: Assignment): Assignment = {
     val badPairs = checker.violate(prediction)
     patchAny(badPairs, prediction)
@@ -303,7 +313,7 @@ case class PatchAnyCorrection(
 case class WeightedPatchAnyCorrection(
     checker: TypeChecker,
     proposal: Map[PNode, TopNDistribution[PType]]
-) extends WeightedPatchAny {
+) extends CorrectionBase with WeightedPatchAny {
   def correct(prediction: Assignment): Assignment = {
     val badPairs = checker.violate(prediction)
     patchAny(badPairs, prediction)
@@ -313,7 +323,7 @@ case class WeightedPatchAnyCorrection(
 case class LocalSearchCorrection(
     checker: TypeChecker,
     proposal: Map[PNode, TopNDistribution[PType]]
-) extends PatchAny {
+) extends CorrectionBase with PatchAny {
   def correct(prediction: Assignment): Assignment = {
     val (badPairs, prediction1) = boundedSearch(prediction, 3)
     patchAny(badPairs, prediction1)
@@ -366,6 +376,14 @@ trait AverageNLLBase extends NegativeLogLikelihoodBase {
   }
 }
 
+trait PenalizedAverageNLLBase extends AverageNLLBase {
+  def checker: TypeChecker
+  def coefficient: Double
+
+  override def prob(assignment: Assignment): Double =
+    super.prob(assignment) + coefficient * checker.violate(assignment).size
+}
+
 case class NegativeLogLikelihood(
     proposal: Map[PNode, TopNDistribution[PType]]
 ) extends NegativeLogLikelihoodBase
@@ -373,3 +391,9 @@ case class NegativeLogLikelihood(
 case class AverageNegativeLogLikelihood(
     proposal: Map[PNode, TopNDistribution[PType]]
 ) extends AverageNLLBase
+
+case class PenalizedAverageNLL(
+    proposal: Map[PNode, TopNDistribution[PType]],
+    checker: TypeChecker,
+    coefficient: Double
+) extends PenalizedAverageNLLBase
