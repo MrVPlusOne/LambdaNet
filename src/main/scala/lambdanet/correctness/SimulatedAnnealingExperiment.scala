@@ -17,7 +17,17 @@ object SimulatedAnnealingExperiment {
       schedule: Schedule,
       numEpochs: Int,
       numSamples: Int,
+      penaltyCoefficient: Double,
       reboot: Boolean
+  )
+
+  case class ParametersGrid(
+      seed: Option[Long],
+      schedule: Seq[Schedule],
+      numEpochs: Seq[Int],
+      numSamples: Seq[Int],
+      penaltyCoefficient: Seq[Double],
+      reboot: Seq[Boolean]
   )
 
   def run(relPathUnderData: RelPath, unseededParams: Parameters): Unit = {
@@ -33,7 +43,8 @@ object SimulatedAnnealingExperiment {
 
     val fmt = DateTimeFormatter.ofPattern("uuMMdd_HHmm")
 
-    val criterion = AverageNegativeLogLikelihood(results)
+    val criterion =
+      PenalizedAverageNLL(results, checker, params.penaltyCoefficient)
 
     // TODO: fix this by providing an encoder
     // amm.write(outputPath / s"$currentTime.json", params.asJson.toString())
@@ -64,7 +75,10 @@ object SimulatedAnnealingExperiment {
             results,
             // TODO: store these two in parameters as well
             WrongFirstOneDifferenceRandomNeighbor(results, checker).randomNeighbor,
-            WeightedPatchAnyCorrection(checker, results).correct,
+            if (params.penaltyCoefficient == 0.0)
+              WeightedPatchAnyCorrection(checker, results).correct
+            else
+              NoCorrection.correct,
             schedule,
             numEpochs = params.numEpochs,
             f = criterion.prob,
@@ -170,6 +184,25 @@ object SimulatedAnnealingExperiment {
     )
   }
 
+  def run(relPathUnderData: RelPath, paramsGrid: ParametersGrid): Unit = {
+    val seed = paramsGrid.seed
+    val allParams = for {
+      schedule <- paramsGrid.schedule
+      numEpochs <- paramsGrid.numEpochs
+      numSamples <- paramsGrid.numSamples
+      penaltyCoefficient <- paramsGrid.penaltyCoefficient
+      reboot <- paramsGrid.reboot
+    } yield Parameters(
+      seed = seed,
+      schedule = schedule,
+      numEpochs = numEpochs,
+      numSamples = numSamples,
+      penaltyCoefficient = penaltyCoefficient,
+      reboot = reboot
+    )
+    allParams.foreach(params => run(relPathUnderData, params))
+  }
+
   def main(args: Array[String]): Unit = {
     val params = Parameters(
       None,
@@ -179,6 +212,6 @@ object SimulatedAnnealingExperiment {
       reboot = false
     )
     val inputPath = RelPath("tests/public")
-    run(inputPath, params)
+    run(inputPath, paramsGrid)
   }
 }
