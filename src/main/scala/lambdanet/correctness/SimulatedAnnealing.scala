@@ -188,9 +188,36 @@ trait OneDifferenceRandomNeighborBase {
   }
 }
 
+trait WeightedOneDifferenceRandomNeighborBase
+    extends OneDifferenceRandomNeighborBase {
+  override def changeType(x: Assignment, nodeIndex: Int): Assignment = {
+    // fixme: Create a prefix-sum of type probabilities for O(log n) lookup
+    val vec: Seq[(PNode, PType)] = x.toVector
+    val (node, oldType) = vec(nodeIndex)
+    val distr = proposal(node)
+    val remainingProb = 1 - distr.typeProb(oldType)
+    val cmf = Random.nextDouble() * remainingProb
+    val (_, newType) = {
+      var sumProb = 0.0
+      distr.distr.map {
+        case (prob, t) =>
+          if (t != oldType) {
+            sumProb += prob
+          }
+          (sumProb, t)
+      }.dropWhile { case (sumProb, _) => sumProb < cmf }.head
+    }
+    vec.updated(nodeIndex, (node, newType)).toMap
+  }
+}
+
 case class OneDifferenceRandomNeighbor(
     proposal: Map[PNode, TopNDistribution[PType]]
 ) extends OneDifferenceRandomNeighborBase
+
+case class WeightedOneDifferenceRandomNeighbor(
+    proposal: Map[PNode, TopNDistribution[PType]]
+) extends WeightedOneDifferenceRandomNeighborBase
 
 case class WrongFirstOneDifferenceRandomNeighbor(
     override val proposal: Map[PNode, TopNDistribution[PType]],
@@ -303,7 +330,8 @@ case object NoCorrection extends CorrectionBase {
 case class PatchAnyCorrection(
     checker: TypeChecker,
     proposal: Map[PNode, TopNDistribution[PType]]
-) extends CorrectionBase with PatchAny {
+) extends CorrectionBase
+    with PatchAny {
   def correct(prediction: Assignment): Assignment = {
     val badPairs = checker.violate(prediction)
     patchAny(badPairs, prediction)
@@ -313,7 +341,8 @@ case class PatchAnyCorrection(
 case class WeightedPatchAnyCorrection(
     checker: TypeChecker,
     proposal: Map[PNode, TopNDistribution[PType]]
-) extends CorrectionBase with WeightedPatchAny {
+) extends CorrectionBase
+    with WeightedPatchAny {
   def correct(prediction: Assignment): Assignment = {
     val badPairs = checker.violate(prediction)
     patchAny(badPairs, prediction)
@@ -323,7 +352,8 @@ case class WeightedPatchAnyCorrection(
 case class LocalSearchCorrection(
     checker: TypeChecker,
     proposal: Map[PNode, TopNDistribution[PType]]
-) extends CorrectionBase with PatchAny {
+) extends CorrectionBase
+    with PatchAny {
   def correct(prediction: Assignment): Assignment = {
     val (badPairs, prediction1) = boundedSearch(prediction, 3)
     patchAny(badPairs, prediction1)

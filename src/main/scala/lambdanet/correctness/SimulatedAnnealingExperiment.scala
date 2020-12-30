@@ -74,7 +74,7 @@ object SimulatedAnnealingExperiment {
             graph,
             results,
             // TODO: store these two in parameters as well
-            WrongFirstOneDifferenceRandomNeighbor(results, checker).randomNeighbor,
+            WeightedOneDifferenceRandomNeighbor(results).randomNeighbor,
             if (params.penaltyCoefficient == 0.0)
               WeightedPatchAnyCorrection(checker, results).correct
             else
