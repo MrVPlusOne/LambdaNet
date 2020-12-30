@@ -11,7 +11,10 @@ object SimulatedAnnealing {
       epochs: Seq[Int],
       ys: Seq[Double],
       bestYs: Seq[Double],
+      nll: Seq[Double],
+      penalty: Seq[Double],
       nodeAccuracy: Seq[Double],
+      correctedNodeAccuracy: Seq[Double],
       proportionOfAny: Seq[Double],
       proportionOfNodesCoveredByAny: Seq[Double]
   )
@@ -20,36 +23,46 @@ object SimulatedAnnealing {
     * Minimize f using simulated annealing. Record intermediate objective values.
     */
   def searchWithLog(
-      g: PredicateGraph,
-      proposal: Map[PNode, TopNDistribution[PType]],
-      randomNeighbor: Assignment => Assignment,
-      correct: Correction,
-      t: Int => Double,
-      numEpochs: Int,
-      f: Objective,
-      reboot: Boolean = false,
-      accuracy: Accuracy,
-      checker: TypeChecker,
-      // TODO: Use this to limit reboot times,
-      rebootLimit: Int = 5
+    g: PredicateGraph,
+    proposal: Map[PNode, TopNDistribution[PType]],
+    randomNeighbor: Assignment => Assignment,
+    project: Correction,
+    correct: Correction,
+    t: Int => Double,
+    numEpochs: Int,
+    f: Objective,
+    reboot: Boolean = false,
+    accuracy: Accuracy,
+    checker: TypeChecker,
+    // TODO: Use this to limit reboot times,
+    rebootLimit: Int = 5
   ): (Assignment, IntermediateValues) = {
     val mostLikely = proposal.mapValuesNow(_.topValue)
     var x = mostLikely
-    val correctX = correct(x)
-    var y = f(correctX)
+    val projectX = project(x)
+    var y = f(projectX)
     var bestX = x
     var bestY = y
     var lastBestEpoch = 0
 
     val ys = new Array[Double](numEpochs + 1)
     val bestYs = new Array[Double](numEpochs + 1)
+    val nll = new Array[Double](numEpochs + 1)
+    val penalty = new Array[Double](numEpochs + 1)
     val nodeAccuracy = new Array[Double](numEpochs + 1)
+    val correctedNodeAccuracy = new Array[Double](numEpochs + 1)
     val proportionOfAny = new Array[Double](numEpochs + 1)
     val proportionOfNodesCoveredByAny = new Array[Double](numEpochs + 1)
+
+    val nllClass = AverageNegativeLogLikelihood(proposal)
     ys(0) = y
     bestYs(0) = bestY
+    nll(0) = nllClass.prob(x)
+    penalty(0) = y - nll(0)
     nodeAccuracy(0) = accuracy.get(x)
-    val anyNodes = accuracy.truth.keySet.filter(correctX(_) == PAny)
+    val correctX = correct(x)
+    correctedNodeAccuracy(0) = accuracy.get(correctX)
+    val anyNodes = accuracy.truth.keySet.filter(projectX(_) == PAny)
     proportionOfAny(0) = anyNodes.size / accuracy.truth.keySet.size.toDouble
     // TODO: Is this way of calculating node coverage accurate?
     val constrainedNodes = checker.subtypesToCheck
@@ -68,8 +81,8 @@ object SimulatedAnnealing {
     var epoch = 1
     while (epoch <= numEpochs) {
       val nextX = randomNeighbor(x)
-      val correctX = correct(nextX)
-      val nextY = f(correctX)
+      val projectX = project(nextX)
+      val nextY = f(projectX)
       val deltaY = nextY - y
       if (deltaY <= 0 || Random.nextDouble() < math.exp(-deltaY / t(epoch))) {
         x = nextX
@@ -83,12 +96,16 @@ object SimulatedAnnealing {
       //      println(s"epoch: $epoch, y: $y, bestY: $bestY")
       ys(epoch) = y
       bestYs(epoch) = bestY
-      nodeAccuracy(epoch) = accuracy.get(correctX)
+      nll(epoch) = nllClass.prob(x)
+      penalty(epoch) = y - nll(epoch)
+      nodeAccuracy(epoch) = accuracy.get(projectX)
+      val correctX = correct(x)
+      correctedNodeAccuracy(epoch) = accuracy.get(correctX)
 
       val constrainedNodes = checker.subtypesToCheck
         .flatMap { case (a, b) => Set(a, b) }
         .intersect(accuracy.truth.keySet)
-      val anyNodes = accuracy.truth.keySet.filter(correctX(_) == PAny)
+      val anyNodes = accuracy.truth.keySet.filter(projectX(_) == PAny)
       proportionOfAny(epoch) = anyNodes.size / accuracy.truth.keySet.size.toDouble
       val nodesCoveredByAny = constrainedNodes.to[collection.mutable.Set]
       checker.subtypesToCheck.foreach {
@@ -109,12 +126,15 @@ object SimulatedAnnealing {
       epoch += 1
     }
     (
-      correct(bestX),
+      project(bestX),
       IntermediateValues(
         0 to numEpochs,
         ys,
         bestYs,
+        nll,
+        penalty,
         nodeAccuracy = nodeAccuracy,
+        correctedNodeAccuracy,
         proportionOfAny,
         proportionOfNodesCoveredByAny
       )

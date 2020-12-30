@@ -47,7 +47,6 @@ object SimulatedAnnealingExperiment {
       PenalizedAverageNLL(results, checker, params.penaltyCoefficient)
 
     // TODO: fix this by providing an encoder
-    // amm.write(outputPath / s"$currentTime.json", params.asJson.toString())
     val mostLikely = results.map { case (k, v) => (k, v.distr(0)._2) }
     println(criterion.prob(mostLikely))
     checker.violate(mostLikely).foreach(println)
@@ -79,6 +78,7 @@ object SimulatedAnnealingExperiment {
               WeightedPatchAnyCorrection(checker, results).correct
             else
               NoCorrection.correct,
+            WeightedPatchAnyCorrection(checker, results).correct,
             schedule,
             numEpochs = params.numEpochs,
             f = criterion.prob,
@@ -96,7 +96,11 @@ object SimulatedAnnealingExperiment {
             x.epochs,
             (x.ys, y.ys).zipped.map(_ + _),
             (x.bestYs, y.bestYs).zipped.map(_ + _),
+            (x.nll, y.nll).zipped.map(_ + _),
+            (x.penalty, y.penalty).zipped.map(_ + _),
             (x.nodeAccuracy, y.nodeAccuracy).zipped.map(_ + _),
+            (x.correctedNodeAccuracy, y.correctedNodeAccuracy).zipped
+              .map(_ + _),
             (x.proportionOfAny, y.proportionOfAny).zipped.map(_ + _),
             (x.proportionOfNodesCoveredByAny, y.proportionOfNodesCoveredByAny).zipped
               .map(_ + _),
@@ -126,7 +130,11 @@ object SimulatedAnnealingExperiment {
     val averageLogValues: IntermediateValues = sumLogValues.copy(
       ys = sumLogValues.ys.map(_ / params.numSamples),
       bestYs = sumLogValues.bestYs.map(_ / params.numSamples),
+      nll = sumLogValues.nll.map(_ / params.numSamples),
+      penalty = sumLogValues.penalty.map(_ / params.numSamples),
       nodeAccuracy = sumLogValues.nodeAccuracy.map(_ / params.numSamples),
+      correctedNodeAccuracy =
+        sumLogValues.correctedNodeAccuracy.map(_ / params.numSamples),
       proportionOfAny = sumLogValues.proportionOfAny.map(_ / params.numSamples),
       proportionOfNodesCoveredByAny =
         sumLogValues.proportionOfNodesCoveredByAny.map(_ / params.numSamples),
@@ -139,8 +147,16 @@ object SimulatedAnnealingExperiment {
     val ys = averageLogValues.epochs.map(_.toDouble).zip(averageLogValues.ys)
     val bestYs =
       averageLogValues.epochs.map(_.toDouble).zip(averageLogValues.bestYs)
+    val nll =
+      averageLogValues.epochs.map(_.toDouble).zip(averageLogValues.nll)
+    val penalty =
+      averageLogValues.epochs.map(_.toDouble).zip(averageLogValues.penalty)
     val nodeAccuracy =
       averageLogValues.epochs.map(_.toDouble).zip(averageLogValues.nodeAccuracy)
+    val correctedNodeAccuracy =
+      averageLogValues.epochs
+        .map(_.toDouble)
+        .zip(averageLogValues.correctedNodeAccuracy)
     val proportionOfAny =
       averageLogValues.epochs
         .map(_.toDouble)
@@ -150,38 +166,40 @@ object SimulatedAnnealingExperiment {
         .map(_.toDouble)
         .zip(averageLogValues.proportionOfNodesCoveredByAny)
     val likelihoodPlot = plotly.linePlot(
-      Seq(ys, bestYs),
+      Seq(ys, bestYs, nll, penalty),
       CommonOptions(
         plotName = Some("Negative log-likelihoods over time on simple"),
         axesNames =
           (Some("Epoch"), Some("Negative log-likelihood (less is better)")),
-        legends = Some(Seq("current", "best"))
+        legends = Some(Seq("current", "best", "NLL", "penalty"))
       )
     )
     val accuracyPlot = plotly.linePlot(
-      Seq(nodeAccuracy),
+      Seq(nodeAccuracy, correctedNodeAccuracy, proportionOfAny),
       CommonOptions(
         plotName = Some("Accuracy"),
         axesNames = (Some("Epoch"), Some("Accuracy")),
-        legends = Some(Seq("node"))
+        legends = Some(Seq("raw", "projected", "Proportion of Any"))
       )
     )
-    val anyPlot = plotly.linePlot(
-      Seq(proportionOfAny, proportionOfNodesCoveredByAny),
-      CommonOptions(
-        plotName = Some("Proportion of nodes with Any type"),
-        axesNames = (Some("Epoch"), Some("Proportion of PAny")),
-        legends = Some(
-          Seq("Proportion of Any nodes", "Proportion of nodes covered by Any")
-        )
-      )
-    )
+//    val anyPlot = plotly.linePlot(
+//      Seq(proportionOfAny),
+//      CommonOptions(
+//        plotName = Some("Proportion of nodes with Any type"),
+//        axesNames = (Some("Epoch"), Some("Proportion of PAny")),
+//        legends = Some(
+//          Seq("Proportion of Any nodes", "Proportion of nodes covered by Any")
+//        )
+//      )
+//    )
     val currentTime = LocalDateTime.now().format(fmt)
     plotly.save(
-      plotly.column(likelihoodPlot, accuracyPlot, anyPlot),
+      plotly.column(likelihoodPlot, accuracyPlot),
       outputPath / s"$currentTime.html",
       "Simulated Annealing"
     )
+//    implicit val fooDecoder: Decoder[Parameters] = deriveDecoder[Parameters]
+//    amm.write(outputPath / s"$currentTime.json", params.asJson.toString())
   }
 
   def run(relPathUnderData: RelPath, paramsGrid: ParametersGrid): Unit = {
