@@ -54,6 +54,7 @@ object TypeChecker {
                 Set((rhs, lhs))
               case BinaryRelCat.equal | BinaryRelCat.fixType |
                    BinaryRelCat.fixAnnotation =>
+                // todo: use fixType to constrain type assignment directly
                 Set((lhs, rhs), (rhs, lhs))
             }
         }
