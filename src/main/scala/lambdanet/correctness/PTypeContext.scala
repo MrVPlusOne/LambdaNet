@@ -104,7 +104,7 @@ case class PTypeContext(
         if (node.fromProject)
           Some(assignment(node))
         else
-          Some(libDefs.nodeMapping(node).get)
+          libDefs.nodeMapping(node).typeOpt
       case PFunc(args, returnType) =>
         Some(PFuncType(args.map(assignment(_)), assignment(returnType)))
       case PCall(f, args) =>
