@@ -13,7 +13,7 @@ class WeightedOneDifferenceRandomNeighborTest extends WordSpec {
       val assignment = genAssignment(Seq((1, 1)))
       val neighbor = WeightedOneDifferenceRandomNeighbor(proposal)
       (1 to 10).foreach { _ =>
-        val newNeighbor = neighbor.randomNeighbor(assignment)(node(1))
+        val newNeighbor = neighbor.randomNeighbor(assignment)._1(node(1))
         assert(newNeighbor != assignment(node(1)))
         println(newNeighbor)
       }

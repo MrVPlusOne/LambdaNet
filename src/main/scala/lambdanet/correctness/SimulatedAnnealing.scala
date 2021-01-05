@@ -25,7 +25,7 @@ object SimulatedAnnealing {
   def searchWithLog(
     g: PredicateGraph,
     proposal: Map[PNode, TopNDistribution[PType]],
-    randomNeighbor: Assignment => Assignment,
+    randomNeighbor: Assignment => (Assignment, Double),
     project: Correction,
     correct: Correction,
     t: Int => Double,
@@ -80,11 +80,11 @@ object SimulatedAnnealing {
 
     var epoch = 1
     while (epoch <= numEpochs) {
-      val nextX = randomNeighbor(x)
+      val (nextX, transitionRatio) = randomNeighbor(x)
       val projectX = project(nextX)
       val nextY = f(projectX)
       val deltaY = nextY - y
-      if (deltaY <= 0 || Random.nextDouble() < math.exp(-deltaY / t(epoch))) {
+      if (deltaY <= 0 || Random.nextDouble() < math.exp(-deltaY / t(epoch)) * transitionRatio) {
         x = nextX
         y = nextY
       }
@@ -188,7 +188,7 @@ trait OneDifferenceRandomNeighborBase {
   def proposal: Map[PNode, TopNDistribution[PType]]
 
   // TODO: Pass a vector for better performance
-  def changeType(x: Assignment, nodeIndex: Int): Assignment = {
+  def changeType(x: Assignment, nodeIndex: Int): (Assignment, Double) = {
     val vec: Seq[(PNode, PType)] = x.toVector
     val (node, oldType) = vec(nodeIndex)
     val distr = proposal(node).distr
@@ -199,10 +199,15 @@ trait OneDifferenceRandomNeighborBase {
       }
       .dropWhile(_ == oldType)
       .next()
-    vec.updated(nodeIndex, (node, newType)).toMap
+    (vec.updated(nodeIndex, (node, newType)).toMap, 1)
   }
 
-  def randomNeighbor(x: Assignment): Assignment = {
+  /**
+    *
+    * @param x the old assignment
+    * @return the new assignment and P(new -> old) / P(old -> new) (transition probabilities)
+    */
+  def randomNeighbor(x: Assignment): (Assignment, Double) = {
     val nodeIndex = Random.nextInt(x.size)
     changeType(x, nodeIndex)
   }
@@ -210,7 +215,7 @@ trait OneDifferenceRandomNeighborBase {
 
 trait WeightedOneDifferenceRandomNeighborBase
     extends OneDifferenceRandomNeighborBase {
-  override def changeType(x: Assignment, nodeIndex: Int): Assignment = {
+  override def changeType(x: Assignment, nodeIndex: Int): (Assignment, Double) = {
     // fixme: Create a prefix-sum of type probabilities for O(log n) lookup
     val vec: Seq[(PNode, PType)] = x.toVector
     val (node, oldType) = vec(nodeIndex)
@@ -227,7 +232,9 @@ trait WeightedOneDifferenceRandomNeighborBase
           (sumProb, t)
       }.dropWhile { case (sumProb, _) => sumProb < cmf }.head
     }
-    vec.updated(nodeIndex, (node, newType)).toMap
+    val pNewToOld = distr.typeProb(oldType) / (1 - distr.typeProb(newType))
+    val pOldToNew = distr.typeProb(newType) / (1 - distr.typeProb(oldType))
+    (vec.updated(nodeIndex, (node, newType)).toMap, pNewToOld / pOldToNew)
   }
 }
 
@@ -243,7 +250,7 @@ case class WrongFirstOneDifferenceRandomNeighbor(
     override val proposal: Map[PNode, TopNDistribution[PType]],
     checker: TypeChecker
 ) extends OneDifferenceRandomNeighborBase {
-  override def randomNeighbor(x: Assignment): Assignment = {
+  override def randomNeighbor(x: Assignment): (Assignment, Double) = {
     val badPairs = checker.violate(x).toIndexedSeq
     if (badPairs.nonEmpty && Random.nextDouble() < 0.5) {
       val pairIndex = Random.nextInt(badPairs.size)
@@ -255,7 +262,8 @@ case class WrongFirstOneDifferenceRandomNeighbor(
         .dropWhile(n => n.asInstanceOf[PNode].fromLib)
         .next()
       val nodeIndex = x.toIndexedSeq.indexWhere { case (n, _) => n == node }
-      changeType(x, nodeIndex)
+      val newAssignment = changeType(x, nodeIndex)._1
+      ???
     } else {
       super.randomNeighbor(x)
     }

@@ -19,7 +19,7 @@ class SimulatedAnnealingTest extends WordSpec {
       SimulatedAnnealing.search(
         graph,
         results,
-        OneDifferenceRandomNeighbor(results).randomNeighbor,
+        x => OneDifferenceRandomNeighbor(results).randomNeighbor(x)._1,
         PatchAnyCorrection(checker, results).correct,
         schedule,
         numEpochs = 5000,
