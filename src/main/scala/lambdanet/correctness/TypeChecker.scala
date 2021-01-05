@@ -39,6 +39,7 @@ object TypeChecker {
     libDefs: LibDefs,
     additionalSubrel: Set[(PType, PType)] = Set.empty
   ): TypeChecker = {
+    // todo: should we add inheritance relations into additionalSubrel?
     val binaryRels = graph.predicates.collect {
       // inheritance is always satisfied (from definition)
       case p: BinaryRel if p.category != BinaryRelCat.inheritance => p
@@ -49,10 +50,14 @@ object TypeChecker {
           case BinaryRel(lhs, rhs, category) =>
             category match {
               // use inheritance as hard constraints
-              case BinaryRelCat.subtype | BinaryRelCat.assign =>
+              case BinaryRelCat.subtype =>
                 Set((lhs, rhs))
+              case BinaryRelCat.assign =>
+                // rhs <: lhs
+                Set((rhs, lhs))
               case BinaryRelCat.equal | BinaryRelCat.fixType |
                    BinaryRelCat.fixAnnotation =>
+                // todo: use fixType to constrain type assignment directly
                 Set((lhs, rhs), (rhs, lhs))
             }
         }
