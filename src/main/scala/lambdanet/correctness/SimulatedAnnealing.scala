@@ -262,8 +262,8 @@ case class WrongFirstOneDifferenceRandomNeighbor(
         .dropWhile(n => n.asInstanceOf[PNode].fromLib)
         .next()
       val nodeIndex = x.toIndexedSeq.indexWhere { case (n, _) => n == node }
-      val newAssignment = changeType(x, nodeIndex)._1
-      ???
+      // fixme: Calculate transition ratio
+      changeType(x, nodeIndex)
     } else {
       super.randomNeighbor(x)
     }
