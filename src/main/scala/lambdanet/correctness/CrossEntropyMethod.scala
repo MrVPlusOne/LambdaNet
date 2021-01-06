@@ -6,7 +6,7 @@ object CrossEntropyMethod {
   case class CEResult[P](param: P, converged: Boolean, iterations: Int)
 
   /**
-   *  @param x0 the initial parameter
+    * @param x0 the initial parameter
     * @tparam S Sample
     * @tparam P Param
     */
@@ -17,7 +17,7 @@ object CrossEntropyMethod {
       updateParam: (P, Vector[S], Vector[Real]) => P,
       numSamples: Int,
       numElites: Int,
-      callback: (P, Vector[S], Vector[Real], Int) => Boolean,
+      isConverged: (P, Vector[S], Vector[Real], Int) => Boolean,
       maxIters: Int = 1000,
   ): CEResult[P] = {
     var converged = false
@@ -32,7 +32,7 @@ object CrossEntropyMethod {
         samples = eliteIds.map(samples(_)).toVector
       }
       x = updateParam(x, samples, scores)
-      converged = callback(x, samples, scores, t)
+      converged = isConverged(x, samples, scores, t)
       t += 1
     }
     CEResult(x, converged, iterations = t)
