@@ -227,9 +227,10 @@ object SimulatedAnnealingExperiment {
       LogSchedule(0.02),
       numEpochs = 1,
       numSamples = 1,
+      penaltyCoefficient = 0,
       reboot = false
     )
     val inputPath = RelPath("tests/public")
-    run(inputPath, paramsGrid)
+    run(inputPath, params)
   }
 }
