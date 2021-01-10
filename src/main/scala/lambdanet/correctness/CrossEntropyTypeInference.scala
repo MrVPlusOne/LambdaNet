@@ -76,4 +76,18 @@ object CrossEntropyTypeInference {
     def multiply(distrs: Map[PNode, Map[PType, Real]], k: Real): Map[PNode, Map[PType, Real]] =
       distrs.mapValues(_.mapValues(_ * k))
   }
+
+  case class IsConverged(stopIters: Int) extends ((TypeDistrs, Samples, Scores, Int) => Boolean) {
+    var best: Option[(Int, Real)] = None
+    override def apply(_distrs: TypeDistrs,
+                       _elites: Samples,
+                       scores: Scores,
+                       t: Int): Boolean = {
+      val mean = scores.sum / scores.size
+      if (best.isEmpty || best.exists { case (_, bestScore) => bestScore > mean }) {
+        best = Some((t, mean))
+      }
+      best.exists { case (bestT, _) => t - bestT >= stopIters }
+    }
+  }
 }
