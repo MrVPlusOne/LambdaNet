@@ -1,13 +1,15 @@
 package lambdanet.correctness
 
-import cats.Foldable
+import java.util.concurrent.ThreadLocalRandom
+
+import cats.Monoid
 import cats.implicits._
 import com.typesafe.scalalogging.Logger
 import funcdiff.Real
 import lambdanet.train.TopNDistribution
 import lambdanet.translation.PredicateGraph.{PAny, PNode, PType}
 
-import scala.util.Random
+import scala.util.Random.javaRandomToRandom
 
 object CrossEntropyTypeInference {
   type Samples = Vector[Assignment]
@@ -26,7 +28,7 @@ object CrossEntropyTypeInference {
 
     def gen(param: TypeDistrs): Assignment = {
       var assignment = Map.empty[PNode, PType].withDefaultValue(PAny)
-      val perm = Random.shuffle(projectNodes)
+      val perm = ThreadLocalRandom.current().shuffle(projectNodes)
       for (node <- perm) {
         logger.debug(s"Selecting node: $node")
         val allNodeTypes = param(node).distr.map(_._2).toSet
@@ -64,13 +66,15 @@ object CrossEntropyTypeInference {
   }
 
   case class UpdateTypeDistrs(smoothing: Double) extends ((TypeDistrs, Samples, Scores) => TypeDistrs) {
+    val monoid: Monoid[Map[PNode, Map[PType, Real]]] = implicitly
+
     override def apply(distrs: TypeDistrs,
                        elites: Samples,
                        _scores: Scores): TypeDistrs = {
       val n = elites.size
-      val probs = Foldable[Vector].fold(elites.map(_.mapValues(x => Map(x -> 1.0 / n))))
+      val probs = elites.map(_.mapValues(x => Map(x -> 1.0 / n))).foldLeft(monoid.empty)(monoid.combine)
       val totalProbs = multiply(distrs.mapValues(_.typeProb), smoothing) |+| multiply(probs, 1 - smoothing)
-      totalProbs.mapValues(typeProbs => TopNDistribution(typeProbs.toVector.map(x => (x._2, x._1)).sortBy(_._1)))
+      totalProbs.mapValues(typeProbs => TopNDistribution(typeProbs.toVector.map(x => (x._2, x._1)).sortBy(-_._1)))
     }
 
     def multiply(distrs: Map[PNode, Map[PType, Real]], k: Real): Map[PNode, Map[PType, Real]] =

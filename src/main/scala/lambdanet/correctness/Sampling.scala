@@ -1,13 +1,13 @@
 package lambdanet.correctness
 
-import scala.util.Random
+import java.util.concurrent.ThreadLocalRandom
 
 object Sampling {
   /**
     * @param probs unnormalized PMF
     */
   def choose[T](items: Seq[T], probs: Seq[Double]): T = {
-    val p = Random.nextDouble()
+    val p = ThreadLocalRandom.current().nextDouble()
     choose(items, probs, p)
   }
 
