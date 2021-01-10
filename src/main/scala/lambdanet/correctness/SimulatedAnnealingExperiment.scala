@@ -44,7 +44,7 @@ object SimulatedAnnealingExperiment {
     val fmt = DateTimeFormatter.ofPattern("uuMMdd_HHmm")
 
     val criterion =
-      PenalizedAverageNLL(results, checker, params.penaltyCoefficient)
+      Objective.PenalizedAverageNLL(results, checker, params.penaltyCoefficient)
 
     // TODO: fix this by providing an encoder
     val mostLikely = results.map { case (k, v) => (k, v.distr(0)._2) }

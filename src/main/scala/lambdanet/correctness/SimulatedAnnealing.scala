@@ -30,7 +30,7 @@ object SimulatedAnnealing {
     correct: Correction,
     t: Int => Double,
     numEpochs: Int,
-    f: Objective,
+    f: Assignment => Double,
     reboot: Boolean = false,
     accuracy: Accuracy,
     checker: TypeChecker,
@@ -54,7 +54,7 @@ object SimulatedAnnealing {
     val proportionOfAny = new Array[Double](numEpochs + 1)
     val proportionOfNodesCoveredByAny = new Array[Double](numEpochs + 1)
 
-    val nllClass = AverageNegativeLogLikelihood(proposal)
+    val nllClass = Objective.AverageNegativeLogLikelihood(proposal)
     ys(0) = y
     bestYs(0) = bestY
     nll(0) = nllClass.prob(x)
@@ -151,7 +151,7 @@ object SimulatedAnnealing {
       correct: Correction,
       t: Int => Double,
       numEpochs: Int,
-      f: Objective,
+      f: Assignment => Double,
       reboot: Boolean = false
   ): Assignment = {
     val mostLikely = proposal.mapValuesNow(_.topValue)
@@ -411,47 +411,3 @@ case class LocalSearchCorrection(
     (leastBadPairs, bestPrediction)
   }
 }
-
-trait NegativeLogLikelihoodBase {
-  def proposal: Map[PNode, TopNDistribution[PType]]
-
-  def logLikelihoods(assignment: Assignment): Iterable[Double] =
-    assignment.map {
-      case (node, typ) =>
-        val topN = proposal(node)
-        val topNProb = topN.typeProb(typ)
-        math.log(topNProb)
-    }
-
-  def prob(assignment: Assignment): Double =
-    -logLikelihoods(assignment).sum
-}
-
-trait AverageNLLBase extends NegativeLogLikelihoodBase {
-  override def prob(assignment: Assignment): Double = {
-    val ll = logLikelihoods(assignment)
-    -ll.sum / ll.size
-  }
-}
-
-trait PenalizedAverageNLLBase extends AverageNLLBase {
-  def checker: TypeChecker
-  def coefficient: Double
-
-  override def prob(assignment: Assignment): Double =
-    super.prob(assignment) + coefficient * checker.violate(assignment).size
-}
-
-case class NegativeLogLikelihood(
-    proposal: Map[PNode, TopNDistribution[PType]]
-) extends NegativeLogLikelihoodBase
-
-case class AverageNegativeLogLikelihood(
-    proposal: Map[PNode, TopNDistribution[PType]]
-) extends AverageNLLBase
-
-case class PenalizedAverageNLL(
-    proposal: Map[PNode, TopNDistribution[PType]],
-    checker: TypeChecker,
-    coefficient: Double
-) extends PenalizedAverageNLLBase
