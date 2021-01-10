@@ -4,10 +4,26 @@ import ammonite.ops.RelPath
 import ammonite.{ops => amm}
 import lambdanet.translation.PredicateGraphLoader.libDefs
 
+import scala.util.Random
+
 object CrossEntropyExperiment {
-  def run(relPathUnderData: RelPath): Unit = {
+  case class Params(
+    relPathUnderData: RelPath,
+    seed: Option[Long],
+    numSamples: Int,
+    numElites: Int,
+    maxIters: Int,
+    smoothing: Double,
+    stopIters: Int
+  )
+
+  def run(unseededParams: Params): Unit = {
     import CrossEntropyTypeInference._
-    val inputPath = amm.pwd / "data" / relPathUnderData
+    val params = unseededParams.copy(
+      seed = Some(unseededParams.seed.getOrElse(Random.nextLong()))
+    )
+    Random.setSeed(params.seed.get)
+    val inputPath = amm.pwd / "data" / params.relPathUnderData
     val (graph, nodeAnnots, results) = InputUtils.loadGraphAndPredict(inputPath)
     val checker = TypeChecker(graph, libDefs)
     val projectNodes = graph.nodes.filter(_.fromProject)
