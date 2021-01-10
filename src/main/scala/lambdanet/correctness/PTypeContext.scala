@@ -25,8 +25,8 @@ case class PTypeContext(
       assignment: Map[PNode, PType]
   ): Boolean = {
     val maybeSubRel = for {
-      childType <- toType(child, assignment)
-      parentType <- toType(parent, assignment)
+      childType <- toType(child, assignment, subRel)
+      parentType <- toType(parent, assignment, subRel)
       result <- checkSubtype(childType, parentType, assignment, subRel)
     } yield result
     maybeSubRel.nonEmpty
@@ -46,13 +46,15 @@ case class PTypeContext(
     lazy val nowSubRel = subRel + (child -> parent)
     (child, parent) match {
       case (c: PTyVar, p: PTyVar) if c.madeFromLibTypes && p.madeFromLibTypes =>
-        if (c == p || c.node.nameOr("") + "Constructor" == p.node.nameOr("")) Some(nowSubRel) else None
+        if (c == p || c.node.nameOr("") + "Constructor" == p.node.nameOr(""))
+          Some(nowSubRel)
+        else None
       case (PTyVar(id), _) =>
         if (typeUnfold.contains(id)) {
           if (child == parent)
             Some(nowSubRel)
           else
-            toType(typeUnfold(id), assignment)
+            toType(typeUnfold(id), assignment, nowSubRel)
               .flatMap(unf => checkSubtype(unf, parent, assignment, nowSubRel))
         } else {
           assert(child.madeFromLibTypes, s"unknown type: $id")
@@ -63,7 +65,7 @@ case class PTypeContext(
           if (child == parent)
             Some(nowSubRel)
           else
-            toType(typeUnfold(id), assignment)
+            toType(typeUnfold(id), assignment, nowSubRel)
               .flatMap(unf => checkSubtype(child, unf, assignment, nowSubRel))
         } else {
           assert(parent.madeFromLibTypes, s"unknown type: $id")
@@ -98,7 +100,11 @@ case class PTypeContext(
     }
   }
 
-  def toType(expr: PExpr, assignment: Map[PNode, PType]): Option[PType] =
+  def toType(
+      expr: PExpr,
+      assignment: Map[PNode, PType],
+      subRel: Set[(PType, PType)]
+  ): Option[PType] =
     expr match {
       case node: PNode =>
         if (node.fromProject)
@@ -110,8 +116,12 @@ case class PTypeContext(
       case PCall(f, args) =>
         val argTypes = args.map(assignment(_))
         assignment(f) match {
-          case PFuncType(paramTypes, to) if argTypes == paramTypes => Some(to)
-          case _                                                   => None
+          case PFuncType(paramTypes, to) if argTypes.zip(paramTypes).forall {
+                case (child, parent) =>
+                  checkSubtype(child, parent, assignment, subRel).nonEmpty
+              } =>
+            Some(to)
+          case _ => None
         }
       case PObject(fields) =>
         Some(PObjectType(fields.mapValues(assignment(_)))) // TODO: or mapValuesNow?
