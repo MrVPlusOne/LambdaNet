@@ -15,6 +15,7 @@
     <logger name="botkop" level="OFF"/>
     <logger name="org.nd4j" level="OFF"/>
     <logger name="org.reflections" level="ERROR"/>
+    <logger name="lambdanet.correctness" level="OFF"/>
 
     <root level="OFF">
         <appender-ref ref="ASYNCSTDOUT"/>

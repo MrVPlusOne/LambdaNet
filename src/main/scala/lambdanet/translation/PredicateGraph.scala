@@ -566,6 +566,9 @@ object PredicateGraphLoader {
     }
 
   def load(dir: Path): ParsedProject =
+    load(dir, libDefs)
+
+  def load(dir: Path, libDefs: LibDefs): ParsedProject =
     parseProject(
       libDefs,
       dir / up,

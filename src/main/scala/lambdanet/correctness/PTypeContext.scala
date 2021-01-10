@@ -46,7 +46,9 @@ case class PTypeContext(
     lazy val nowSubRel = subRel + (child -> parent)
     (child, parent) match {
       case (c: PTyVar, p: PTyVar) if c.madeFromLibTypes && p.madeFromLibTypes =>
-        if (c == p || c.node.nameOr("") + "Constructor" == p.node.nameOr(""))
+        if (c == p
+            || c.node.nameOr("") + "Constructor" == p.node.nameOr("")
+            || p.node.nameOr("") + "Constructor" == c.node.nameOr(""))
           Some(nowSubRel)
         else None
       case (PTyVar(id), _) =>

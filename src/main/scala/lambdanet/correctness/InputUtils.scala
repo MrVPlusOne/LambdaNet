@@ -19,6 +19,7 @@ object InputUtils {
     model.PredictionService(numOfThreads = 8, predictTopK = Int.MaxValue)
 
   def loadGraphAndPredict(inputPath: Path): (PredicateGraph, Map[PNode, PAnnot], TypeDistrs) = {
+    val resultsPath = inputPath / "results.serialized"
     val project = PredicateGraphLoader.load(inputPath)
     val graph = project.pGraph
     val nodeSeqAnnots: Map[PNode, Seq[PAnnot]] = project.qModules.map(_.mapping.toSeq).reduce(_ ++ _).groupBy(_._1).mapValuesNow(_.map(_._2))
@@ -26,7 +27,6 @@ object InputUtils {
       assert(annot.size == 1, s"$node has multiple annotations: $annot")
     }
     val nodeAnnots = nodeSeqAnnots.mapValuesNow(_.head)
-    val resultsPath = inputPath / "results.serialized"
     val results =
       if (amm.exists(resultsPath)) {
         SM.readObjectFromFile[TypeDistrs](resultsPath.toIO)
