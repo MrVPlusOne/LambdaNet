@@ -1,9 +1,12 @@
 package lambdanet.correctness
 
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+
 import ammonite.ops.RelPath
 import ammonite.{ops => amm}
 import lambdanet.train.TopNDistribution
-import lambdanet.translation.PredicateGraph.{PNode, PType}
+import lambdanet.translation.PredicateGraph.{DefineRel, PNode, PType}
 import lambdanet.translation.PredicateGraphLoader.libDefs
 
 import scala.util.Random
@@ -31,6 +34,7 @@ object CrossEntropyExperiment {
     val projectNodes = graph.nodes.filter(_.fromProject)
     checker.subtypesToCheck.foreach(println)
     checker.binaryRels.foreach(println)
+    graph.predicates.collect { case p: DefineRel => p }.foreach(println)
     println()
 
     val objective =
@@ -70,11 +74,16 @@ object CrossEntropyExperiment {
     val groundTruth = GroundTruth(nodeAnnots, toPlainType = true)
     best.foreach(println)
     println("Violated constraints:")
+    checker.violate(best).foreach(println)
     println("======Difference between ground truth and best sample======")
     val groundTruthDifference =
       Assignment.diff(results, groundTruth.truth, best)
     println(groundTruthDifference)
-    checker.violate(best).foreach(println)
     println()
+
+    val fmt = DateTimeFormatter.ofPattern("uuMMdd_HHmm")
+    val currentTime = LocalDateTime.now().format(fmt)
+    val outputPath = amm.pwd / "CE_Results" / currentTime
+    OutputUtils.save(outputPath, "ceResult.serialized", ceResult.asInstanceOf[Serializable])
   }
 }
