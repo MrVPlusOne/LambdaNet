@@ -15,6 +15,15 @@ case class TopNDistribution[T](distr: Vector[(Real, T)]) {
     TopNDistribution(distr.map { case (prob, t) => (prob, f(t)) })
 }
 
+object TopNDistribution {
+  def apply[T](
+      distr: Vector[(Real, T)],
+      cacheTypeProb: Map[T, Real]
+  ): TopNDistribution[T] = new TopNDistribution(distr) {
+    override val typeProb: Map[T, Real] = cacheTypeProb
+  }
+}
+
 trait DecodingResult {
   def topPredictions: Vector[Int]
 
@@ -41,7 +50,7 @@ object DecodingResult {
         .reverse
         .take(n)
         .toVector
-        .pipe(TopNDistribution.apply)
+        .pipe(TopNDistribution(_))
     }
 }
 
