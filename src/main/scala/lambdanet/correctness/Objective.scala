@@ -4,7 +4,7 @@ import lambdanet.train.TopNDistribution
 import lambdanet.translation.PredicateGraph.{PNode, PType}
 
 object Objective {
-  trait NegativeLogLikelihoodBase {
+  trait NegativeLogLikelihoodBase extends (Assignment => Double) {
     def proposal: Map[PNode, TopNDistribution[PType]]
 
     def logLikelihoods(assignment: Assignment): Iterable[Double] =
@@ -17,6 +17,9 @@ object Objective {
 
     def prob(assignment: Assignment): Double =
       -logLikelihoods(assignment).sum
+
+    def apply(assignment: Assignment): Double =
+      prob(assignment)
   }
 
   trait AverageNLLBase extends NegativeLogLikelihoodBase {

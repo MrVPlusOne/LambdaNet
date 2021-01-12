@@ -1,10 +1,12 @@
 package lambdanet.correctness
 
+import java.io.InvalidClassException
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 import ammonite.ops.RelPath
 import ammonite.{ops => amm}
+import lambdanet.correctness.Objective.{AverageNegativeLogLikelihood, NegativeLogLikelihood}
 import lambdanet.train.TopNDistribution
 import lambdanet.translation.PredicateGraph.{DefineRel, PNode, PType}
 import lambdanet.translation.PredicateGraphLoader.libDefs
@@ -19,7 +21,11 @@ object CrossEntropyExperiment {
       numElites: Int,
       maxIters: Int,
       smoothing: Double,
-      stopIters: Int
+      stopIters: Int,
+      objectiveClass: String,
+      generatorClass: String,
+      updateClass: String,
+      callbackClass: String
   )
 
   def run(unseededParams: Params): Unit = {
@@ -37,20 +43,51 @@ object CrossEntropyExperiment {
     graph.predicates.collect { case p: DefineRel => p }.foreach(println)
     println()
 
+    val objectiveConstructor = params.objectiveClass match {
+      case "lambdanet.correctness.Objective.NegativeLogLikelihood$" =>
+        NegativeLogLikelihood
+      case "lambdanet.correctness.Objective.AverageNegativeLogLikelihood$" =>
+        AverageNegativeLogLikelihood
+    }
     val objective =
       (distrs: Map[PNode, TopNDistribution[PType]]) =>
-        Objective.NegativeLogLikelihood(distrs).prob(_)
+        objectiveConstructor(distrs)
 
     val parents =
       checker.subtypesToCheck.groupBy(_._1).mapValuesNow(_.map(_._2))
     val children =
       checker.subtypesToCheck.groupBy(_._2).mapValuesNow(_.map(_._1))
     println(children)
-    val assignmentGen =
-      AssignmentGen(projectNodes, checker.defaultContext, parents, children)
 
-    val updateTypeDistrs = UpdateTypeDistrs(params.smoothing)
-    val isConverged = IsConverged(params.stopIters)
+    val assignmentGen = params.generatorClass match {
+      case "lambdanet.correctness.CrossEntropyTypeInference.AssignmentGen$" =>
+        AssignmentGen(projectNodes, checker.defaultContext, parents, children)
+      case _ =>
+        throw new InvalidClassException(
+          params.generatorClass,
+          "generator class is not supported"
+        )
+    }
+
+    val updateTypeDistrs = params.updateClass match {
+      case "lambdanet.correctness.CrossEntropyTypeInference.UpdateTypeDistrs$" =>
+        UpdateTypeDistrs(params.smoothing)
+      case _ =>
+        throw new InvalidClassException(
+          params.updateClass,
+          "update class is not supported"
+        )
+    }
+
+    val isConverged = params.callbackClass match {
+      case "lambdanet.correctness.CrossEntropyTypeInference.IsConverged$" =>
+        IsConverged(params.stopIters)
+      case _ =>
+        throw new InvalidClassException(
+          params.callbackClass,
+          "callback class is not supported"
+        )
+    }
 
     val ceResult = CrossEntropyMethod.ceMinimize(
       objective,
@@ -84,6 +121,15 @@ object CrossEntropyExperiment {
     val fmt = DateTimeFormatter.ofPattern("uuMMdd_HHmm")
     val currentTime = LocalDateTime.now().format(fmt)
     val outputPath = amm.pwd / "CE_Results" / currentTime
-    OutputUtils.save(outputPath, "ceResult.serialized", ceResult.asInstanceOf[Serializable])
+    OutputUtils.save(
+      outputPath,
+      "ceResult.serialized",
+      ceResult.asInstanceOf[Serializable]
+    )
+    OutputUtils.save(
+      outputPath,
+      "params.serialized",
+      params.asInstanceOf[Serializable]
+    )
   }
 }
