@@ -57,11 +57,19 @@ object CrossEntropyExperiment {
       checker.subtypesToCheck.groupBy(_._1).mapValuesNow(_.map(x => Right(x._2)))
     val children: Map[PNode, Set[Either[PNode, PNode]]] =
       checker.subtypesToCheck.groupBy(_._2).mapValuesNow(_.map(x => Left(x._1)))
-    println(children)
+    val subtypingNodes = parents ++ children
+
+    val sameNodesByAccess = Heuristics.accessNodesAreTheSame(checker.defaultContext.typeUnfold)
+    val standaloneNodes = projectNodes.collect {
+      case x if !sameNodesByAccess.flatten.contains(x) => Set(x)
+    }
+    val sameNodes = sameNodesByAccess ++ standaloneNodes
+    println("======Same nodes======")
+    sameNodes.filter(_.size > 1).foreach(println)
 
     val assignmentGen = params.generatorClass match {
       case "lambdanet.correctness.CrossEntropyTypeInference.AssignmentGen$" =>
-        AssignmentGen(projectNodes, checker.defaultContext, parents ++ children)
+        AssignmentGen(projectNodes, checker.defaultContext, subtypingNodes, sameNodes)
       case _ =>
         throw new InvalidClassException(
           params.generatorClass,

@@ -20,9 +20,10 @@ object CrossEntropyTypeInference {
     * @param subtypingNodes maps a node to its set of either child nodes (left) or parent nodes (right)
     */
   case class AssignmentGen(
-      projectNodes: Set[PNode],
-      context: PTypeContext,
-      subtypingNodes: Map[PNode, Set[Either[PNode, PNode]]]
+    projectNodes: Set[PNode],
+    context: PTypeContext,
+    subtypingNodes: Map[PNode, Set[Either[PNode, PNode]]],
+    sameNodes: Set[Set[PNode]]
   ) extends ((TypeDistrs, Int) => Samples) {
     private val logger = Logger(classOf[AssignmentGen])
 
@@ -30,12 +31,14 @@ object CrossEntropyTypeInference {
       Vector.fill(numSamples)(gen(param))
 
     def gen(param: TypeDistrs): Assignment = {
+      val random = ThreadLocalRandom.current()
       var assignment = Map.empty[PNode, PType].withDefaultValue(PAny)
-      val perm = ThreadLocalRandom.current().shuffle(projectNodes)
-      for (node <- perm) {
+      val perm = random.shuffle(sameNodes.map(random.shuffle(_)))
+      for (nodes <- perm) {
+        val node = nodes.head
         logger.debug(s"Selecting node: $node")
         val allNodeTypes = param(node).distr.map(_._2).toSet
-        val relatedNodes = subtypingNodes.getOrElse(node, Set.empty)
+        val relatedNodes = nodes.flatMap(node => subtypingNodes.getOrElse(node, Set.empty))
         val availableTypes = relatedNodes
           .foldLeft(allNodeTypes) {
             case (types, eitherChildOrParent) =>
@@ -58,7 +61,7 @@ object CrossEntropyTypeInference {
           availableTypes.toSeq.map(param(node).typeProb(_))
         )
         logger.debug(s"Assigning $nodeType to $node\n")
-        assignment = assignment.updated(node, nodeType)
+        assignment = assignment ++ nodes.map(node => node -> nodeType).toMap
       }
       assignment
     }
