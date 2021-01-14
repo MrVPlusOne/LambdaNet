@@ -54,12 +54,16 @@ object CrossEntropyExperiment {
         objectiveConstructor(distrs)
 
     val parents: Map[PNode, Set[Either[PNode, PNode]]] =
-      checker.subtypesToCheck.groupBy(_._1).mapValuesNow(_.map(x => Right(x._2)))
+      checker.subtypesToCheck
+        .groupBy(_._1)
+        .mapValuesNow(_.map(x => Right(x._2)))
     val children: Map[PNode, Set[Either[PNode, PNode]]] =
       checker.subtypesToCheck.groupBy(_._2).mapValuesNow(_.map(x => Left(x._1)))
     val subtypingNodes = parents ++ children
 
-    val sameNodesByAccess = Heuristics.accessNodesAreTheSame(checker.defaultContext.typeUnfold)
+    val sameNodesByAccess =
+      Heuristics.accessNodesAreTheSame(checker.defaultContext.typeUnfold)
+    //    val sameNodesByAccess = Set.empty[Set[PNode]]
     val standaloneNodes = projectNodes.collect {
       case x if !sameNodesByAccess.flatten.contains(x) => Set(x)
     }
@@ -69,7 +73,12 @@ object CrossEntropyExperiment {
 
     val assignmentGen = params.generatorClass match {
       case "lambdanet.correctness.CrossEntropyTypeInference.AssignmentGen$" =>
-        AssignmentGen(projectNodes, checker.defaultContext, subtypingNodes, sameNodes)
+        AssignmentGen(
+          projectNodes,
+          checker.defaultContext,
+          subtypingNodes,
+          sameNodes
+        )
       case _ =>
         throw new InvalidClassException(
           params.generatorClass,
@@ -118,7 +127,11 @@ object CrossEntropyExperiment {
     ceResult.param.foreach(println)
     val groundTruth = GroundTruth(nodeAnnots, toPlainType = true)
     val accuracy = Accuracy(groundTruth)
-    val meanAccuracy = ceResult.elites.map(accuracy.get).sum / ceResult.elites.size
+    val meanAccuracy =
+      ceResult.elites
+        .map(accuracy.get)
+        .sum /
+        ceResult.elites.size
     println(s"Average accuracy: $meanAccuracy")
     best.foreach(println)
     println("Violated constraints:")
@@ -127,6 +140,10 @@ object CrossEntropyExperiment {
     val groundTruthDifference: Assignment.Difference =
       Assignment.diff(results, groundTruth.truth, best)
     println(s"${groundTruthDifference.diff.size} differences found")
+    println(s"${
+      groundTruthDifference.diff
+        .count { case (node, (gold, _)) => results(node).typeProb.contains(gold) }
+    } differences remain after filtering unpredicted types")
     println(groundTruthDifference)
     println()
 
