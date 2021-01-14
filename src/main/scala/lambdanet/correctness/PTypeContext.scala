@@ -144,6 +144,7 @@ object PTypeContext {
     val defineRels = graph.predicates.collect {
       case p: DefineRel => p
     }
+    // todo: Add library nodes as well
     val typeUnfold = defineRels.map {
       case DefineRel(v, expr) => (v, expr)
     }.toMap

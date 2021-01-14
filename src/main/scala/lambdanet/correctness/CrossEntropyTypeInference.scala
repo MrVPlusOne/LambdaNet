@@ -35,6 +35,7 @@ object CrossEntropyTypeInference {
       var assignment = Map.empty[PNode, PType].withDefaultValue(PAny)
       val perm = random.shuffle(sameNodes.map(random.shuffle(_)))
       for (nodes <- perm) {
+        // todo: When library nodes are added in PTypeContext, nodes can contain library nodes
         val node = nodes.head
         logger.debug(s"Selecting node: $node")
         val allNodeTypes = param(node).distr.map(_._2).toSet
