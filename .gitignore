@@ -42,3 +42,4 @@ models/
 package-lock.json
 .DS_STORE
 /src/main/scala/lambdanet/correctness/CrossEntropyExperimentScript.scala
+/CE_Results/
