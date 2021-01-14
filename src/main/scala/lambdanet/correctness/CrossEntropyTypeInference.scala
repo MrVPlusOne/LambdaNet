@@ -15,11 +15,14 @@ object CrossEntropyTypeInference {
   type Samples = Vector[Assignment]
   type Scores = Vector[Real]
 
+  /**
+    *
+    * @param subtypingNodes maps a node to its set of either child nodes (left) or parent nodes (right)
+    */
   case class AssignmentGen(
       projectNodes: Set[PNode],
       context: PTypeContext,
-      parents: Map[PNode, Set[PNode]],
-      children: Map[PNode, Set[PNode]]
+      subtypingNodes: Map[PNode, Set[Either[PNode, PNode]]]
   ) extends ((TypeDistrs, Int) => Samples) {
     private val logger = Logger(classOf[AssignmentGen])
 
@@ -32,25 +35,21 @@ object CrossEntropyTypeInference {
       for (node <- perm) {
         logger.debug(s"Selecting node: $node")
         val allNodeTypes = param(node).distr.map(_._2).toSet
-        val parentNodes = parents
-          .getOrElse(node, Set.empty)
-        val childrenNodes = children.getOrElse(node, Set.empty)
-        logger.debug(s"Parent nodes: ${parentNodes.mkString(", ")}")
-        val parentSubtypes = parentNodes
+        val relatedNodes = subtypingNodes.getOrElse(node, Set.empty)
+        val availableTypes = relatedNodes
           .foldLeft(allNodeTypes) {
-            case (subtypes, parent) =>
-              val remaining = subtypes.filter(typ => context.isSubtype(node, parent, assignment.updated(node, typ)))
-              logger.debug(s"Types remaining after parent $parent: ${remaining.mkString(", ")}")
+            case (types, eitherChildOrParent) =>
+              val remaining = types.filter {
+                eitherChildOrParent match {
+                  case Left(child) =>
+                    typ => context.isSubtype(child, node, assignment.updated(node, typ))
+                  case Right(parent) =>
+                    typ => context.isSubtype(node, parent, assignment.updated(node, typ))
+                }
+              }
+              logger.debug(s"Types remaining after related node $eitherChildOrParent: ${remaining.mkString(", ")}")
               remaining
           }
-        logger.debug(s"Children nodes: ${childrenNodes.mkString(", ")}")
-        val childrenSupertypes = childrenNodes.foldLeft(parentSubtypes) {
-          case (supertypes, child) =>
-            val remaining = supertypes.filter(typ => context.isSubtype(child, node, assignment.updated(node, typ)))
-            logger.debug(s"Types remaining after child $child: ${remaining.mkString(", ")}")
-            remaining
-        }
-        val availableTypes = childrenSupertypes
         assert(availableTypes.nonEmpty, s"no available type for node $node")
         val probs = availableTypes.toSeq.map(param(node).typeProb(_))
         logger.debug(s"Types and probs: ${availableTypes.toSeq.zip(probs).mkString(", ")}")

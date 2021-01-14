@@ -53,15 +53,15 @@ object CrossEntropyExperiment {
       (distrs: Map[PNode, TopNDistribution[PType]]) =>
         objectiveConstructor(distrs)
 
-    val parents =
-      checker.subtypesToCheck.groupBy(_._1).mapValuesNow(_.map(_._2))
-    val children =
-      checker.subtypesToCheck.groupBy(_._2).mapValuesNow(_.map(_._1))
+    val parents: Map[PNode, Set[Either[PNode, PNode]]] =
+      checker.subtypesToCheck.groupBy(_._1).mapValuesNow(_.map(x => Right(x._2)))
+    val children: Map[PNode, Set[Either[PNode, PNode]]] =
+      checker.subtypesToCheck.groupBy(_._2).mapValuesNow(_.map(x => Left(x._1)))
     println(children)
 
     val assignmentGen = params.generatorClass match {
       case "lambdanet.correctness.CrossEntropyTypeInference.AssignmentGen$" =>
-        AssignmentGen(projectNodes, checker.defaultContext, parents, children)
+        AssignmentGen(projectNodes, checker.defaultContext, parents ++ children)
       case _ =>
         throw new InvalidClassException(
           params.generatorClass,
