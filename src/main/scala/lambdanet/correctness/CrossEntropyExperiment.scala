@@ -1,5 +1,6 @@
 package lambdanet.correctness
 
+//import $ivy.`org.plotly-scala::plotly-render:0.5.4`
 import java.io.InvalidClassException
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -10,22 +11,26 @@ import lambdanet.correctness.Objective.{AverageNegativeLogLikelihood, NegativeLo
 import lambdanet.train.TopNDistribution
 import lambdanet.translation.PredicateGraph.{DefineRel, PNode, PType}
 import lambdanet.translation.PredicateGraphLoader.libDefs
+import plotly.Plotly._
+import plotly._
+import plotly.element._
+import plotly.layout.{Axis, Layout}
 
 import scala.util.Random
 
 object CrossEntropyExperiment {
   case class Params(
-      relPathUnderData: RelPath,
-      seed: Option[Long],
-      numSamples: Int,
-      numElites: Int,
-      maxIters: Int,
-      smoothing: Double,
-      stopIters: Int,
-      objectiveClass: String,
-      generatorClass: String,
-      updateClass: String,
-      callbackClass: String
+    relPathUnderData: RelPath,
+    seed: Option[Long],
+    numSamples: Int,
+    numElites: Int,
+    maxIters: Int,
+    smoothing: Double,
+    stopIters: Int,
+    objectiveClass: String,
+    generatorClass: String,
+    updateClass: String,
+    callbackClass: String
   )
 
   def run(unseededParams: Params): Unit = {
@@ -132,7 +137,7 @@ object CrossEntropyExperiment {
 
     val best = ceResult.elites.head
     ceResult.param.foreach(println)
-    val meanAccuracy = sampleAccuracy.mean(ceResult.iterations)._2
+    val meanAccuracy = sampleAccuracy.mean(ceResult.iterations)
     println(s"Average accuracy: $meanAccuracy")
     best.foreach(println)
     println("Violated constraints:")
@@ -151,6 +156,40 @@ object CrossEntropyExperiment {
     val fmt = DateTimeFormatter.ofPattern("uuMMdd_HHmm")
     val currentTime = LocalDateTime.now().format(fmt)
     val outputPath = amm.pwd / "CE_Results" / currentTime
+
+    val scorePlot = Scatter(
+      sampleScore.epochs.toSeq,
+      sampleScore.mean.toSeq,
+      error_y = Error.Data(array = sampleScore.stdev, visible = true),
+      name = params.objectiveClass.split('.').last.stripSuffix("$"),
+    )
+    val accuracyPlot = Scatter(
+      sampleAccuracy.epochs.toSeq,
+      sampleAccuracy.mean.toSeq,
+      error_y = Error.Data(array = sampleAccuracy.stdev, visible = true),
+      name = "Accuracy",
+      yaxis = AxisReference.Y2
+    )
+    val plots = Seq(accuracyPlot, scorePlot)
+    val path = outputPath / "plots.html"
+    if (!amm.exists(outputPath)) {
+      amm.mkdir(outputPath)
+    }
+    plots.plot(
+      path.toString(),
+      Layout(
+        title = "Cross entropy results",
+        yaxis = Axis(
+          anchor = AxisAnchor.Reference(AxisReference.Y1),
+          domain = (0.55, 1)
+        ),
+        yaxis2 = Axis(
+          anchor = AxisAnchor.Reference(AxisReference.Y2),
+          domain = (0, 0.45)
+        )
+      )
+    )
+
     OutputUtils.save(
       outputPath,
       "ceResult.serialized",

@@ -56,7 +56,8 @@ libraryDependencies ++= Seq(
   "org.typelevel" %% "cats-effect" % "2.0.0-M3" withSources(),
   "com.github.nscala-time" %% "nscala-time" % "2.22.0",
   "com.lihaoyi" %% "upickle" % "0.7.5",
-  "com.lihaoyi" %% "scalatags" % "0.7.0"
+  "com.lihaoyi" %% "scalatags" % "0.7.0",
+  "org.plotly-scala" %% "plotly-render" % "0.8.0"
 )
 
 addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.0")

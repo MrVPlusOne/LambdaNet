@@ -94,17 +94,19 @@ object CrossEntropyTypeInference {
   trait AverageAndStdev {
     def length: Int
 
-    val mean: Array[(Int, Double)] = new Array(length + 1)
-    val stdev: Array[(Int, Double)] = new Array(length + 1)
+    val epochs: Array[Int] = new Array(length + 1)
+    val mean: Array[Double] = new Array(length + 1)
+    val stdev: Array[Double] = new Array(length + 1)
 
     def recordAverageAndStdev(xs: Seq[Double], t: Int): Unit = {
       val currentMean = Statistics.average(xs)
-      mean(t) = (t, currentMean)
-      stdev(t) = (t, Statistics.stdev(xs, currentMean))
+      epochs(t) = t
+      mean(t) = currentMean
+      stdev(t) = Statistics.stdev(xs, currentMean)
     }
   }
 
-  class SampleAccuracy(maxIters: Int, accuracy: Accuracy) extends Metric with AverageAndStdev {
+  class SampleAccuracy(maxIters: Int, accuracy: Accuracy) extends Metric with AverageAndStdev with Serializable {
     def length: Int = maxIters
 
     override def apply(
@@ -117,7 +119,7 @@ object CrossEntropyTypeInference {
     }
   }
 
-  class SampleScore(maxIters: Int) extends Metric with AverageAndStdev {
+  class SampleScore(maxIters: Int) extends Metric with AverageAndStdev with Serializable {
     def length: Int = maxIters
 
     override def apply(
