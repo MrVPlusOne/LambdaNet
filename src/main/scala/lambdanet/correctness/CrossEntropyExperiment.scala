@@ -117,12 +117,16 @@ object CrossEntropyExperiment {
     val best = ceResult.elites.head
     ceResult.param.foreach(println)
     val groundTruth = GroundTruth(nodeAnnots, toPlainType = true)
+    val accuracy = Accuracy(groundTruth)
+    val meanAccuracy = ceResult.elites.map(accuracy.get).sum / ceResult.elites.size
+    println(s"Average accuracy: $meanAccuracy")
     best.foreach(println)
     println("Violated constraints:")
     checker.violate(best).foreach(println)
     println("======Difference between ground truth and best sample======")
-    val groundTruthDifference =
+    val groundTruthDifference: Assignment.Difference =
       Assignment.diff(results, groundTruth.truth, best)
+    println(s"${groundTruthDifference.diff.size} differences found")
     println(groundTruthDifference)
     println()
 
