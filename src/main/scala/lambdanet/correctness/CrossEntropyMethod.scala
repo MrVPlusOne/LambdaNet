@@ -11,14 +11,15 @@ object CrossEntropyMethod {
     * @tparam P Param
     */
   def ceMinimize[S, P](
-      f: P => S => Real,
-      x0: P,
-      genSamples: (P, Int) => Vector[S],
-      updateParam: (P, Vector[S], Vector[Real]) => P,
-      numSamples: Int,
-      numElites: Int,
-      isConverged: (P, Vector[S], Vector[Real], Int) => Boolean,
-      maxIters: Int = 1000,
+    f: P => S => Real,
+    x0: P,
+    genSamples: (P, Int) => Vector[S],
+    updateParam: (P, Vector[S], Vector[Real]) => P,
+    numSamples: Int,
+    numElites: Int,
+    isConverged: (P, Vector[S], Vector[Real], Int) => Boolean,
+    maxIters: Int = 1000,
+    metrics: Seq[(P, Vector[S], Vector[Real], Int) => Unit]
   ): CEResult[S, P] = {
     var converged = false
     var t = 0
@@ -26,6 +27,7 @@ object CrossEntropyMethod {
     var samples = Vector.empty[S]
     var scores = Vector.empty[Real]
     while (!converged && t < maxIters) {
+      t += 1
       println(t)
       samples = genSamples(x, numSamples)
       scores = samples.map(f(x))
@@ -36,7 +38,7 @@ object CrossEntropyMethod {
       }
       x = updateParam(x, samples, scores)
       converged = isConverged(x, samples, scores, t)
-      t += 1
+      metrics.foreach(record => record(x, samples, scores, t))
     }
     CEResult(x, samples, scores, converged, iterations = t)
   }

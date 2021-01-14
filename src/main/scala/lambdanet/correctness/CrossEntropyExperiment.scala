@@ -106,6 +106,12 @@ object CrossEntropyExperiment {
         )
     }
 
+    val groundTruth = GroundTruth(nodeAnnots, toPlainType = true)
+    val accuracy = Accuracy(groundTruth)
+    val sampleAccuracy = new SampleAccuracy(params.maxIters, accuracy)
+    val sampleScore = new SampleScore(params.maxIters)
+    val metrics = Seq(sampleAccuracy, sampleScore)
+
     val ceResult = CrossEntropyMethod.ceMinimize(
       objective,
       results,
@@ -114,7 +120,8 @@ object CrossEntropyExperiment {
       params.numSamples,
       params.numElites,
       isConverged,
-      params.maxIters
+      params.maxIters,
+      metrics
     )
     if (ceResult.converged) {
       println("Successfully converged")
@@ -125,13 +132,7 @@ object CrossEntropyExperiment {
 
     val best = ceResult.elites.head
     ceResult.param.foreach(println)
-    val groundTruth = GroundTruth(nodeAnnots, toPlainType = true)
-    val accuracy = Accuracy(groundTruth)
-    val meanAccuracy =
-      ceResult.elites
-        .map(accuracy.get)
-        .sum /
-        ceResult.elites.size
+    val meanAccuracy = sampleAccuracy.mean(ceResult.iterations)._2
     println(s"Average accuracy: $meanAccuracy")
     best.foreach(println)
     println("Violated constraints:")
@@ -159,6 +160,16 @@ object CrossEntropyExperiment {
       outputPath,
       "params.serialized",
       params.asInstanceOf[Serializable]
+    )
+    OutputUtils.save(
+      outputPath,
+      "accuracy.serialized",
+      sampleAccuracy.asInstanceOf[Serializable]
+    )
+    OutputUtils.save(
+      outputPath,
+      "score.serialized",
+      sampleScore.asInstanceOf[Serializable]
     )
   }
 }

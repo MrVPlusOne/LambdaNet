@@ -8,6 +8,7 @@ import com.typesafe.scalalogging.Logger
 import funcdiff.Real
 import lambdanet.train.TopNDistribution
 import lambdanet.translation.PredicateGraph.{PAny, PNode, PType}
+import lambdanet.utils.Statistics
 
 import scala.util.Random.javaRandomToRandom
 
@@ -68,12 +69,15 @@ object CrossEntropyTypeInference {
     }
   }
 
-  case class UpdateTypeDistrs(smoothing: Double) extends ((TypeDistrs, Samples, Scores) => TypeDistrs) {
+  case class UpdateTypeDistrs(smoothing: Double)
+    extends ((TypeDistrs, Samples, Scores) => TypeDistrs) {
     val monoid: Monoid[Map[PNode, Map[PType, Real]]] = implicitly
 
-    override def apply(distrs: TypeDistrs,
-                       elites: Samples,
-                       _scores: Scores): TypeDistrs = {
+    override def apply(
+      distrs: TypeDistrs,
+      elites: Samples,
+      _scores: Scores
+    ): TypeDistrs = {
       val n = elites.size
       val probs = elites.map(_.mapValues(x => Map(x -> 1.0 / n))).foldLeft(monoid.empty)(monoid.combine)
       val totalProbs = multiply(distrs.mapValues(_.typeProb), smoothing) |+| multiply(probs, 1 - smoothing)
@@ -84,12 +88,57 @@ object CrossEntropyTypeInference {
       distrs.mapValues(_.mapValues(_ * k))
   }
 
-  case class IsConverged(stopIters: Int) extends ((TypeDistrs, Samples, Scores, Int) => Boolean) {
+  type Metric = (TypeDistrs, Samples, Scores, Int) => Unit
+  type Convergence = (TypeDistrs, Samples, Scores, Int) => Boolean
+
+  trait AverageAndStdev {
+    def length: Int
+
+    val mean: Array[(Int, Double)] = new Array(length + 1)
+    val stdev: Array[(Int, Double)] = new Array(length + 1)
+
+    def recordAverageAndStdev(xs: Seq[Double], t: Int): Unit = {
+      val currentMean = Statistics.average(xs)
+      mean(t) = (t, currentMean)
+      stdev(t) = (t, Statistics.stdev(xs, currentMean))
+    }
+  }
+
+  class SampleAccuracy(maxIters: Int, accuracy: Accuracy) extends Metric with AverageAndStdev {
+    def length: Int = maxIters
+
+    override def apply(
+      _distrs: TypeDistrs,
+      elites: Samples,
+      _scores: Scores,
+      t: Int
+    ): Unit = {
+      recordAverageAndStdev(elites.map(accuracy.get), t)
+    }
+  }
+
+  class SampleScore(maxIters: Int) extends Metric with AverageAndStdev {
+    def length: Int = maxIters
+
+    override def apply(
+      _distrs: TypeDistrs,
+      _elites: Samples,
+      scores: Scores,
+      t: Int
+    ): Unit = {
+      recordAverageAndStdev(scores, t)
+    }
+  }
+
+  case class IsConverged(stopIters: Int) extends Convergence {
     var best: Option[(Int, Real)] = None
-    override def apply(_distrs: TypeDistrs,
-                       _elites: Samples,
-                       scores: Scores,
-                       t: Int): Boolean = {
+
+    override def apply(
+      _distrs: TypeDistrs,
+      _elites: Samples,
+      scores: Scores,
+      t: Int
+    ): Boolean = {
       val mean = scores.sum / scores.size
       if (best.isEmpty || best.exists { case (_, bestScore) => bestScore > mean }) {
         best = Some((t, mean))

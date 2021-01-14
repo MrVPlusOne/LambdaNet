@@ -48,14 +48,19 @@ object Statistics {
     }
 
   def variance[T](xs: Seq[T])(implicit fractional: Fractional[T]): T =
+    variance(xs, average(xs))
+
+  def variance[T](xs: Seq[T], mean: T)(implicit fractional: Fractional[T]): T =
     if (xs.size <= 1) {
       fractional.zero
     } else {
-      val mean = average(xs)
       val sum2 = xs.map(x => (x - mean) * (x - mean)).sum
       sum2 / fractional.fromInt(xs.size - 1)
     }
 
   def stdev[T: Fractional](xs: Seq[T]): Double =
     Math.sqrt(variance(xs).toDouble)
+
+  def stdev[T: Fractional](xs: Seq[T], mean: T): Double =
+    Math.sqrt(variance(xs, mean).toDouble)
 }
