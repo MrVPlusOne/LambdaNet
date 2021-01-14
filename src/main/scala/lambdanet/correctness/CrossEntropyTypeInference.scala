@@ -10,6 +10,7 @@ import lambdanet.train.TopNDistribution
 import lambdanet.translation.PredicateGraph.{PAny, PNode, PType}
 import lambdanet.utils.Statistics
 
+import scala.collection.mutable.ArrayBuffer
 import scala.util.Random.javaRandomToRandom
 
 object CrossEntropyTypeInference {
@@ -94,15 +95,15 @@ object CrossEntropyTypeInference {
   trait AverageAndStdev {
     def length: Int
 
-    val epochs: Array[Int] = new Array(length + 1)
-    val mean: Array[Double] = new Array(length + 1)
-    val stdev: Array[Double] = new Array(length + 1)
+    val epochs: ArrayBuffer[Int] = new ArrayBuffer[Int]()
+    val mean: ArrayBuffer[Double] = new ArrayBuffer[Double]()
+    val stdev: ArrayBuffer[Double] = new ArrayBuffer[Double]()
 
     def recordAverageAndStdev(xs: Seq[Double], t: Int): Unit = {
       val currentMean = Statistics.average(xs)
-      epochs(t) = t
-      mean(t) = currentMean
-      stdev(t) = Statistics.stdev(xs, currentMean)
+      epochs += t
+      mean += currentMean
+      stdev += Statistics.stdev(xs, currentMean)
     }
   }
 

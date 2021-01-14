@@ -136,12 +136,12 @@ object CrossEntropyExperiment {
     println()
 
     val best = ceResult.elites.head
-    ceResult.param.foreach(println)
-    val meanAccuracy = sampleAccuracy.mean(ceResult.iterations)
+//    ceResult.param.foreach(println)
+    val meanAccuracy = sampleAccuracy.mean.last
     println(s"Average accuracy: $meanAccuracy")
-    best.foreach(println)
+//    best.foreach(println)
     println("Violated constraints:")
-    checker.violate(best).foreach(println)
+//    checker.violate(best).foreach(println)
     println("======Difference between ground truth and best sample======")
     val groundTruthDifference: Assignment.Difference =
       Assignment.diff(results, groundTruth.truth, best)
@@ -150,7 +150,7 @@ object CrossEntropyExperiment {
       groundTruthDifference.diff
         .count { case (node, (gold, _)) => results(node).typeProb.contains(gold) }
     } differences remain after filtering unpredicted types")
-    println(groundTruthDifference)
+//    println(groundTruthDifference)
     println()
 
     val fmt = DateTimeFormatter.ofPattern("uuMMdd_HHmm")
@@ -158,14 +158,15 @@ object CrossEntropyExperiment {
     val outputPath = amm.pwd / "CE_Results" / currentTime
 
     val scorePlot = Scatter(
-      sampleScore.epochs.toSeq,
-      sampleScore.mean.toSeq,
+      sampleScore.epochs,
+      sampleScore.mean,
       error_y = Error.Data(array = sampleScore.stdev, visible = true),
       name = params.objectiveClass.split('.').last.stripSuffix("$"),
+      mode = ScatterMode(ScatterMode.Lines)
     )
     val accuracyPlot = Scatter(
-      sampleAccuracy.epochs.toSeq,
-      sampleAccuracy.mean.toSeq,
+      sampleAccuracy.epochs,
+      sampleAccuracy.mean,
       error_y = Error.Data(array = sampleAccuracy.stdev, visible = true),
       name = "Accuracy",
       yaxis = AxisReference.Y2
@@ -179,13 +180,14 @@ object CrossEntropyExperiment {
       path.toString(),
       Layout(
         title = "Cross entropy results",
+        height = 900,
         yaxis = Axis(
           anchor = AxisAnchor.Reference(AxisReference.Y1),
-          domain = (0.55, 1)
+          domain = (0.48, 1)
         ),
         yaxis2 = Axis(
           anchor = AxisAnchor.Reference(AxisReference.Y2),
-          domain = (0, 0.45)
+          domain = (0, 0.52)
         )
       )
     )
