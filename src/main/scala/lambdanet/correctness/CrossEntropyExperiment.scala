@@ -68,7 +68,7 @@ object CrossEntropyExperiment {
 
     val sameNodesByAccess =
       Heuristics.accessNodesAreTheSame(checker.defaultContext.typeUnfold)
-    //    val sameNodesByAccess = Set.empty[Set[PNode]]
+//    val sameNodesByAccess = Set.empty[Set[PNode]]
     val standaloneNodes = projectNodes.collect {
       case x if !sameNodesByAccess.flatten.contains(x) => Set(x)
     }
@@ -136,12 +136,12 @@ object CrossEntropyExperiment {
     println()
 
     val best = ceResult.elites.head
-//    ceResult.param.foreach(println)
+    ceResult.param.foreach(println)
     val meanAccuracy = sampleAccuracy.mean.last
     println(s"Average accuracy: $meanAccuracy")
-//    best.foreach(println)
+    best.foreach(println)
     println("Violated constraints:")
-//    checker.violate(best).foreach(println)
+    checker.violate(best).foreach(println)
     println("======Difference between ground truth and best sample======")
     val groundTruthDifference: Assignment.Difference =
       Assignment.diff(results, groundTruth.truth, best)
@@ -150,7 +150,7 @@ object CrossEntropyExperiment {
       groundTruthDifference.diff
         .count { case (node, (gold, _)) => results(node).typeProb.contains(gold) }
     } differences remain after filtering unpredicted types")
-//    println(groundTruthDifference)
+    println(groundTruthDifference)
     println()
 
     val fmt = DateTimeFormatter.ofPattern("uuMMdd_HHmm")
@@ -183,11 +183,11 @@ object CrossEntropyExperiment {
         height = 900,
         yaxis = Axis(
           anchor = AxisAnchor.Reference(AxisReference.Y1),
-          domain = (0.48, 1)
+          domain = (0.475, 1)
         ),
         yaxis2 = Axis(
           anchor = AxisAnchor.Reference(AxisReference.Y2),
-          domain = (0, 0.52)
+          domain = (0, 0.525)
         )
       )
     )
