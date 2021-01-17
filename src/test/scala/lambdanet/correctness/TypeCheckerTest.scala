@@ -12,6 +12,7 @@ import org.scalatest.WordSpec
 class TypeCheckerTest extends WordSpec {
   "the consistent-subtyping relation" should {
     "pass simple examples" in {
+      // todo (Jiayi): Add tests for library types and basic types
       import TypeCheckerTest.SimpleProgram._
       val context = PTypeContext(graph, libDefs)
       val checker = TypeChecker(graph, libDefs)

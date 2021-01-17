@@ -4,6 +4,8 @@ import lambdanet.LibDefs
 import lambdanet.translation.PredicateGraph
 import lambdanet.translation.PredicateGraph._
 
+// fixme (Jiayi): should an assignment be `Map[PNode, PNode]` instead of `Map[PNode, PType]`?
+//  converting back and forth between `PType` and `PNode` seems to be inefficient
 case class PTypeContext(
     typeUnfold: Map[PNode, PExpr],
     libDefs: LibDefs,
@@ -47,6 +49,8 @@ case class PTypeContext(
     (child, parent) match {
       case (c: PTyVar, p: PTyVar) if c.madeFromLibTypes && p.madeFromLibTypes =>
         if (c == p
+            //fixme (Jiayi): I don't think a constructor type should equal to its corresponding
+            // class. A constructor is a function and only its return type should equal to the class.
             || c.node.nameOr("") + "Constructor" == p.node.nameOr("")
             || p.node.nameOr("") + "Constructor" == c.node.nameOr(""))
           Some(nowSubRel)
@@ -145,6 +149,7 @@ object PTypeContext {
       case p: DefineRel => p
     }
     // todo: Add library nodes as well
+    // todo (jiayi): check [[NeuralInference.computeLabelUsages]]
     val typeUnfold = defineRels.map {
       case DefineRel(v, expr) => (v, expr)
     }.toMap

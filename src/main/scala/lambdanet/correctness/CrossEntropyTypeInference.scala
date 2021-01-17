@@ -33,6 +33,7 @@ object CrossEntropyTypeInference {
       Vector.fill(numSamples)(gen(param))
 
     def gen(param: TypeDistrs): Assignment = {
+      // fixme: can we pass in random seeds so that the results are reproducible?
       val random = ThreadLocalRandom.current()
       var assignment = Map.empty[PNode, PType].withDefaultValue(PAny)
       val perm = random.shuffle(sameNodes.map(random.shuffle(_)))

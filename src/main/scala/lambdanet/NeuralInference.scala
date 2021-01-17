@@ -254,26 +254,7 @@ object NeuralInference {
         ++ (if (predictAny) Set(PAny) else Set()),
     )
 
-    val labelUsages: LabelUsages = {
-      import cats.implicits._
-
-      val classesInvolvingLabel =
-        (libDefs.libClassDefs ++ graph.predicates).toVector.collect {
-          case DefineRel(c, PObject(fields)) =>
-            fields.toVector.foldMap {
-              case (label, field) =>
-                Map(label -> Vector(ClassFieldUsage(c, field)))
-            }
-        }.combineAll
-
-      val accessesInvolvingLabel =
-        graph.predicates.toVector.collect {
-          case DefineRel(r, PAccess(receiver, label)) =>
-            Map(label -> Vector(AccessFieldUsage(receiver, r)))
-        }.combineAll
-
-      LabelUsages(classesInvolvingLabel, accessesInvolvingLabel)
-    }
+    val labelUsages: LabelUsages = computeLabelUsages(libDefs, graph)
 
     type BatchedMsgModels = Map[MessageKind, Vector[MessageModel]]
     val batchedMsgModels: BatchedMsgModels = {
@@ -570,6 +551,46 @@ object NeuralInference {
     }
   }
 
+  val unknownNodes: Set[LibNode] =
+    Set(LibNode(unknownDef.term.get), LibNode(unknownDef.ty.get))
+/**
+  a b=T1 f
+  a <: b
+  b = f(a)
+  T1 l: B1
+  T2 l: B2
+  T3 l: B1
+  P1 l: b1
+
+
+  f: {T1, T2, T3, P1, Any}
+  x: {B1, B2, b1, Any}
+
+  a.f(x)
+
+  a.f(x, y ,z)
+  f(x)
+
+  v1 = a.f
+  v2 = v1(x)
+
+  x1 <: arg1
+  x2 <: arg2
+  f <: ret
+  g = (arg1, arg2) -> ret
+  f = g(x1, x2)
+  g <: Function
+
+  x = f.l
+  x == b1
+
+  c := x
+  c := x  --> Tx <: Tc
+
+ */
+
+  // These field usage code should probably be moved into PredicateGraph, but
+  // let's keep them here for now to prevent breaking serialization
   case class ClassFieldUsage(`class`: PNode, field: PNode) extends MessageModel
 
   case class AccessFieldUsage(receiver: PNode, result: PNode)
@@ -580,6 +601,24 @@ object NeuralInference {
       accessesInvolvingLabel: Map[Symbol, Vector[AccessFieldUsage]]
   )
 
-  val unknownNodes: Set[LibNode] =
-    Set(LibNode(unknownDef.term.get), LibNode(unknownDef.ty.get))
+  def computeLabelUsages(libDefs: LibDefs, graph: PredicateGraph): LabelUsages = {
+    import cats.implicits._
+
+    val classesInvolvingLabel =
+      (libDefs.libClassDefs ++ graph.predicates).toVector.collect {
+        case DefineRel(c, PObject(fields)) =>
+          fields.toVector.foldMap {
+            case (label, field) =>
+              Map(label -> Vector(ClassFieldUsage(c, field)))
+          }
+      }.combineAll
+
+    val accessesInvolvingLabel =
+      graph.predicates.toVector.collect {
+        case DefineRel(r, PAccess(receiver, label)) =>
+          Map(label -> Vector(AccessFieldUsage(receiver, r)))
+      }.combineAll
+
+    LabelUsages(classesInvolvingLabel, accessesInvolvingLabel)
+  }
 }
