@@ -3,7 +3,7 @@ name := "LambdaNet"
 version := "0.3"
 
 organization in ThisBuild := "mrvplusone.github.io"
-scalaVersion in ThisBuild := "2.12.10"
+scalaVersion in ThisBuild := "2.12.13"
 
 scalacOptions ++= Seq(
   "-feature",
