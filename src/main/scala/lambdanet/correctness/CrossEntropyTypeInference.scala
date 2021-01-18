@@ -17,14 +17,9 @@ object CrossEntropyTypeInference {
   type Samples = Vector[Assignment]
   type Scores = Vector[Real]
 
-  /**
-    *
-    * @param subtypingNodes maps a node to its set of either child nodes (left) or parent nodes (right)
-    */
   case class AssignmentGen(
     projectNodes: Set[PNode],
-    context: PTypeContext,
-    subtypingNodes: Map[PNode, Set[Either[PNode, PNode]]],
+    checker: TypeChecker,
     sameNodes: Set[Set[PNode]]
   ) extends ((TypeDistrs, Int) => Samples) {
     private val logger = Logger(classOf[AssignmentGen])
@@ -41,28 +36,14 @@ object CrossEntropyTypeInference {
         // todo: When library nodes are added in PTypeContext, nodes can contain library nodes
         val node = nodes.head
         logger.debug(s"Selecting node: $node")
-        val allNodeTypes = param(node).distr.map(_._2).toSet
-        val relatedNodes = nodes.flatMap(node => subtypingNodes.getOrElse(node, Set.empty))
-        val availableTypes = relatedNodes
-          .foldLeft(allNodeTypes) {
-            case (types, eitherChildOrParent) =>
-              val remaining = types.filter {
-                eitherChildOrParent match {
-                  case Left(child) =>
-                    typ => context.isSubtype(child, node, assignment.updated(node, typ))
-                  case Right(parent) =>
-                    typ => context.isSubtype(node, parent, assignment.updated(node, typ))
-                }
-              }
-              logger.debug(s"Types remaining after related node $eitherChildOrParent: ${remaining.mkString(", ")}")
-              remaining
-          }
+        val allNodeTypes: Seq[PType] = param(node).distr.map(_._2)
+        val availableTypes = checker.availableTypes(allNodeTypes, nodes, assignment)
         assert(availableTypes.nonEmpty, s"no available type for node $node")
-        val probs = availableTypes.toSeq.map(param(node).typeProb(_))
-        logger.debug(s"Types and probs: ${availableTypes.toSeq.zip(probs).mkString(", ")}")
+        val probs = availableTypes.map(param(node).typeProb(_))
+        logger.debug(s"Types and probs: ${availableTypes.zip(probs).mkString(", ")}")
         val nodeType = Sampling.choose(
-          availableTypes.toSeq,
-          availableTypes.toSeq.map(param(node).typeProb(_))
+          availableTypes,
+          probs
         )
         logger.debug(s"Assigning $nodeType to $node\n")
         assignment = assignment ++ nodes.map(node => node -> nodeType).toMap

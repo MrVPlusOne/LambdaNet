@@ -58,14 +58,6 @@ object CrossEntropyExperiment {
       (distrs: Map[PNode, TopNDistribution[PType]]) =>
         objectiveConstructor(distrs)
 
-    val parents: Map[PNode, Set[Either[PNode, PNode]]] =
-      checker.subtypesToCheck
-        .groupBy(_._1)
-        .mapValuesNow(_.map(x => Right(x._2)))
-    val children: Map[PNode, Set[Either[PNode, PNode]]] =
-      checker.subtypesToCheck.groupBy(_._2).mapValuesNow(_.map(x => Left(x._1)))
-    val subtypingNodes = parents ++ children
-
     val sameNodesByAccess =
       Heuristics.accessNodesAreTheSame(checker.defaultContext.typeUnfold)
 //    val sameNodesByAccess = Set.empty[Set[PNode]]
@@ -80,8 +72,7 @@ object CrossEntropyExperiment {
       case "lambdanet.correctness.CrossEntropyTypeInference.AssignmentGen$" =>
         AssignmentGen(
           projectNodes,
-          checker.defaultContext,
-          subtypingNodes,
+          checker,
           sameNodes
         )
       case _ =>
