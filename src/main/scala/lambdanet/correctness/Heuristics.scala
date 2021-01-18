@@ -24,18 +24,15 @@ object Heuristics {
       checker: TypeChecker
   ): Map[PNode, Seq[PType]] = {
     val anyAssignment: Map[PNode, PType] = Map.empty.withDefaultValue(PAny)
-    sameNodes
-      .flatMap(
-        nodeGroup =>
-          nodeGroup.map(
-            node =>
-              node -> checker.availableTypes(
-                results(node).distr.map(_._2),
-                nodeGroup,
-                anyAssignment
-              )
-          )
+    (
+      for {
+        nodeGroup <- sameNodes
+        node <- nodeGroup
+      } yield node -> checker.availableTypes(
+        results(node).distr.map(_._2),
+        nodeGroup,
+        anyAssignment
       )
-      .toMap
+    )(collection.breakOut)
   }
 }
