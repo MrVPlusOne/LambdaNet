@@ -152,6 +152,7 @@ object CrossEntropyExperiment {
     val currentTime = LocalDateTime.now().format(fmt)
     val outputPath = amm.pwd / "CE_Results" / currentTime
 
+    //noinspection ScalaDeprecation
     val scorePlot = Scatter(
       sampleScore.epochs,
       sampleScore.mean,
@@ -159,6 +160,7 @@ object CrossEntropyExperiment {
       name = params.objectiveClass.split('.').last.stripSuffix("$"),
       mode = ScatterMode(ScatterMode.Lines)
     )
+    //noinspection ScalaDeprecation
     val accuracyPlot = Scatter(
       sampleAccuracy.epochs,
       sampleAccuracy.mean,
@@ -171,6 +173,7 @@ object CrossEntropyExperiment {
     if (!amm.exists(outputPath)) {
       amm.mkdir(outputPath)
     }
+    //noinspection ScalaDeprecation
     plots.plot(
       path.toString(),
       Layout(
