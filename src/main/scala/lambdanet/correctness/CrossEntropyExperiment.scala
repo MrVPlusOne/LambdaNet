@@ -9,7 +9,7 @@ import ammonite.ops.RelPath
 import ammonite.{ops => amm}
 import lambdanet.correctness.Objective.{AverageNegativeLogLikelihood, NegativeLogLikelihood}
 import lambdanet.train.TopNDistribution
-import lambdanet.translation.PredicateGraph.{DefineRel, PNode, PType}
+import lambdanet.translation.PredicateGraph._
 import lambdanet.translation.PredicateGraphLoader.libDefs
 import plotly.Plotly._
 import plotly._
@@ -20,17 +20,17 @@ import scala.util.Random
 
 object CrossEntropyExperiment {
   case class Params(
-    relPathUnderData: RelPath,
-    seed: Option[Long],
-    numSamples: Int,
-    numElites: Int,
-    maxIters: Int,
-    smoothing: Double,
-    stopIters: Int,
-    objectiveClass: String,
-    generatorClass: String,
-    updateClass: String,
-    callbackClass: String
+      relPathUnderData: RelPath,
+      seed: Option[Long],
+      numSamples: Int,
+      numElites: Int,
+      maxIters: Int,
+      smoothing: Double,
+      stopIters: Int,
+      objectiveClass: String,
+      generatorClass: String,
+      updateClass: String,
+      callbackClass: String
   )
 
   def run(unseededParams: Params): Unit = {
@@ -58,6 +58,15 @@ object CrossEntropyExperiment {
       (distrs: Map[PNode, TopNDistribution[PType]]) =>
         objectiveConstructor(distrs)
 
+    val fixedTypes =
+      Heuristics.fixTypesByAccess(
+        checker.defaultContext.typeUnfold,
+        libDefs.nodeMapping
+      ) ++ Heuristics.fixTypesByFixType(graph.predicates.collect {
+        case p @ BinaryRel(_, _, BinaryRelCat.fixType) => p
+      })
+    println("======Fixed types======")
+    fixedTypes.foreach(println)
     val sameNodesByAccess =
       Heuristics.accessNodesAreTheSame(checker.defaultContext.typeUnfold)
 //    val sameNodesByAccess = Set.empty[Set[PNode]]
@@ -68,7 +77,8 @@ object CrossEntropyExperiment {
     println("======Same nodes======")
     sameNodes.filter(_.size > 1).foreach(println)
 
-    val availableTypes = Heuristics.availableTypesWithAnyAssignment(results, sameNodes, checker)
+    val availableTypes =
+      Heuristics.availableTypesWithAnyAssignment(results, sameNodes, checker)
     availableTypes.foreach(println)
 
     val assignmentGen = params.generatorClass match {
@@ -77,7 +87,8 @@ object CrossEntropyExperiment {
           projectNodes,
           checker,
           sameNodes,
-          availableTypes
+          availableTypes,
+          fixedTypes
         )
       case _ =>
         throw new InvalidClassException(
@@ -141,10 +152,8 @@ object CrossEntropyExperiment {
     val groundTruthDifference: Assignment.Difference =
       Assignment.diff(results, groundTruth.truth, best)
     println(s"${groundTruthDifference.diff.size} differences found")
-    println(s"${
-      groundTruthDifference.diff
-        .count { case (node, (gold, _)) => results(node).typeProb.contains(gold) }
-    } differences remain after filtering unpredicted types")
+    println(s"${groundTruthDifference.diff
+      .count { case (node, (gold, _)) => results(node).typeProb.contains(gold) }} differences remain after filtering unpredicted types")
     println(groundTruthDifference)
     println()
 

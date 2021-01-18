@@ -35,4 +35,30 @@ object Heuristics {
       )
     )(collection.breakOut)
   }
+
+  def fixTypesByAccess(
+      typeUnfold: Map[PNode, PExpr],
+      nodeMapping: NodeMapping
+  ): Assignment = {
+    typeUnfold
+      .collect {
+        case (node, PAccess(obj, label))
+            if nodeMapping
+              .get(obj)
+              .flatMap(_.typeOpt)
+              .exists(_.isInstanceOf[PObjectType]) =>
+          val fieldType =
+            nodeMapping(obj).typeOpt.get.asInstanceOf[PObjectType].fields(label)
+          (node, fieldType)
+      }(collection.breakOut)
+  }
+
+  def fixTypesByFixType(
+      fixTypes: Set[BinaryRel]
+  ): Assignment = {
+    fixTypes.map {
+      case BinaryRel(instance, typ, BinaryRelCat.fixType) =>
+        (instance, PTyVar(typ))
+    }(collection.breakOut)
+  }
 }

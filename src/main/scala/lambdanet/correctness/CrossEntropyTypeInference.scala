@@ -21,7 +21,8 @@ object CrossEntropyTypeInference {
     projectNodes: Set[PNode],
     checker: TypeChecker,
     sameNodes: Set[Set[PNode]],
-    precomputedAvailableTypes: Map[PNode, Seq[PType]]
+    precomputedAvailableTypes: Map[PNode, Seq[PType]],
+    fixedAssignment: Assignment
   ) extends ((TypeDistrs, Int) => Samples) {
     private val logger = Logger(classOf[AssignmentGen])
 
@@ -31,23 +32,32 @@ object CrossEntropyTypeInference {
     def gen(param: TypeDistrs): Assignment = {
       // fixme: can we pass in random seeds so that the results are reproducible?
       val random = ThreadLocalRandom.current()
-      var assignment = Map.empty[PNode, PType].withDefaultValue(PAny)
+      var assignment = fixedAssignment.withDefaultValue(PAny)
       val perm = random.shuffle(sameNodes.map(random.shuffle(_)))
       for (nodes <- perm) {
         // todo: When library nodes are added in PTypeContext, nodes can contain library nodes
         val node = nodes.head
-        logger.debug(s"Selecting node: $node")
-        val allNodeTypes = precomputedAvailableTypes(node)
-        val availableTypes = checker.availableTypes(allNodeTypes, nodes, assignment)
-        assert(availableTypes.nonEmpty, s"no available type for node $node")
-        val probs = availableTypes.map(param(node).typeProb(_))
-        logger.debug(s"Types and probs: ${availableTypes.zip(probs).mkString(", ")}")
-        val nodeType = Sampling.choose(
-          availableTypes,
-          probs
-        )
-        logger.debug(s"Assigning $nodeType to $node\n")
-        assignment = assignment ++ nodes.map(node => node -> nodeType).toMap
+        if (!assignment.contains(node)) {
+          logger.debug(s"Selecting node: $node")
+          val allNodeTypes = precomputedAvailableTypes(node)
+          val availableTypes = checker.availableTypes(allNodeTypes, nodes, assignment)
+          assert(availableTypes.nonEmpty, s"no available type for node $node")
+          val probs = availableTypes.map { typ =>
+            val prob = param(node).typeProb(typ)
+            if (typ == PAny) {
+              prob / param(node).distr.size
+            } else {
+              prob
+            }
+          }
+          logger.debug(s"Types and probs: ${availableTypes.zip(probs).mkString(", ")}")
+          val nodeType = Sampling.choose(
+            availableTypes,
+            probs
+          )
+          logger.debug(s"Assigning $nodeType to $node\n")
+          assignment = assignment ++ nodes.map(node => node -> nodeType).toMap
+        }
       }
       assignment
     }
