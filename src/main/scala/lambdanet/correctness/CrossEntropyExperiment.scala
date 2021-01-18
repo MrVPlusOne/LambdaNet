@@ -181,11 +181,11 @@ object CrossEntropyExperiment {
         height = 900,
         yaxis = Axis(
           anchor = AxisAnchor.Reference(AxisReference.Y1),
-          domain = (0.45, 1)
+          domain = (0.52, 1)
         ),
         yaxis2 = Axis(
           anchor = AxisAnchor.Reference(AxisReference.Y2),
-          domain = (0, 0.55)
+          domain = (0, 0.48)
         )
       )
     )
