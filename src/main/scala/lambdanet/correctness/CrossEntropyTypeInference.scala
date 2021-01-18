@@ -20,7 +20,8 @@ object CrossEntropyTypeInference {
   case class AssignmentGen(
     projectNodes: Set[PNode],
     checker: TypeChecker,
-    sameNodes: Set[Set[PNode]]
+    sameNodes: Set[Set[PNode]],
+    precomputedAvailableTypes: Map[PNode, Seq[PType]]
   ) extends ((TypeDistrs, Int) => Samples) {
     private val logger = Logger(classOf[AssignmentGen])
 
@@ -36,7 +37,7 @@ object CrossEntropyTypeInference {
         // todo: When library nodes are added in PTypeContext, nodes can contain library nodes
         val node = nodes.head
         logger.debug(s"Selecting node: $node")
-        val allNodeTypes: Seq[PType] = param(node).distr.map(_._2)
+        val allNodeTypes = precomputedAvailableTypes(node)
         val availableTypes = checker.availableTypes(allNodeTypes, nodes, assignment)
         assert(availableTypes.nonEmpty, s"no available type for node $node")
         val probs = availableTypes.map(param(node).typeProb(_))

@@ -68,12 +68,16 @@ object CrossEntropyExperiment {
     println("======Same nodes======")
     sameNodes.filter(_.size > 1).foreach(println)
 
+    val availableTypes = Heuristics.availableTypesWithAnyAssignment(results, sameNodes, checker)
+    availableTypes.foreach(println)
+
     val assignmentGen = params.generatorClass match {
       case "lambdanet.correctness.CrossEntropyTypeInference.AssignmentGen$" =>
         AssignmentGen(
           projectNodes,
           checker,
-          sameNodes
+          sameNodes,
+          availableTypes
         )
       case _ =>
         throw new InvalidClassException(
@@ -174,11 +178,11 @@ object CrossEntropyExperiment {
         height = 900,
         yaxis = Axis(
           anchor = AxisAnchor.Reference(AxisReference.Y1),
-          domain = (0.475, 1)
+          domain = (0.45, 1)
         ),
         yaxis2 = Axis(
           anchor = AxisAnchor.Reference(AxisReference.Y2),
-          domain = (0, 0.525)
+          domain = (0, 0.55)
         )
       )
     )
