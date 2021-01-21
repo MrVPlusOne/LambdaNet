@@ -38,6 +38,7 @@ object RunTrainedModel {
         predictAny = false,
       )
     val binaryRels = testProject.pGraph.predicates.collect { case p: BinaryRel => p }
+    //fixme: remove below?
     println(binaryRels.size)
     println(binaryRels.count{x => x.rhs.fromLib || (x.rhs.isType && x.rhs.fromProject)})
     throw new IllegalArgumentException("arg 1 was wrong...")
