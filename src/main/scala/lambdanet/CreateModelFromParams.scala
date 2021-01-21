@@ -12,7 +12,8 @@ object CreateModelFromParams{
       "uses the correct libDefs and parsedRepos, etc.")
     val paramPath = Path(StdIn.readLine("Enter param path (source):"), pwd)
     val modelCachePath = Path(StdIn.readLine("Enter model cache path (destination):"), pwd)
-    loadModel(paramPath, modelCachePath, ModelConfig(), numOfThreads = 8)
+    val model = loadModel(paramPath, modelCachePath, ModelConfig(), numOfThreads = 8)
+    model.libTypesToPredict.foreach(println)
     printResult("Model created.")
   }
 }

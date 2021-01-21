@@ -52,6 +52,7 @@ object TrainingLoop {
   val gatHead = 1
   val weightDecay: Option[Real] = Some(1e-4)
   val onlyPredictLibType = false
+  val lossAggMode: LossAggMode.Value = LossAggMode.Sum
 
   val debugTime: Boolean = false
 
@@ -62,6 +63,7 @@ object TrainingLoop {
       "fix" -> NeuralInference.fixBetweenIteration,
       "decay" -> weightDecay.nonEmpty,
       "with_any" -> predictAny,
+      "lossAgg_sum" -> (lossAggMode == LossAggMode.Sum),
       "lib" -> onlyPredictLibType,
       "toy" -> toyMode
     ).map(flag(_)).mkString
@@ -248,7 +250,8 @@ object TrainingLoop {
     ) {
       import dataSet._
       val rand = new Random(1)
-      val model = Model.fromData(dataSet, gnnIterations, architecture, rand)
+      val model =
+        Model.fromData(dataSet, gnnIterations, architecture, lossAggMode, rand)
 
       val maxBatchSize = dataSet
         .signalSizeMedian(maxLibRatio)
@@ -542,8 +545,8 @@ object TrainingLoop {
                 }
               },
               () => {
-                announced("save parameters") {
-                  pc.saveToFile(saveDir / "params.serialized")
+                announced("save model") {
+                  SimpleMath.saveObjectToFile((saveDir / "model.serialized").toIO)(model)
                 }
               },
               () => {
@@ -670,6 +673,7 @@ object TrainingLoop {
 
       val lossModel: LossModel = LossModel.NormalLoss
         .tap(m => printResult(s"loss model: ${m.name}"))
+      printResult(s"loss agg mode: ${lossAggMode}")
 
       private def limitTimeOpt[A](
           name: String,
