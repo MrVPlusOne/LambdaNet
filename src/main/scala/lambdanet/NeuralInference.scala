@@ -52,7 +52,7 @@ object NeuralInference {
       import architecture.{randomVar}
 
       /** returns softmax logits */
-      def result: Vector[DecodingResult] = {
+      def result: DecodingResult = {
         val encodeLibNode = computeLibNodeEncoding()
 
         def encodeType(embed: Embedding)(ty: PType) = ty match {
@@ -63,7 +63,7 @@ object NeuralInference {
           case _    => throw new Error(s"Unable to encode PType: $ty")
         }
 
-        val embeddings = logTime("iterate") {
+        val embed = logTime("iterate") {
           (0 until iterations)
             .scanLeft(architecture.initialEmbedding(projectNodes)) {
               (embed, i) =>
@@ -73,13 +73,10 @@ object NeuralInference {
                   else i
                 )
             }
-            .toVector
+            .last
         }
-
-        embeddings.map { embed =>
-          logTime("decode") {
-            decode(embed, encodeType(embed))
-          }
+        logTime("decode") {
+          decode(embed, encodeType(embed))
         }
       }
 
