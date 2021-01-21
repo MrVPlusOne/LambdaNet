@@ -20,11 +20,6 @@ import lambdanet.utils.{
 }
 import TrainingState._
 import botkop.numsca.Tensor
-import lambdanet.SequenceModel.SeqArchitecture
-import lambdanet.architecture.LabelEncoder.{
-  SegmentedLabelEncoder,
-  TrainableLabelEncoder
-}
 import lambdanet.translation.PredicateGraph.{PAny, PNode, PType, ProjNode}
 import org.nd4j.linalg.api.buffer.DataType
 
@@ -98,9 +93,11 @@ object TrainingLoop {
   }
 
   def main(args: Array[String]): Unit = {
-//    PrepareRepos.main(args)
-
+    NeuralInference.checkOMP()
     Tensor.floatingDataType = DataType.DOUBLE
+
+    //    PrepareRepos.main(args)
+
 
     val threadNumber: Int = {
       import ammonite.ops._

@@ -140,6 +140,8 @@ case class Model(
       maxBatchSize: Option[Int],
       announceTimes: Boolean = false,
   ): (Loss, ForwardResult, Map[PNode, TopNDistribution[PType]]) = {
+    NeuralInference.checkOMP()
+
     import datum._
 
     val predSpace = datum.predictionSpace

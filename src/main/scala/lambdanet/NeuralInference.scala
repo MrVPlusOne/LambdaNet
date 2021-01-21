@@ -26,6 +26,13 @@ object NeuralInference {
   val noContextual: Boolean = false
   val noLogical: Boolean = false
 
+  def checkOMP() = {
+    if(!sys.env.get("OMP_NUM_THREADS").contains("1")){
+      warnStr("Warning: environment variable OMP_NUM_THREADS needs to be set to 1 " +
+        "to avoid unnecessarily large memory usage and performance penalty")
+    }
+  }
+
   /** Pre-computes a (batched) neural network sketch reusable
     * across multiple training steps for the given [[PredicateGraph]].
     * The actual forward propagation only happens in [[run]]. */
