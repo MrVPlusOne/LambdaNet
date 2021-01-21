@@ -458,6 +458,17 @@ abstract class NNArchitecture(
     )
   }
 
+  def encodeLibTerm(
+      experience: CompNode,
+      name: CompNode
+  ): CompNode = {
+    nonLinearLayer('encodeLibTerm)(
+      concatN(axis = 1, fromRows = true)(
+        Vector(experience, name)
+      )
+    )
+  }
+
   def mergeMessages[K](
       name: SymbolPath,
       messages: GenSeq[(K, Chain[Message])],
