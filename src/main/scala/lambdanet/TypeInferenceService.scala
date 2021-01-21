@@ -103,6 +103,8 @@ object TypeInferenceService {
     amm.pwd / "models" / "LambdaNet-GAT1-fc2-decay-with_any-8"
 
   def main(args: Array[String]): Unit = {
+    NeuralInference.checkOMP()
+
     val modelDir = newestModelDir
     val paramPath = modelDir / "params.serialized"
     val modelCachePath = modelDir / "model.serialized"
