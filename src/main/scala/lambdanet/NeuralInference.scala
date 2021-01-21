@@ -22,14 +22,17 @@ object NeuralInference {
   /** When set to false, each message passing has independent parameters */
   val fixBetweenIteration = false
 
+  val encodeLibSignature: Boolean = true
   val noAttentional: Boolean = false
   val noContextual: Boolean = false
   val noLogical: Boolean = false
 
   def checkOMP() = {
-    if(!sys.env.get("OMP_NUM_THREADS").contains("1")){
-      warnStr("Warning: environment variable OMP_NUM_THREADS needs to be set to 1 " +
-        "to avoid unnecessarily large memory usage and performance penalty")
+    if (!sys.env.get("OMP_NUM_THREADS").contains("1")) {
+      warnStr(
+        "Warning: environment variable OMP_NUM_THREADS needs to be set to 1 " +
+          "to avoid unnecessarily large memory usage and performance penalty"
+      )
     }
   }
 
@@ -100,10 +103,16 @@ object NeuralInference {
           libTermEmbeddingMap.getOrElseUpdate(
             n0, {
               val n = n0.n
-              val v1 = randomVar('libNode / n.n.symbol)
-              val v2 = libSignatureEmbedding(libDefs.libNodeType(n))
-              val name = encodeNameOpt(n.n.nameOpt)
-              architecture.encodeLibTerm(v1, v2, name)
+              if (encodeLibSignature) {
+                val v1 = randomVar('libNode / n.n.symbol)
+                val v2 = libSignatureEmbedding(libDefs.libNodeType(n))
+                val name = encodeNameOpt(n.n.nameOpt)
+                architecture.encodeLibTerm(v1, v2, name)
+              } else {
+                val v1 = randomVar('libNode / n.n.symbol)
+                val name = encodeNameOpt(n.n.nameOpt)
+                architecture.encodeLibTerm(v1, name)
+              }
             }
           )
 
@@ -557,7 +566,8 @@ object NeuralInference {
 
   val unknownNodes: Set[LibNode] =
     Set(LibNode(unknownDef.term.get), LibNode(unknownDef.ty.get))
-/**
+
+  /**
   a b=T1 f
   a <: b
   b = f(a)
@@ -591,8 +601,7 @@ object NeuralInference {
   c := x
   c := x  --> Tx <: Tc
 
- */
-
+    */
   // These field usage code should probably be moved into PredicateGraph, but
   // let's keep them here for now to prevent breaking serialization
   case class ClassFieldUsage(`class`: PNode, field: PNode) extends MessageModel
@@ -605,7 +614,10 @@ object NeuralInference {
       accessesInvolvingLabel: Map[Symbol, Vector[AccessFieldUsage]]
   )
 
-  def computeLabelUsages(libDefs: LibDefs, graph: PredicateGraph): LabelUsages = {
+  def computeLabelUsages(
+      libDefs: LibDefs,
+      graph: PredicateGraph
+  ): LabelUsages = {
     import cats.implicits._
 
     val classesInvolvingLabel =

@@ -3,7 +3,6 @@ package driver;
 
 import lambdanet.TypeInferenceService;
 import lambdanet.TypeInferenceService$;
-import lambdanet.train.LossAggMode;
 
 public class JavaDriver {
     public static void main(String[] args) {
@@ -19,7 +18,7 @@ public class JavaDriver {
         var parsedReposDir = api.joinPath(workDir, "data/parsedRepos");
 
         var model = typeInfer.loadModel(
-                paramPath, modelCachePath, modelConfig, 8, parsedReposDir, LossAggMode.Product()
+                paramPath, modelCachePath, modelConfig, 8, parsedReposDir
         );
         var predService = api.predictionService(model, 8, 5);
         System.out.println("Type Inference Service successfully started.");

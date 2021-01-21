@@ -33,6 +33,9 @@ case class LibDefs(
     libExports: Map[ProjectPath, ModuleExports],
     classes: Set[QLang.ClassDef]
 ) {
+  /**
+   * Returns the known type for each library node
+   */
   def libNodeType(n: LibNode): PType =
     nodeMapping(n.n).typeOpt
       .getOrElse(PredictionSpace.unknownType)

@@ -15,11 +15,12 @@ import scala.util.Random
 
 object TypeInferenceService {
 
-  @SerialVersionUID(2L)
+  @SerialVersionUID(3L)
   case class ModelConfig(
       gnnIterations: Int = 8,
       dimMessage: Int = 32,
       gatHeads: Int = 1,
+      lossAggMode: LossAggMode.Value = LossAggMode.Product,
       seed: Long = 1,
   )
 
@@ -29,7 +30,6 @@ object TypeInferenceService {
       modelConfig: ModelConfig,
       numOfThreads: Int,
       parsedReposDir: Path = amm.pwd / 'data / "parsedRepos",
-      lossAggMode: LossAggMode.Value = LossAggMode.Product,
   ): Model =
     if (amm.exists(modelCachePath)) {
       announced(s"Load model from the cache: $modelCachePath") {
