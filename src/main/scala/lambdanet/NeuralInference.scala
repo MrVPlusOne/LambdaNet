@@ -22,7 +22,7 @@ object NeuralInference {
   /** When set to false, each message passing has independent parameters */
   val fixBetweenIteration = false
 
-  val encodeLibSignature: Boolean = true
+  val encodeLibSignature: Boolean = false
   val noAttentional: Boolean = false
   val noContextual: Boolean = false
   val noLogical: Boolean = false

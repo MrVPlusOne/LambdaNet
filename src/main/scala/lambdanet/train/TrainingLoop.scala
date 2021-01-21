@@ -55,6 +55,7 @@ object TrainingLoop {
     val flags = Seq(
 //      "newSim" -> NNArchitecture.compareDecoding,
 //      "oracle" -> useOracleForIsLib,
+      "noSig" -> true,
       "fix" -> NeuralInference.fixBetweenIteration,
       "decay" -> weightDecay.nonEmpty,
       "with_any" -> predictAny,
