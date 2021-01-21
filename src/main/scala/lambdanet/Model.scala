@@ -114,7 +114,7 @@ case class Model(
       predictTopK: Int,
   ): Map[PNode, TopNDistribution[PType]] = {
     val predSpace = predictor.predictionSpace
-    val decodingVec = announced("run predictor") {
+    val decoding = announced("run predictor") {
       predictor
         .run(
           architecture,
@@ -127,7 +127,6 @@ case class Model(
         )
         .result
     }
-    val decoding = decodingVec.last
     val predVec = decoding
       .topNPredictionsWithCertainty(predictTopK)
       .map { _.map(predSpace.typeOfIndex) }
@@ -155,7 +154,7 @@ case class Model(
       .unzip
     val targets = groundTruths.map(predSpace.indexOfType)
 
-    val decodingVec = announced("run predictor", announceTimes) {
+    val decoding = announced("run predictor", announceTimes) {
       datum.predictor match {
         case Left(seqPredictor) =>
           seqPredictor
@@ -165,7 +164,6 @@ case class Model(
               nodes,
               shouldDropout
             )
-            .pipe(Vector(_))
         case Right(predictor) =>
           predictor
             .run(
@@ -180,7 +178,6 @@ case class Model(
             .result
       }
     }
-    val decoding = decodingVec.last
 
     val (correctness, confMat, typeAccs) =
       announced("compute training accuracy", announceTimes) {

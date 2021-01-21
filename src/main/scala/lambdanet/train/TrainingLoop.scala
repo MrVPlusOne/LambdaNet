@@ -671,8 +671,6 @@ object TrainingLoop {
         (grads, transformed, deltas)
       }
 
-      val lossModel: LossModel = LossModel.NormalLoss
-        .tap(m => printResult(s"loss model: ${m.name}"))
       printResult(s"loss agg mode: ${lossAggMode}")
 
       private def limitTimeOpt[A](

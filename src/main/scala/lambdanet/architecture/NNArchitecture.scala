@@ -543,7 +543,8 @@ abstract class NNArchitecture(
     }
 
     if (useDropout)
-      input ~> oneLayer('L1) ~> dropout(0.75) ~> oneLayer('L2) ~> dropout(0.5)
+      input ~> oneLayer('L1) ~> dropout(0.75) ~>
+        oneLayer('L2) ~> dropout(0.5)
     else input ~> oneLayer('L1) ~> oneLayer('L2)
   }
 
