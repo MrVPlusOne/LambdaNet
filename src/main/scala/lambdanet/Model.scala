@@ -12,7 +12,7 @@ import lambdanet.train.{
   Counted,
   DataSet,
   Loss,
-  LossModel,
+  LossAggMode,
   ProcessedProject,
   TopNDistribution
 }
@@ -35,6 +35,7 @@ case object Model {
       dataSet: DataSet,
       gnnIterations: Int,
       architecture: NNArchitecture,
+      lossAggMode: LossAggMode.Value,
       random: Random,
   ): Model = {
     import dataSet._
@@ -74,7 +75,8 @@ case object Model {
       labelEncoder,
       nameEncoder,
       labelCoverage,
-      random
+      random,
+      lossAggMode,
     )
   }
 
@@ -96,7 +98,7 @@ case class Model(
     nameEncoder: LabelEncoder,
     labelCoverage: TrainableLabelEncoder,
     random: Random,
-    lossModel: LossModel = LossModel.NormalLoss,
+    lossAggMode: LossAggMode.Value,
 ) {
 
   import lambdanet.train.{
@@ -189,9 +191,11 @@ case class Model(
         )
       }
 
-    val loss = lossModel.predictionLoss(
-      decodingVec.par
-        .map(_.toLoss(targets, projWeight, predSpace.libTypeVec.length))
+    val loss = decoding.toLoss(
+      targets,
+      projWeight,
+      predSpace.libTypeVec.length,
+      lossAggMode
     )
 
     val totalCount = groundTruths.length

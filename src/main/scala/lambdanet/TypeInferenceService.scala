@@ -6,7 +6,7 @@ import funcdiff.ParamCollection
 import funcdiff.SimpleMath.{readObjectFromFile, saveObjectToFile}
 import lambdanet.PrepareRepos.ParsedRepos
 import lambdanet.architecture.GATArchitecture
-import lambdanet.train.{DataSet, TopNDistribution}
+import lambdanet.train.{DataSet, TopNDistribution, LossAggMode}
 import lambdanet.translation.PredicateGraph
 
 import scala.collection.parallel.ForkJoinTaskSupport
@@ -29,6 +29,7 @@ object TypeInferenceService {
       modelConfig: ModelConfig,
       numOfThreads: Int,
       parsedReposDir: Path = amm.pwd / 'data / "parsedRepos",
+      lossAggMode: LossAggMode.Value = LossAggMode.Product,
   ): Model =
     if (amm.exists(modelCachePath)) {
       announced(s"Load model from the cache: $modelCachePath") {
@@ -57,12 +58,18 @@ object TypeInferenceService {
       }
       val model = announced("Create model") {
         val architecture = GATArchitecture(gatHeads, dimMessage, pc)
-        Model.fromData(dataSet, gnnIterations, architecture, new Random(seed))
+        Model.fromData(
+          dataSet,
+          gnnIterations,
+          architecture,
+          lossAggMode,
+          new Random(seed)
+        )
       }
 
       announced(s"Save model to '$modelCachePath'") {
-        if(!amm.exists(modelCachePath/amm.up))
-          amm.mkdir(modelCachePath/amm.up)
+        if (!amm.exists(modelCachePath / amm.up))
+          amm.mkdir(modelCachePath / amm.up)
         saveObjectToFile(modelCachePath.toIO)(model)
       }
       model
