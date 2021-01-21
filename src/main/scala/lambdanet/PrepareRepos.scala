@@ -576,6 +576,7 @@ object PrepareRepos {
       }
       .toSet
 
+    //todo (jiayi): also collect all functions
     println("Declaration files parsed.")
     LibDefs(baseCtx1, nodeMapping, libExports, classes)
   }
