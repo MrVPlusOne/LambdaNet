@@ -110,6 +110,7 @@ object CrossEntropyTypeInference {
       t: Int
     ): Unit = {
       recordAverageAndStdev(elites.map(accuracy.get), t)
+      println(s"Accuracy at epoch $t: ${mean(t - 1)} +/- ${stdev(t - 1)}")
     }
   }
 
