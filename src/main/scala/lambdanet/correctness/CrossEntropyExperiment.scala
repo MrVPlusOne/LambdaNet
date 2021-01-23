@@ -73,9 +73,9 @@ object CrossEntropyExperiment {
     println("======Same nodes======")
     sameNodes.filter(_.size > 1).foreach(println)
 
-    val availableTypes =
-      Heuristics.availableTypesWithAnyAssignment(results, sameNodes, checker)
-    availableTypes.foreach(println)
+    val validTypes =
+      Heuristics.validTypesWithAnyAssignment(results, sameNodes, checker)
+    validTypes.foreach(println)
 
     val assignmentGen = params.generatorClass match {
       case "lambdanet.correctness.CrossEntropyTypeInference.AssignmentGen$" =>
@@ -83,7 +83,7 @@ object CrossEntropyExperiment {
           projectNodes,
           checker,
           sameNodes,
-          availableTypes,
+          validTypes,
           fixedTypes
         )
       case _ =>

@@ -18,7 +18,7 @@ object Heuristics {
       .toSet
   }
 
-  def availableTypesWithAnyAssignment(
+  def validTypesWithAnyAssignment(
       results: TypeDistrs,
       sameNodes: Set[Set[PNode]],
       checker: TypeChecker
@@ -28,7 +28,7 @@ object Heuristics {
       for {
         nodeGroup <- sameNodes
         node <- nodeGroup
-      } yield node -> checker.availableTypes(
+      } yield node -> checker.validTypes(
         results(node).distr.map(_._2),
         nodeGroup,
         anyAssignment

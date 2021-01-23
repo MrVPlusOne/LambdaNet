@@ -16,7 +16,7 @@ case class TypeChecker(
     subtypingNodes: Map[PNode, Set[Either[PNode, PNode]]],
     defaultContext: PTypeContext,
     additionalSubrel: Set[(PType, PType)]
-) {
+) extends ValidTypeGen {
   def violate(
       assignment: Map[PNode, PType],
   ): Set[(PNode, PNode)] =
@@ -37,11 +37,10 @@ case class TypeChecker(
     }
   }
 
-  def availableTypes(
+  def validTypes(
       allTypes: Seq[PType],
       nodes: Set[PNode],
-      assignment: Assignment,
-      context: PTypeContext = defaultContext
+      assignment: Assignment
   ): Seq[PType] = {
     val node = nodes.head
     val relatedNodes =
@@ -51,9 +50,9 @@ case class TypeChecker(
         typ =>
           relatedNodes.forall {
             case Left(child) =>
-              context.isSubtype(child, node, assignment.updated(node, typ))
+              defaultContext.isSubtype(child, node, assignment.updated(node, typ))
             case Right(parent) =>
-              context.isSubtype(node, parent, assignment.updated(node, typ))
+              defaultContext.isSubtype(node, parent, assignment.updated(node, typ))
           }
       )
   }

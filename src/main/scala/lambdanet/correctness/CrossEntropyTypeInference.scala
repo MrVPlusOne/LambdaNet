@@ -21,7 +21,7 @@ object CrossEntropyTypeInference {
     projectNodes: Set[PNode],
     checker: TypeChecker,
     sameNodes: Set[Set[PNode]],
-    precomputedAvailableTypes: Map[PNode, Seq[PType]],
+    precomputedValidTypes: Map[PNode, Seq[PType]],
     fixedAssignment: Assignment
   ) extends ((TypeDistrs, Int) => Samples) {
     private val logger = Logger(classOf[AssignmentGen])
@@ -39,10 +39,10 @@ object CrossEntropyTypeInference {
         val node = nodes.head
         if (!assignment.contains(node)) {
           logger.debug(s"Selecting node: $node")
-          val allNodeTypes = precomputedAvailableTypes(node)
-          val availableTypes = checker.availableTypes(allNodeTypes, nodes, assignment)
-          assert(availableTypes.nonEmpty, s"no available type for node $node")
-          val probs = availableTypes.map { typ =>
+          val allNodeTypes = precomputedValidTypes(node)
+          val validTypes = checker.validTypes(allNodeTypes, nodes, assignment)
+          assert(validTypes.nonEmpty, s"no available type for node $node")
+          val probs = validTypes.map { typ =>
             val prob = param(node).typeProb(typ)
             if (typ == PAny) {
               prob / param(node).distr.size
@@ -50,9 +50,9 @@ object CrossEntropyTypeInference {
               prob
             }
           }
-          logger.debug(s"Types and probs: ${availableTypes.zip(probs).mkString(", ")}")
+          logger.debug(s"Types and probs: ${validTypes.zip(probs).mkString(", ")}")
           val nodeType = Sampling.choose(
-            availableTypes,
+            validTypes,
             probs
           )
           logger.debug(s"Assigning $nodeType to $node\n")
