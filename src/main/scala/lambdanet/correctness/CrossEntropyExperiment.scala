@@ -8,7 +8,6 @@ import java.time.format.DateTimeFormatter
 import ammonite.ops.RelPath
 import ammonite.{ops => amm}
 import lambdanet.correctness.Objective.{AverageNegativeLogLikelihood, NegativeLogLikelihood}
-import lambdanet.train.TopNDistribution
 import lambdanet.translation.PredicateGraph._
 import lambdanet.translation.PredicateGraphLoader.libDefs
 import plotly.Plotly._
@@ -54,9 +53,7 @@ object CrossEntropyExperiment {
       case "lambdanet.correctness.Objective.AverageNegativeLogLikelihood$" =>
         AverageNegativeLogLikelihood
     }
-    val objective =
-      (distrs: Map[PNode, TopNDistribution[PType]]) =>
-        objectiveConstructor(distrs)
+    val objective = objectiveConstructor(results)
 
     val fixedTypes =
       Heuristics.fixTypesByAccess(
@@ -69,7 +66,6 @@ object CrossEntropyExperiment {
     fixedTypes.foreach(println)
     val sameNodesByAccess =
       Heuristics.accessNodesAreTheSame(checker.defaultContext.typeUnfold)
-//    val sameNodesByAccess = Set.empty[Set[PNode]]
     val standaloneNodes = projectNodes.collect {
       case x if !sameNodesByAccess.flatten.contains(x) => Set(x)
     }

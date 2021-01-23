@@ -11,7 +11,7 @@ object CrossEntropyMethod {
     * @tparam P Param
     */
   def ceMinimize[S, P](
-    f: P => S => Real,
+    f: S => Real,
     x0: P,
     genSamples: (P, Int) => Vector[S],
     updateParam: (P, Vector[S], Vector[Real]) => P,
@@ -30,7 +30,7 @@ object CrossEntropyMethod {
       t += 1
       println(t)
       samples = genSamples(x, numSamples)
-      scores = samples.map(f(x))
+      scores = samples.map(f)
       if (numElites != numSamples) {
         val eliteIds = scores.indices.sortBy(scores(_)).take(numElites)
         scores = eliteIds.map(scores(_)).toVector
