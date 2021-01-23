@@ -19,7 +19,7 @@ object CrossEntropyTypeInference {
 
   case class AssignmentGen(
     projectNodes: Set[PNode],
-    checker: TypeChecker,
+    checker: ValidTypeGen,
     sameNodes: Set[Set[PNode]],
     precomputedValidTypes: Map[PNode, Seq[PType]],
     fixedAssignment: Assignment
@@ -42,19 +42,18 @@ object CrossEntropyTypeInference {
           val allNodeTypes = precomputedValidTypes(node)
           val validTypes = checker.validTypes(allNodeTypes, nodes, assignment)
           assert(validTypes.nonEmpty, s"no available type for node $node")
-          val probs = validTypes.map { typ =>
+          val typesAndProbs = validTypes.map { typ =>
             val prob = param(node).typeProb(typ)
-            if (typ == PAny) {
-              prob / param(node).distr.size
-            } else {
-              prob
-            }
+            val adjustedProb =
+              if (typ == PAny) {
+                prob / param(node).distr.size
+              } else {
+                prob
+              }
+            (typ, adjustedProb)
           }
-          logger.debug(s"Types and probs: ${validTypes.zip(probs).mkString(", ")}")
-          val nodeType = Sampling.choose(
-            validTypes,
-            probs
-          )
+          logger.debug(s"Types and probs: ${typesAndProbs.mkString(", ")}")
+          val nodeType = Sampling.choose(typesAndProbs)
           logger.debug(s"Assigning $nodeType to $node\n")
           assignment = assignment ++ nodes.map(node => node -> nodeType).toMap
         }

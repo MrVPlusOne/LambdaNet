@@ -4,19 +4,29 @@ import java.util.concurrent.ThreadLocalRandom
 
 object Sampling {
   /**
-    * @param probs unnormalized PMF
+    * @param items items with unnormalized PMF
     */
-  def choose[T](items: Seq[T], probs: Seq[Double]): T = {
+  def choose[T](items: Seq[(T, Double)]): T = {
     val p = ThreadLocalRandom.current().nextDouble()
-    choose(items, probs, p)
+    choose(items, p)
   }
 
-  def choose[T](items: Seq[T], probs: Seq[Double], p: Double): T = {
-    assert(items.length == probs.length)
+  def choose[T](items: Seq[(T, Double)], p: Double): T = {
     assert(0 <= p && p <= 1)
-    val totalProb = probs.sum
+
+    var totalProb = 0.0
+    for ((_, prob) <- items) {
+      totalProb += prob
+    }
     val adjustedProb = totalProb * p
-    val cmf = probs.scanLeft(0.0)((sum, y) => sum + y).drop(1)
-    items.zip(cmf).dropWhile { case (_, y) => y < adjustedProb }.head._1
+
+    var sum = 0.0
+    for ((item, prob) <- items) {
+      sum += prob
+      if (sum >= adjustedProb) {
+        return item
+      }
+    }
+    throw new NoSuchElementException
   }
 }
