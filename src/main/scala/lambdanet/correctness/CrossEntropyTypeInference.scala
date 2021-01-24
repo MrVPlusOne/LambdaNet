@@ -55,7 +55,7 @@ object CrossEntropyTypeInference {
           logger.debug(s"Types and probs: ${typesAndProbs.mkString(", ")}")
           val nodeType = Sampling.choose(typesAndProbs)
           logger.debug(s"Assigning $nodeType to $node\n")
-          assignment = assignment ++ nodes.map(node => node -> nodeType).toMap
+          assignment = assignment ++ nodes.map(node => node -> nodeType)
         }
       }
       assignment
