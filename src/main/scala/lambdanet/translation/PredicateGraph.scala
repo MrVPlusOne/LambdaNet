@@ -9,6 +9,7 @@ import lambdanet.translation.PredicateGraph._
 import lambdanet.{IdAllocator, _}
 
 import scala.collection.mutable
+import scala.reflect.ClassTag
 
 /**
   * A predicate graph (aka. type dependency graph) consists of type variables
@@ -373,6 +374,8 @@ object PredicateGraph {
       case PCall(f0, args)         => PCall(f(f0), args.map(f))
       case PObject(fields)         => PObject(fields.mapValuesNow(f))
       case PAccess(obj, label)     => PAccess(f(obj), label)
+      case PMethodCall(obj, label, field, f0, args) =>
+        PMethodCall(f(obj), label, f(field), f(f0), args.map(f))
     }
   }
 
@@ -398,6 +401,50 @@ object PredicateGraph {
     val allNodes: Set[PNode] = Set(obj)
 
     def allLabels: Set[Symbol] = Set(label)
+  }
+
+  case class PMethodCall(
+      obj: PNode,
+      label: Symbol,
+      field: PNode,
+      f: PNode,
+      args: Vector[PNode]
+  ) extends PExpr {
+    val allNodes: Set[PNode] = Set(obj, field, f) ++ args
+
+    def allLabels: Set[Symbol] = Set(label)
+  }
+
+  object PMethodCall {
+    def generate(defineRels: Set[DefineRel]): Set[PMethodCall] = {
+      def definitions[T <: PExpr: ClassTag]: Map[PNode, T] =
+        defineRels.collect {
+          case DefineRel(v, expr: T) => v -> expr
+        }(collection.breakOut)
+
+      val objects = definitions[PObject]
+      val accesses = definitions[PAccess]
+      val calls = definitions[PCall]
+      val funcs = definitions[PFunc]
+      calls.values
+        .map {
+          case PCall(f, args) =>
+            for {
+              PAccess(instance, label) <- accesses.get(f)
+              PCall(constructor, initArgs) <- calls.get(instance)
+              PFunc(initParams, obj) <- funcs.get(constructor)
+              _ = assert(
+                initArgs.size == initParams.size,
+                s"mismatched number of arguments to construct $instance of class $obj, found: $initArgs, required: $initParams"
+              )
+              PObject(fields) <- objects.get(obj)
+              field <- fields.get(label)
+            } yield PMethodCall(obj, label, field, f, args)
+        }
+        .collect {
+          case Some(x) => x
+        }(collection.breakOut)
+    }
   }
 }
 
