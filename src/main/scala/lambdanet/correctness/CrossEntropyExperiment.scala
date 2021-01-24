@@ -8,6 +8,7 @@ import java.time.format.DateTimeFormatter
 import ammonite.ops.RelPath
 import ammonite.{ops => amm}
 import lambdanet.correctness.Objective.{AverageNegativeLogLikelihood, NegativeLogLikelihood}
+import lambdanet.translation.PredicateGraph
 import lambdanet.translation.PredicateGraph._
 import lambdanet.translation.PredicateGraphLoader.libDefs
 import plotly.Plotly._
@@ -55,6 +56,9 @@ object CrossEntropyExperiment {
     }
     val objective = objectiveConstructor(results)
 
+    val allPTypes: Set[PredicateGraph.PType] = results.flatMap(_._2.distr.map(_._2))(collection.breakOut)
+    val shallowSubtype = ShallowSubtype(checker, allPTypes)
+
     val fixedTypes =
       Heuristics.fixTypesByAccess(
         checker.defaultContext.typeUnfold,
@@ -81,7 +85,7 @@ object CrossEntropyExperiment {
       case "lambdanet.correctness.CrossEntropyTypeInference.AssignmentGen$" =>
         AssignmentGen(
           projectNodes,
-          checker,
+          shallowSubtype,
           sameNodes,
           validTypes,
           fixedTypes
