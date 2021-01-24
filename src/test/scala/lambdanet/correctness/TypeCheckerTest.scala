@@ -46,7 +46,7 @@ class TypeCheckerTest extends WordSpec {
         binaryRels.find(x => x.lhs == node32 && x.rhs.name == "String").get.rhs
       val pTypeContext = PTypeContext(graph, libDefs)
       val mostLikely = results
-        .mapValuesNow(_.topValue)
+        .mapValues(_.topValue)
       libDefs.nodeMapping
         .filter {
           case (n, annot) =>

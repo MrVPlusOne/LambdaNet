@@ -18,13 +18,13 @@ case class TypeChecker(
     additionalSubrel: Set[(PType, PType)]
 ) extends ValidTypeGen {
   def violate(
-      assignment: Map[PNode, PType],
+      assignment: Assignment
   ): Set[(PNode, PNode)] =
     violate(defaultContext, assignment)
 
   def violate(
       context: PTypeContext,
-      assignment: Map[PNode, PType]
+      assignment: Assignment
   ): Set[(PNode, PNode)] = {
     assert(
       assignment.keySet == graph.nodes.filter(_.fromProject),

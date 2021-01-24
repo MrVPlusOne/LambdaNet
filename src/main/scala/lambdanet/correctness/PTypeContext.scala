@@ -24,7 +24,7 @@ case class PTypeContext(
   def isSubtype(
       child: PNode,
       parent: PNode,
-      assignment: Map[PNode, PType]
+      assignment: Assignment
   ): Boolean = {
     val maybeSubRel = for {
       childType <- toType(child, assignment, subRel)
@@ -40,7 +40,7 @@ case class PTypeContext(
   def checkSubtype(
       child: PType,
       parent: PType,
-      assignment: Map[PNode, PType],
+      assignment: Assignment,
       subRel: Set[(PType, PType)]
   ): Option[Set[(PType, PType)]] = {
     if (child == PAny || parent == PAny || subRel.contains(child -> parent))
@@ -108,7 +108,7 @@ case class PTypeContext(
 
   def toType(
       expr: PExpr,
-      assignment: Map[PNode, PType],
+      assignment: Assignment,
       subRel: Set[(PType, PType)]
   ): Option[PType] =
     expr match {

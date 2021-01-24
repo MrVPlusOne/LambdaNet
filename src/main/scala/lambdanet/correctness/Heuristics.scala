@@ -56,7 +56,7 @@ object Heuristics {
   def fixTypesByFixType(
       fixTypes: Set[BinaryRel]
   ): Assignment = {
-    fixTypes.map {
+    fixTypes.collect {
       case BinaryRel(instance, typ, BinaryRelCat.fixType) =>
         (instance, PTyVar(typ))
     }(collection.breakOut)

@@ -1,11 +1,8 @@
 package lambdanet.correctness
 
-import lambdanet.train.TopNDistribution
-import lambdanet.translation.PredicateGraph.{PNode, PType}
-
 object Objective {
   trait NegativeLogLikelihoodBase extends (Assignment => Double) {
-    def proposal: Map[PNode, TopNDistribution[PType]]
+    def proposal: TypeDistrs
 
     def logLikelihoods(assignment: Assignment): Iterable[Double] =
       assignment.map {
@@ -38,15 +35,15 @@ object Objective {
   }
 
   case class NegativeLogLikelihood(
-    proposal: Map[PNode, TopNDistribution[PType]]
+    proposal: TypeDistrs,
   ) extends NegativeLogLikelihoodBase
 
   case class AverageNegativeLogLikelihood(
-    proposal: Map[PNode, TopNDistribution[PType]]
+    proposal: TypeDistrs,
   ) extends AverageNLLBase
 
   case class PenalizedAverageNLL(
-    proposal: Map[PNode, TopNDistribution[PType]],
+    proposal: TypeDistrs,
     checker: TypeChecker,
     coefficient: Double
   ) extends PenalizedAverageNLLBase

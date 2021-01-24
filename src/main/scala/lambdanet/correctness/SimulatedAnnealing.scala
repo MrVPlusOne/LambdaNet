@@ -1,6 +1,5 @@
 package lambdanet.correctness
 
-import lambdanet.train.TopNDistribution
 import lambdanet.translation.PredicateGraph
 import lambdanet.translation.PredicateGraph.{PAny, PNode, PType}
 
@@ -24,7 +23,7 @@ object SimulatedAnnealing {
     */
   def searchWithLog(
     g: PredicateGraph,
-    proposal: Map[PNode, TopNDistribution[PType]],
+    proposal: TypeDistrs,
     randomNeighbor: Assignment => (Assignment, Double),
     project: Correction,
     correct: Correction,
@@ -37,7 +36,7 @@ object SimulatedAnnealing {
     // TODO: Use this to limit reboot times,
     rebootLimit: Int = 5
   ): (Assignment, IntermediateValues) = {
-    val mostLikely = proposal.mapValuesNow(_.topValue)
+    val mostLikely = proposal.mapValues(_.topValue)
     var x = mostLikely
     val projectX = project(x)
     var y = f(projectX)
@@ -146,7 +145,7 @@ object SimulatedAnnealing {
     */
   def search(
       g: PredicateGraph,
-      proposal: Map[PNode, TopNDistribution[PType]],
+      proposal: TypeDistrs,
       randomNeighbor: Assignment => Assignment,
       correct: Correction,
       t: Int => Double,
@@ -154,7 +153,7 @@ object SimulatedAnnealing {
       f: Assignment => Double,
       reboot: Boolean = false
   ): Assignment = {
-    val mostLikely = proposal.mapValuesNow(_.topValue)
+    val mostLikely = proposal.mapValues(_.topValue)
     var x = mostLikely
     var y = f(correct(x))
     var bestX = x
@@ -185,7 +184,7 @@ object SimulatedAnnealing {
 }
 
 trait OneDifferenceRandomNeighborBase {
-  def proposal: Map[PNode, TopNDistribution[PType]]
+  def proposal: TypeDistrs
 
   // TODO: Pass a vector for better performance
   def changeType(x: Assignment, nodeIndex: Int): (Assignment, Double) = {
@@ -239,15 +238,15 @@ trait WeightedOneDifferenceRandomNeighborBase
 }
 
 case class OneDifferenceRandomNeighbor(
-    proposal: Map[PNode, TopNDistribution[PType]]
+    proposal: TypeDistrs
 ) extends OneDifferenceRandomNeighborBase
 
 case class WeightedOneDifferenceRandomNeighbor(
-    proposal: Map[PNode, TopNDistribution[PType]]
+    proposal: TypeDistrs
 ) extends WeightedOneDifferenceRandomNeighborBase
 
 case class WrongFirstOneDifferenceRandomNeighbor(
-    override val proposal: Map[PNode, TopNDistribution[PType]],
+    override val proposal: TypeDistrs,
     checker: TypeChecker
 ) extends OneDifferenceRandomNeighborBase {
   override def randomNeighbor(x: Assignment): (Assignment, Double) = {
@@ -305,7 +304,7 @@ trait PatchAny {
 }
 
 trait WeightedPatchAny {
-  def proposal: Map[PNode, TopNDistribution[PType]]
+  def proposal: TypeDistrs
 
   def nodeNLL(x: PNode): Double =
     -math.log(proposal(x).typeProb(PAny))
@@ -357,7 +356,7 @@ case object NoCorrection extends CorrectionBase {
 
 case class PatchAnyCorrection(
     checker: TypeChecker,
-    proposal: Map[PNode, TopNDistribution[PType]]
+    proposal: TypeDistrs
 ) extends CorrectionBase
     with PatchAny {
   def correct(prediction: Assignment): Assignment = {
@@ -368,7 +367,7 @@ case class PatchAnyCorrection(
 
 case class WeightedPatchAnyCorrection(
     checker: TypeChecker,
-    proposal: Map[PNode, TopNDistribution[PType]]
+    proposal: TypeDistrs
 ) extends CorrectionBase
     with WeightedPatchAny {
   def correct(prediction: Assignment): Assignment = {
@@ -379,7 +378,7 @@ case class WeightedPatchAnyCorrection(
 
 case class LocalSearchCorrection(
     checker: TypeChecker,
-    proposal: Map[PNode, TopNDistribution[PType]]
+    proposal: TypeDistrs
 ) extends CorrectionBase
     with PatchAny {
   def correct(prediction: Assignment): Assignment = {
