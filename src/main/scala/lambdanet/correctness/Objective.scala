@@ -1,22 +1,27 @@
 package lambdanet.correctness
 
 object Objective {
-  trait NegativeLogLikelihoodBase extends (Assignment => Double) {
+  trait LikelihoodBase extends (Assignment => Double) {
     def proposal: TypeDistrs
+    def prob(assignment: Assignment): Double
 
-    def logLikelihoods(assignment: Assignment): Iterable[Double] =
+    def likelihoods(assignment: Assignment): Iterable[Double] =
       assignment.map {
         case (node, typ) =>
           val topN = proposal(node)
-          val topNProb = topN.typeProb(typ)
-          math.log(topNProb)
+          topN.typeProb(typ)
       }
-
-    def prob(assignment: Assignment): Double =
-      -logLikelihoods(assignment).sum
 
     def apply(assignment: Assignment): Double =
       prob(assignment)
+  }
+
+  trait NegativeLogLikelihoodBase extends LikelihoodBase {
+    def logLikelihoods(assignment: Assignment): Iterable[Double] =
+      likelihoods(assignment).map(math.log)
+
+    def prob(assignment: Assignment): Double =
+      -logLikelihoods(assignment).sum
   }
 
   trait AverageNLLBase extends NegativeLogLikelihoodBase {
@@ -34,6 +39,11 @@ object Objective {
       super.prob(assignment) + coefficient * checker.violate(assignment).size
   }
 
+  trait HammingLossBase extends LikelihoodBase {
+    def prob(assignment: Assignment): Double =
+      -likelihoods(assignment).sum
+  }
+
   case class NegativeLogLikelihood(
     proposal: TypeDistrs,
   ) extends NegativeLogLikelihoodBase
@@ -47,4 +57,8 @@ object Objective {
     checker: TypeChecker,
     coefficient: Double
   ) extends PenalizedAverageNLLBase
+
+  case class HammingLoss(
+      proposal: TypeDistrs
+  ) extends HammingLossBase
 }

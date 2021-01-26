@@ -7,7 +7,7 @@ import java.time.format.DateTimeFormatter
 
 import ammonite.ops.RelPath
 import ammonite.{ops => amm}
-import lambdanet.correctness.Objective.{AverageNegativeLogLikelihood, NegativeLogLikelihood}
+import lambdanet.correctness.Objective.{AverageNegativeLogLikelihood, HammingLoss, NegativeLogLikelihood}
 import lambdanet.translation.PredicateGraph
 import lambdanet.translation.PredicateGraph._
 import lambdanet.translation.PredicateGraphLoader.libDefs
@@ -53,6 +53,8 @@ object CrossEntropyExperiment {
         NegativeLogLikelihood
       case "lambdanet.correctness.Objective.AverageNegativeLogLikelihood$" =>
         AverageNegativeLogLikelihood
+      case "lambdanet.correctness.Objective.HammingLoss$" =>
+        HammingLoss
     }
     val objective = objectiveConstructor(results)
 
