@@ -1,5 +1,7 @@
 package lambdanet.correctness
 
+import cats.Monoid
+import cats.implicits._
 import lambdanet.LibDefs
 import lambdanet.translation.PredicateGraph
 import lambdanet.translation.PredicateGraph.{BinaryRel, BinaryRelCat, PNode, PType}
@@ -90,7 +92,7 @@ object TypeChecker {
         .mapValuesNow(_.map(x => Right(x._2)))
     val children: Map[PNode, Set[Either[PNode, PNode]]] =
       subtypesToCheck.groupBy(_._2).mapValuesNow(_.map(x => Left(x._1)))
-    val subtypingNodes = parents ++ children
+    val subtypingNodes = implicitly[Monoid[Map[PNode, Set[Either[PNode, PNode]]]]].combine(parents, children)
 
     val defaultContext = PTypeContext(graph, libDefs, additionalSubrel)
     TypeChecker(

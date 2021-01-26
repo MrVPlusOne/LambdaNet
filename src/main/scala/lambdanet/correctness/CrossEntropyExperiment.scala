@@ -144,7 +144,6 @@ object CrossEntropyExperiment {
     println()
 
     val best = ceResult.elites.head
-    ceResult.param.foreach(println)
     val meanAccuracy = sampleAccuracy.mean.last
     println(s"Average accuracy: $meanAccuracy")
     best.foreach(println)
