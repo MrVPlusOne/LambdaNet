@@ -39,6 +39,18 @@ class ParserTests extends WordSpec with MyTest {
     }
   }
 
+  "Union type parsing test" in {
+    val filePath = pwd / RelPath("data/tests/union-types/union.ts")
+    val modules = ProgramParsing.parseGModulesFromFiles(
+      Seq(filePath.name),
+      filePath / up,
+    )
+    modules.foreach { module =>
+      println(s"=== module: '${module.moduleName}' ===")
+      module.stmts.foreach(println)
+    }
+  }
+
   "Source file parsing test" in {
     val projectRoot = pwd / RelPath("data/ts-algorithms")
     val files = ls

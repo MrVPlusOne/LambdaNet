@@ -174,10 +174,10 @@ object DataSet {
 
   def nonGenerify(libDefs: LibDefs): PType => PType = {
     val funcTypeNode = libDefs.baseCtx.internalSymbols('Function).ty.get
-    val objTypeNode = libDefs.baseCtx.internalSymbols('Object).ty.get
+//    val objTypeNode = libDefs.baseCtx.internalSymbols('Object).ty.get
     def f(ty: PType): PType = ty match {
       case _: PFuncType   => PTyVar(funcTypeNode)
-      case _: PObjectType => PTyVar(objTypeNode)
+      case _: PObjectType => PAny  // treat object literal types as any
       case _              => ty
     }
     f

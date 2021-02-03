@@ -206,15 +206,13 @@ function parseTypeNode(node: ts.TypeNode): GType {
     return new ObjectType(members);
   } else if (node.kind == SyntaxKind.UnionType) {
     let n = node as ts.UnionTypeNode;
-    if (n.types.length == 2) {
-      let second = parseTypeNode(n.types[1]);
-      if (second.category == "TVar" &&
-        (second.name == "null" || second.name == "undefined")) {
-        return parseTypeNode(n.types[0]);
-      } else {
-        return anyType;
-      }
-    }
+    let filtered = n.types.filter(t => {
+      let text = t.getText()
+      return text != "undefined" && text != "null"
+    })
+    if(filtered.length == 1)
+      return parseTypeNode(filtered[0]);
+    else
     return anyType;
   } else if (ignoredTypes.has(node.kind)) {
     return anyType;
