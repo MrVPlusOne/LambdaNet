@@ -525,6 +525,10 @@ object SimpleMath {
     }
   }
 
+  def readObjectFromFile[T](path: String): T = {
+    readObjectFromFile(new File(path))
+  }
+
   type Weight = Double
   def weightedAverage(xs: Seq[(Weight, Double)]): Double = {
     val top = xs.map { case (w, x) => w * x }.sum

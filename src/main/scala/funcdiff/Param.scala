@@ -28,24 +28,27 @@ class Param(
   }
 }
 
-@SerialVersionUID(0)
-case class SymbolPath(path: Vector[Symbol]) {
-  def /(symbol: Symbol): SymbolPath = SymbolPath(path :+ symbol)
+@SerialVersionUID(1)
+case class SymbolPath(repr: Symbol) {
+  def /(seg: Symbol): SymbolPath = SymbolPath.appendCache.getOrElseUpdate((repr, seg), {
+    SymbolPath(Symbol(repr.name + "/" + seg.name))
+  })
 
-  def ++(other: SymbolPath) = SymbolPath(path ++ other.path)
+  def ++(other: SymbolPath): SymbolPath = this / other.repr
 
   override def toString: String = {
-    path.mkString("/")
+    repr.name
   }
-
-  def asStringArray: Array[String] = path.map(_.name).toArray
 }
 
 object SymbolPath {
-  val empty = SymbolPath(Vector())
+  import collection.concurrent.TrieMap
+  private val appendCache = TrieMap.empty[(Symbol, Symbol), SymbolPath]
+
+  val empty = SymbolPath(Symbol(""))
 
   def parse(pathString: String): SymbolPath =
-    SymbolPath(pathString.split("/").map(Symbol(_)).toVector)
+    SymbolPath(Symbol(pathString))
 }
 
 object ParamCollection {

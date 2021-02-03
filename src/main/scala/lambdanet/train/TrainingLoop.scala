@@ -47,7 +47,7 @@ object TrainingLoop {
   val gatHead = 1
   val weightDecay: Option[Real] = Some(1e-4)
   val onlyPredictLibType = false
-  val lossAggMode: LossAggMode.Value = LossAggMode.Sum
+  val lossAggMode: LossAggMode.Value = LossAggMode.Product
 
   val debugTime: Boolean = false
 
@@ -98,7 +98,6 @@ object TrainingLoop {
     Tensor.floatingDataType = DataType.DOUBLE
 
     //    PrepareRepos.main(args)
-
 
     val threadNumber: Int = {
       import ammonite.ops._
@@ -335,7 +334,7 @@ object TrainingLoop {
           logger.logString("accuracy-distr", epoch, str)
         }
 
-        def trainStep(epoch: Int): Unit = {
+        def trainStep(epoch: Int, stepCallback: Int => Unit = _ => ()): Unit = {
           val startTime = System.nanoTime()
           val oldOrder = random.shuffle(trainSet)
           val (h, t) = oldOrder.splitAt(119)
@@ -365,8 +364,7 @@ object TrainingLoop {
                   optimizer.minimize(
                     loss * factor,
                     pc.allParams,
-                    backPropInParallel =
-                      Some(parallelCtx -> Timeouts.optimizationTimeout),
+                    backPropInParallel = Some(parallelCtx -> Timeouts.optimizationTimeout),
                     gradientTransform = _.clipNorm(2 * factor),
                     scaleLearningRate = scaleLearningRate(epoch),
                     weightDecay = weightDecay
@@ -388,6 +386,7 @@ object TrainingLoop {
                 if (debugTime) {
                   println(DebugTime.show)
                 }
+                stepCallback(i)
                 (fwd, gradInfo, datum)
               }
           }
@@ -453,25 +452,24 @@ object TrainingLoop {
                             pred.mapValuesNow(_.distr.map(_._2)),
                             onlyCountInSpaceTypes = true
                           )
-                        val Seq(libTop5, projTop5) = Seq(true, false).map {
-                          fromLib =>
-                            val predictions = pred.map {
-                              case (n, distr) =>
-                                n -> distr.distr.take(5).map(_._2)
-                            }
-                            val nodesMap = datum.nodesToPredict.collect {
-                              case (n, ty)
-                                  if predictions.contains(n.n) && ty.madeFromLibTypes == fromLib =>
-                                n.n -> ty
-                            }
-                            QLangAccuracy
-                              .countTopNCorrect(
-                                5,
-                                nodesMap,
-                                predictions,
-                                _ => 1
-                              )
-                              ._1
+                        val Seq(libTop5, projTop5) = Seq(true, false).map { fromLib =>
+                          val predictions = pred.map {
+                            case (n, distr) =>
+                              n -> distr.distr.take(5).map(_._2)
+                          }
+                          val nodesMap = datum.nodesToPredict.collect {
+                            case (n, ty)
+                                if predictions.contains(n.n) && ty.madeFromLibTypes == fromLib =>
+                              n.n -> ty
+                          }
+                          QLangAccuracy
+                            .countTopNCorrect(
+                              5,
+                              nodesMap,
+                              predictions,
+                              _ => 1
+                            )
+                            ._1
                         }
                         (fwd, fse1, libTop5, projTop5).tap { _ =>
                           printResult(s"(progress: ${i + 1}/${dataSet.size})")
@@ -480,12 +478,7 @@ object TrainingLoop {
                   }
               }.combineAll
 
-            import stat.{
-              libCorrect,
-              projCorrect,
-              confusionMatrix,
-              categoricalAcc
-            }
+            import stat.{libCorrect, projCorrect, confusionMatrix, categoricalAcc}
             import logger._
             logScalar(s"$dataSetName-loss", epoch, toAccuracyD(stat.loss))
             logScalar(s"$dataSetName-libAcc", epoch, toAccuracy(libCorrect))
