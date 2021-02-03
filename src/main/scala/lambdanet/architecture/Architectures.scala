@@ -81,6 +81,7 @@ case class GATArchitecture(
     messages
       .map {
         case (n, ms) =>
+          // todo: batching across heads
           val n1 = embedding(n)
           val stacked = stackRows(n1 +: ms.toVector) // [N, D]
           val heads = for (i <- 0 until numHeads) yield {
