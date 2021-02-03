@@ -2,11 +2,12 @@ package lambdanet.utils
 
 import ammonite.ops.pwd
 import ammonite.{ops => amm}
-import lambdanet.SM
+import funcdiff.{DebugTime, SymbolPath}
+import lambdanet.{SM, TypeInferenceService}
 import lambdanet.TypeInferenceService.{ModelConfig, loadModel}
 
 object PrecomputeResults {
-  val modelDir = pwd / "models" / "newParsing-GAT1-fc2-newSim-decay-6"
+  val modelDir = TypeInferenceService.newestModelDir
   val paramPath = modelDir / "params.serialized"
   val modelCachePath = modelDir / "model.serialized"
   val modelConfig = ModelConfig()

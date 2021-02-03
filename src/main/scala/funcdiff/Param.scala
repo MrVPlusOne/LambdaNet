@@ -35,20 +35,25 @@ case class SymbolPath(path: Vector[Symbol]) {
   def ++(other: SymbolPath) = SymbolPath(path ++ other.path)
 
   override def toString: String = {
-    path.mkString("(", "/", ")")
+    path.mkString("/")
   }
+
+  def asStringArray: Array[String] = path.map(_.name).toArray
 }
 
 object SymbolPath {
   val empty = SymbolPath(Vector())
+
+  def parse(pathString: String): SymbolPath =
+    SymbolPath(pathString.split("/").map(Symbol(_)).toVector)
 }
 
 object ParamCollection {
 
   @SerialVersionUID(0)
   case class SerializableFormat(
-      parameterData: List[(SymbolPath, Map[String, Serializable])],
-      constantData: List[(SymbolPath, INDArray)]
+      parameterData: Array[(String, Map[String, Serializable])],
+      constantData: Array[(String, INDArray)]
   )
 
   def fromSerializable(data: SerializableFormat): ParamCollection =
@@ -66,6 +71,7 @@ object ParamCollection {
   }
 }
 
+@SerialVersionUID(-751724603565436754L)
 case class ParamCollection() {
   import collection.concurrent
   private val _paramMap = concurrent.TrieMap[SymbolPath, Param]()
@@ -101,21 +107,22 @@ case class ParamCollection() {
   def constMap: Map[SymbolPath, Tensor] = _constMap.toMap
 
   def toSerializable: ParamCollection.SerializableFormat = {
-    val parameterData: List[(SymbolPath, Map[String, Serializable])] =
-      paramMap.mapValuesNow { param =>
+    val parameterData: Array[(String, Map[String, Serializable])] =
+      paramMap.map { case (path, param) =>
         val node = param.node
+        val pathS = path.toString
         val paramData = Map[String, Serializable](
           "array" -> node.value.array,
           "attributes" -> param.attributes.toList,
-          "path" -> param.path
+          "path" -> pathS
         )
-        paramData
-      }.toList
+        pathS -> paramData
+      }.toArray
 
-    val constantData: List[(SymbolPath, INDArray)] =
-      constMap.mapValuesNow { t =>
-        t.array
-      }.toList
+    val constantData: Array[(String, INDArray)] =
+      constMap.map { case (p, t) =>
+        p.toString -> t.array
+      }.toArray
 
     ParamCollection.SerializableFormat(parameterData, constantData)
   }
@@ -135,15 +142,15 @@ case class ParamCollection() {
         val data = param("array").asInstanceOf[INDArray]
         val attributes =
           param("attributes").asInstanceOf[List[ParameterAttribute]].toSet
-        val p1 = param("path").asInstanceOf[SymbolPath]
+        val p1 = param("path").asInstanceOf[String]
         assert(p1 == path, s"path: $path, restored: $p1")
 
         val value = Tensor(data)
-        getParam(path, attributes) { value }
+        getParam(SymbolPath.parse(path), attributes) { value }
     }
     constMap.foreach {
       case (path, array) =>
-        getConst(path) { Tensor(array) }
+        getConst(SymbolPath.parse(path)) { Tensor(array) }
     }
   }
 
