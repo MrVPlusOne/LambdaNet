@@ -97,8 +97,6 @@ object TrainingLoop {
     NeuralInference.checkOMP()
     Tensor.floatingDataType = DataType.DOUBLE
 
-    //    PrepareRepos.main(args)
-
     val threadNumber: Int = {
       import ammonite.ops._
       val f = pwd / "configs" / "threads.txt"
@@ -334,7 +332,7 @@ object TrainingLoop {
           logger.logString("accuracy-distr", epoch, str)
         }
 
-        def trainStep(epoch: Int, stepCallback: Int => Unit = _ => ()): Unit = {
+        def trainStep(epoch: Int): Unit = {
           val startTime = System.nanoTime()
           val oldOrder = random.shuffle(trainSet)
           val (h, t) = oldOrder.splitAt(119)
@@ -386,7 +384,6 @@ object TrainingLoop {
                 if (debugTime) {
                   println(DebugTime.show)
                 }
-                stepCallback(i)
                 (fwd, gradInfo, datum)
               }
           }
