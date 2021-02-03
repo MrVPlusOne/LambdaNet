@@ -167,7 +167,7 @@ class ParserTests extends WordSpec with MyTest {
     }
   }
 
-  "predicate graph tests" in {
+  "predicate graph tests" when {
     import PrepareRepos._
 
     val libDefs =
@@ -175,73 +175,81 @@ class ParserTests extends WordSpec with MyTest {
         SimpleMath.readObjectFromFile[LibDefs](libDefsFile.toIO)
       }
 
-    val dir = pwd / RelPath(
-      "data/tests/weirdInterfaces"
-    )
-    val parsed @ ParsedProject(_, qModules, irModules, g, _) =
-      parseProject(
-        libDefs,
-        dir / up,
-        dir,
-        skipSet = Set(),
-        errorHandler =
-          ErrorHandler(ErrorHandler.StoreError, ErrorHandler.StoreError),
-        shouldPrintProject = true,
-        predictAny = true,
-      ).mergeEqualities
-    SM.saveObjectToFile((pwd / "data" / "testSerialization.serialized").toIO)(
-      parsed
-    )
-    val annots = parsed.allUserAnnots
-    val truth = annots.map { case (k, v) => k.n -> v }
-    val projName = "gigobyte_ui-stack"
-
-    QLangDisplay.renderProjectToDirectory(projName, qModules, truth.map {
-      case (k, v) => k -> TopNDistribution(Vector(1.0 -> v))
-    }, Set())(
-      dir / "predictions"
-    )
-
-    val rightPreds: Set[AnnotPlace] = truth.map {
-      case (k, v) => (k, v, RelPath(projName))
-    }.toSet
-    QLangDisplay.renderPredictionIndexToDir(
-      rightPreds,
-      rightPreds,
-      dir,
-      "predictions"
-    )
-
-    irModules.foreach { m =>
-      SequenceModel
-        .tokenizeModule(m, libDefs.nodeMapping ++ m.mapping)
-        .tap(println)
-    }
-
-    g.predicates.toVector.sortBy(_.toString).foreach(println)
-
-    println {
-      PredicateGraphVisualization.asMamGraph(
-        libDefs,
-        annots,
-        "\"SpringElectricalEmbedding\"",
-        g
+    def runOnProject(projDir: Path): Unit = {
+      val parsed@ParsedProject(_, qModules, irModules, g, _) =
+        parseProject(
+          libDefs,
+          projDir / up,
+          projDir,
+          skipSet = Set(),
+          errorHandler =
+            ErrorHandler(ErrorHandler.StoreError, ErrorHandler.StoreError),
+          shouldPrintProject = true,
+          predictAny = true,
+        ).mergeEqualities
+      SM.saveObjectToFile((pwd / "data" / "testSerialization.serialized").toIO)(
+        parsed
       )
+      val annots = parsed.allUserAnnots
+      val truth = annots.map { case (k, v) => k.n -> v }
+      val projName = projDir.name
+
+      QLangDisplay.renderProjectToDirectory(projName, qModules, truth.map {
+        case (k, v) => k -> TopNDistribution(Vector(1.0 -> v))
+      }, Set())(
+        projDir / "dummy-predictions"
+      )
+
+      val rightPreds: Set[AnnotPlace] = truth.map {
+        case (k, v) => (k, v, RelPath(projName))
+      }.toSet
+      QLangDisplay.renderPredictionIndexToDir(
+        rightPreds,
+        rightPreds,
+        projDir,
+        "dummy-predictions"
+      )
+
+      irModules.foreach { m =>
+        SequenceModel
+          .tokenizeModule(m, libDefs.nodeMapping ++ m.mapping)
+          .tap(println)
+      }
+
+      g.predicates.toVector.sortBy(_.toString).foreach(println)
+
+      println {
+        PredicateGraphVisualization.asMamGraph(
+          libDefs,
+          annots,
+          "\"SpringElectricalEmbedding\"",
+          g
+        )
+      }
+
+      val libTypesToPredict: Set[LibTypeNode] =
+        selectLibTypes(libDefs, Seq(annots), coverageGoal = 0.95)
+
+      println {
+        Predictor(
+          g,
+          libTypesToPredict,
+          libDefs,
+          None,
+          onlyPredictLibType = false,
+          predictAny = true,
+        ).visualizeNeuralGraph
+      }
     }
 
-    val libTypesToPredict: Set[LibTypeNode] =
-      selectLibTypes(libDefs, Seq(annots), coverageGoal = 0.95)
 
-    println {
-      Predictor(
-        g,
-        libTypesToPredict,
-        libDefs,
-        None,
-        onlyPredictLibType = false,
-        predictAny = true,
-      ).visualizeNeuralGraph
+    "static method parsing test" in {
+      val dir = pwd / RelPath("data/tests/static-methods")
+      runOnProject(dir)
     }
 
+    "big graph test" in {
+      runOnProject(pwd / RelPath("data/tests/weirdInterfaces"))
+    }
   }
 }

@@ -296,8 +296,9 @@ object Surface {
       stmt match {
         case VarDef(x, ty, init, isConst, level, _) =>
           val keyword = if (isConst) "const" else "let"
+          val initPart = if (init.isEmpty) "" else s" = ${init.get}"
           Vector(
-            indent -> s"${asPrefix(level)}$keyword ${x.name}: $ty = $init;"
+            indent -> s"${asPrefix(level)}$keyword ${x.name}: $ty$initPart;"
           )
         case AssignStmt(lhs, rhs) =>
           Vector(indent -> s"$lhs = $rhs;")
@@ -319,7 +320,7 @@ object Surface {
           (indent -> "{") +: stmts.flatMap(
             s => prettyPrintHelper(indent + 1, s)
           ) :+ (indent -> "}")
-        case FuncDef(funcName, tyVars, args, returnType, body, level) =>
+        case FuncDef(funcName, tyVars, args, (returnType, _), body, level) =>
           val argList = args
             .map { case (v, tv, _) => s"${v.name}: $tv" }
             .mkString("(", ", ", ")")
@@ -345,7 +346,7 @@ object Surface {
             indent -> s"${asPrefix(level)}class ${name.name}$tyVarPart$superPart {"
           ) ++
             vars.toList.map {
-              case (fieldName, annot) =>
+              case (fieldName, (annot, _)) =>
                 (indent + 1, s"${fieldName.name}: $annot;")
             } ++
             funcDefs.flatMap { fDef =>
