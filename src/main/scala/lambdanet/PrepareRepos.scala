@@ -3,24 +3,11 @@ package lambdanet
 import ammonite.ops._
 import funcdiff.SimpleMath
 import lambdanet.translation.IR.IRModule
-import lambdanet.translation.ImportsResolution.{
-  ErrorHandler,
-  ModuleExports,
-  NameDef
-}
+import lambdanet.translation.ImportsResolution.{ErrorHandler, ModuleExports, NameDef}
 import lambdanet.translation._
-import lambdanet.translation.PredicateGraph.{
-  DefineRel,
-  LibNode,
-  PNode,
-  PNodeAllocator,
-  PObject,
-  PType,
-  ProjNode,
-  TyPredicate
-}
+import lambdanet.translation.PredicateGraph.{DefineRel, LibNode, PNode, PNodeAllocator, PObject, PType, ProjNode, TyPredicate}
 import lambdanet.translation.QLang.QModule
-import lambdanet.utils.ProgramParsing
+import lambdanet.utils.{DownloadRepos, ProgramParsing}
 import lambdanet.utils.ProgramParsing.GProject
 
 import scala.collection.{immutable, mutable}
@@ -58,14 +45,21 @@ object PrepareRepos {
   /** use this function to download, parse, filter, divide, and serialize the
   / training, dev, and test sets. */
   def main(args: Array[String]): Unit = {
+    // step1: download all repos under `reposDir/allRepos`
+    DownloadRepos.downloadAllRepos()
+
+    // step2: create libDefs
 //    val defs = parseLibDefs()
 //    SimpleMath.saveObjectToFile(libDefsFile.toIO)(defs)
 //    println(s"library definitions saved to $libDefsFile")
 
-//    remixDividedDataSet()
+    // step3: randomly divide date set into train/dev/test
     val predictAny = true
     parseAndFilterDataSet(predictAny, loadLibDefs = true)
     divideDataSet()
+    //    remixDividedDataSet()
+
+    // step4: parse all repos and serialize them into `parsedReposDir` for fast future loading.
     parseAndSerializeDataSet(predictAny, loadLibDefs = true)
   }
 
@@ -166,7 +160,7 @@ object PrepareRepos {
   def parseAndFilterDataSet(predictAny: Boolean, loadLibDefs: Boolean): Unit = {
     def projectDestination(p: ParsedProject): String = {
       val nodes = p.pGraph.nodes.size
-      if (nodes < 500 || nodes > 10000)
+      if (nodes < 500 || nodes > 20000)
         return "TooBigOrSmall"
       val annots = p.allUserAnnots
       val annotsRatio = annots.size.toDouble / p.pGraph.predicates.size
@@ -190,7 +184,7 @@ object PrepareRepos {
         loadLibDefs = loadLibDefs,
         inParallel = true,
         predictAny = predictAny,
-        maxLinesOfCode = 20000,
+        maxLinesOfCode = 40000,
         parsedCallback = (file, pOpt) => {
           val dest = pOpt match {
             case Successful(p) =>
@@ -302,10 +296,14 @@ object PrepareRepos {
     *                   space. However, even if it's set to true, only user-annotated
     *                   `any`s will be used as training signal since TS Compiler
     *                   can infer a lot of spurious `any`s.
+    * @param srcTexts maps source file path to the corresponding code text. Combined with
+   *                 the `srcSpan` field in `PNode`, this can be used to map the predictions
+   *                 back into source code positions.
     */
   @SerialVersionUID(2)
   case class ParsedProject(
       path: ProjectPath,
+      srcTexts: Map[ProjectPath, String],
       qModules: Vector[QModule],
       irModules: Vector[IRModule],
       pGraph: PredicateGraph,
@@ -339,7 +337,7 @@ object PrepareRepos {
       val (graph1, merger) = pGraph.mergeEqualities
       val qModules1 = qModules.map { _.mapNodes(merger) }
       val irModules1 = irModules.map { _.mapNodes(merger) }
-      ParsedProject(path, qModules1, irModules1, graph1, predictAny)
+      copy(qModules = qModules1, irModules = irModules1, pGraph = graph1)
     }
   }
 
@@ -495,7 +493,7 @@ object PrepareRepos {
     println("default module parsed")
 
     println("parsing library modules...")
-    val GProject(_, modules, mapping, subProjects, devDependencies) =
+    val GProject(_, _, modules, mapping, subProjects, devDependencies) =
       ProgramParsing
         .parseGProjectFromRoot(
           declarationsDir,
@@ -682,7 +680,7 @@ object PrepareRepos {
       printResult(s"Project parsed: '$projectRoot'")
       println("number of nodes: " + graph.nodes.size)
 
-      ParsedProject(projectName, qModules, irModules, graph, predictAny)
+      ParsedProject(projectName, p.srcTexts, qModules, irModules, graph, predictAny)
     }
 
 }

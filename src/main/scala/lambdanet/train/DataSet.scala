@@ -83,7 +83,7 @@ object DataSet {
       ((trainSet ++ devSet).zip(Stream.continually(true)) ++
         testSet.zip(Stream.continually(testSetUseInferred))).toVector.par.map {
         case (
-            p @ ParsedProject(path, qModules, irModules, g, _),
+            p @ ParsedProject(path, _, qModules, irModules, g, _),
             useInferred
             ) =>
           val (predictor, predSpace) = if (useSeqModel) {

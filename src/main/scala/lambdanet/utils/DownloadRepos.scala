@@ -18,12 +18,12 @@ object DownloadRepos {
     val random = new Random(1023)
     val repoList =
       read(pwd / "data" / "repo-SHAs.txt").split("\\n").toVector
-    val testSet = repoList
+    val dataset = repoList
       .pipe(random.shuffle(_))
 
-    val totalSize = testSet.size
+    val totalSize = dataset.size
     var progress = 0
-    testSet.foreach { line =>
+    dataset.foreach { line =>
       val Array(name, sha) = line.split("\\s")
       val newName = name.replace("/", "_")
       if (!exists(workingDir / "allRepos" / newName))
