@@ -48,7 +48,7 @@ object DataSet {
         Seq(base / "trainSet", base / "devSet", base / "testSet"),
         predictAny = predictAny,
         loadLibDefs = true,
-        inParallel = true,
+        numThreads = 10,
       )
       ParsedRepos(libDefs, trainSet, devSet, testSet)
     } else {

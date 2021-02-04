@@ -5,11 +5,13 @@ import funcdiff.SimpleMath
 import lambdanet.translation.IR.IRModule
 import lambdanet.translation.ImportsResolution.{ErrorHandler, ModuleExports, NameDef}
 import lambdanet.translation._
-import lambdanet.translation.PredicateGraph.{DefineRel, LibNode, PNode, PNodeAllocator, PObject, PType, ProjNode, TyPredicate}
+import lambdanet.translation.PredicateGraph.{DefineRel, LibNode, PAny, PNode, PNodeAllocator, PObject, PType, ProjNode, TyPredicate}
 import lambdanet.translation.QLang.QModule
 import lambdanet.utils.{DownloadRepos, ProgramParsing}
 import lambdanet.utils.ProgramParsing.GProject
 
+import java.util.concurrent.ForkJoinPool
+import scala.collection.parallel.{ForkJoinTaskSupport, ForkJoinTasks}
 import scala.collection.{immutable, mutable}
 import scala.util.Random
 
@@ -38,7 +40,7 @@ object PrepareRepos {
   val reposDir: Path = pwd / up / "lambda-repos"
   val libDefsFile: Path = pwd / "models" / "libDefs.serialized"
 //  val parsedRepoPath: Path = pwd / "data" / "parsedDataSet.serialized"
-  val parsedReposDir: Path = pwd / 'data / "parsedRepos"
+  val parsedReposDir: Path = pwd / 'data / "parsedRepos-with_any"
 
   val allReposDir: Path = reposDir / "allRepos"
 
@@ -53,13 +55,15 @@ object PrepareRepos {
 //    SimpleMath.saveObjectToFile(libDefsFile.toIO)(defs)
 //    println(s"library definitions saved to $libDefsFile")
 
-    // step3: randomly divide date set into train/dev/test
+    // step3: parse then randomly divide date set into train/dev/test
+    // might need to exclude the repo named "OmniSharp_omnisharp-atom" since it somehow
+    // causes out-of-memory issue
     val predictAny = true
     parseAndFilterDataSet(predictAny, loadLibDefs = true)
     divideDataSet()
     //    remixDividedDataSet()
 
-    // step4: parse all repos and serialize them into `parsedReposDir` for fast future loading.
+    // step4: parse filtered repos again and serialize them into `parsedReposDir` for fast future loading.
     parseAndSerializeDataSet(predictAny, loadLibDefs = true)
   }
 
@@ -87,7 +91,7 @@ object PrepareRepos {
       dataSetDirs: Seq[Path],
       predictAny: Boolean,
       loadLibDefs: Boolean = true,
-      inParallel: Boolean = true,
+      numThreads: Int = 8,
       maxLinesOfCode: Int = Int.MaxValue,
       parsedCallback: (Path, RepoResult) => Unit = (_, _) => ()
   ): (LibDefs, Seq[List[ParsedProject]]) = {
@@ -107,7 +111,11 @@ object PrepareRepos {
     def fromDir(dir: Path) =
       (ls ! dir)
         .filter(f => f.isDir)
-        .pipe(x => if (inParallel) x.par else x)
+        .pipe(x => if (numThreads==1) x else {
+          x.par.tap{
+            _.tasksupport = new ForkJoinTaskSupport(new ForkJoinPool(numThreads))
+          }
+        })
         .flatMap { f =>
           val r = if (countTsCode(f, dir) < maxLinesOfCode) {
             try {
@@ -182,9 +190,9 @@ object PrepareRepos {
       parseRepos(
         Seq(allReposDir),
         loadLibDefs = loadLibDefs,
-        inParallel = true,
+        numThreads = 10,
         predictAny = predictAny,
-        maxLinesOfCode = 40000,
+        maxLinesOfCode = 30000,
         parsedCallback = (file, pOpt) => {
           val dest = pOpt match {
             case Successful(p) =>
@@ -267,6 +275,7 @@ object PrepareRepos {
         parseRepos(
           Seq(trainSetDir, devSetDir, testSetDir),
           loadLibDefs = loadLibDefs,
+          numThreads = 10,
           parsedCallback = (_, _) =>
             synchronized {
               progress += 1
@@ -275,15 +284,17 @@ object PrepareRepos {
           predictAny = predictAny,
         )
       }
-    val stats = repoStatistics(trainSet ++ devSet ++ testSet)
-    val avgStats = stats.headers
-      .zip(stats.average)
-      .map {
-        case (h, n) => "%s: %.1f".format(h, n)
-      }
-      .mkString(", ")
-    printResult(avgStats)
-    write.over(parsedReposDir / up / "stats.txt", avgStats)
+    for((setName, dataset) <- Seq("train" -> trainSet, "dev" -> devSet, "test" -> testSet)){
+      val stats = repoStatistics(dataset)
+      val avgStats = stats.headers
+        .zip(stats.average)
+        .map {
+          case (h, n) => "%s: %.1f".format(h, n)
+        }
+        .mkString(", ")
+      printResult(avgStats)
+      write.over(parsedReposDir / up / s"stats-$setName.txt", avgStats)
+    }
 
     announced(s"save data set to dir: $parsedReposDir") {
       ParsedRepos(libDefs, trainSet, devSet, testSet)
@@ -456,7 +467,7 @@ object PrepareRepos {
     val predicates = 4
 
     val headers: Vector[String] =
-      Vector("libNodes", "projNodes", "libAnnots", "projAnnots", "predicates")
+      Vector("libNodes", "projNodes", "libAnnots", "projAnnots", "anyAnnots", "predicates")
   }
 
   def repoStatistics(results: Seq[ParsedProject]): RepoStats = {
@@ -470,7 +481,8 @@ object PrepareRepos {
         val nPred = graph.predicates.size
         val libAnnots = p.allUserAnnots.count(_._2.madeFromLibTypes)
         val projAnnots = p.allUserAnnots.size - libAnnots
-        path -> Vector(nLib, nProj, libAnnots, projAnnots, nPred)
+        val anyAnnots = p.allUserAnnots.count(x => NameDef.isAny(x._2 ))
+        path -> Vector(nLib, nProj, libAnnots, projAnnots, anyAnnots, nPred)
       }
       .sortBy(_._2.last)
 
