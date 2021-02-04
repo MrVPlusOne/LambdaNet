@@ -47,7 +47,7 @@ object TrainingLoop {
   val gatHead = 1
   val weightDecay: Option[Real] = Some(1e-4)
   val onlyPredictLibType = false
-  val lossAggMode: LossAggMode.Value = LossAggMode.Product
+  val lossAggMode: LossAggMode.Value = LossAggMode.Sum
 
   val debugTime: Boolean = false
 
@@ -55,7 +55,6 @@ object TrainingLoop {
     val flags = Seq(
 //      "newSim" -> NNArchitecture.compareDecoding,
 //      "oracle" -> useOracleForIsLib,
-      "noSig" -> false,
       "fix" -> NeuralInference.fixBetweenIteration,
       "decay" -> weightDecay.nonEmpty,
       "with_any" -> predictAny,
@@ -67,7 +66,8 @@ object TrainingLoop {
     val ablationFlag = Seq(
       "noContextual" -> NeuralInference.noContextual,
       "noAttention" -> NeuralInference.noAttentional,
-      "noLogical" -> NeuralInference.noLogical
+      "noLogical" -> NeuralInference.noLogical,
+      "encodeSignature" -> NeuralInference.encodeLibSignature,
     ).map(flag(_, post = true)).mkString
 
     if (useSeqModel) "seqModel-theirName1-node"
