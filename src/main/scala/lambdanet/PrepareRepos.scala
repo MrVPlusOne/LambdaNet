@@ -424,7 +424,7 @@ object PrepareRepos {
       def totoalProjectNum = trainSetSize + devSetSize + testSetSize
     }
 
-    def readFromDir(dir: Path, timeoutSeconds: Int = 200): ParsedRepos = {
+    def readFromDir(dir: Path, timeoutSeconds: Int = 400): ParsedRepos = {
       import cats.implicits._
 
       val meta = SM.readObjectFromFile[Meta]((dir / "meta").toIO)

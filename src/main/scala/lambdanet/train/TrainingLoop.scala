@@ -72,7 +72,7 @@ object TrainingLoop {
 
     if (useSeqModel) "seqModel-theirName1-node"
     else
-      s"${ablationFlag}LambdaNet-GAT$gatHead-fc${NNArchitecture.messageLayers}" +
+      s"${ablationFlag}NewData-GAT$gatHead-fc${NNArchitecture.messageLayers}" +
         s"$flags-${gnnIterations}"
   }
 
