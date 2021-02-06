@@ -1,7 +1,5 @@
 package lambdanet.correctness
 
-import java.util.concurrent.ThreadLocalRandom
-
 import cats.Monoid
 import cats.implicits._
 import com.typesafe.scalalogging.Logger
@@ -10,6 +8,7 @@ import lambdanet.train.TopNDistribution
 import lambdanet.translation.PredicateGraph.{PAny, PNode, PType}
 import lambdanet.utils.Statistics
 
+import java.util.concurrent.ThreadLocalRandom
 import scala.collection.mutable.ArrayBuffer
 import scala.util.Random.javaRandomToRandom
 
@@ -59,6 +58,45 @@ object CrossEntropyTypeInference {
         }
       }
       assignment
+    }
+  }
+
+  case class BeamSearch(
+    checker: ValidTypeGen,
+    sameNodes: Array[Set[PNode]],
+    precomputedValidTypes: Map[PNode, Array[PType]],
+    fixedAssignment: Assignment,
+    objective: Assignment => Double
+  ) {
+    def search(param: TypeDistrs, k: Int): Array[Assignment] = {
+      val topK = Array.fill(k)(fixedAssignment.withDefaultValue(PAny))
+      for (nodes <- sameNodes) {
+        val node = nodes.head
+        val candidates = topK.flatMap { assignment =>
+          if (!assignment.contains(node)) {
+            val allNodeTypes = precomputedValidTypes(node)
+            val validTypes = checker.validTypes(allNodeTypes, nodes, assignment)
+            validTypes.map { nodeType =>
+              assignment ++ nodes.map(node => node -> nodeType)
+            }
+          } else {
+            Array.empty[Assignment]
+          }
+        }
+        candidates.sortBy(objective).take(k).copyToArray(topK, 0, k)
+      }
+      topK
+    }
+  }
+
+  object BeamSearch {
+    def apply(checker: ValidTypeGen,
+              sameNodes: Set[Set[PNode]],
+              precomputedValidTypes: Map[PNode, Set[PType]],
+              fixedAssignment: Assignment,
+              objective: Assignment => Double): BeamSearch = {
+
+      new BeamSearch(checker, sameNodes.toArray, precomputedValidTypes.mapValuesNow(_.toArray), fixedAssignment, objective)
     }
   }
 
