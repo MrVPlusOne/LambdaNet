@@ -351,6 +351,12 @@ object PredicateGraph {
     val allNodes: Set[PNode] = expr.allNodes + v
   }
 
+  sealed trait PExprBase {
+    def allNodes: Set[PNode]
+
+    def allLabels: Set[Symbol]
+  }
+
   // @formatter:off
   /**
     * A type-level expression
@@ -363,19 +369,13 @@ object PredicateGraph {
     */
   // @formatter:on
   @SerialVersionUID(0)
-  sealed trait PExpr {
-    def allNodes: Set[PNode]
-
-    def allLabels: Set[Symbol]
-
+  sealed trait PExpr extends PExprBase {
     def substitute(f: PNode => PNode): PExpr = this match {
       case node: PNode             => f(node)
       case PFunc(args, returnType) => PFunc(args.map(f), f(returnType))
       case PCall(f0, args)         => PCall(f(f0), args.map(f))
       case PObject(fields)         => PObject(fields.mapValuesNow(f))
       case PAccess(obj, label)     => PAccess(f(obj), label)
-      case PMethodCall(obj, label, field, f0, args) =>
-        PMethodCall(f(obj), label, f(field), f(f0), args.map(f))
     }
   }
 
@@ -403,13 +403,15 @@ object PredicateGraph {
     def allLabels: Set[Symbol] = Set(label)
   }
 
+  sealed trait PSyntheticExpr extends PExprBase
+
   case class PMethodCall(
       obj: PNode,
       label: Symbol,
       field: PNode,
       f: PNode,
       args: Vector[PNode]
-  ) extends PExpr {
+  ) extends PSyntheticExpr {
     val allNodes: Set[PNode] = Set(obj, field, f) ++ args
 
     def allLabels: Set[Symbol] = Set(label)
