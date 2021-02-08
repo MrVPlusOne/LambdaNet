@@ -5,6 +5,7 @@ import funcdiff.SimpleMath
 import lambdanet.PrepareRepos.{ParsedProject, libDefsFile, parseProject}
 import lambdanet.Surface.GStmt
 import lambdanet.translation.ImportsResolution.{ErrorHandler, NameDef}
+import lambdanet.translation.PredicateGraph.PSyntheticCall.signatureOpt
 import lambdanet.translation.PredicateGraph._
 import lambdanet.{IdAllocator, _}
 
@@ -402,20 +403,44 @@ object PredicateGraph {
 
   sealed trait PSyntheticExpr extends PExprBase
 
+  sealed trait PSyntheticCall extends PSyntheticExpr {
+    def ret: PNode
+    def f: PNode
+    def args: Vector[PNode]
+    def signature: Either[PFunc, PFuncType]
+  }
+
+  object PSyntheticCall {
+    def signatureOpt(
+        libDefs: LibDefs,
+        funcs: Map[PNode, PFunc],
+        f: PNode
+    ): Option[Either[PFunc, PFuncType]] = {
+      libDefs.nodeMapping.get(f).flatMap(_.typeOpt).orElse(funcs.get(f)).flatMap {
+        case p: PFunc     => Some(Left(p))
+        case p: PFuncType => Some(Right(p))
+        // TODO: Handle cases like StringConstructor, which is a PTyVar
+        case _ => None
+      }
+    }
+  }
+
   case class PMethodCall(
+      ret: PNode,
       obj: PNode,
       label: Symbol,
       field: PNode,
       f: PNode,
-      args: Vector[PNode]
-  ) extends PSyntheticExpr {
+      args: Vector[PNode],
+      signature: Either[PFunc, PFuncType]
+  ) extends PSyntheticCall {
     val allNodes: Set[PNode] = Set(obj, field, f) ++ args
 
     def allLabels: Set[Symbol] = Set(label)
   }
 
   object PMethodCall {
-    def generate(defineRels: Set[DefineRel]): Set[PMethodCall] = {
+    def generate(defineRels: Set[DefineRel], libDefs: LibDefs): Set[PMethodCall] = {
       def definitions[T <: PExpr: ClassTag]: Map[PNode, T] =
         defineRels.collect {
           case DefineRel(v, expr: T) => v -> expr
@@ -425,9 +450,9 @@ object PredicateGraph {
       val accesses = definitions[PAccess]
       val calls = definitions[PCall]
       val funcs = definitions[PFunc]
-      calls.values
+      calls
         .map {
-          case PCall(f, args) =>
+          case (ret, PCall(f, args)) =>
             for {
               PAccess(instance, label) <- accesses.get(f)
               PCall(constructor, initArgs) <- calls.get(instance)
@@ -438,7 +463,8 @@ object PredicateGraph {
               )
               PObject(fields) <- objects.get(obj)
               field <- fields.get(label)
-            } yield PMethodCall(obj, label, field, f, args)
+              signature <- signatureOpt(libDefs, funcs, f)
+            } yield PMethodCall(ret, obj, label, field, f, args, signature)
         }
         .collect {
           case Some(x) => x
@@ -446,27 +472,25 @@ object PredicateGraph {
     }
   }
 
-  sealed trait PFuncCall[T] extends PSyntheticExpr {
-    def ret: PNode
-    def f: PNode
-    def args: Vector[PNode]
-    def decl: T
+  case class PFuncCall(
+      ret: PNode,
+      f: PNode,
+      args: Vector[PNode],
+      signature: Either[PFunc, PFuncType]
+  ) extends PSyntheticCall {
+    val allNodes: Set[PNode] = {
+      val signatureNodes = signature match {
+        case Left(PFunc(args, to)) => args :+ to
+        case _                     => Vector.empty
+      }
+      Set(ret, f) ++ args ++ signatureNodes
+    }
 
-    override def allLabels: Set[Symbol] = Set.empty
-  }
-
-  case class PProjFuncCall(ret: PNode, f: PNode, args: Vector[PNode], decl: PFunc)
-      extends PFuncCall[PFunc] {
-    val allNodes: Set[PNode] = Set(ret, f) ++ args
-  }
-
-  case class PLibFuncCall(ret: PNode, f: PNode, args: Vector[PNode], decl: PFuncType)
-      extends PFuncCall[PFuncType] {
-    val allNodes: Set[PNode] = Set(ret, f) ++ args ++ decl.allNodes
+    def allLabels: Set[Symbol] = Set.empty
   }
 
   object PFuncCall {
-    def generate(defineRels: Set[DefineRel], libDefs: LibDefs): Set[PFuncCall[_]] = {
+    def generate(defineRels: Set[DefineRel], libDefs: LibDefs): Set[PFuncCall] = {
       // fixme: DRY in PMethodCall
       def definitions[T <: PExpr: ClassTag]: Map[PNode, T] =
         defineRels.collect {
@@ -478,12 +502,7 @@ object PredicateGraph {
       val maybeFuncCalls = for {
         (ret, PCall(f, args)) <- calls
       } yield {
-        libDefs.nodeMapping.get(f).flatMap(_.typeOpt).orElse(funcs.get(f)).flatMap[PFuncCall[_]] {
-          case decl: PFuncType => Some(PLibFuncCall(ret, f, args, decl))
-          case decl: PFunc     => Some(PProjFuncCall(ret, f, args, decl))
-          // TODO: Handle cases like StringConstructor, which is a PTyVar
-          case decl => None
-        }
+        signatureOpt(libDefs, funcs, f).map(signature => PFuncCall(ret, f, args, signature))
       }
       maybeFuncCalls.collect {
         case Some(x) => x

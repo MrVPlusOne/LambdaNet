@@ -1,8 +1,9 @@
 package lambdanet.correctness
 
 import ammonite.{ops => amm}
-import lambdanet.translation.PredicateGraph.{DefineRel, PMethodCall}
+import lambdanet.translation.PredicateGraph.{BinaryRel, DefineRel, PFuncCall, PMethodCall}
 import lambdanet.translation.PredicateGraphLoader
+import lambdanet.translation.PredicateGraphLoader.libDefs
 import org.scalatest.WordSpec
 
 class MethodCallTest extends WordSpec {
@@ -11,10 +12,9 @@ class MethodCallTest extends WordSpec {
       val graph = PredicateGraphLoader.load(amm.pwd / "data" / "tests" / "method-call").pGraph
       val defineRels = graph.predicates.collect { case p: DefineRel => p }
       graph.predicates.foreach(println)
-      val methodCalls = PMethodCall.generate(defineRels)
+      val methodCalls = PMethodCall.generate(defineRels, libDefs)
       assert(methodCalls.size == 1)
-      val PMethodCall(obj, _, _, _, _) = methodCalls.head
-      assert(obj.name == "Add")
+      assert(methodCalls.head.obj.name == "Add")
     }
   }
 }
