@@ -8,7 +8,7 @@ import lambdanet.translation.ImportsResolution.{ErrorHandler, NameDef}
 import lambdanet.translation.PredicateGraph._
 import lambdanet.{IdAllocator, _}
 
-import scala.collection.mutable
+import scala.collection.{breakOut, mutable}
 import scala.reflect.ClassTag
 
 /**
@@ -141,9 +141,7 @@ object PredicateGraph {
   }
 
   @SerialVersionUID(1)
-  class PNodeAllocator(val forLib: Boolean)
-      extends IdAllocator[PNode]
-      with Serializable {
+  class PNodeAllocator(val forLib: Boolean) extends IdAllocator[PNode] with Serializable {
 
     val anyNode: PNode = newNode(Some('ANY), isType = true, None)
     val unknownDef: NameDef =
@@ -335,8 +333,7 @@ object PredicateGraph {
     val subtype, assign, equal, inheritance, fixType, fixAnnotation = Value
   }
 
-  case class BinaryRel(lhs: PNode, rhs: PNode, category: BinaryRelCat.Value)
-      extends TyPredicate {
+  case class BinaryRel(lhs: PNode, rhs: PNode, category: BinaryRelCat.Value) extends TyPredicate {
     val allNodes: Set[PNode] = Set(lhs, rhs)
   }
 
@@ -446,6 +443,51 @@ object PredicateGraph {
         .collect {
           case Some(x) => x
         }(collection.breakOut)
+    }
+  }
+
+  sealed trait PFuncCall[T] extends PSyntheticExpr {
+    def ret: PNode
+    def f: PNode
+    def args: Vector[PNode]
+    def decl: T
+
+    override def allLabels: Set[Symbol] = Set.empty
+  }
+
+  case class PProjFuncCall(ret: PNode, f: PNode, args: Vector[PNode], decl: PFunc)
+      extends PFuncCall[PFunc] {
+    val allNodes: Set[PNode] = Set(ret, f) ++ args
+  }
+
+  case class PLibFuncCall(ret: PNode, f: PNode, args: Vector[PNode], decl: PFuncType)
+      extends PFuncCall[PFuncType] {
+    val allNodes: Set[PNode] = Set(ret, f) ++ args ++ decl.allNodes
+  }
+
+  object PFuncCall {
+    def generate(defineRels: Set[DefineRel], libDefs: LibDefs): Set[PFuncCall[_]] = {
+      // fixme: DRY in PMethodCall
+      def definitions[T <: PExpr: ClassTag]: Map[PNode, T] =
+        defineRels.collect {
+          case DefineRel(v, expr: T) => v -> expr
+        }(collection.breakOut)
+
+      val calls = definitions[PCall]
+      val funcs = definitions[PFunc]
+      val maybeFuncCalls = for {
+        (ret, PCall(f, args)) <- calls
+      } yield {
+        libDefs.nodeMapping.get(f).flatMap(_.typeOpt).orElse(funcs.get(f)).flatMap[PFuncCall[_]] {
+          case decl: PFuncType => Some(PLibFuncCall(ret, f, args, decl))
+          case decl: PFunc     => Some(PProjFuncCall(ret, f, args, decl))
+          // TODO: Handle cases like StringConstructor, which is a PTyVar
+          case decl => None
+        }
+      }
+      maybeFuncCalls.collect {
+        case Some(x) => x
+      }(breakOut)
     }
   }
 }
@@ -609,7 +651,7 @@ object PredicateGraphTranslation {
 }
 
 object PredicateGraphLoader {
-  lazy val libDefs =
+  lazy val libDefs: LibDefs =
     announced(s"loading library definitions from $libDefsFile...") {
       SimpleMath.readObjectFromFile[LibDefs](libDefsFile.toIO)
     }
@@ -623,8 +665,7 @@ object PredicateGraphLoader {
       dir / up,
       dir,
       skipSet = Set(),
-      errorHandler =
-        ErrorHandler(ErrorHandler.StoreError, ErrorHandler.StoreError),
+      errorHandler = ErrorHandler(ErrorHandler.StoreError, ErrorHandler.StoreError),
       shouldPrintProject = true,
       predictAny = true,
     ).mergeEqualities
