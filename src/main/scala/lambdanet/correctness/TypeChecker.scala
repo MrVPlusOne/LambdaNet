@@ -4,18 +4,18 @@ import cats.Monoid
 import cats.implicits._
 import lambdanet.LibDefs
 import lambdanet.translation.PredicateGraph
-import lambdanet.translation.PredicateGraph.{BinaryRel, BinaryRelCat, PNode, PType}
+import lambdanet.translation.PredicateGraph._
 
 /**
   *
-  * @param subtypingNodes maps a node to its set of either child nodes (left) or parent nodes (right)
+  * @param typeAndNodeBounds maps a node to its set of either child nodes (left) or parent nodes (right)
   */
 case class TypeChecker(
     graph: PredicateGraph,
     libDefs: LibDefs,
     binaryRels: Set[BinaryRel],
     subtypesToCheck: Set[(PNode, PNode)],
-    subtypingNodes: Map[PNode, Set[Either[PNode, PNode]]],
+    typeAndNodeBounds: Bounds[NodeOrType],
     defaultContext: PTypeContext,
     additionalSubrel: Set[(PType, PType)]
 ) extends ValidTypeGen {
@@ -46,21 +46,44 @@ case class TypeChecker(
   ): Seq[PType] = {
     val node = nodes.head
     val relatedNodes =
-      nodes.flatMap(node => subtypingNodes.getOrElse(node, Set.empty))
+      nodes.flatMap(node => typeAndNodeBounds.getOrElse(node, Set.empty))
     allTypes
-      .filter(
-        typ =>
-          relatedNodes.forall {
-            case Left(child) =>
-              defaultContext.isSubtype(child, node, assignment.updated(node, typ))
-            case Right(parent) =>
-              defaultContext.isSubtype(node, parent, assignment.updated(node, typ))
-          }
-      )
+      .filter { typ =>
+        val newAssignment = assignment.updated(node, typ)
+        relatedNodes.forall {
+          case Left(child) =>
+            defaultContext
+              .checkSubtype(toType(newAssignment, child), typ, newAssignment, Set.empty)
+              .nonEmpty
+          case Right(parent) =>
+            defaultContext
+              .checkSubtype(typ, toType(newAssignment, parent), newAssignment, Set.empty)
+              .nonEmpty
+        }
+      }
   }
 }
 
 object TypeChecker {
+  def syntheticCallBounds(syntheticCalls: Set[PSyntheticCall]): Bounds[NodeOrType] = {
+    syntheticCalls
+      .flatMap {
+        case PSyntheticCall(ret, _, args, signature) =>
+          signature match {
+            // fixme: Right now I have constraints in the form of arg >: param and ret <: to.
+            //  Should I generate constraints like param <: and to >: ret as well? I do this for binaryRels.
+            case Left(PFunc(params, to)) =>
+              args.zip(params).map { case (arg, param) => (arg, Left(Left(param))) } :+
+                (ret, Right(Left(to)))
+            case Right(PFuncType(paramTypes, toType)) =>
+              args.zip(paramTypes).map { case (arg, param) => (arg, Left(Right(param))) } :+
+                (ret, Right(Right(toType)))
+          }
+      }
+      .groupBy(_._1)
+      .mapValuesNow(_.map(_._2))
+  }
+
   def apply(
       graph: PredicateGraph,
       libDefs: LibDefs,
@@ -68,6 +91,9 @@ object TypeChecker {
   ): TypeChecker = {
     val binaryRels = graph.predicates.collect {
       case p: BinaryRel => p
+    }
+    val defineRels = graph.predicates.collect {
+      case p: DefineRel => p
     }
     val subtypesToCheck: Set[(PNode, PNode)] =
       binaryRels
@@ -79,20 +105,21 @@ object TypeChecker {
                 Set((lhs, rhs))
               case BinaryRelCat.assign =>
                 Set((rhs, lhs))
-              case BinaryRelCat.equal | BinaryRelCat.fixType |
-                  BinaryRelCat.fixAnnotation =>
+              case BinaryRelCat.equal | BinaryRelCat.fixType | BinaryRelCat.fixAnnotation =>
                 // todo: use fixType to constrain type assignment directly
                 Set((lhs, rhs), (rhs, lhs))
             }
         }
 
-    val parents: Map[PNode, Set[Either[PNode, PNode]]] =
-      subtypesToCheck
-        .groupBy(_._1)
-        .mapValuesNow(_.map(x => Right(x._2)))
-    val children: Map[PNode, Set[Either[PNode, PNode]]] =
-      subtypesToCheck.groupBy(_._2).mapValuesNow(_.map(x => Left(x._1)))
-    val subtypingNodes = implicitly[Monoid[Map[PNode, Set[Either[PNode, PNode]]]]].combine(parents, children)
+    def monoid[T: Monoid] = implicitly[Monoid[T]]
+
+    val parents: Bounds[NodeOrType] =
+      subtypesToCheck.groupBy(_._1).mapValuesNow(_.map(x => Right(Left(x._2))))
+    val children: Bounds[NodeOrType] =
+      subtypesToCheck.groupBy(_._2).mapValuesNow(_.map(x => Left(Left(x._1))))
+    val syntheticCalls = PMethodCall.generate(defineRels, libDefs).asInstanceOf[Set[PSyntheticCall]] ++ PFuncCall.generate(defineRels, libDefs).asInstanceOf[Set[PSyntheticCall]]
+    val callBounds = syntheticCallBounds(syntheticCalls)
+    val subtypingNodes = monoid[Bounds[NodeOrType]].combineAll(Seq(parents, children, callBounds))
 
     val defaultContext = PTypeContext(graph, libDefs, additionalSubrel)
     TypeChecker(

@@ -411,6 +411,11 @@ object PredicateGraph {
   }
 
   object PSyntheticCall {
+    def unapply(
+        call: PSyntheticCall
+    ): Option[(PNode, PNode, Vector[PNode], Either[PFunc, PFuncType])] =
+      Some((call.ret, call.f, call.args, call.signature))
+
     def signatureOpt(
         libDefs: LibDefs,
         funcs: Map[PNode, PFunc],
