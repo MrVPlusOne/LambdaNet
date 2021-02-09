@@ -2,10 +2,10 @@ package lambdanet.utils
 
 import ammonite.ops.pwd
 import ammonite.{ops => amm}
-import lambdanet.{Model, SM, TypeInferenceService}
+import lambdanet.{LoadModel, Model, SM, TypeInferenceService}
 
 object PrecomputeResults {
-  val modelDir = TypeInferenceService.newestModelDir
+  val modelDir = LoadModel.newestModelDir
   val modelPath = modelDir / "model.serialized"
 
   val model = SM.readObjectFromFile[Model](modelPath)
