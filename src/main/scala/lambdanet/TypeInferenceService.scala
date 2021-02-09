@@ -6,7 +6,7 @@ import funcdiff.ParamCollection
 import funcdiff.SimpleMath.{readObjectFromFile, saveObjectToFile}
 import lambdanet.PrepareRepos.ParsedRepos
 import lambdanet.architecture.GATArchitecture
-import lambdanet.train.{DataSet, TopNDistribution, LossAggMode}
+import lambdanet.train.{DataSet, LossAggMode, TopNDistribution}
 import lambdanet.translation.PredicateGraph
 
 import scala.collection.parallel.ForkJoinTaskSupport
@@ -100,7 +100,7 @@ object TypeInferenceService {
   }
 
   val newestModelDir: Path =
-    amm.pwd / "models" / "LambdaNet-GAT1-fc2-decay-with_any-8"
+    amm.pwd / "models" / "NewModelFormat-epoch24"
 
   def main(args: Array[String]): Unit = {
     NeuralInference.checkOMP()

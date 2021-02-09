@@ -1,15 +1,37 @@
 package lambdanet
 
-import ammonite.ops.{RelPath, pwd}
-import funcdiff.{ParamCollection, SymbolPath}
-import lambdanet.utils.PrecomputeResults
+import lambdanet.TypeInferenceService.{ModelConfig, loadModel, newestModelDir}
 
 object LoadModel {
   def main(args: Array[String]): Unit = {
 
-    announced("load model"){
-      SM.readObjectFromFile[Model]("running-results/LambdaNet-GAT1-fc2-noSig-decay-with_any-lossAgg_sum-8/saved/initial/model.serialized")
+    val modelDir = newestModelDir
+    val model = announced("load model..."){
+      SM.readObjectFromFile[Model](modelDir / "model.serialized")
     }
+
+    announced("save model as the new format"){
+      SM.saveObjectToFile(modelDir / "model-copy.serialized")(model)
+    }
+
+//    val paramPath = modelDir / "params.serialized"
+//    val modelCachePath = modelDir / "model.serialized"
+//    val modelConfig = ModelConfig()
+//
+//    val sfPath = (modelDir / "params-sf.serialized").toIO
+//    val pc = announced("read pc special format"){
+//      ParamCollection.fromFile(sfPath)
+//    }
+//
+//    val normalPath = (modelDir / "params.serialized").toIO
+//    announced("Save pc as normal format") {
+//      saveObjectToFile(normalPath)(pc)
+//    }
+//
+//    announced("read pc normal format"){
+//      readObjectFromFile[ParamCollection](normalPath)
+//    }
+
 
 //    val pc = PrecomputeResults.model.architecture.layerFactory.paramCollection
 //

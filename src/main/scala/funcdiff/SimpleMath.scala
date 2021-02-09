@@ -1,15 +1,8 @@
 package funcdiff
 
-import java.io.{
-  File,
-  FileInputStream,
-  FileOutputStream,
-  ObjectInputStream,
-  ObjectOutputStream,
-  ObjectStreamClass,
-  Serializable
-}
+import ammonite.ops.Path
 
+import java.io.{File, FileInputStream, FileOutputStream, ObjectInputStream, ObjectOutputStream, ObjectStreamClass, Serializable}
 import scala.util.Random
 import collection.mutable
 
@@ -502,6 +495,9 @@ object SimpleMath {
     }
   }
 
+  def saveObjectToFile(path: Path)(obj: Serializable): Unit =
+    saveObjectToFile(path.toIO)(obj)
+
   def loadObjectFromFile[T](path: File): T = {
     val ois = new ObjectInputStream(new FileInputStream(path))
     try {
@@ -528,6 +524,9 @@ object SimpleMath {
   def readObjectFromFile[T](path: String): T = {
     readObjectFromFile(new File(path))
   }
+
+  def readObjectFromFile[T](path: Path): T =
+    readObjectFromFile(path.toIO)
 
   type Weight = Double
   def weightedAverage(xs: Seq[(Weight, Double)]): Double = {

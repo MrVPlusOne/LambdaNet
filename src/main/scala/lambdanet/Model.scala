@@ -8,22 +8,10 @@ import lambdanet.SequenceModel.SeqArchitecture
 import lambdanet.architecture.LabelEncoder.TrainableLabelEncoder
 import lambdanet.architecture.{LabelEncoder, NNArchitecture}
 import lambdanet.train.TrainingLoop.{ForwardResult, maxLibRatio, projWeight}
-import lambdanet.train.{
-  Counted,
-  DataSet,
-  Loss,
-  LossAggMode,
-  ProcessedProject,
-  TopNDistribution
-}
+import lambdanet.train.{Counted, DataSet, Loss, LossAggMode, ProcessedProject, TopNDistribution}
 import lambdanet.translation.ImportsResolution.ErrorHandler
 import lambdanet.translation.PredicateGraph
-import lambdanet.translation.PredicateGraph.{
-  LibTypeNode,
-  PNode,
-  PType,
-  ProjNode
-}
+import lambdanet.translation.PredicateGraph.{LibTypeNode, PNode, PType, ProjNode}
 
 import scala.collection.parallel.ForkJoinTaskSupport
 import scala.concurrent.forkjoin.ForkJoinPool
@@ -101,12 +89,7 @@ case class Model(
     lossAggMode: LossAggMode.Value,
 ) {
 
-  import lambdanet.train.{
-    ConfusionMatrix,
-    Correct,
-    DecodingResult,
-    confusionMatrix
-  }
+  import lambdanet.train.{ConfusionMatrix, Correct, DecodingResult, confusionMatrix}
 
   def predictForNodes(
       nodesToPredict: Vector[ProjNode],

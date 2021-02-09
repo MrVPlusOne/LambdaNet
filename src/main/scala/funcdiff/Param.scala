@@ -1,12 +1,8 @@
 package funcdiff
 
 import java.io._
-
-import botkop.numsca.{Shape, Tensor}
-import SimpleMath.Extensions._
+import botkop.numsca.Tensor
 import ammonite.ops.Path
-import funcdiff.ParamCollection.SerializableFormat
-import lambdanet.ChainingSyntax
 import org.nd4j.linalg.api.ndarray.INDArray
 
 trait ParameterAttribute extends Serializable
@@ -16,7 +12,16 @@ object ParameterAttribute {
   case object NeedRegularization extends ParameterAttribute
 }
 
-@SerialVersionUID(1)
+/**
+ * Each [[Param]] contains a mutable [[ParamNode]], representing a trainable parameter.
+ *
+ * Note that in the future, [[Param]] will not be serializable and should only be provided by
+ * [[ParamCollection]] to ensure reference consistency. (currently keep it serializable
+ * to be able to load previously trained model)
+ *
+ * todo: make this not serializable
+ */
+@SerialVersionUID(1L)
 class Param(
     var node: ParamNode,
     val attributes: Set[ParameterAttribute] = Set()
@@ -30,9 +35,10 @@ class Param(
 
 @SerialVersionUID(1)
 case class SymbolPath(repr: Symbol) {
-  def /(seg: Symbol): SymbolPath = SymbolPath.appendCache.getOrElseUpdate((repr, seg), {
-    SymbolPath(Symbol(repr.name + "/" + seg.name))
-  })
+  def /(seg: Symbol): SymbolPath =
+    SymbolPath.appendCache.getOrElseUpdate((repr, seg), {
+      SymbolPath(Symbol(repr.name + "/" + seg.name))
+    })
 
   def ++(other: SymbolPath): SymbolPath = this / other.repr
 
@@ -53,32 +59,18 @@ object SymbolPath {
 
 object ParamCollection {
 
-  @SerialVersionUID(0)
-  case class SerializableFormat(
-      parameterData: Array[(String, Map[String, Serializable])],
-      constantData: Array[(String, INDArray)]
-  )
-
-  def fromSerializable(data: SerializableFormat): ParamCollection =
-    ParamCollection().tap {
-      _.appendDataFromSerializable(data)
-    }
-
-  def fromFile(file: Path): ParamCollection = {
+  def fromFile(file: Path): ParamCollection =
     fromFile(file.toIO)
-  }
 
-  def fromFile(file: File): ParamCollection = {
-    val data = SimpleMath.readObjectFromFile[SerializableFormat](file)
-    fromSerializable(data)
-  }
+  def fromFile(file: File): ParamCollection =
+    SimpleMath.readObjectFromFile[ParamCollection](file)
 }
 
 @SerialVersionUID(-751724603565436754L)
 case class ParamCollection() {
   import collection.concurrent
-  private val _paramMap = concurrent.TrieMap[SymbolPath, Param]()
-  private val _constMap = concurrent.TrieMap[SymbolPath, Tensor]()
+  private var _paramMap = concurrent.TrieMap[SymbolPath, Param]()
+  private var _constMap = concurrent.TrieMap[SymbolPath, Tensor]()
 
   def getParam(
       path: SymbolPath,
@@ -109,25 +101,35 @@ case class ParamCollection() {
 
   def constMap: Map[SymbolPath, Tensor] = _constMap.toMap
 
-  def toSerializable: ParamCollection.SerializableFormat = {
-    val parameterData: Array[(String, Map[String, Serializable])] =
-      paramMap.map { case (path, param) =>
-        val node = param.node
-        val pathS = path.toString
-        val paramData = Map[String, Serializable](
-          "array" -> node.value.array,
-          "attributes" -> param.attributes.toList,
-          "path" -> pathS
-        )
-        pathS -> paramData
-      }.toArray
+  // version 2: only store param nodes' values without paths
+  private def writeObject(os: ObjectOutputStream): Unit = {
+    val paramData = _paramMap.toArray.map {
+      case (k, v) =>
+        (k.toString, v.node.value.array, v.attributes)
+    }
+    os.writeObject(paramData)
+    val constData = _constMap.toArray.map {
+      case (k, v) =>
+        (k.toString, v.array)
+    }
+    os.writeObject(constData)
+  }
 
-    val constantData: Array[(String, INDArray)] =
-      constMap.map { case (p, t) =>
-        p.toString -> t.array
-      }.toArray
-
-    ParamCollection.SerializableFormat(parameterData, constantData)
+  private def readObject(os: ObjectInputStream): Unit = {
+    val params = os
+      .readObject()
+      .asInstanceOf[Array[(String, INDArray, Set[ParameterAttribute])]]
+      .map {
+        case (ps, data, attrs) =>
+          val path = SymbolPath.parse(ps)
+          path -> new Param(new ParamNode(Tensor(data), path), attrs)
+      }
+    val consts = os
+      .readObject()
+      .asInstanceOf[Array[(String, INDArray)]]
+      .map { case (ps, data) => SymbolPath.parse(ps) -> Tensor(data) }
+    this._paramMap = concurrent.TrieMap[SymbolPath, Param](params: _*)
+    this._constMap = concurrent.TrieMap[SymbolPath, Tensor](consts: _*)
   }
 
   def saveToFile(file: Path): Unit = {
@@ -135,34 +137,6 @@ case class ParamCollection() {
   }
 
   def saveToFile(file: File): Unit = {
-    SimpleMath.saveObjectToFile(file)(toSerializable)
+    SimpleMath.saveObjectToFile(file)(this)
   }
-
-  private def appendDataFromSerializable(data: SerializableFormat): Unit = {
-    val SerializableFormat(paramMap, constMap) = data
-    paramMap.foreach {
-      case (path, param) =>
-        val data = param("array").asInstanceOf[INDArray]
-        val attributes =
-          param("attributes").asInstanceOf[List[ParameterAttribute]].toSet
-        val p1 = param("path").asInstanceOf[String]
-        assert(p1 == path, s"path: $path, restored: $p1")
-
-        val value = Tensor(data)
-        getParam(SymbolPath.parse(path), attributes) { value }
-    }
-    constMap.foreach {
-      case (path, array) =>
-        getConst(SymbolPath.parse(path)) { Tensor(array) }
-    }
-  }
-
-//  private def readObject(stream: ObjectInputStream): Unit = {
-//    val o = stream.readObject()
-//    appendDataFromSerializable(o.asInstanceOf[SerializableFormat])
-//  }
-//
-//  private def writeObject(stream: ObjectOutputStream): Unit = {
-//    stream.writeObject(toSerializable)
-//  }
 }
