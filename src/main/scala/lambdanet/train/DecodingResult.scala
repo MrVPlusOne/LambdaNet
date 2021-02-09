@@ -29,7 +29,12 @@ trait DecodingResult {
 
   def topNPredictionsWithCertainty(n: Int): Vector[TopNDistribution[Int]]
 
-  def toLoss(targets: Vector[Int], projWeight: Real, libNum: Int): CompNode
+  def toLoss(
+      targets: Vector[Int],
+      projWeight: Real,
+      libNum: Int,
+      aggMode: LossAggMode.Value,
+  ): CompNode
 
   protected def crossEntropyWithLogitsLoss(
       logits: CompNode,
@@ -56,6 +61,24 @@ object DecodingResult {
 
 import lambdanet.train.DecodingResult._
 
+/**
+  * Defines how to compute the total loss from the losses of individual
+  * type variables. When mode is `Sum`, it means we are trying to maximize
+  * the expected number of correct labels. When mode is `Product`, it means
+  * we are trying to maximize the joint probability of predicting all type
+  * variables correctly with the assumption that the type distributions on each
+  * type variable is fully independent.
+  */
+object LossAggMode extends Enumeration {
+  val Sum, Product = Value
+}
+
+/**
+  * Build a single softmax from both library type and project type similarities.
+  * This loss is equal to log(P), and P's definition depends on `aggMode`:
+  * with P = \product_i{P_i}, where P_i is the
+  * probability of predicting correctly for label i.
+  */
 case class Joint(logits: CompNode) extends DecodingResult {
   def topPredictions: Vector[Int] = {
     numsca
@@ -65,16 +88,24 @@ case class Joint(logits: CompNode) extends DecodingResult {
       .toVector
   }
 
-  def toLoss(targets: Vector[Int], projWeight: Double, libNum: Int): Loss = {
+  def toLoss(
+      targets: Vector[Int],
+      projWeight: Double,
+      libNum: Int,
+      aggMode: LossAggMode.Value,
+  ): Loss = {
     val weights = targets
       .map(_ < libNum)
       .map(if (_) 1.0 else projWeight)
       .pipe(x => Tensor(x.toArray).reshape(-1, 1))
-    (crossEntropyWithLogitsLoss(
+    val logPs = crossEntropyWithLogitsLoss(
       logits,
       targets
-    ) * weights)
-      .pipe(mean)
+    ) // this gives the log probability of correctness for each node
+    if (aggMode == LossAggMode.Product)
+      mean(logPs * weights)
+    else
+      log(mean(exp(logPs) * weights))
   }
 
   def sortedPredictions: Vector[Vector[Int]] = {
@@ -96,6 +127,8 @@ case class Joint(logits: CompNode) extends DecodingResult {
   }
 }
 
+/** First decides whether is a library type, then select from the
+  * corresponding softmax distributions */
 case class TwoStage(
     isLibLogits: CompNode,
     libLogits: CompNode,
@@ -129,7 +162,12 @@ case class TwoStage(
     }.toVector
   }
 
-  def toLoss(targets: Vector[Int], projWeight: Real, libNum: Int): Loss = {
+  def toLoss(
+      targets: Vector[Int],
+      projWeight: Real,
+      libNum: Int,
+      aggMode: LossAggMode.Value,
+  ): Loss = {
     def lossFromRows(rows: Vector[CompNode], targets: Vector[Int]) = {
       if (rows.isEmpty) const(Tensor(0.0).reshape(1, 1))
       else
@@ -166,6 +204,9 @@ case class TwoStage(
     val projTargets = targets.filter(_ >= libNum).map(_ - libNum)
     val projLoss = lossFromRows(projRows, projTargets) * projWeight
 
-    mean(libLoss.concat(projLoss, axis = 0)) + mean(binaryLoss)
+    if(aggMode == LossAggMode.Product)
+      mean(libLoss.concat(projLoss, axis = 0)) + mean(binaryLoss)
+    else
+      throw new NotImplementedError(s"Loss for mode $aggMode not implemented yet.")
   }
 }

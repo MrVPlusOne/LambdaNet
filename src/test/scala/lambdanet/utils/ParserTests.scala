@@ -39,6 +39,18 @@ class ParserTests extends WordSpec with MyTest {
     }
   }
 
+  "Union type parsing test" in {
+    val filePath = pwd / RelPath("data/tests/union-types/union.ts")
+    val modules = ProgramParsing.parseGModulesFromFiles(
+      Seq(filePath.name),
+      filePath / up,
+    )
+    modules.foreach { module =>
+      println(s"=== module: '${module.moduleName}' ===")
+      module.stmts.foreach(println)
+    }
+  }
+
   "Source file parsing test" in {
     val projectRoot = pwd / RelPath("data/ts-algorithms")
     val files = ls
@@ -176,7 +188,7 @@ class ParserTests extends WordSpec with MyTest {
       }
 
     def runOnProject(projDir: Path): Unit = {
-      val parsed@ParsedProject(_, qModules, irModules, g, _) =
+      val parsed =
         parseProject(
           libDefs,
           projDir / up,
@@ -187,6 +199,7 @@ class ParserTests extends WordSpec with MyTest {
           shouldPrintProject = true,
           predictAny = true,
         ).mergeEqualities
+      import parsed.{pGraph, irModules, qModules}
       SM.saveObjectToFile((pwd / "data" / "testSerialization.serialized").toIO)(
         parsed
       )
@@ -216,14 +229,14 @@ class ParserTests extends WordSpec with MyTest {
           .tap(println)
       }
 
-      g.predicates.toVector.sortBy(_.toString).foreach(println)
+      pGraph.predicates.toVector.sortBy(_.toString).foreach(println)
 
       println {
         PredicateGraphVisualization.asMamGraph(
           libDefs,
           annots,
           "\"SpringElectricalEmbedding\"",
-          g
+          pGraph
         )
       }
 
@@ -232,7 +245,7 @@ class ParserTests extends WordSpec with MyTest {
 
       println {
         Predictor(
-          g,
+          pGraph,
           libTypesToPredict,
           libDefs,
           None,

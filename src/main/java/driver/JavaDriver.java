@@ -17,7 +17,9 @@ public class JavaDriver {
         var modelConfig = api.defaultModelConfig();
         var parsedReposDir = api.joinPath(workDir, "data/parsedRepos");
 
-        var model = typeInfer.loadModel(paramPath, modelCachePath, modelConfig, 8, parsedReposDir);
+        var model = typeInfer.loadModel(
+                paramPath, modelCachePath, modelConfig, 8, parsedReposDir
+        );
         var predService = api.predictionService(model, 8, 5);
         System.out.println("Type Inference Service successfully started.");
         System.out.println("Current working directory: " + workDir);

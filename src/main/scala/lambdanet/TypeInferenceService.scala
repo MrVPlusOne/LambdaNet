@@ -6,7 +6,7 @@ import funcdiff.ParamCollection
 import funcdiff.SimpleMath.{readObjectFromFile, saveObjectToFile}
 import lambdanet.PrepareRepos.ParsedRepos
 import lambdanet.architecture.GATArchitecture
-import lambdanet.train.{DataSet, TopNDistribution}
+import lambdanet.train.{DataSet, LossAggMode, TopNDistribution}
 import lambdanet.translation.PredicateGraph
 
 import scala.collection.parallel.ForkJoinTaskSupport
@@ -15,11 +15,12 @@ import scala.util.Random
 
 object TypeInferenceService {
 
-  @SerialVersionUID(2L)
+  @SerialVersionUID(3L)
   case class ModelConfig(
       gnnIterations: Int = 8,
       dimMessage: Int = 32,
       gatHeads: Int = 1,
+      lossAggMode: LossAggMode.Value = LossAggMode.Product,
       seed: Long = 1,
   )
 
@@ -57,12 +58,18 @@ object TypeInferenceService {
       }
       val model = announced("Create model") {
         val architecture = GATArchitecture(gatHeads, dimMessage, pc)
-        Model.fromData(dataSet, gnnIterations, architecture, new Random(seed))
+        Model.fromData(
+          dataSet,
+          gnnIterations,
+          architecture,
+          lossAggMode,
+          new Random(seed)
+        )
       }
 
       announced(s"Save model to '$modelCachePath'") {
-        if(!amm.exists(modelCachePath/amm.up))
-          amm.mkdir(modelCachePath/amm.up)
+        if (!amm.exists(modelCachePath / amm.up))
+          amm.mkdir(modelCachePath / amm.up)
         saveObjectToFile(modelCachePath.toIO)(model)
       }
       model
@@ -93,9 +100,11 @@ object TypeInferenceService {
   }
 
   val newestModelDir: Path =
-    amm.pwd / "models" / "LambdaNet-GAT1-fc2-decay-with_any-8"
+    amm.pwd / "models" / "NewModelFormat-epoch24"
 
   def main(args: Array[String]): Unit = {
+    NeuralInference.checkOMP()
+
     val modelDir = newestModelDir
     val paramPath = modelDir / "params.serialized"
     val modelCachePath = modelDir / "model.serialized"

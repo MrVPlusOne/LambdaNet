@@ -12,7 +12,7 @@ trait APITrait {
   var debugOpTime = true
 
   implicit def symbol2Path(symbol: Symbol): SymbolPath =
-    SymbolPath(Vector(symbol))
+    SymbolPath(symbol)
 
   def const(value: Tensor): CompNode = {
     new CompNode(ConstFunc(value))

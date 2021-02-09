@@ -20,11 +20,6 @@ import lambdanet.utils.{
 }
 import TrainingState._
 import botkop.numsca.Tensor
-import lambdanet.SequenceModel.SeqArchitecture
-import lambdanet.architecture.LabelEncoder.{
-  SegmentedLabelEncoder,
-  TrainableLabelEncoder
-}
 import lambdanet.translation.PredicateGraph.{PAny, PNode, PType, ProjNode}
 import org.nd4j.linalg.api.buffer.DataType
 
@@ -52,6 +47,7 @@ object TrainingLoop {
   val gatHead = 1
   val weightDecay: Option[Real] = Some(1e-4)
   val onlyPredictLibType = false
+  val lossAggMode: LossAggMode.Value = LossAggMode.Sum
 
   val debugTime: Boolean = false
 
@@ -62,6 +58,7 @@ object TrainingLoop {
       "fix" -> NeuralInference.fixBetweenIteration,
       "decay" -> weightDecay.nonEmpty,
       "with_any" -> predictAny,
+      "lossAgg_sum" -> (lossAggMode == LossAggMode.Sum),
       "lib" -> onlyPredictLibType,
       "toy" -> toyMode
     ).map(flag(_)).mkString
@@ -69,12 +66,13 @@ object TrainingLoop {
     val ablationFlag = Seq(
       "noContextual" -> NeuralInference.noContextual,
       "noAttention" -> NeuralInference.noAttentional,
-      "noLogical" -> NeuralInference.noLogical
+      "noLogical" -> NeuralInference.noLogical,
+      "encodeSignature" -> NeuralInference.encodeLibSignature,
     ).map(flag(_, post = true)).mkString
 
     if (useSeqModel) "seqModel-theirName1-node"
     else
-      s"${ablationFlag}LambdaNet-GAT$gatHead-fc${NNArchitecture.messageLayers}" +
+      s"${ablationFlag}NewData-GAT$gatHead-fc${NNArchitecture.messageLayers}" +
         s"$flags-${gnnIterations}"
   }
 
@@ -96,8 +94,7 @@ object TrainingLoop {
   }
 
   def main(args: Array[String]): Unit = {
-//    PrepareRepos.main(args)
-
+    NeuralInference.checkOMP()
     Tensor.floatingDataType = DataType.DOUBLE
 
     val threadNumber: Int = {
@@ -248,7 +245,8 @@ object TrainingLoop {
     ) {
       import dataSet._
       val rand = new Random(1)
-      val model = Model.fromData(dataSet, gnnIterations, architecture, rand)
+      val model =
+        Model.fromData(dataSet, gnnIterations, architecture, lossAggMode, rand)
 
       val maxBatchSize = dataSet
         .signalSizeMedian(maxLibRatio)
@@ -364,8 +362,7 @@ object TrainingLoop {
                   optimizer.minimize(
                     loss * factor,
                     pc.allParams,
-                    backPropInParallel =
-                      Some(parallelCtx -> Timeouts.optimizationTimeout),
+                    backPropInParallel = Some(parallelCtx -> Timeouts.optimizationTimeout),
                     gradientTransform = _.clipNorm(2 * factor),
                     scaleLearningRate = scaleLearningRate(epoch),
                     weightDecay = weightDecay
@@ -452,25 +449,24 @@ object TrainingLoop {
                             pred.mapValuesNow(_.distr.map(_._2)),
                             onlyCountInSpaceTypes = true
                           )
-                        val Seq(libTop5, projTop5) = Seq(true, false).map {
-                          fromLib =>
-                            val predictions = pred.map {
-                              case (n, distr) =>
-                                n -> distr.distr.take(5).map(_._2)
-                            }
-                            val nodesMap = datum.nodesToPredict.collect {
-                              case (n, ty)
-                                  if predictions.contains(n.n) && ty.madeFromLibTypes == fromLib =>
-                                n.n -> ty
-                            }
-                            QLangAccuracy
-                              .countTopNCorrect(
-                                5,
-                                nodesMap,
-                                predictions,
-                                _ => 1
-                              )
-                              ._1
+                        val Seq(libTop5, projTop5) = Seq(true, false).map { fromLib =>
+                          val predictions = pred.map {
+                            case (n, distr) =>
+                              n -> distr.distr.take(5).map(_._2)
+                          }
+                          val nodesMap = datum.nodesToPredict.collect {
+                            case (n, ty)
+                                if predictions.contains(n.n) && ty.madeFromLibTypes == fromLib =>
+                              n.n -> ty
+                          }
+                          QLangAccuracy
+                            .countTopNCorrect(
+                              5,
+                              nodesMap,
+                              predictions,
+                              _ => 1
+                            )
+                            ._1
                         }
                         (fwd, fse1, libTop5, projTop5).tap { _ =>
                           printResult(s"(progress: ${i + 1}/${dataSet.size})")
@@ -479,12 +475,7 @@ object TrainingLoop {
                   }
               }.combineAll
 
-            import stat.{
-              libCorrect,
-              projCorrect,
-              confusionMatrix,
-              categoricalAcc
-            }
+            import stat.{libCorrect, projCorrect, confusionMatrix, categoricalAcc}
             import logger._
             logScalar(s"$dataSetName-loss", epoch, toAccuracyD(stat.loss))
             logScalar(s"$dataSetName-libAcc", epoch, toAccuracy(libCorrect))
@@ -542,8 +533,8 @@ object TrainingLoop {
                 }
               },
               () => {
-                announced("save parameters") {
-                  pc.saveToFile(saveDir / "params.serialized")
+                announced("save model") {
+                  SimpleMath.saveObjectToFile((saveDir / "model.serialized").toIO)(model)
                 }
               },
               () => {
@@ -668,8 +659,7 @@ object TrainingLoop {
         (grads, transformed, deltas)
       }
 
-      val lossModel: LossModel = LossModel.NormalLoss
-        .tap(m => printResult(s"loss model: ${m.name}"))
+      printResult(s"loss agg mode: ${lossAggMode}")
 
       private def limitTimeOpt[A](
           name: String,

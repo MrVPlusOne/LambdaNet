@@ -8,22 +8,10 @@ import lambdanet.SequenceModel.SeqArchitecture
 import lambdanet.architecture.LabelEncoder.TrainableLabelEncoder
 import lambdanet.architecture.{LabelEncoder, NNArchitecture}
 import lambdanet.train.TrainingLoop.{ForwardResult, maxLibRatio, projWeight}
-import lambdanet.train.{
-  Counted,
-  DataSet,
-  Loss,
-  LossModel,
-  ProcessedProject,
-  TopNDistribution
-}
+import lambdanet.train.{Counted, DataSet, Loss, LossAggMode, ProcessedProject, TopNDistribution}
 import lambdanet.translation.ImportsResolution.ErrorHandler
 import lambdanet.translation.PredicateGraph
-import lambdanet.translation.PredicateGraph.{
-  LibTypeNode,
-  PNode,
-  PType,
-  ProjNode
-}
+import lambdanet.translation.PredicateGraph.{LibTypeNode, PNode, PType, ProjNode}
 
 import scala.collection.parallel.ForkJoinTaskSupport
 import scala.concurrent.forkjoin.ForkJoinPool
@@ -35,6 +23,7 @@ case object Model {
       dataSet: DataSet,
       gnnIterations: Int,
       architecture: NNArchitecture,
+      lossAggMode: LossAggMode.Value,
       random: Random,
   ): Model = {
     import dataSet._
@@ -74,7 +63,8 @@ case object Model {
       labelEncoder,
       nameEncoder,
       labelCoverage,
-      random
+      random,
+      lossAggMode,
     )
   }
 
@@ -96,15 +86,10 @@ case class Model(
     nameEncoder: LabelEncoder,
     labelCoverage: TrainableLabelEncoder,
     random: Random,
-    lossModel: LossModel = LossModel.NormalLoss,
+    lossAggMode: LossAggMode.Value,
 ) {
 
-  import lambdanet.train.{
-    ConfusionMatrix,
-    Correct,
-    DecodingResult,
-    confusionMatrix
-  }
+  import lambdanet.train.{ConfusionMatrix, Correct, DecodingResult, confusionMatrix}
 
   def predictForNodes(
       nodesToPredict: Vector[ProjNode],
@@ -112,7 +97,7 @@ case class Model(
       predictTopK: Int,
   ): Map[PNode, TopNDistribution[PType]] = {
     val predSpace = predictor.predictionSpace
-    val decodingVec = announced("run predictor") {
+    val decoding = announced("run predictor") {
       predictor
         .run(
           architecture,
@@ -125,7 +110,6 @@ case class Model(
         )
         .result
     }
-    val decoding = decodingVec.last
     val predVec = decoding
       .topNPredictionsWithCertainty(predictTopK)
       .map { _.map(predSpace.typeOfIndex) }
@@ -139,6 +123,8 @@ case class Model(
       maxBatchSize: Option[Int],
       announceTimes: Boolean = false,
   ): (Loss, ForwardResult, Map[PNode, TopNDistribution[PType]]) = {
+    NeuralInference.checkOMP()
+
     import datum._
 
     val predSpace = datum.predictionSpace
@@ -153,7 +139,7 @@ case class Model(
       .unzip
     val targets = groundTruths.map(predSpace.indexOfType)
 
-    val decodingVec = announced("run predictor", announceTimes) {
+    val decoding = announced("run predictor", announceTimes) {
       datum.predictor match {
         case Left(seqPredictor) =>
           seqPredictor
@@ -163,7 +149,6 @@ case class Model(
               nodes,
               shouldDropout
             )
-            .pipe(Vector(_))
         case Right(predictor) =>
           predictor
             .run(
@@ -178,7 +163,6 @@ case class Model(
             .result
       }
     }
-    val decoding = decodingVec.last
 
     val (correctness, confMat, typeAccs) =
       announced("compute training accuracy", announceTimes) {
@@ -189,9 +173,11 @@ case class Model(
         )
       }
 
-    val loss = lossModel.predictionLoss(
-      decodingVec.par
-        .map(_.toLoss(targets, projWeight, predSpace.libTypeVec.length))
+    val loss = decoding.toLoss(
+      targets,
+      projWeight,
+      predSpace.libTypeVec.length,
+      lossAggMode
     )
 
     val totalCount = groundTruths.length

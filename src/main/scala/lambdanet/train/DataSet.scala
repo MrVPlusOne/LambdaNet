@@ -48,7 +48,7 @@ object DataSet {
         Seq(base / "trainSet", base / "devSet", base / "testSet"),
         predictAny = predictAny,
         loadLibDefs = true,
-        inParallel = true,
+        numThreads = 10,
       )
       ParsedRepos(libDefs, trainSet, devSet, testSet)
     } else {
@@ -83,7 +83,7 @@ object DataSet {
       ((trainSet ++ devSet).zip(Stream.continually(true)) ++
         testSet.zip(Stream.continually(testSetUseInferred))).toVector.par.map {
         case (
-            p @ ParsedProject(path, qModules, irModules, g, _),
+            p @ ParsedProject(path, _, qModules, irModules, g, _),
             useInferred
             ) =>
           val (predictor, predSpace) = if (useSeqModel) {
@@ -174,10 +174,10 @@ object DataSet {
 
   def nonGenerify(libDefs: LibDefs): PType => PType = {
     val funcTypeNode = libDefs.baseCtx.internalSymbols('Function).ty.get
-    val objTypeNode = libDefs.baseCtx.internalSymbols('Object).ty.get
+//    val objTypeNode = libDefs.baseCtx.internalSymbols('Object).ty.get
     def f(ty: PType): PType = ty match {
       case _: PFuncType   => PTyVar(funcTypeNode)
-      case _: PObjectType => PTyVar(objTypeNode)
+      case _: PObjectType => PAny  // treat object literal types as any
       case _              => ty
     }
     f
