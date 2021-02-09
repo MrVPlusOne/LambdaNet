@@ -37,7 +37,7 @@ import scala.util.Random
 object TrainingLoop {
   val toyMode: Boolean = false
   val useSeqModel = false
-  val gnnIterations: Int = 6
+  val gnnIterations: Int = 8
   val useDropout: Boolean = true
   val useOracleForIsLib: Boolean = false
   val predictAny = true
