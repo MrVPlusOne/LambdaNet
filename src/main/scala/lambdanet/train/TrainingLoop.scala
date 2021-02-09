@@ -37,7 +37,7 @@ import scala.util.Random
 object TrainingLoop {
   val toyMode: Boolean = false
   val useSeqModel = false
-  val gnnIterations: Int = 8
+  val gnnIterations: Int = 6
   val useDropout: Boolean = true
   val useOracleForIsLib: Boolean = false
   val predictAny = true
@@ -48,6 +48,7 @@ object TrainingLoop {
   val weightDecay: Option[Real] = Some(1e-4)
   val onlyPredictLibType = false
   val lossAggMode: LossAggMode.Value = LossAggMode.Sum
+  val encodeLibSignature = true
 
   val debugTime: Boolean = false
 
@@ -57,6 +58,7 @@ object TrainingLoop {
       "decay" -> weightDecay.nonEmpty,
       "with_any" -> predictAny,
       "lossAgg_sum" -> (lossAggMode == LossAggMode.Sum),
+      "encodeSignature" -> encodeLibSignature,
       "lib" -> onlyPredictLibType,
       "toy" -> toyMode
     ).map(flag(_)).mkString
@@ -65,7 +67,6 @@ object TrainingLoop {
       "noContextual" -> NeuralInference.noContextual,
       "noAttention" -> NeuralInference.noAttentional,
       "noLogical" -> NeuralInference.noLogical,
-      "encodeSignature" -> NeuralInference.encodeLibSignature,
     ).map(flag(_, post = true)).mkString
 
     if (useSeqModel) "seqModel-theirName1-node"
@@ -243,9 +244,9 @@ object TrainingLoop {
     ) {
       import dataSet._
       val rand = new Random(1)
-      val model =
-        Model.fromData(dataSet, gnnIterations, architecture, lossAggMode, rand)
-
+      val model = announced("Building model") {
+        Model.fromData(dataSet, gnnIterations, architecture, lossAggMode, encodeLibSignature, rand)
+      }
       val maxBatchSize = dataSet
         .signalSizeMedian(maxLibRatio)
         .tap(s => printResult(s"maxBatchSize: $s"))

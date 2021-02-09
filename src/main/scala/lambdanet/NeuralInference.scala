@@ -22,7 +22,6 @@ object NeuralInference {
   /** When set to false, each message passing has independent parameters */
   val fixBetweenIteration = false
 
-  val encodeLibSignature: Boolean = false
   val noAttentional: Boolean = false
   val noContextual: Boolean = false
   val noLogical: Boolean = false
@@ -57,7 +56,8 @@ object NeuralInference {
         labelEncoder: LabelEncoder,
         isLibLabel: Symbol => Boolean,
         nameEncoder: LabelEncoder,
-        labelDropout: Boolean
+        labelDropout: Boolean,
+        encodeLibSignature: Boolean,
     ) {
       import architecture.{randomVar}
 
@@ -75,13 +75,12 @@ object NeuralInference {
 
         val embed = logTime("iterate") {
           (0 until iterations)
-            .scanLeft(architecture.initialEmbedding(projectNodes)) {
-              (embed, i) =>
-                updateEmbedding(encodeLibNode)(
-                  embed,
-                  if (fixBetweenIteration) 0
-                  else i
-                )
+            .scanLeft(architecture.initialEmbedding(projectNodes)) { (embed, i) =>
+              updateEmbedding(encodeLibNode)(
+                embed,
+                if (fixBetweenIteration) 0
+                else i
+              )
             }
             .last
         }
@@ -517,8 +516,7 @@ object NeuralInference {
 
     case class KindNaming(name: String) extends MessageKind
 
-    case class KindBinaryLabeled(name: String, labelType: LabelType)
-        extends MessageKind
+    case class KindBinaryLabeled(name: String, labelType: LabelType) extends MessageKind
 
     /** All field accesses involving `label` */
     case class KindAccess(label: Symbol) extends MessageKind
@@ -606,8 +604,7 @@ object NeuralInference {
   // let's keep them here for now to prevent breaking serialization
   case class ClassFieldUsage(`class`: PNode, field: PNode) extends MessageModel
 
-  case class AccessFieldUsage(receiver: PNode, result: PNode)
-      extends MessageModel
+  case class AccessFieldUsage(receiver: PNode, result: PNode) extends MessageModel
 
   case class LabelUsages(
       classesInvolvingLabel: Map[Symbol, Vector[ClassFieldUsage]],

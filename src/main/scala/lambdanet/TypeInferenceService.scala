@@ -24,57 +24,6 @@ object TypeInferenceService {
       seed: Long = 1,
   )
 
-  def loadModel(
-      paramPath: Path,
-      modelCachePath: Path,
-      modelConfig: ModelConfig,
-      numOfThreads: Int,
-      parsedReposDir: Path = amm.pwd / 'data / "parsedRepos",
-  ): Model =
-    if (amm.exists(modelCachePath)) {
-      announced(s"Load model from the cache: $modelCachePath") {
-        readObjectFromFile[Model](modelCachePath.toIO)
-      }
-    } else {
-      import modelConfig._
-
-      println(
-        s"No model file found under '$modelCachePath', creating new model..."
-      )
-
-      val pc = announced("Load model weights")(
-        ParamCollection.fromFile(paramPath)
-      )
-
-      val dataSet = announced("Process data set") {
-        val repos = ParsedRepos.readFromDir(parsedReposDir)
-        DataSet.makeDataSet(
-          repos,
-          Some(new ForkJoinTaskSupport(new ForkJoinPool(numOfThreads))),
-          useSeqModel = false,
-          onlyPredictLibType = false,
-          predictAny = false,
-        )
-      }
-      val model = announced("Create model") {
-        val architecture = GATArchitecture(gatHeads, dimMessage, pc)
-        Model.fromData(
-          dataSet,
-          gnnIterations,
-          architecture,
-          lossAggMode,
-          new Random(seed)
-        )
-      }
-
-      announced(s"Save model to '$modelCachePath'") {
-        if (!amm.exists(modelCachePath / amm.up))
-          amm.mkdir(modelCachePath / amm.up)
-        saveObjectToFile(modelCachePath.toIO)(model)
-      }
-      model
-    }
-
   case class PredictionResults(
       map: Map[PredicateGraph.PNode, TopNDistribution[PredicateGraph.PType]]
   ) {
@@ -106,12 +55,9 @@ object TypeInferenceService {
     NeuralInference.checkOMP()
 
     val modelDir = newestModelDir
-    val paramPath = modelDir / "params.serialized"
-    val modelCachePath = modelDir / "model.serialized"
-    val modelConfig = ModelConfig()
+    val modelPath = modelDir / "model.serialized"
 
-    val model =
-      loadModel(paramPath, modelCachePath, modelConfig, numOfThreads = 8)
+    val model = readObjectFromFile[Model](modelPath)
 
     val service = model.PredictionService(numOfThreads = 8, predictTopK = 5)
     printResult("Type Inference Service successfully started.")

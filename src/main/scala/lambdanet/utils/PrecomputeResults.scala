@@ -2,18 +2,14 @@ package lambdanet.utils
 
 import ammonite.ops.pwd
 import ammonite.{ops => amm}
-import funcdiff.{DebugTime, SymbolPath}
-import lambdanet.{SM, TypeInferenceService}
-import lambdanet.TypeInferenceService.{ModelConfig, loadModel}
+import lambdanet.{Model, SM, TypeInferenceService}
+import lambdanet.TypeInferenceService.ModelConfig
 
 object PrecomputeResults {
   val modelDir = TypeInferenceService.newestModelDir
-  val paramPath = modelDir / "params.serialized"
-  val modelCachePath = modelDir / "model.serialized"
-  val modelConfig = ModelConfig()
+  val modelPath = modelDir / "model.serialized"
 
-  val model =
-    loadModel(paramPath, modelCachePath, modelConfig, numOfThreads = 8)
+  val model = SM.readObjectFromFile[Model](modelPath)
   val service = model.PredictionService(numOfThreads = 8, predictTopK = 5)
 
   def precompute(testName: String, overwrite: Boolean = false): Unit = {

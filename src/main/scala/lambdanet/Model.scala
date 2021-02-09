@@ -24,6 +24,7 @@ case object Model {
       gnnIterations: Int,
       architecture: NNArchitecture,
       lossAggMode: LossAggMode.Value,
+      encodeLibSignature: Boolean,
       random: Random,
   ): Model = {
     import dataSet._
@@ -65,6 +66,7 @@ case object Model {
       labelCoverage,
       random,
       lossAggMode,
+      encodeLibSignature,
     )
   }
 
@@ -87,6 +89,7 @@ case class Model(
     labelCoverage: TrainableLabelEncoder,
     random: Random,
     lossAggMode: LossAggMode.Value,
+    encodeLibSignature: Boolean,
 ) {
 
   import lambdanet.train.{ConfusionMatrix, Correct, DecodingResult, confusionMatrix}
@@ -106,7 +109,8 @@ case class Model(
           labelEncoder,
           labelCoverage.isLibLabel,
           nameEncoder,
-          labelDropout = false
+          labelDropout = false,
+          encodeLibSignature,
         )
         .result
     }
@@ -158,7 +162,8 @@ case class Model(
               labelEncoder,
               labelCoverage.isLibLabel,
               nameEncoder,
-              shouldDropout
+              shouldDropout,
+              encodeLibSignature,
             )
             .result
       }

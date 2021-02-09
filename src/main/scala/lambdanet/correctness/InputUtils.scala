@@ -2,19 +2,17 @@ package lambdanet.correctness
 
 import ammonite.ops.Path
 import ammonite.{ops => amm}
-import lambdanet.TypeInferenceService.{ModelConfig, loadModel}
+import lambdanet.TypeInferenceService.{ModelConfig}
 import lambdanet.translation.PredicateGraph.PNode
 import lambdanet.translation.{PAnnot, PredicateGraph, PredicateGraphLoader}
 import lambdanet.{Model, SM, TypeInferenceService}
 
 object InputUtils {
   val modelDir: Path = TypeInferenceService.newestModelDir
-  val paramPath: Path = modelDir / "params.serialized"
-  val modelCachePath: Path = modelDir / "model.serialized"
+  val modelPath: Path = modelDir / "model.serialized"
   val modelConfig: ModelConfig = ModelConfig()
 
-  lazy val model: Model =
-    loadModel(paramPath, modelCachePath, modelConfig, numOfThreads = 8)
+  lazy val model: Model = SM.readObjectFromFile[Model](modelPath)
   lazy val service: model.PredictionService =
     model.PredictionService(numOfThreads = 8, predictTopK = Int.MaxValue)
 
