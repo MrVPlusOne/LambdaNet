@@ -94,6 +94,18 @@ case class Model(
 
   import lambdanet.train.{ConfusionMatrix, Correct, DecodingResult, confusionMatrix}
 
+  def description: String = {
+    s"""Model------
+       |gnnIterations: $gnnIterations
+       |architecture: ${architecture.arcName}
+       |labelEncoder: ${labelEncoder.name}
+       |nameEncoder: ${nameEncoder.name}
+       |labelCoverage: ${labelCoverage.name}
+       |lossAggMode: ${lossAggMode}
+       |encodeLibSignature: $encodeLibSignature
+       |------Model""".stripMargin
+  }
+
   def predictForNodes(
       nodesToPredict: Vector[ProjNode],
       predictor: Predictor,

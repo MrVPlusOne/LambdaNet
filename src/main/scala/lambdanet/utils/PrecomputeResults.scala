@@ -3,7 +3,6 @@ package lambdanet.utils
 import ammonite.ops.pwd
 import ammonite.{ops => amm}
 import lambdanet.{Model, SM, TypeInferenceService}
-import lambdanet.TypeInferenceService.ModelConfig
 
 object PrecomputeResults {
   val modelDir = TypeInferenceService.newestModelDir

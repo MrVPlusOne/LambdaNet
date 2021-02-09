@@ -16,7 +16,6 @@ import lambdanet.utils.{
   FileLogger,
   QLangAccuracy,
   QLangDisplay,
-  ReportFinish
 }
 import TrainingState._
 import botkop.numsca.Tensor
@@ -42,8 +41,8 @@ object TrainingLoop {
   val useOracleForIsLib: Boolean = false
   val predictAny = true
   /* Assign more weights to project type to battle label imbalance */
-  val maxLibRatio: Real = 2.0
-  val projWeight: Real = maxLibRatio
+  val maxLibRatio: Real = 9.0
+  val projWeight: Real = 1.0
   val gatHead = 1
   val weightDecay: Option[Real] = Some(1e-4)
   val onlyPredictLibType = false
@@ -147,7 +146,7 @@ object TrainingLoop {
       emailRelated: Option[EmailRelated],
   ) {
     val fileLogger =
-      new FileLogger(resultsDir / "console.txt", printToConsole = true)
+      new FileLogger(resultsDir / "console.txt", printToConsole = false)
     import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
     printInfo(s"Task: $taskName")
@@ -251,8 +250,8 @@ object TrainingLoop {
         .signalSizeMedian(maxLibRatio)
         .tap(s => printResult(s"maxBatchSize: $s"))
 
-      printResult(s"Label encoder: ${model.labelEncoder.name}")
-      printResult(s"Name encoder: ${model.nameEncoder.name}")
+      printResult(model.description)
+      ammonite.ops.write(resultsDir/"model_params.txt", model.description)
 
       var shouldAnnounce: Boolean = true
 
