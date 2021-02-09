@@ -37,12 +37,12 @@ import scala.util.Random
 object TrainingLoop {
   val toyMode: Boolean = false
   val useSeqModel = false
-  val gnnIterations: Int = 8
+  val gnnIterations: Int = 6
   val useDropout: Boolean = true
   val useOracleForIsLib: Boolean = false
   val predictAny = true
   /* Assign more weights to project type to battle label imbalance */
-  val maxLibRatio: Real = 3.0
+  val maxLibRatio: Real = 2.0
   val projWeight: Real = maxLibRatio
   val gatHead = 1
   val weightDecay: Option[Real] = Some(1e-4)
@@ -53,8 +53,6 @@ object TrainingLoop {
 
   val taskName: String = {
     val flags = Seq(
-//      "newSim" -> NNArchitecture.compareDecoding,
-//      "oracle" -> useOracleForIsLib,
       "fix" -> NeuralInference.fixBetweenIteration,
       "decay" -> weightDecay.nonEmpty,
       "with_any" -> predictAny,
