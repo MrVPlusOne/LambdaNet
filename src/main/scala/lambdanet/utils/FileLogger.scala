@@ -80,7 +80,7 @@ import lambdanet.utils.EventLogger._
 
 class EventLogger(
     file: Path,
-    printToConsole: Boolean,
+    var printToConsole: Boolean,
     overrideMode: Boolean
 ) {
 

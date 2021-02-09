@@ -146,7 +146,7 @@ object TrainingLoop {
       emailRelated: Option[EmailRelated],
   ) {
     val fileLogger =
-      new FileLogger(resultsDir / "console.txt", printToConsole = false)
+      new FileLogger(resultsDir / "console.txt", printToConsole = true)
     import fileLogger.{println, printInfo, printWarning, printResult, announced}
 
     printInfo(s"Task: $taskName")
@@ -306,10 +306,9 @@ object TrainingLoop {
               "Training finished!"
             )
           }
-
         }
 
-        val saveInterval = if (toyMode) 40 else 6
+        val saveInterval = if (toyMode) 40 else 5
 
         def logAccuracyDetails(
             stats: Vector[(ProcessedProject, ForwardResult)],

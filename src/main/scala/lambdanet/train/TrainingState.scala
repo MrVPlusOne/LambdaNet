@@ -25,7 +25,7 @@ object TrainingState {
     def mkEventLogger(overrideMode: Boolean) = {
       new EventLogger(
         loggerFile,
-        printToConsole = true,
+        printToConsole = false,
         overrideMode = overrideMode
       )
     }
