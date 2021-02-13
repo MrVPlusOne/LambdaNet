@@ -3,15 +3,16 @@ package lambdanet
 import ammonite.ops.{Path, pwd}
 
 object LoadModel {
-  val newestModelDir: Path = pwd / "models" / "NewModelFormat-epoch24"
+  val newestModelDir: Path =
+    pwd / "models" / "NewData-GAT1-fc2-decay-with_any-lossAgg_sum-encodeSignature-6"
 
   def main(args: Array[String]): Unit = {
     val modelDir = newestModelDir
-    val model = announced("load model..."){
+    val model = announced("load model...") {
       SM.readObjectFromFile[Model](modelDir / "model.serialized")
     }
 
-    announced("save model as the new format"){
+    announced("save model as the new format") {
       SM.saveObjectToFile(modelDir / "model-copy.serialized")(model)
     }
 

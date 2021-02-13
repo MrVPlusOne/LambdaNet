@@ -48,7 +48,9 @@ object TypeInferenceService {
     val modelDir = LoadModel.newestModelDir
     val modelPath = modelDir / "model.serialized"
 
-    val model = readObjectFromFile[Model](modelPath)
+    val model = announced("Loading model") {
+      readObjectFromFile[Model](modelPath)
+    }
 
     val service = model.PredictionService(numOfThreads = 8, predictTopK = 5)
     printResult("Type Inference Service successfully started.")
