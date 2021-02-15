@@ -1,10 +1,6 @@
 package lambdanet.correctness
 
 //import $ivy.`org.plotly-scala::plotly-render:0.5.4`
-import java.io.InvalidClassException
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
-
 import ammonite.ops.RelPath
 import ammonite.{ops => amm}
 import lambdanet.correctness.Objective.{AverageNegativeLogLikelihood, HammingLoss, NegativeLogLikelihood}
@@ -16,6 +12,9 @@ import plotly._
 import plotly.element._
 import plotly.layout.{Axis, Layout}
 
+import java.io.{BufferedOutputStream, FileOutputStream, InvalidClassException, PrintStream}
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import scala.util.Random
 
 object CrossEntropyExperiment {
@@ -41,12 +40,24 @@ object CrossEntropyExperiment {
     Random.setSeed(params.seed.get)
     val inputPath = amm.pwd / "data" / params.relPathUnderData
     val (graph, nodeAnnots, results) = InputUtils.loadGraphAndPredict(inputPath)
+
+    val fmt = DateTimeFormatter.ofPattern("uuMMdd_HHmm")
+    val currentTime = LocalDateTime.now().format(fmt)
+    val outputPath = amm.pwd / "BS_Results" / currentTime
+    if (!amm.exists(outputPath)) {
+      amm.mkdir(outputPath)
+    }
+    System.setOut(
+      new PrintStream(
+        new BufferedOutputStream(new FileOutputStream((outputPath / "output.txt").toIO))
+      )
+    )
+
     val checker = TypeChecker(graph, libDefs)
     val projectNodes = graph.nodes.filter(_.fromProject)
-    checker.subtypesToCheck.foreach(println)
-    checker.binaryRels.foreach(println)
-    graph.predicates.collect { case p: DefineRel => p }.foreach(println)
-    println()
+//    checker.subtypesToCheck.foreach(println)
+//    checker.binaryRels.foreach(println)
+//    graph.predicates.collect { case p: DefineRel => p }.foreach(println)
 
     val objectiveConstructor = params.objectiveClass match {
       case "lambdanet.correctness.Objective.NegativeLogLikelihood$" =>
@@ -157,10 +168,6 @@ object CrossEntropyExperiment {
       .count { case (node, (gold, _)) => results(node).typeProb.contains(gold) }} differences remain after filtering unpredicted types")
     println(groundTruthDifference)
     println()
-
-    val fmt = DateTimeFormatter.ofPattern("uuMMdd_HHmm")
-    val currentTime = LocalDateTime.now().format(fmt)
-    val outputPath = amm.pwd / "CE_Results" / currentTime
 
     //noinspection ScalaDeprecation
     val scorePlot = Scatter(

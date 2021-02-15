@@ -5,9 +5,11 @@ import ammonite.{ops => amm}
 import lambdanet.correctness.CrossEntropyTypeInference.{AssignmentGen, IsConverged, UpdateTypeDistrs}
 import lambdanet.correctness.Objective.{AverageNegativeLogLikelihood, HammingLoss, NegativeLogLikelihood}
 import lambdanet.translation.PredicateGraph
-import lambdanet.translation.PredicateGraph.{BinaryRel, BinaryRelCat}
+import lambdanet.translation.PredicateGraph.{BinaryRel, BinaryRelCat, DefineRel}
 import lambdanet.translation.PredicateGraphLoader.libDefs
 
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import scala.util.Random
 
 object BeamSearchExperiment {
@@ -34,11 +36,24 @@ object BeamSearchExperiment {
       maxIters = 1,
       smoothing = 0.7,
       stopIters = 20,
-      objectiveClass = Objective.AverageNegativeLogLikelihood.getClass.getCanonicalName,
+      objectiveClass = Objective.HammingLoss.getClass.getCanonicalName,
       generatorClass = AssignmentGen.getClass.getCanonicalName,
       updateClass = UpdateTypeDistrs.getClass.getCanonicalName,
       callbackClass = IsConverged.getClass.getCanonicalName
     )
+
+    val fmt = DateTimeFormatter.ofPattern("uuMMdd_HHmm")
+    val currentTime = LocalDateTime.now().format(fmt)
+    val resultsDir = amm.pwd / "BS_Results" / currentTime
+    if (!amm.exists(resultsDir)) {
+      amm.mkdir(resultsDir)
+    }
+//    System.setOut(
+//      new PrintStream(
+//        new BufferedOutputStream(new FileOutputStream((resultsDir / "output.txt").toIO))
+//      )
+//    )
+
     import CrossEntropyTypeInference._
     val params = unseededParams.copy(
       seed = Some(unseededParams.seed.getOrElse(Random.nextLong()))
@@ -46,12 +61,27 @@ object BeamSearchExperiment {
     Random.setSeed(params.seed.get)
     val inputPath = amm.pwd / "data" / params.relPathUnderData
     val (graph, nodeAnnots, results) = InputUtils.loadGraphAndPredict(inputPath)
+    val orderedPredicates = graph.predicates
+      .collect {
+        case p: BinaryRel => p
+        case p: DefineRel => p
+      }
+      .toArray
+      .sortBy {
+        case BinaryRel(lhs, rhs, category) => lhs.getId
+        case DefineRel(v, expr)            => v.getId
+      }
+//    println("===Predicates===")
+//    orderedPredicates.foreach(println)
     val checker = TypeChecker(graph, libDefs)
     val projectNodes = graph.nodes.filter(_.fromProject)
+
+    val groundTruth = GroundTruth(nodeAnnots, toPlainType = true)
+    val accuracy = Accuracy(groundTruth)
+    println(accuracy.get(results.mapValuesNow(_.topValue)))
 //    checker.subtypesToCheck.foreach(println)
 //    checker.binaryRels.foreach(println)
 //    graph.predicates.collect { case p: DefineRel => p }.foreach(println)
-    println()
 
     val objectiveConstructor = params.objectiveClass match {
       case "lambdanet.correctness.Objective.NegativeLogLikelihood$" =>
@@ -96,14 +126,11 @@ object BeamSearchExperiment {
       fixedTypes,
       objective
     )
-    val elites = beamSearch.search(results, 5)
+    val elites = beamSearch.search(results, 1)
 
-    val groundTruth = GroundTruth(nodeAnnots, toPlainType = true)
-    val accuracy = Accuracy(groundTruth)
-    elites.foreach {
-      best =>
-        println(Assignment.diff(results, groundTruth.truth, best))
-        println
+    elites.foreach { best =>
+      println(Assignment.diff(results, groundTruth.truth, best))
+      println
     }
   }
 
