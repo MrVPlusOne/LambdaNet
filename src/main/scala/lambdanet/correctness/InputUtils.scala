@@ -16,7 +16,7 @@ object InputUtils {
 
   def loadGraphAndPredict(resultsPath: Path, project: ParsedProject): (PredicateGraph, Map[PNode, PAnnot], TypeDistrs) = {
     val graph = project.pGraph
-    val nodeAnnots = project.allAnnots
+    val nodeAnnots = project.rawAllUserAnnots
     val results =
       if (amm.exists(resultsPath)) {
         SM.readObjectFromFile[TypeDistrs](resultsPath.toIO)

@@ -4,15 +4,15 @@ import ammonite.ops._
 import funcdiff.SimpleMath
 import lambdanet.translation.IR.IRModule
 import lambdanet.translation.ImportsResolution.{ErrorHandler, ModuleExports, NameDef}
-import lambdanet.translation._
-import lambdanet.translation.PredicateGraph.{DefineRel, LibNode, PAny, PNode, PNodeAllocator, PObject, PType, ProjNode, TyPredicate}
+import lambdanet.translation.PredicateGraph._
 import lambdanet.translation.QLang.QModule
-import lambdanet.utils.{DownloadRepos, ProgramParsing}
+import lambdanet.translation._
 import lambdanet.utils.ProgramParsing.GProject
+import lambdanet.utils.{DownloadRepos, ProgramParsing}
 
 import java.util.concurrent.ForkJoinPool
-import scala.collection.parallel.{ForkJoinTaskSupport, ForkJoinTasks}
-import scala.collection.{immutable, mutable}
+import scala.collection.mutable
+import scala.collection.parallel.ForkJoinTaskSupport
 import scala.util.Random
 
 @SerialVersionUID(2)
@@ -329,6 +329,13 @@ object PrepareRepos {
     }
 
     @transient
+    lazy val rawAllUserAnnots: Map[PNode, PAnnot] =
+      allAnnots.collect {
+        case (n, ant @ Annot.User(_, _)) if !shouldExclude(ant) =>
+          n -> ant
+      }
+
+    @transient
     lazy val allUserAnnots: Map[ProjNode, PType] = {
       allAnnots.collect {
         case (n, ant @ Annot.User(t, _)) if !shouldExclude(ant) =>
@@ -352,9 +359,9 @@ object PrepareRepos {
     }
   }
 
-  import concurrent.{Future, Await}
   import concurrent.ExecutionContext.Implicits.global
   import concurrent.duration._
+  import concurrent.{Await, Future}
 
   @SerialVersionUID(2)
   case class ParsedRepos(
