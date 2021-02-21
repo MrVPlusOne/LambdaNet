@@ -6,7 +6,8 @@ import cats.implicits._
 import lambdanet.SM
 import lambdanet.correctness.CrossEntropyExperiment.Params
 import lambdanet.correctness.CrossEntropyMethod.CEResult
-import lambdanet.translation.PredicateGraph.{BinaryRel, DefineRel, PNode, TyPredicate}
+import lambdanet.translation.PredicateGraph._
+import lambdanet.translation.PredicateGraphLoader.libDefs
 
 object CEResultAnalysis {
   def main(args: Array[String]): Unit = {
@@ -28,18 +29,29 @@ object CEResultAnalysis {
         }
         .fold(monoid.empty)(monoid.combine)
 
-    val remappedCount = predicatesOf.values.map(_.size).sum
-    val originalCount = predicates.toSeq.map(_.allNodes.size).sum
-    assert(remappedCount == originalCount)
-
-    val ceResult =
+    val ceResult = {
       SM.readObjectFromFile[CEResult[Assignment, TypeDistrs]](resultsPath.toIO)
+    }
+    println(ceResult.param.values.map(_.topValue).count(_ == PAny))
+    val checker = TypeChecker(graph, libDefs)
+    val bad = ceResult.elites.iterator.map(x => (x, checker.violate(x))).filter(_._2.nonEmpty).take(5)
+    bad.foreach { case (assignment, set) =>
+      val relatedNodes: Set[PNode] = set.flatMap { case (a, b) => Set(a, b) }
+      println("Assignment:")
+      assignment.filterKeys(relatedNodes.contains).foreach(println)
+      println("Violated constraints:")
+      set.foreach { case (a, b) =>
+        checker.defaultContext.isSubtype(a, b, assignment)
+        println(a, b)
+      }
 
-    graph.nodes.toSeq.sortBy(_.getId).foreach(println)
+      println
+    }
+
     val groundTruth = GroundTruth(nodeAnnots, toPlainType = true)
     val groundTruthDifference: Assignment.Difference =
       Assignment.diff(results, groundTruth.truth, ceResult.elites.head)
-    groundTruthDifference.diff.foreach {
+    groundTruthDifference.diff.toArray.sortBy(_._1.getId).foreach {
       case (node, (gold, pred)) =>
         println(s"$node -> ${(gold, pred)}")
         predicatesOf.get(node).foreach(_.foreach(println))
