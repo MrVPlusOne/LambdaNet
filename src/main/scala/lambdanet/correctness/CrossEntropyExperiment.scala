@@ -3,6 +3,7 @@ package lambdanet.correctness
 //import $ivy.`org.plotly-scala::plotly-render:0.5.4`
 import ammonite.ops.RelPath
 import ammonite.{ops => amm}
+import lambdanet.LibDefs
 import lambdanet.correctness.Objective.{AverageNegativeLogLikelihood, HammingLoss, NegativeLogLikelihood}
 import lambdanet.translation.PredicateGraph
 import lambdanet.translation.PredicateGraph._
@@ -32,7 +33,7 @@ object CrossEntropyExperiment {
       callbackClass: String
   )
 
-  def run(unseededParams: Params): Unit = {
+  def run(unseededParams: Params, defaultLibDefs: Option[LibDefs] = None): Unit = {
     import CrossEntropyTypeInference._
     val params = unseededParams.copy(
       seed = Some(unseededParams.seed.getOrElse(Random.nextLong()))
@@ -53,7 +54,7 @@ object CrossEntropyExperiment {
       )
     )
 
-    val checker = TypeChecker(graph, libDefs)
+    val checker = TypeChecker(graph, defaultLibDefs.getOrElse(libDefs))
     val projectNodes = graph.nodes.filter(_.fromProject)
 //    checker.subtypesToCheck.foreach(println)
 //    checker.binaryRels.foreach(println)
