@@ -78,6 +78,7 @@ object BeamSearchExperiment {
 
     val groundTruth = GroundTruth(nodeAnnots, toPlainType = true)
     val accuracy = Accuracy(groundTruth)
+    println("===Accuracy from LambdaNet===")
     println(accuracy.get(results.mapValuesNow(_.topValue)))
 //    checker.subtypesToCheck.foreach(println)
 //    checker.binaryRels.foreach(println)
