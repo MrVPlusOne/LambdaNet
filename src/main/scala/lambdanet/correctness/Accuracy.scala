@@ -17,13 +17,18 @@ case class Accuracy private(truth: Assignment) {
     } yield (node, AnnotAndType(gold, typ))
   }
 
-  def get(assignment: Assignment): Double = {
+  def getRatio(assignment: Assignment): (Int, Int) = {
     val annotatedNodes = assignment.filterKeys(truth.contains)
     val correctNodeCount = annotatedNodes.count {
       case (node, typ) =>
         truth(node) == typ
     }
-    correctNodeCount / annotatedNodes.size.toDouble
+    (correctNodeCount, annotatedNodes.size)
+  }
+
+  def get(assignment: Assignment): Double = {
+    val (a, b) = getRatio(assignment)
+    a / b.toDouble
   }
 }
 
