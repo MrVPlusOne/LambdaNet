@@ -1,12 +1,11 @@
 package lambdanet
 
 import ammonite.ops._
-import funcdiff.{Optimizer, ParamCollection, SimpleMath}
-import lambdanet.train.{DataSet, ProcessedProject, Timeouts, TrainingLoop, TrainingState}
+import funcdiff.ParamCollection
+import lambdanet.train.{DataSet, Timeouts, TrainingLoop}
 import lambdanet.translation.ImportsResolution.{ErrorHandler, NameDef}
-import lambdanet.translation.PredicateGraph.{BinaryRel, PAny, PNode}
+import lambdanet.translation.PredicateGraph.{PAny, PNode}
 import lambdanet.utils.QLangDisplay
-import org.scalacheck.Prop.Exception
 
 import scala.collection.parallel.ForkJoinTaskSupport
 import scala.concurrent.forkjoin.ForkJoinPool
@@ -37,11 +36,6 @@ object RunTrainedModel {
         errorHandler = handler,
         predictAny = false,
       )
-    val binaryRels = testProject.pGraph.predicates.collect { case p: BinaryRel => p }
-    //fixme: remove below?
-    println(binaryRels.size)
-    println(binaryRels.count{x => x.rhs.fromLib || (x.rhs.isType && x.rhs.fromProject)})
-    throw new IllegalArgumentException("arg 1 was wrong...")
     val repos1 = repos.copy(devSet = List(), testSet = List(testProject))
     val dataSet = DataSet.makeDataSet(
       repos1,
@@ -83,7 +77,7 @@ object RunTrainedModel {
   }
 
   /** Renames js files as ts files (needed to run our tool on js files)  */
-  def renameToTs() = {
+  def renameToTs(): Unit = {
     val jsFiles = PrepareRepos.reposDir / RelPath("javascript-algorithms-ts")
     for { f <- ls.rec(jsFiles) if f.ext == "js" } {
       def changeExtension(name: String, old: String, newExt: String): String = {
@@ -99,7 +93,7 @@ object RunTrainedModel {
   }
 
   /** Checks predictions on a class of simple functions */
-  def searchForFunctions() = {
+  def searchForFunctions(): Unit = {
     import translation.QLang._
     val unknownType = NameDef.unknownType
 
