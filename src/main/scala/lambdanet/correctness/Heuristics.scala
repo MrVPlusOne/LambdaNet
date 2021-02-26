@@ -61,4 +61,12 @@ object Heuristics {
         (instance, PTyVar(typ))
     }(collection.breakOut)
   }
+
+  def fixTypesByFixAnnotation(
+      binaryRels: Set[BinaryRel],
+      assignment: Assignment
+  ): Assignment = {
+    // todo(haoyang): Unify a node with its fixAnnotation's node
+    ???
+  }
 }
