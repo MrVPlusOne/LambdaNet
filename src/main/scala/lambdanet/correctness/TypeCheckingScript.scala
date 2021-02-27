@@ -29,13 +29,16 @@ object TypeCheckingScript {
     val sameNodes = Set(plane, thing, sphere).map(Set(_))
     val validTypes =
       Heuristics.validTypesWithAnyAssignment(results, sameNodes, checker)
-    val assignmentGen = AssignmentGen(
-      graph.projNodes,
+    val initialState = BasicInferenceState(
       shallowSubtype,
       sameNodes,
       validTypes,
       Map.empty
     )
+    val assignmentGen =
+      AssignmentGen(
+        initialState
+      )
     assignmentGen(results, 1)
   }
 }

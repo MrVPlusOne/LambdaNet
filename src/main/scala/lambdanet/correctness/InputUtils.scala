@@ -16,6 +16,7 @@ object InputUtils {
 
   def loadGraphAndPredict(resultsPath: Path, project: ParsedProject): (PredicateGraph, Map[PNode, PAnnot], TypeDistrs) = {
     val graph = project.pGraph
+    // fixme: Use built-in allUserAnnots and modify all dependent code
     val nodeAnnots = project.rawAllUserAnnots
     val results =
       if (amm.exists(resultsPath)) {

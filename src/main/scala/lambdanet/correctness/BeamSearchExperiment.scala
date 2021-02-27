@@ -120,17 +120,17 @@ object BeamSearchExperiment {
       Heuristics.validTypesWithAnyAssignment(results, sameNodes, checker)
 //    validTypes.foreach(println)
 
-    val beamSearch = new BeamSearch(
-      shallowSubtype,
-      sameNodes.toArray,
-      validTypes.mapValuesNow(_.toArray),
-      fixedTypes,
+    val initialState = BasicInferenceState(shallowSubtype, sameNodes, validTypes, fixedTypes)
+
+    val beamSearch = BeamSearch(
+      initialState,
       objective
     )
     val elites = beamSearch.search(results, 1)
 
     elites.foreach { best =>
       println(Assignment.diff(results, groundTruth.truth, best))
+      println(accuracy.get(best))
       println
     }
   }

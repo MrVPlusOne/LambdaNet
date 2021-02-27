@@ -97,12 +97,14 @@ object CrossEntropyExperiment {
 
     val assignmentGen = params.generatorClass match {
       case "lambdanet.correctness.CrossEntropyTypeInference.AssignmentGen$" =>
-        AssignmentGen(
-          projectNodes,
+        val initialState = BasicInferenceState(
           shallowSubtype,
           sameNodes,
           validTypes,
           fixedTypes
+        )
+        AssignmentGen(
+          initialState
         )
       case _ =>
         throw new InvalidClassException(
