@@ -61,6 +61,31 @@ object CrossEntropyTypeInference {
     }
   }
 
+  case class AssignmentGen0(
+    initialState: InferenceState
+  ) extends ((TypeDistrs, Int) => Samples) {
+    private val logger = Logger(classOf[AssignmentGen])
+
+    def apply(param: TypeDistrs, numSamples: Int): Samples =
+      Vector.fill(numSamples)(gen(param))
+
+    def gen(param: TypeDistrs): Assignment = {
+      // fixme: can we pass in random seeds so that the results are reproducible?
+      var state = initialState
+      while (state.hasNext) {
+        val (node, validTypes) = state.next
+        val typesAndProbs = validTypes.map { typ =>
+          val prob = param(node).typeProb(typ)
+          (typ, prob)
+        }
+        logger.debug(s"Types and probs: ${typesAndProbs.mkString(", ")}")
+        val nodeType = Sampling.choose(typesAndProbs)
+        state = state.updated(node, nodeType)
+      }
+      state.assignment
+    }
+  }
+
   case class BeamSearch(
     checker: ValidTypeGen,
     sameNodes: Array[Set[PNode]],
@@ -86,6 +111,27 @@ object CrossEntropyTypeInference {
         candidates.sortBy(objective).take(k).copyToArray(topK, 0, k)
       }
       topK
+    }
+  }
+
+  case class BeamSearch0(
+    initialState: InferenceState,
+    objective: Assignment => Double
+  ) {
+    def search(param: TypeDistrs, k: Int): Array[Assignment] = {
+      val topK = Array.fill(k)(initialState)
+      while (topK.exists(_.hasNext)) {
+        val candidates = topK.flatMap { state =>
+          if (state.hasNext) {
+            val (node, validTypes) = state.next
+            for (typ <- validTypes) yield state.updated(node, typ)
+          } else {
+            Array(state)
+          }
+        }
+        candidates.sortBy(s => objective(s.assignment)).take(k).copyToArray(topK, 0, k)
+      }
+      topK.map(_.assignment)
     }
   }
 
