@@ -10,9 +10,11 @@ After cloning this repo, here are the steps to reproduce our experimental result
     1. download the model weights using [this link (predicts user defined type)](https://drive.google.com/file/d/1NvEVQ4-5tC3Nc-Mzpu3vYeyEcaM_zEgV/view?usp=sharing) or [this link (only library types)](TODO), unzip the file, and put the `models` file under the project root. 
     2. To run the model in interative mode, which outputs `(source code position, predicted type)` pairs for the specified files:
         1. Under project root, run `sbt "runMain lambdanet.TypeInferenceService"`.
-    2. Alternatively, to run the model in batched mode, which outputs human-readable HTML files and accuracy statistics:
+        2. After it finishes loading the model into memory, simply enter the directory path containing Typescript files.
+        3. Note that currently, LambdaNet only works with Typescript files, so if you want to run it on Javascript files, you will need to change the file extensions to `.ts`.
+    3. Alternatively, to run the model in batched mode, which outputs human-readable HTML files and accuracy statistics:
         1. download the [parsedRepos file](https://drive.google.com/file/d/1ZhsUf9bUzT3ZJB0KzNP6w2aj3sQZwtsp/view?usp=sharing), unzip the file and put the directory under `<project root>/data`.
-        2. Check the file `src/main/scala/lambdanet/RunTrainedModel.scala` and change the parameters under the todo comments depending on which model you want to run and where your test TypeScript files are located. (Currently, LambdaNet only works with Typescript files, so if you want to run it on Javascript files, you will need to change the file extensions to `.ts`.)
+        2. Check the file `src/main/scala/lambdanet/RunTrainedModel.scala` and change the parameters under the todo comments depending on which model you want to run and where your test TypeScript files are located.
         3. Under project root, use `sbt runTrained` to run the model.
  3. To train LambdaNet from scratch 
     1. Download the Typescript projects used in our experiments.
