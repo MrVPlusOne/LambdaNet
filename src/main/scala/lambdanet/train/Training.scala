@@ -9,11 +9,13 @@ import cats.Monoid
 import funcdiff.{SimpleMath => SM}
 import funcdiff._
 import lambdanet.architecture._
-import lambdanet.utils.{EmailService, EventLogger, FileLogger, QLangAccuracy, QLangDisplay}
+import lambdanet.utils.{EventLogger, FileLogger, QLangAccuracy, QLangDisplay}
 import TrainingState._
 import botkop.numsca.Tensor
 import lambdanet.translation.PredicateGraph.{PAny, PNode, PType, ProjNode}
 import org.nd4j.linalg.api.buffer.DataType
+import upickle.{default => pickle}
+import pickle.{macroRW, ReadWriter}
 
 import scala.collection.parallel.ForkJoinTaskSupport
 import scala.concurrent.{
@@ -138,9 +140,6 @@ object Training {
     val fileLogger =
       new FileLogger(resultsDir / "console.txt", printToConsole = true)
     import fileLogger.{println, printInfo, printWarning, printResult, announced}
-
-    printInfo(s"Task: $taskName")
-    printInfo(s"threads = $numOfThreads")
     Timeouts.readFromFile()
 
     private val pool = new ForkJoinPool(numOfThreads)
@@ -153,7 +152,15 @@ object Training {
     }
 
     def trainModel(): Unit = {
+      printInfo(s"Task: $taskName")
+      printInfo(s"threads = $numOfThreads")
+
       val (state, pc, logger) = loadTrainingState(resultsDir, fileLogger)
+
+      val configStr = pickle.write(modelConfig, indent=4)
+      printInfo(s"Config: $configStr")
+      ammonite.ops.write(resultsDir/"modelConfig.json", configStr)
+
 
       val repos = DataSet.loadRepos(toyMode, predictAny = predictAny)
       val dataSet = DataSet.makeDataSet(
@@ -187,6 +194,7 @@ object Training {
         Model.fromData(dataSet, gnnIterations, architecture, lossAggMode, encodeLibSignature, rand)
       }
 
+      ammonite.ops.write(resultsDir / "model_config.serial", model.description)
       ModelWrapper(model)
     }
 
@@ -721,4 +729,11 @@ case class ModelConfig(
     val exec = scala.concurrent.ExecutionContext.global
     Await.result(Future(f)(exec), timeLimit)
   }
+}
+
+object ModelConfig{
+  import pickle._
+  implicit val rw: ReadWriter[ModelConfig] = macroRW
+  implicit val rwEnum: ReadWriter[LossAggMode.Value] =
+    pickle.readwriter[Int].bimap(_.id, LossAggMode.apply)
 }
