@@ -7,7 +7,7 @@ import lambdanet.PrepareRepos.{ParsedProject, parseProject, parsedReposDir}
 import lambdanet.SequenceModel.SeqArchitecture
 import lambdanet.architecture.LabelEncoder.TrainableLabelEncoder
 import lambdanet.architecture.{LabelEncoder, NNArchitecture}
-import lambdanet.train.TrainingLoop.{ForwardResult, maxLibRatio, projWeight}
+import lambdanet.train.Training.{ForwardResult}
 import lambdanet.train.{Counted, DataSet, Loss, LossAggMode, ProcessedProject, TopNDistribution}
 import lambdanet.translation.ImportsResolution.ErrorHandler
 import lambdanet.translation.PredicateGraph
@@ -134,9 +134,10 @@ case class Model(
 
   def forwardStep(
       datum: ProcessedProject,
-      shouldDownsample: Boolean,
       shouldDropout: Boolean,
+      maxLibRatio: Option[Double],
       maxBatchSize: Option[Int],
+      projWeight: Double,
       announceTimes: Boolean = false,
   ): (Loss, ForwardResult, Map[PNode, TopNDistribution[PType]]) = {
     NeuralInference.checkOMP()
@@ -145,9 +146,10 @@ case class Model(
 
     val predSpace = datum.predictionSpace
 
-    val annotsToUse =
-      if (shouldDownsample) datum.downsampleLibAnnots(maxLibRatio, random)
-      else nodesToPredict
+    val annotsToUse = maxLibRatio match {
+      case Some(ratio) => datum.downsampleLibAnnots(ratio, random)
+      case None => nodesToPredict
+    }
 
     val (nodes, groundTruths) = annotsToUse.toVector
       .pipe(random.shuffle(_))

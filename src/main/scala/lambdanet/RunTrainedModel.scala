@@ -2,7 +2,8 @@ package lambdanet
 
 import ammonite.ops._
 import funcdiff.ParamCollection
-import lambdanet.train.{DataSet, Timeouts, TrainingLoop}
+import lambdanet.train.Training.TrainingConfig
+import lambdanet.train.{DataSet, ModelConfig, Timeouts, Training}
 import lambdanet.translation.ImportsResolution.{ErrorHandler, NameDef}
 import lambdanet.translation.PredicateGraph.{PAny, PNode}
 import lambdanet.utils.QLangDisplay
@@ -15,6 +16,8 @@ object RunTrainedModel {
 
   val modelDir: Path = pwd / "models"
 
+  @deprecated("Instead of loading a ParamCollection, load a saved Model instead. The Model " +
+    "class contains the all the hyper-parameters needed to reconstruct the original model.")
   def runTrainedModel(
       paramPath: Path,
       sourcePath: Path,
@@ -23,7 +26,8 @@ object RunTrainedModel {
   ): Unit = {
     import PrepareRepos._
 
-    val repos = ParsedRepos.readFromDir(parsedReposDir)
+    val predictAny = false
+    val repos = ParsedRepos.readFromDir(parsedReposDir(predictAny))
     val libDefs = repos.libDefs
     val handler = ErrorHandler(ErrorHandler.StoreError, ErrorHandler.StoreError)
     val testProject =
@@ -34,7 +38,7 @@ object RunTrainedModel {
         skipSet = Set("node_modules", "__tests__", "test", "tests"),
         shouldPruneGraph = false,
         errorHandler = handler,
-        predictAny = false,
+        predictAny = predictAny,
       )
     val repos1 = repos.copy(devSet = List(), testSet = List(testProject))
     val dataSet = DataSet.makeDataSet(
@@ -49,9 +53,11 @@ object RunTrainedModel {
 
     val model = announced("Loading model...") {
       val pc = ParamCollection.fromFile(paramPath)
-      TrainingLoop
-        .config(numOfThreads = 8, pwd / "test-trained", None)
-        .makeModel(pc, dataSet)
+
+      Training.Trainer(
+        ModelConfig(),
+        TrainingConfig(numOfThreads = 8, pwd / "test-trained")
+      ).makeModel(pc, dataSet)
     }
 
     val datum = dataSet.testSet.head

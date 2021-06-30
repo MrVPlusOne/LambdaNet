@@ -52,8 +52,9 @@ object DataSet {
       )
       ParsedRepos(libDefs, trainSet, devSet, testSet)
     } else {
-      announced(s"read data set from dir '$parsedReposDir'") {
-        ParsedRepos.readFromDir(parsedReposDir).setPredictAny(predictAny)
+      val pd = parsedReposDir(predictAny)
+      announced(s"read data set from dir '$pd'") {
+        ParsedRepos.readFromDir(pd).setPredictAny(predictAny)
       }
     }
   }

@@ -39,8 +39,9 @@ case class LibDefs(
 object PrepareRepos {
   val reposDir: Path = pwd / up / "lambda-repos"
   val libDefsFile: Path = pwd / "models" / "libDefs.serialized"
-//  val parsedRepoPath: Path = pwd / "data" / "parsedDataSet.serialized"
-  val parsedReposDir: Path = pwd / 'data / "parsedRepos-with_any"
+  def parsedReposDir(predictAny: Boolean): Path =
+    if (predictAny) pwd / 'data / "parsedRepos-with_any"
+    else pwd / 'data / "parsedRepos-no_any"
 
   val allReposDir: Path = reposDir / "allRepos"
 
@@ -244,19 +245,20 @@ object PrepareRepos {
     }
   }
 
-  private def testNewSerialization(): Unit = {
+  private def testNewSerialization(predictAny: Boolean): Unit = {
+    val pd = parsedReposDir(predictAny)
     val repos = announced("read1") {
       SM.readObjectFromFile[ParsedRepos](
-        (parsedReposDir / up / "parsedDataSet.serialized").toIO
+        (pd / up / "parsedDataSet.serialized").toIO
       )
     }
 
     announced("write") {
-      repos.serializeIntoDir(parsedReposDir)
+      repos.serializeIntoDir(pd)
     }
 
     announced("read2") {
-      ParsedRepos.readFromDir(parsedReposDir)
+      ParsedRepos.readFromDir(pd)
     }
 
   }
@@ -269,6 +271,8 @@ object PrepareRepos {
     val trainSetDir: Path = basePath / "trainSet"
     val devSetDir: Path = basePath / "devSet"
     val testSetDir: Path = basePath / "testSet"
+    val pd = parsedReposDir(predictAny)
+
     val (libDefs, Seq(trainSet, devSet, testSet)) =
       announced("parsePredGraphs") {
         var progress = 0
@@ -293,12 +297,12 @@ object PrepareRepos {
         }
         .mkString(", ")
       printResult(avgStats)
-      write.over(parsedReposDir / up / s"stats-$setName.txt", avgStats)
+      write.over(pd / up / s"stats-$setName.txt", avgStats)
     }
 
-    announced(s"save data set to dir: $parsedReposDir") {
+    announced(s"save data set to dir: $pd") {
       ParsedRepos(libDefs, trainSet, devSet, testSet)
-        .serializeIntoDir(parsedReposDir)
+        .serializeIntoDir(pd)
     }
   }
 

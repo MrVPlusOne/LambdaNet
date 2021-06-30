@@ -1,6 +1,6 @@
 name := "LambdaNet"
 
-version := "0.3.2"
+version := "0.4.0"
 
 organization in ThisBuild := "mrvplusone.github.io"
 scalaVersion in ThisBuild := "2.12.13"

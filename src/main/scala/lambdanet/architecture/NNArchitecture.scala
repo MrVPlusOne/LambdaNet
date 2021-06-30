@@ -14,7 +14,7 @@ import lambdanet.NeuralInference.{
   MessageKind,
   MessageModel
 }
-import lambdanet.train.{DecodingResult, Joint, TrainingLoop, TwoStage}
+import lambdanet.train.{DecodingResult, Joint, Training, TwoStage}
 import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 
 import scala.collection.GenSeq
@@ -27,11 +27,11 @@ object NNArchitecture {
 
 abstract class NNArchitecture(
     val arcName: String,
-    dimMessage: Int,
-    pc: ParamCollection
+    val dimMessage: Int,
 ) extends ArchitectureHelper
     with Serializable {
 
+  def pc: ParamCollection
   type UpdateMessages = Map[ProjNode, Chain[Message]]
   val emptyMessages: UpdateMessages = Map()
 

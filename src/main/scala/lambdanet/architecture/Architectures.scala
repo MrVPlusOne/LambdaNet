@@ -8,7 +8,7 @@ import lambdanet.translation.PredicateGraph.ProjNode
 import scala.collection.GenSeq
 
 case class SimpleArchitecture(dimEmbedding: Int, pc: ParamCollection)
-    extends NNArchitecture(s"Simple-$dimEmbedding", dimEmbedding, pc) {
+    extends NNArchitecture(s"Simple-$dimEmbedding", dimEmbedding) {
 
   def initialEmbedding(projectNodes: Set[ProjNode]): Embedding = {
     val nodeVec = randomVar('nodeInitVec)
@@ -58,7 +58,7 @@ case class GATArchitecture(
     numHeads: Int,
     dimEmbedding: Int,
     pc: ParamCollection
-) extends NNArchitecture(s"GAT-$dimEmbedding", dimEmbedding, pc) {
+) extends NNArchitecture(s"GAT-$dimEmbedding", dimEmbedding) {
 
   def initialEmbedding(projectNodes: Set[ProjNode]): Embedding = {
     val nodeVec = randomVar('nodeInitVec)

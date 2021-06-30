@@ -101,7 +101,7 @@ object SequenceModel {
   }
 
   case class SeqArchitecture(dimEmbedding: Int, pc: ParamCollection)
-      extends NNArchitecture("SeqArchitecture", dimEmbedding, pc) {
+      extends NNArchitecture("SeqArchitecture", dimEmbedding) {
     import layerFactory._
 
     def aggregate(
