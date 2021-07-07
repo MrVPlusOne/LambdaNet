@@ -53,10 +53,15 @@ object TrainingState {
         }
         .getOrElse {
           val resultsDirEmpty = ls(resultsDir) == Seq(logger.file)
-          require(
-            resultsDirEmpty,
-            s"directory $resultsDir is not empty. Clear or remove it first."
-          )
+          if (!resultsDirEmpty){
+            print(s"directory $resultsDir is not empty.\nRemove it first? (y/n): ")
+            if(scala.io.StdIn.readLine().strip().toLowerCase() == "y"){
+              rm(resultsDir)
+            }else{
+              printInfo("Training aborted.")
+              System.exit(0)
+            }
+          }
           mkdir(resultsDir / "control")
           val state = TrainingState(
             epoch0 = 0,

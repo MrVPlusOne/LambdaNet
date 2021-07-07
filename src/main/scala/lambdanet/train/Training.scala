@@ -15,7 +15,6 @@ import botkop.numsca.Tensor
 import lambdanet.translation.PredicateGraph.{PAny, PNode, PType, ProjNode}
 import org.nd4j.linalg.api.buffer.DataType
 import upickle.{default => pickle}
-import pickle.{macroRW, ReadWriter}
 
 import scala.collection.parallel.ForkJoinTaskSupport
 import scala.concurrent.{
@@ -32,23 +31,14 @@ object Training {
 
   val debugTime: Boolean = false
 
-  def scaleLearningRate(toyMode: Boolean, epoch: Int): Double = {
-    val min = 0.3
-    val epochToSlowDown = if (toyMode) 100 else 30
-    SimpleMath
-      .linearInterpolate(1.0, min)(epoch.toDouble / epochToSlowDown)
-      .max(min)
-  }
-
-  def gc(): Unit = DebugTime.logTime("GC") {
-    System.gc()
-  }
-
   def main(args: Array[String]): Unit = {
     NeuralInference.checkOMP()
     Tensor.floatingDataType = DataType.DOUBLE
 
-    val modelConfig = ModelConfig(predictAny = false)
+    val modelConfig = ModelConfig(
+      predictAny = false,
+      annotsSampling = AnnotsSampling(0.0, 0.9),
+    )
     import modelConfig._
 
     val threadNumber: Int = {
@@ -73,7 +63,7 @@ object Training {
       }
     }
 
-    val trainConfig = TrainingConfig(threadNumber, resultsDir)
+    val trainConfig = SystemConfig(threadNumber, resultsDir)
 
     Trainer(
       modelConfig,
@@ -81,17 +71,38 @@ object Training {
     ).trainModel()
   }
 
+  def scaleLearningRate(toyMode: Boolean, epoch: Int): Double = {
+    val min = 0.3
+    val epochToSlowDown = if (toyMode) 100 else 30
+    SimpleMath
+      .linearInterpolate(1.0, min)(epoch.toDouble / epochToSlowDown)
+      .max(min)
+  }
+
+  def gc(): Unit = DebugTime.logTime("GC") {
+    System.gc()
+  }
+
   case class ForwardResult(
       loss: Counted[Double],
+      kept: Set[ProjNode],
+      dropped: Set[ProjNode],
       correctSet: Set[(PNode, PType, ProjectPath)],
       incorrectSet: Set[(PNode, PType, ProjectPath)],
       confusionMatrix: Counted[ConfusionMatrix],
       categoricalAcc: Map[PType, Counted[Correct]]
   ) {
+    assert(correctSet.size + incorrectSet.size <= dropped.size)
+
     override def toString: String = {
+      val allNodes = correctSet ++ incorrectSet
+      val nLib = allNodes.count(_._2.madeFromLibTypes)
+      val nProj = allNodes.size - nLib
       s"forward result: {loss: ${toAccuracyD(loss)}, " +
-        s"lib acc: ${toAccuracy(libCorrect)} (${libCorrect.count} nodes), " +
-        s"proj acc: ${toAccuracy(projCorrect)} (${projCorrect.count} nodes)}"
+        s"user_annotations: ${kept.size}," +
+        s"dropped_annotations: ${dropped.size}, " +
+        s"lib_acc: ${toAccuracy(libCorrect)} ($nLib nodes), " +
+        s"proj_acc: ${toAccuracy(projCorrect)} ($nProj nodes)}"
     }
 
     private def countCorrect(isLibType: Boolean) = {
@@ -120,19 +131,17 @@ object Training {
       import cats.implicits._
 
       def empty: ForwardResult =
-        ForwardResult(zero(0), Set(), Set(), zero(Map()), Map())
+        ForwardResult(zero(0), Set(), Set(), Set(), Set(), zero(Map()), Map())
 
       def combine(x: ForwardResult, y: ForwardResult): ForwardResult = {
-        val z = ForwardResult.unapply(x).get |+| ForwardResult
-          .unapply(y)
-          .get
+        val z = ForwardResult.unapply(x).get |+| ForwardResult.unapply(y).get
         (ForwardResult.apply _).tupled(z)
       }
     }
 
   case class Trainer(
       modelConfig: ModelConfig,
-      trainConfig: TrainingConfig,
+      trainConfig: SystemConfig,
   ) {
     import modelConfig._
     import trainConfig._
@@ -157,10 +166,9 @@ object Training {
 
       val (state, pc, logger) = loadTrainingState(resultsDir, fileLogger)
 
-      val configStr = pickle.write(modelConfig, indent=4)
+      val configStr = pickle.write(modelConfig, indent = 4)
       printInfo(s"Config: $configStr")
-      ammonite.ops.write(resultsDir/"modelConfig.json", configStr)
-
+      ammonite.ops.write(resultsDir / "modelConfig.json", configStr)
 
       val repos = DataSet.loadRepos(toyMode, predictAny = predictAny)
       val dataSet = DataSet.makeDataSet(
@@ -198,7 +206,7 @@ object Training {
       ModelWrapper(model)
     }
 
-    def namingHelpfulness(dataSet: DataSet, run: Model): Unit = {
+    def namingHelpfulness(dataSet: DataSet, model: Model): Unit = {
       import cats.implicits._
 
       def showCount(c: Counted[Int]): String = {
@@ -211,13 +219,15 @@ object Training {
           predictions = NamingBaseline
             .testOnDatum(datum, useOracle = true, identity)
             .predict(0)
-          fwd = run
+          fwd = model
             .forwardStep(
               datum,
+              annotsSampling = annotsSampling,
               shouldDropout = false,
               maxLibRatio = None,
               maxBatchSize = Some(600),
-              projWeight,
+              projWeight = projWeight,
+              taskSupport = taskSupport,
             )
             ._2
           Seq(s1, s2) = Seq(fwd.incorrectSet -> false, fwd.correctSet -> true)
@@ -264,10 +274,12 @@ object Training {
         limitTimeOpt("train-forward", Timeouts.forwardTimeout)(
           model.forwardStep(
             datum,
+            annotsSampling,
             shouldDropout,
-            maxLibRatio = if(shouldDropout) Some(maxLibRatio) else None,
+            maxLibRatio = if (shouldDropout) Some(maxLibRatio) else None,
             maxBatchSize,
             projWeight,
+            taskSupport = taskSupport,
           )
         )
       }
@@ -289,13 +301,11 @@ object Training {
       val architecture: NNArchitecture = modelWrapper.model.architecture
       val pc: ParamCollection = architecture.pc
 
-      val maxBatchSize: Int = dataSet
-        .signalSizeMedian(maxLibRatio)
-        .tap(s => printResult(s"maxBatchSize: $s"))
-
-      private val avgAnnotations = SM.mean(
-        trainSet.map(_.downsampleLibAnnots(maxLibRatio, random).size.toDouble)
-      )
+      val (maxBatchSize, avgAnnotations) = {
+        val sizes = dataSetLabelNums(dataSet.trainSet, random)
+        (SM.median(sizes), SM.mean(sizes.map(_.toDouble)))
+      }
+      printResult(s"maxBatchSize: $maxBatchSize, avgAnnotations: $avgAnnotations")
 
       def run(maxTrainingEpochs: Int): Unit = {
         (trainingState.epoch0 + 1 to maxTrainingEpochs).foreach { epoch =>
@@ -329,7 +339,7 @@ object Training {
         val str = stats
           .map {
             case (d, f) =>
-              val size = d.predGraphOpt.map(_.predicates.size)
+              val size = d.graph.predicates.size
               val acc = toAccuracy(
                 f.libCorrect.combine(f.projCorrect)
               )
@@ -341,12 +351,11 @@ object Training {
       }
 
       def trainStep(epoch: Int): Unit = {
+        import Console.{GREEN, BLUE}
+
         val startTime = System.nanoTime()
-        val oldOrder = random.shuffle(trainSet)
-        val (h, t) = oldOrder.splitAt(119)
-        val stats = (t ++ h).zipWithIndex.map {
+        val stats = trainSet.zipWithIndex.map {
           case (datum, i) =>
-            import Console.{GREEN, BLUE}
             announced(
               s"$GREEN[epoch $epoch]$BLUE train on $datum",
               shouldAnnounce
@@ -628,6 +637,16 @@ object Training {
       }
     }
 
+    /** Randomly samples the number of prediction labels for each given project */
+    private def dataSetLabelNums(projects: Seq[ProcessedProject], random: Random): Seq[Int] = {
+      projects.map { d =>
+        random.synchronized {
+          val (kept, dropped) = annotsSampling.randomSplit(d.nodesToPredict, random)
+          ProjectLabelStats(d.nodesToPredict).downsampleLibAnnots(maxLibRatio, random).size
+        }
+      }
+    }
+
     private def typeAccString(accs: Map[PType, Counted[Correct]]): String = {
       val (tys, counts) = accs.toVector.sortBy { c =>
         -c._2.count
@@ -659,81 +678,115 @@ object Training {
     }
   }
 
-  case class TrainingConfig(
+  case class SystemConfig(
       numOfThreads: Int,
       resultsDir: ammonite.ops.Path,
   )
-}
 
-case class ModelConfig(
-    toyMode: Boolean = false,
-    useSeqModel: Boolean = false,
-    gnnIterations: Int = 6,
-    useDropout: Boolean = true,
-    useOracleForIsLib: Boolean = false,
-    predictAny: Boolean = true,
-    maxLibRatio: Real = 9.0,
-    projWeight: Real = 1.0,
-    gatHead: Int = 1,
-    weightDecay: Option[Real] = Some(1e-4),
-    onlyPredictLibType: Boolean = false,
-    lossAggMode: LossAggMode.Value = LossAggMode.Sum,
-    encodeLibSignature: Boolean = true,
-) {
-  val taskName: String = {
-    val flags = Seq(
-      "fix" -> NeuralInference.fixBetweenIteration,
-      "decay" -> weightDecay.nonEmpty,
-      "with_any" -> predictAny,
-      "lossAgg_sum" -> (lossAggMode == LossAggMode.Sum),
-      "encodeSignature" -> encodeLibSignature,
-      "lib" -> onlyPredictLibType,
-      "toy" -> toyMode
-    ).map(flag(_)).mkString
+  /** A simple sampling strategy that first samples `p` uniformly from the range
+    * `[minKeepProb, maxKeepProb]`, then randomly keeps each user annotation
+    * with probability `p`.
+    * */
+  case class AnnotsSampling(minKeepProb: Real, maxKeepProb: Real) {
+    require(minKeepProb >= 0)
+    require(maxKeepProb <= 1)
+    require(maxKeepProb >= minKeepProb)
 
-    val ablationFlag = Seq(
-      "noContextual" -> NeuralInference.noContextual,
-      "noAttention" -> NeuralInference.noAttentional,
-      "noLogical" -> NeuralInference.noLogical,
-    ).map(flag(_, post = true)).mkString
-
-    if (useSeqModel) "seqModel-theirName1-node"
-    else
-      s"${ablationFlag}NewData-GAT$gatHead-fc${NNArchitecture.messageLayers}" +
-        s"$flags-${gnnIterations}"
+    /**
+      * Returns `(toKeep, toDrop)`. `toKeep` should be used to add more constraints on
+      * the predicate graph, while `toDrop` should be used as prediction targets and not
+      * directly visible to the GNN.
+      *
+      * @see [[lambdanet.translation.PredicateGraph.addUserAnnotations]].
+      */
+    def randomSplit(
+        allAnnotations: Map[ProjNode, PType],
+        random: Random
+    ): (Map[ProjNode, PType], Map[ProjNode, PType]) = {
+      val pKeep = random.nextDouble() * (maxKeepProb - minKeepProb) + minKeepProb
+      val nKeep = (pKeep * allAnnotations.size).toInt
+      val (keep, drop) = random
+        .shuffle(allAnnotations.toVector)
+        .splitAt(nKeep)
+      (keep.toMap, drop.toMap)
+    }
+  }
+  object AnnotsSampling {
+    import pickle._
+    implicit val rw: ReadWriter[AnnotsSampling] = macroRW
   }
 
-  val dimMessage: Int = if (useSeqModel) 64 else 32
+  case class ModelConfig(
+      toyMode: Boolean = false,
+      useSeqModel: Boolean = false,
+      gnnIterations: Int = 6,
+      useDropout: Boolean = true,
+      useOracleForIsLib: Boolean = false,
+      predictAny: Boolean = true,
+      maxLibRatio: Real = 9.0,
+      projWeight: Real = 1.0,
+      gatHead: Int = 1,
+      weightDecay: Option[Real] = Some(1e-4),
+      onlyPredictLibType: Boolean = false,
+      lossAggMode: LossAggMode.Value = LossAggMode.Sum,
+      encodeLibSignature: Boolean = true,
+      annotsSampling: AnnotsSampling = AnnotsSampling(0.0, 0.0)
+  ) {
+    val taskName: String = {
+      val flags = Seq(
+        "fix" -> NeuralInference.fixBetweenIteration,
+        "decay" -> weightDecay.nonEmpty,
+        "with_any" -> predictAny,
+        "lossAgg_sum" -> (lossAggMode == LossAggMode.Sum),
+        "encodeSignature" -> encodeLibSignature,
+        "lib" -> onlyPredictLibType,
+        "toy" -> toyMode
+      ).map(flag(_)).mkString
 
-  def flag(nameValue: (String, Boolean), post: Boolean = false): String = {
-    val (name, value) = nameValue
-    if (value) (if (post) s"$name-" else s"-$name") else ""
-  }
+      val ablationFlag = Seq(
+        "noContextual" -> NeuralInference.noContextual,
+        "noAttention" -> NeuralInference.noAttentional,
+        "noLogical" -> NeuralInference.noLogical,
+      ).map(flag(_, post = true)).mkString
 
-  def limitTimeOpt[A](
-      name: String,
-      timeLimit: Timeouts.Duration
-  )(f: => A): Option[A] = {
-    try {
-      Some(limitTime(timeLimit)(f))
-    } catch {
-      case e: TimeoutException =>
-        val msg = s"$name exceeded time limit $timeLimit."
-        printWarning(msg)
-        throw e
+      if (useSeqModel) "seqModel-theirName1-node"
+      else
+        s"${ablationFlag}NewData-GAT$gatHead-fc${NNArchitecture.messageLayers}" +
+          s"$annotsSampling-$flags-${gnnIterations}"
+    }
+
+    val dimMessage: Int = if (useSeqModel) 64 else 32
+
+    def flag(nameValue: (String, Boolean), post: Boolean = false): String = {
+      val (name, value) = nameValue
+      if (value) (if (post) s"$name-" else s"-$name") else ""
+    }
+
+    def limitTimeOpt[A](
+        name: String,
+        timeLimit: Timeouts.Duration
+    )(f: => A): Option[A] = {
+      try {
+        Some(limitTime(timeLimit)(f))
+      } catch {
+        case e: TimeoutException =>
+          val msg = s"$name exceeded time limit $timeLimit."
+          printWarning(msg)
+          throw e
+      }
+    }
+
+    @throws[TimeoutException]
+    def limitTime[A](timeLimit: Timeouts.Duration)(f: => A): A = {
+      val exec = scala.concurrent.ExecutionContext.global
+      Await.result(Future(f)(exec), timeLimit)
     }
   }
 
-  @throws[TimeoutException]
-  def limitTime[A](timeLimit: Timeouts.Duration)(f: => A): A = {
-    val exec = scala.concurrent.ExecutionContext.global
-    Await.result(Future(f)(exec), timeLimit)
+  object ModelConfig {
+    import pickle._
+    implicit val rw: ReadWriter[ModelConfig] = macroRW
+    implicit val rwEnum: ReadWriter[LossAggMode.Value] =
+      pickle.readwriter[Int].bimap(_.id, LossAggMode.apply)
   }
-}
-
-object ModelConfig{
-  import pickle._
-  implicit val rw: ReadWriter[ModelConfig] = macroRW
-  implicit val rwEnum: ReadWriter[LossAggMode.Value] =
-    pickle.readwriter[Int].bimap(_.id, LossAggMode.apply)
 }

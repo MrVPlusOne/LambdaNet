@@ -7,6 +7,10 @@ import lambdanet.translation.PredicateGraph.ProjNode
 
 import scala.collection.GenSeq
 
+/**
+  * A simple GNN architecture that aggregate messages by taking their mean and updates
+  * the node embeddings across iterations using sum.
+  */
 case class SimpleArchitecture(dimEmbedding: Int, pc: ParamCollection)
     extends NNArchitecture(s"Simple-$dimEmbedding", dimEmbedding) {
 
@@ -54,6 +58,10 @@ case class SimpleArchitecture(dimEmbedding: Int, pc: ParamCollection)
   }
 }
 
+/**
+  * Implements the <a href="https://arxiv.org/abs/1710.10903">Graph Attention Networks</a>
+  * GNN architecture. It aggregates messages using the multi-head attention kernel.
+  */
 case class GATArchitecture(
     numHeads: Int,
     dimEmbedding: Int,
@@ -83,13 +91,11 @@ case class GATArchitecture(
         case (n, ms) =>
           // todo: batching across heads
           val n1 = embedding(n)
-          val stacked = stackRows(n1 +: ms.toVector) // [N, D]
+          val stacked = stackRows(ms.prepend(n1).toVector) // [N, D]
           val heads = for (i <- 0 until numHeads) yield {
             val prefix = name / Symbol(s"mergeMsgs$i")
             def trans(name1: Symbol, targetDim: Int)(values: CompNode) =
-              linear(prefix / name1, targetDim, useBias = false)(
-                values
-              )
+              linear(prefix / name1, targetDim, useBias = false)(values)
 
             val key1 = trans('key1, dimEmbedding)(n1) // [1, D]
             val keys2 = trans('keys2, dimEmbedding)(stacked) // [N, D]

@@ -49,15 +49,19 @@ package object lambdanet extends SimpleMath.ExtensionsTrait {
   }
 
   trait IdAllocator[T] {
-    val allocated: mutable.Buffer[T] = mutable.Buffer()
+//    val allocated: mutable.Buffer[T] = mutable.Buffer()
 
-    private var _id = 0
+    private var _state = 0
 
     def useNewId(f: Int => T): T = {
-      val r = f(_id)
-      _id += 1
-      allocated += r
+      val r = f(_state)
+      _state += 1
+//      allocated += r
       r
+    }
+
+    def setState(s: Int): Unit = {
+      _state = s
     }
   }
 

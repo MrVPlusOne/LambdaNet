@@ -6,6 +6,7 @@ import NeuralInference._
 import ammonite.ops.pwd
 import lambdanet.PrepareRepos.ParsedRepos
 import lambdanet.SequenceModel.SeqPredictor
+import lambdanet.train.Training.AnnotsSampling
 import lambdanet.translation.ImportsResolution.NameDef
 import lambdanet.translation.PredicateGraph
 import lambdanet.translation.QLang.QModule
@@ -23,16 +24,6 @@ case class DataSet(
 ) {
   override def toString: String =
     s"DataSet(train: ${trainSet.size}, dev: ${devSet.size}, test:${testSet.size})"
-
-  def signalSizeMedian(maxLibRatio: Double): Int = {
-    val uselessRandom = new Random()
-    val signalSizes = trainSet.map { d =>
-      uselessRandom.synchronized {
-        d.downsampleLibAnnots(maxLibRatio, uselessRandom).size
-      }
-    }
-    SM.median(signalSizes)
-  }
 }
 
 object DataSet {
@@ -62,7 +53,6 @@ object DataSet {
   def makeDataSet(
       repos: ParsedRepos,
       taskSupport: Option[ForkJoinTaskSupport],
-      useSeqModel: Boolean,
       onlyPredictLibType: Boolean,
       predictAny: Boolean,
       testSetUseInferred: Boolean = false
@@ -83,33 +73,19 @@ object DataSet {
     val data: Vector[Vector[ProcessedProject]] = {
       ((trainSet ++ devSet).zip(Stream.continually(true)) ++
         testSet.zip(Stream.continually(testSetUseInferred))).toVector.par.map {
-        case (
-            p @ ParsedProject(path, _, qModules, irModules, g, _),
-            useInferred
-            ) =>
-          val (predictor, predSpace) = if (useSeqModel) {
-            val pSpace = PredictionSpace(
-              libTypesToPredict
-                .map(_.n.n.pipe(PTyVar): PType) - NameDef.unknownType
-            )
-            Left(SeqPredictor(irModules, libDefs, pSpace, taskSupport)) -> pSpace
-          } else {
-            val predictor = Predictor(
-              g,
-              libTypesToPredict,
-              libDefs,
-              taskSupport,
-              onlyPredictLibType,
-              predictAny,
-            )
-            Right(predictor) -> predictor.predictionSpace
-          }
-
+        case (p @ ParsedProject(path, _, qModules, irModules, g, _), useInferred) =>
+          val stats = ProjectStats.computeProjectStats(
+            g,
+            libTypesToPredict,
+            libDefs,
+            onlyPredictLibType,
+            predictAny
+          )
           val annots1 =
             (if (useInferred) p.allUserAnnots else p.nonInferredUserAnnots)
               .mapValuesNow(nonGenerifyIt)
               .filter { x =>
-                predSpace.allTypes.contains(x._2).tap { in =>
+                stats.predictionSpace.allTypes.contains(x._2).tap { in =>
                   import cats.implicits._
                   inSpace.synchronized {
                     inSpace |+|= Counted(1, if (in) 1 else 0)
@@ -119,9 +95,16 @@ object DataSet {
 
           if (annots1.isEmpty) Vector()
           else {
-            val d = ProcessedProject(path, annots1, g, qModules.map { m =>
-              m.copy(mapping = m.mapping.mapValuesNow(_.map(nonGenerifyIt)))
-            }, predictor)
+            val d = ProcessedProject(
+              projectName = path,
+              nodesToPredict = annots1,
+              graph = g,
+              qModules = qModules.map { m =>
+                m.copy(mapping = m.mapping.mapValuesNow(_.map(nonGenerifyIt)))
+              },
+              stats = stats,
+              libDefs = libDefs,
+            )
             printResult(d)
             Vector(d)
           }
@@ -178,7 +161,7 @@ object DataSet {
 //    val objTypeNode = libDefs.baseCtx.internalSymbols('Object).ty.get
     def f(ty: PType): PType = ty match {
       case _: PFuncType   => PTyVar(funcTypeNode)
-      case _: PObjectType => PAny  // treat object literal types as any
+      case _: PObjectType => PAny // treat object literal types as any
       case _              => ty
     }
     f
@@ -188,27 +171,67 @@ object DataSet {
 
 case object EmptyNodesToPredict extends Exception
 
-case class ProcessedProject(
-    projectName: ProjectPath,
-    nodesToPredict: Map[ProjNode, PType],
-    graph: PredicateGraph,
-    qModules: Vector[QModule],
-    predictor: Either[SeqPredictor, Predictor]
-) {
-  if (nodesToPredict.isEmpty) {
-    throw EmptyNodesToPredict
-  }
-  val (predictionSpace, predGraphOpt) = predictor match {
-    case Left(p)  => (p.predSpace, None)
-    case Right(p) => (p.predictionSpace, Some(p.graph))
-  }
-  require(nodesToPredict.forall {
-    case (_, ty) => predictionSpace.allTypes.contains(ty)
-  })
+case class ProjectStats(
+    onlyPredictLibType: Boolean,
+    predictAny: Boolean,
+    projectNodes: Set[ProjNode],
+    projectTypes: Set[PType],
+    libraryNodes: Set[LibNode],
+    predictionSpace: PredictionSpace,
+    labelUsages: LabelUsages,
+)
 
-  val libAnnots: Int = nodesToPredict.count(_._2.madeFromLibTypes)
-  val projAnnots: Int = nodesToPredict.count(!_._2.madeFromLibTypes)
-  val libLabelRatio: Double =
+object ProjectStats {
+  def computeProjectStats(
+      graph: PredicateGraph,
+      libTypesToPredict: Set[LibTypeNode],
+      libDefs: LibDefs,
+      onlyPredictLibType: Boolean,
+      predictAny: Boolean,
+  ): ProjectStats = {
+    val projectNodes: Set[ProjNode] =
+      graph.nodes.filter(_.fromProject).map(ProjNode)
+    val projectObjectTypes: Set[PType] =
+      if (onlyPredictLibType) Set()
+      else
+        // only collect named types to avoid intermediate type nodes generated by resolveType
+        graph.predicates.collect {
+          case DefineRel(c, _: PObject) if c.isType && c.nameOpt.nonEmpty =>
+            PTyVar(c)
+        }
+    val projectTypes: Set[PType] = {
+      graph.nodes
+        .filter(n => n.fromProject && n.isType && n.nameOpt.nonEmpty)
+        .map(PTyVar)
+    }
+    val libraryNodes: Set[LibNode] =
+      graph.nodes.filter(_.fromLib).map(LibNode) ++ unknownNodes
+    val predictionSpace = PredictionSpace(
+      libTypesToPredict
+        .map(_.n.n.pipe(PTyVar))
+        ++ projectObjectTypes
+        -- Set(NameDef.unknownType, NameDef.anyType)
+        ++ (if (predictAny) Set(PAny) else Set()),
+    )
+
+    val labelUsages: LabelUsages = computeLabelUsages(libDefs, graph)
+
+    ProjectStats(
+      onlyPredictLibType,
+      predictAny,
+      projectNodes,
+      projectTypes,
+      libraryNodes,
+      predictionSpace,
+      labelUsages
+    )
+  }
+}
+
+case class ProjectLabelStats(nodesToPredict: Map[ProjNode, PType]) {
+  lazy val libAnnots: Int = nodesToPredict.count(_._2.madeFromLibTypes)
+  lazy val projAnnots: Int = nodesToPredict.count(!_._2.madeFromLibTypes)
+  lazy val libLabelRatio: Double =
     if (projAnnots == 0) 1.0 else libAnnots.toDouble / projAnnots
 
   def downsampleLibAnnots(
@@ -226,15 +249,50 @@ case class ProcessedProject(
   }
 
   def showInline: String =
+    s"{ annotations: ${nodesToPredict.size}(L:$libAnnots/P:$projAnnots, ratio: %.4f) }"
+      .format(libLabelRatio)
+}
+
+case class ProcessedProject(
+    projectName: ProjectPath,
+    nodesToPredict: Map[ProjNode, PType],
+    qModules: Vector[QModule],
+    graph: PredicateGraph,
+    stats: ProjectStats,
+    libDefs: LibDefs,
+) {
+  if (nodesToPredict.isEmpty) {
+    throw EmptyNodesToPredict
+  }
+
+  def predictionSpace: PredictionSpace = stats.predictionSpace
+  require(nodesToPredict.forall {
+    case (_, ty) => predictionSpace.allTypes.contains(ty)
+  })
+
+  def mkPredictor(
+      userAnnots: Map[ProjNode, PType],
+      taskSupport: Option[ForkJoinTaskSupport],
+      checkGraph: Boolean = true
+  ): Predictor = {
+    if (checkGraph)
+      require(graph.userAnnotations.isEmpty, "User annotations already exist in the graph.")
+    Predictor(
+      graph = graph.addUserAnnotations(userAnnots),
+      stats,
+      libDefs,
+      taskSupport,
+      onlyPredictLibType = stats.onlyPredictLibType,
+      predictAny = stats.predictAny,
+    )
+  }
+
+  def showInline: String = {
+    val stats = ProjectLabelStats(nodesToPredict).showInline
     s"{name: $projectName, " +
-      s"annotations: ${nodesToPredict.size}(L:$libAnnots/P:$projAnnots, ratio:%.4f), "
-        .format(libLabelRatio) +
-      predGraphOpt
-        .map(_.predicates.size.pipe { s =>
-          s"predicates: $s,"
-        })
-        .getOrElse("") +
+      s"stats: $stats, " +
       s"predictionSpace: ${predictionSpace.size}}"
+  }
 
   override def toString: String = showInline
 

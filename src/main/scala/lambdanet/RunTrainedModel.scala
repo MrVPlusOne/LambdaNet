@@ -2,8 +2,8 @@ package lambdanet
 
 import ammonite.ops._
 import funcdiff.ParamCollection
-import lambdanet.train.Training.TrainingConfig
-import lambdanet.train.{DataSet, ModelConfig, Timeouts, Training}
+import lambdanet.train.Training.SystemConfig
+import lambdanet.train.{DataSet, Timeouts, Training}
 import lambdanet.translation.ImportsResolution.{ErrorHandler, NameDef}
 import lambdanet.translation.PredicateGraph.{PAny, PNode}
 import lambdanet.utils.QLangDisplay
@@ -43,8 +43,7 @@ object RunTrainedModel {
     val repos1 = repos.copy(devSet = List(), testSet = List(testProject))
     val dataSet = DataSet.makeDataSet(
       repos1,
-      Some(new ForkJoinTaskSupport(new ForkJoinPool(numOfThreads))),
-      useSeqModel = false,
+      taskSupport = Some(new ForkJoinTaskSupport(new ForkJoinPool(numOfThreads))),
       testSetUseInferred = false,
       //todo: change this if you want to predict user defined types
       onlyPredictLibType = false,
@@ -55,8 +54,8 @@ object RunTrainedModel {
       val pc = ParamCollection.fromFile(paramPath)
 
       Training.Trainer(
-        ModelConfig(),
-        TrainingConfig(numOfThreads = 8, pwd / "test-trained")
+        Training.ModelConfig(),
+        SystemConfig(numOfThreads = 8, pwd / "test-trained")
       ).makeModel(pc, dataSet)
     }
 

@@ -243,16 +243,16 @@ class ParserTests extends WordSpec with MyTest {
       val libTypesToPredict: Set[LibTypeNode] =
         selectLibTypes(libDefs, Seq(annots), coverageGoal = 0.95)
 
-      println {
-        Predictor(
-          pGraph,
-          libTypesToPredict,
-          libDefs,
-          None,
-          onlyPredictLibType = false,
-          predictAny = true,
-        ).visualizeNeuralGraph
-      }
+//      println {
+//        Predictor(
+//          pGraph,
+//          libTypesToPredict,
+//          libDefs,
+//          None,
+//          onlyPredictLibType = false,
+//          predictAny = true,
+//        ).visualizeNeuralGraph
+//      }
     }
 
 

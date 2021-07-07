@@ -8,11 +8,11 @@ import scala.util.Random
 object DownloadRepos {
 
   def main(args: Array[String]): Unit = {
-    downloadAllRepos()
+    downloadAllRepos(PrepareRepos.reposDir)
   }
 
-  def downloadAllRepos(): Unit = {
-    implicit val workingDir: Path = PrepareRepos.reposDir
+  def downloadAllRepos(destDir: Path): Unit = {
+    implicit val workingDir: Path = destDir
     if (!exists(workingDir))
       mkdir(workingDir)
     val random = new Random(1023)

@@ -9,15 +9,6 @@ import lambdanet.translation.PredicateGraph
 
 object TypeInferenceService {
 
-  @SerialVersionUID(3L)
-  case class ModelConfig(
-      gnnIterations: Int = 8,
-      dimMessage: Int = 32,
-      gatHeads: Int = 1,
-      lossAggMode: LossAggMode.Value = LossAggMode.Product,
-      seed: Long = 1,
-  )
-
   case class PredictionResults(
       map: Map[PredicateGraph.PNode, TopNDistribution[PredicateGraph.PType]]
   ) {

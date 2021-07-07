@@ -22,9 +22,10 @@ case class LibDefs(
     libExports: Map[ProjectPath, ModuleExports],
     classes: Set[QLang.ClassDef]
 ) {
+
   /**
-   * Returns the known type for each library node
-   */
+    * Returns the known type for each library node
+    */
   def libNodeType(n: LibNode): PType =
     nodeMapping(n.n).typeOpt
       .getOrElse(PredictionSpace.unknownType)
@@ -49,7 +50,7 @@ object PrepareRepos {
   / training, dev, and test sets. */
   def main(args: Array[String]): Unit = {
     // step1: download all repos under `reposDir/allRepos`
-    DownloadRepos.downloadAllRepos()
+//    DownloadRepos.downloadAllRepos(PrepareRepos.reposDir)
 
     // step2: create libDefs
 //    val defs = parseLibDefs()
@@ -59,7 +60,7 @@ object PrepareRepos {
     // step3: parse then randomly divide date set into train/dev/test
     // might need to exclude the repo named "OmniSharp_omnisharp-atom" since it somehow
     // causes out-of-memory issue
-    val predictAny = true
+    val predictAny = false
     parseAndFilterDataSet(predictAny, loadLibDefs = true)
     divideDataSet()
     //    remixDividedDataSet()
@@ -112,11 +113,14 @@ object PrepareRepos {
     def fromDir(dir: Path) =
       (ls ! dir)
         .filter(f => f.isDir)
-        .pipe(x => if (numThreads==1) x else {
-          x.par.tap{
-            _.tasksupport = new ForkJoinTaskSupport(new ForkJoinPool(numThreads))
-          }
-        })
+        .pipe(
+          x =>
+            if (numThreads == 1) x
+            else
+              x.par.tap {
+                _.tasksupport = new ForkJoinTaskSupport(new ForkJoinPool(numThreads))
+              }
+        )
         .flatMap { f =>
           val r = if (countTsCode(f, dir) < maxLinesOfCode) {
             try {
@@ -288,7 +292,7 @@ object PrepareRepos {
           predictAny = predictAny,
         )
       }
-    for((setName, dataset) <- Seq("train" -> trainSet, "dev" -> devSet, "test" -> testSet)){
+    for ((setName, dataset) <- Seq("train" -> trainSet, "dev" -> devSet, "test" -> testSet)) {
       val stats = repoStatistics(dataset)
       val avgStats = stats.headers
         .zip(stats.average)
@@ -312,8 +316,8 @@ object PrepareRepos {
     *                   `any`s will be used as training signal since TS Compiler
     *                   can infer a lot of spurious `any`s.
     * @param srcTexts maps source file path to the corresponding code text. Combined with
-   *                 the `srcSpan` field in `PNode`, this can be used to map the predictions
-   *                 back into source code positions.
+    *                 the `srcSpan` field in `PNode`, this can be used to map the predictions
+    *                 back into source code positions.
     */
   @SerialVersionUID(2)
   case class ParsedProject(
@@ -393,7 +397,10 @@ object PrepareRepos {
     ): Unit = {
       import cats.implicits._
 
-      if (exists(dir)) rm(dir)
+      if (exists(dir)) {
+        warnStr(s"Overriding results in $dir")
+        rm(dir)
+      }
       mkdir(dir)
 
       def withName(
@@ -441,14 +448,16 @@ object PrepareRepos {
       val meta = SM.readObjectFromFile[Meta]((dir / "meta").toIO)
       import meta._
       val libDefsF = Future {
-        announced("read libDefs") {
+        announced("Read libDefs") {
           SM.readObjectFromFile[LibDefs]((dir / "libDefs").toIO)
         }
       }
       Thread.sleep(100)
       val chunksF = (0 until chunkNum).toVector.map { i =>
         Future {
-          SM.readObjectFromFile[List[ParsedProject]]((dir / s"chunk$i").toIO)
+          announced(s"Read repo chunk $i")(
+            SM.readObjectFromFile[List[ParsedProject]]((dir / s"chunk$i").toIO)
+          )
         }
       }.sequence
       val resultF = for {
@@ -492,7 +501,7 @@ object PrepareRepos {
         val nPred = graph.predicates.size
         val libAnnots = p.allUserAnnots.count(_._2.madeFromLibTypes)
         val projAnnots = p.allUserAnnots.size - libAnnots
-        val anyAnnots = p.allUserAnnots.count(x => NameDef.isAny(x._2 ))
+        val anyAnnots = p.allUserAnnots.count(x => NameDef.isAny(x._2))
         path -> Vector(nLib, nProj, libAnnots, projAnnots, anyAnnots, nPred)
       }
       .sortBy(_._2.last)
@@ -633,7 +642,8 @@ object PrepareRepos {
     }
 
     val newNodes = activeNodes.map(_.n) ++ graph.nodes.filter(_.fromLib)
-    PredicateGraph(newNodes, newPredicates).tap { g =>
+    val newAnnots = graph.userAnnotations.filter { case (n, _) => newNodes.contains(n.n) }
+    PredicateGraph(newNodes, newPredicates, newAnnots, graph.typeMap).tap { g =>
       printResult(
         s"Before pruning: ${graph.nodes.size}, after: ${g.nodes.size}"
       )
