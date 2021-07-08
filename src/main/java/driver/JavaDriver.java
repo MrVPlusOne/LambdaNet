@@ -1,8 +1,14 @@
 package driver;
 
 
+import ammonite.ops.Path;
+import lambdanet.JavaAPI$;
+import lambdanet.Model;
 import lambdanet.TypeInferenceService;
 import lambdanet.TypeInferenceService$;
+import lambdanet.train.TopNDistribution;
+import lambdanet.translation.PredicateGraph;
+import scala.collection.immutable.Map;
 
 public class JavaDriver {
     public static void main(String[] args) {
@@ -26,6 +32,7 @@ public class JavaDriver {
             // limit max loop iterations to 1000 in case something wrong happens
             System.out.print("Enter project path: ");
             System.out.flush();
+            String line = api.readLine();
             try {
                 assert !line.isEmpty() : "Specified path should not be empty.";
                 Path sourcePath = line.startsWith("/") ?
