@@ -117,6 +117,7 @@ package object lambdanet extends SimpleMath.ExtensionsTrait {
     case object Missing extends Annot[Nothing]
   }
 
+  
   implicit class AssertionSyntax[T](x: T) {
     def which(p: T => Boolean): T = {
       assert(p(x))
