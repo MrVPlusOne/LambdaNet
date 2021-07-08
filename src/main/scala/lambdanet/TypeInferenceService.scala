@@ -105,7 +105,7 @@ object TypeInferenceService {
       System.out.flush()
       try {
         val line = scala.io.StdIn.readLine()
-        if(line.strip().nonEmpty) {
+        if(line.nonEmpty) {
           val sourcePath = Path(line, amm.pwd)
           val results = service.predictOnProject(sourcePath, warnOnErrors = false)
           PredictionResults(results).prettyPrint()
