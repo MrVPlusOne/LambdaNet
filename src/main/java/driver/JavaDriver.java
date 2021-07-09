@@ -48,6 +48,5 @@ public class JavaDriver {
                 e.printStackTrace();
             }
         }
-        var r = api.returnMissing();
     }
 }
