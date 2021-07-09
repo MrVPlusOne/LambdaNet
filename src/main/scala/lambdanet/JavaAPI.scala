@@ -2,6 +2,7 @@ package lambdanet
 
 import ammonite.{ops => amm}
 import amm.{Path, RelPath}
+import lambdanet.Annot.{Fixed, Missing, User}
 import lambdanet.TypeInferenceService.ModelConfig
 
 import scala.io.StdIn
@@ -34,7 +35,14 @@ object JavaAPI {
   def pair[X, Y](x: X, y: Y): (X, Y) =
     (x, y)
 
-  def returnMissing = (Annot.Missing, None)
+  def srcSpan(startLine: Int, startIndex: Int, endLine: Int, endIndex: Int, sourcePath: RelPath): SrcSpan =
+    SrcSpan((startLine, startIndex),(endLine, endIndex), sourcePath)
 
-  def parameterMissing(name: Symbol, srcSpan: SrcSpan) = (name, Annot.Missing, srcSpan)
+  def userAnnotation[T](ty: T, inferred: Boolean): Annot[T] =
+    User[T](ty, inferred)
+
+  def fixed[T](ty: T): Annot[T] =
+    Fixed[T](ty)
+
+  def missing: Annot[GType] = Missing
 }

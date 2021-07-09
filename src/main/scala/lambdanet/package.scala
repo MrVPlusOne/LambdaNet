@@ -61,6 +61,62 @@ package object lambdanet extends SimpleMath.ExtensionsTrait {
     }
   }
 
+  case class SrcSpan(
+                      start: (Int, Int),
+                      until: (Int, Int),
+                      srcFile: ProjectPath,
+                    ) {
+    def showShort(oneBasedLineNumber: Boolean = true): String = {
+      val zeroIdx = if (oneBasedLineNumber) 1 else 0
+      val start1 = (start._1 + zeroIdx, start._2 + zeroIdx)
+      val until1 = (until._1 + zeroIdx, until._2 + zeroIdx)
+      s"$start1-$until1"
+    }
+  }
+
+  sealed trait Annot[+T] {
+    def map[B](f: T => B): Annot[B] = this match {
+      case Annot.User(ty, b) => Annot.User(f(ty), b)
+      case Annot.Fixed(ty)   => Annot.Fixed(f(ty))
+      case Annot.Missing     => Annot.Missing
+    }
+
+    override def toString: String = this match {
+      case Annot.User(ty, b) => (if (b) "[i]" else "") + s"$ty"
+      case Annot.Fixed(ty)   => s"$ty!"
+      case Annot.Missing     => "?"
+    }
+
+    def typeOpt: Option[T] = this match {
+      case Annot.User(ty, _) => Some(ty)
+      case Annot.Fixed(ty)   => Some(ty)
+      case Annot.Missing     => None
+    }
+
+    def get: T =
+      typeOpt.getOrElse(throw new Error("Type annotation missing."))
+
+    def forFixed(f: T => Unit): Unit = this match {
+      case Annot.Fixed(ty) => f(ty)
+      case _               =>
+    }
+  }
+
+  object Annot {
+    sealed trait WithContent[T] extends Annot[T] {
+      def ty: T
+    }
+
+    object WithContent {
+      def unapply[T](arg: WithContent[T]): Option[T] = Some(arg.ty)
+    }
+    case class User[T](ty: T, inferred: Boolean) extends WithContent[T]
+
+    case class Fixed[T](ty: T) extends WithContent[T]
+
+    case object Missing extends Annot[Nothing]
+  }
+
   implicit class AssertionSyntax[T](x: T) {
     def which(p: T => Boolean): T = {
       assert(p(x))
