@@ -27,4 +27,10 @@ object JavaAPI {
   def main(args: Array[String]): Unit = {
     println("This is a test main function.")
   }
+
+  def tuplet[X, Y, Z](x: X, y: Y, z: Z): (X, Y, Z) =
+    (x, y, z)
+
+  def pair[X, Y](x: X, y: Y): (X, Y) =
+    (x, y)
 }
