@@ -33,4 +33,8 @@ object JavaAPI {
 
   def pair[X, Y](x: X, y: Y): (X, Y) =
     (x, y)
+
+  def returnMissing = (Annot.Missing, None)
+
+  def parameterMissing(name: Symbol, srcSpan: SrcSpan) = (name, Annot.Missing, srcSpan)
 }
