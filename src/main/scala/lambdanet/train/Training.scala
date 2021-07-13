@@ -16,14 +16,9 @@ import lambdanet.translation.PredicateGraph.{PAny, PNode, PType, ProjNode}
 import org.nd4j.linalg.api.buffer.DataType
 import upickle.{default => pickle}
 
+import java.io.FileNotFoundException
 import scala.collection.parallel.ForkJoinTaskSupport
-import scala.concurrent.{
-  Await,
-  ExecutionContext,
-  ExecutionContextExecutorService,
-  Future,
-  TimeoutException
-}
+import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutorService, Future, TimeoutException}
 import scala.language.reflectiveCalls
 import scala.util.Random
 
@@ -38,8 +33,20 @@ object Training {
     val modelConfig = ModelConfig(
       predictAny = false,
       annotsSampling = AnnotsSampling(0.0, 0.8),
+      maxLibRatio = 100.0,
     )
     import modelConfig._
+
+    {
+      import ammonite.ops._
+      val f = pwd / "configs" / "memory.txt"
+      if(!exists(f)){
+        printWarning(s"$f not exits. Using default memory limits, which is likely " +
+          s"to be too small. If you see timeouts during training, try to create this file " +
+          s"with two numbers in it, one on each line, which specify the heap and " +
+          s"off-heap memory limit in Gigabytes.")
+      }
+    }
 
     val threadNumber: Int = {
       import ammonite.ops._
@@ -52,7 +59,12 @@ object Training {
     }
     val resultsDir: ammonite.ops.Path = {
       import ammonite.ops._
-      val pathText = read(pwd / "configs" / "resultsDir.txt").trim
+      val f = pwd / "configs" / "resultsDir.txt"
+      if(!exists(f)){
+        throw new FileNotFoundException(s"$f not exits. It should contain the file " +
+          s"path that specifies which directory the training results would be saved to.")
+      }
+      val pathText = read(f).trim
       val path = util
         .Try {
           pwd / RelPath(pathText)
@@ -64,7 +76,6 @@ object Training {
     }
 
     val trainConfig = SystemConfig(threadNumber, resultsDir)
-    printInfo(trainConfig)
 
     Trainer(
       modelConfig,
