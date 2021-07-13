@@ -91,7 +91,7 @@ libraryDependencies ++= javaFXModules.map(m =>
 
 val train = taskKey[Unit]("start training")
 train :=
-  (runMain in Compile).toTask(" lambdanet.train.TrainingLoop").value
+  (runMain in Compile).toTask(" lambdanet.train.Training").value
 
 val prepareRepos =
   taskKey[Unit]("parse and prepare data for training and evaluation")
