@@ -37,7 +37,7 @@ object Training {
 
     val modelConfig = ModelConfig(
       predictAny = false,
-      annotsSampling = AnnotsSampling(0.0, 0.9),
+      annotsSampling = AnnotsSampling(0.0, 0.8),
     )
     import modelConfig._
 
@@ -64,6 +64,7 @@ object Training {
     }
 
     val trainConfig = SystemConfig(threadNumber, resultsDir)
+    printInfo(trainConfig)
 
     Trainer(
       modelConfig,
@@ -390,7 +391,7 @@ object Training {
                 s"optimization: $datum",
                 Timeouts.optimizationTimeout
               ) {
-                announced("optimization", shouldAnnounce = false) {
+                announced("optimization", shouldAnnounce = true) {
                   val stats = DebugTime.logTime("optimization") {
                     optimize(loss)
                   }
@@ -681,7 +682,10 @@ object Training {
   case class SystemConfig(
       numOfThreads: Int,
       resultsDir: ammonite.ops.Path,
-  )
+  ){
+    override def toString: String =
+      s"SystemConfiguration: {numOfThreads: $numOfThreads, resultsDir: $resultsDir}"
+  }
 
   /** A simple sampling strategy that first samples `p` uniformly from the range
     * `[minKeepProb, maxKeepProb]`, then randomly keeps each user annotation
