@@ -43,7 +43,7 @@ object Training {
       if(!exists(f)){
         printWarning(s"$f not exits. Using default memory limits, which is likely " +
           s"to be too small. If you see timeouts during training, try to create this file " +
-          s"with two numbers in it, one on each line, which specify the heap and " +
+          s"with two integers in it, one on each line, which specify the heap and " +
           s"off-heap memory limit in Gigabytes.")
       }
     }

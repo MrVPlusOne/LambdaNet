@@ -20,10 +20,10 @@ val runOnMac = System.getProperty("os.name") == "Mac OS X"
 val memories = {
   if(new File("configs/memory.txt").exists()) {
     val s = scala.io.Source.fromFile("configs/memory.txt")
-    val r = s.getLines().toList.map(_.trim.toDouble)
+    val r = s.getLines().toList.map(_.trim.toInt)
     s.close()
     r
-  }else List(5.0,7.0) // default heap and off-heap limit
+  }else List(5,7) // default heap and off-heap limit
 }
 val heapLimit = memories.head
 val offHeapLimit = memories(1)
