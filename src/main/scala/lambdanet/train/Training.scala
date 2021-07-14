@@ -31,7 +31,6 @@ object Training {
     Tensor.floatingDataType = DataType.DOUBLE
 
     val modelConfig = ModelConfig(
-      toyMode = true,
       predictAny = false,
       annotsSampling = AnnotsSampling(0.0, 0.8),
       maxLibRatio = 100.0,
