@@ -31,6 +31,7 @@ object Training {
     Tensor.floatingDataType = DataType.DOUBLE
 
     val modelConfig = ModelConfig(
+      toyMode = true,
       predictAny = false,
       annotsSampling = AnnotsSampling(0.0, 0.8),
       maxLibRatio = 100.0,
@@ -97,8 +98,8 @@ object Training {
 
   case class ForwardResult(
       loss: Counted[Double],
-      kept: Set[ProjNode],
-      dropped: Set[ProjNode],
+      kept: Set[(ProjNode, ProjectPath)],
+      dropped: Set[(ProjNode, ProjectPath)],
       correctSet: Set[(PNode, PType, ProjectPath)],
       incorrectSet: Set[(PNode, PType, ProjectPath)],
       confusionMatrix: Counted[ConfusionMatrix],
@@ -749,13 +750,13 @@ object Training {
   ) {
     val taskName: String = {
       val flags = Seq(
-        "fix" -> NeuralInference.fixBetweenIteration,
+        "toy" -> toyMode,
+      "fix" -> NeuralInference.fixBetweenIteration,
         "decay" -> weightDecay.nonEmpty,
         "with_any" -> predictAny,
         "lossAgg_sum" -> (lossAggMode == LossAggMode.Sum),
         "encodeSignature" -> encodeLibSignature,
         "lib" -> onlyPredictLibType,
-        "toy" -> toyMode
       ).map(flag(_)).mkString
 
       val ablationFlag = Seq(

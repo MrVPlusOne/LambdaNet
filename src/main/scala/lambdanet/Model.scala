@@ -209,8 +209,8 @@ case class Model(
     assert(toPredict.length == grouped.values.map(_.size).sum)
     val fwd = ForwardResult(
       Counted(totalCount, loss.value.squeeze() * totalCount),
-      kept.keySet,
-      dropped.keySet,
+      kept.keySet.map(k => (k, datum.projectName)),
+      dropped.keySet.map(k => (k, datum.projectName)),
       grouped.getOrElse(true, Set()),
       grouped.getOrElse(false, Set()),
       confMat,
