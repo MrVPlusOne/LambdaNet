@@ -12,13 +12,13 @@ import lambdanet.architecture._
 import lambdanet.utils.{EventLogger, FileLogger, QLangAccuracy, QLangDisplay}
 import TrainingState._
 import botkop.numsca.Tensor
-import lambdanet.translation.PredicateGraph.{PAny, PNode, PType, ProjNode}
+import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 import org.nd4j.linalg.api.buffer.DataType
 import upickle.{default => pickle}
 
 import java.io.FileNotFoundException
 import scala.collection.parallel.ForkJoinTaskSupport
-import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutorService, Future, TimeoutException}
+import scala.concurrent.{Await, ExecutionContext, Future, TimeoutException}
 import scala.language.reflectiveCalls
 import scala.util.Random
 
@@ -30,9 +30,10 @@ object Training {
     NeuralInference.checkOMP()
     Tensor.floatingDataType = DataType.DOUBLE
 
+    val dropAllAnnots = true
     val modelConfig = ModelConfig(
       predictAny = false,
-      annotsSampling = AnnotsSampling(0.0, 0.8),
+      annotsSampling = if (dropAllAnnots) AnnotsSampling(0, 0) else AnnotsSampling(0.0, 0.8),
       maxLibRatio = 100.0,
     )
     import modelConfig._
@@ -40,11 +41,13 @@ object Training {
     {
       import ammonite.ops._
       val f = pwd / "configs" / "memory.txt"
-      if(!exists(f)){
-        printWarning(s"$f not exits. Using default memory limits, which is likely " +
-          s"to be too small. If you see timeouts during training, try to create this file " +
-          s"with two integers in it, one on each line, which specify the heap and " +
-          s"off-heap memory limit in Gigabytes.")
+      if (!exists(f)) {
+        printWarning(
+          s"$f not exits. Using default memory limits, which is likely " +
+            s"to be too small. If you see timeouts during training, try to create this file " +
+            s"with two integers in it, one on each line, which specify the heap and " +
+            s"off-heap memory limit in Gigabytes."
+        )
       }
     }
 
@@ -60,9 +63,11 @@ object Training {
     val resultsDir: ammonite.ops.Path = {
       import ammonite.ops._
       val f = pwd / "configs" / "resultsDir.txt"
-      if(!exists(f)){
-        throw new FileNotFoundException(s"$f not exits. It should contain the file " +
-          s"path that specifies which directory the training results would be saved to.")
+      if (!exists(f)) {
+        throw new FileNotFoundException(
+          s"$f not exits. It should contain the file " +
+            s"path that specifies which directory the training results would be saved to."
+        )
       }
       val pathText = read(f).trim
       val path = util
@@ -167,7 +172,7 @@ object Training {
     val taskSupport: Option[ForkJoinTaskSupport] =
       if (numOfThreads == 1) None
       else Some(new ForkJoinTaskSupport(pool))
-    val parallelCtx: ExecutionContextExecutorService = {
+    val parallelCtx: concurrent.ExecutionContextExecutorService = {
       import ExecutionContext.fromExecutorService
       fromExecutorService(pool)
     }
@@ -693,7 +698,7 @@ object Training {
   case class SystemConfig(
       numOfThreads: Int,
       resultsDir: ammonite.ops.Path,
-  ){
+  ) {
     override def toString: String =
       s"SystemConfiguration: {numOfThreads: $numOfThreads, resultsDir: $resultsDir}"
   }
@@ -750,7 +755,7 @@ object Training {
     val taskName: String = {
       val flags = Seq(
         "toy" -> toyMode,
-      "fix" -> NeuralInference.fixBetweenIteration,
+        "fix" -> NeuralInference.fixBetweenIteration,
         "decay" -> weightDecay.nonEmpty,
         "with_any" -> predictAny,
         "lossAgg_sum" -> (lossAggMode == LossAggMode.Sum),
