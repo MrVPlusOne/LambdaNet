@@ -30,7 +30,7 @@ object Training {
     NeuralInference.checkOMP()
     Tensor.floatingDataType = DataType.DOUBLE
 
-    val dropAllAnnots = true
+    val dropAllAnnots = false
     val modelConfig = ModelConfig(
       predictAny = false,
       annotsSampling = if (dropAllAnnots) AnnotsSampling(0, 0) else AnnotsSampling(0.0, 0.8),
