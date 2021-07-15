@@ -12,7 +12,7 @@ import lambdanet.architecture._
 import lambdanet.utils.{EventLogger, FileLogger, QLangAccuracy, QLangDisplay}
 import TrainingState._
 import botkop.numsca.Tensor
-import lambdanet.PrepareRepos.ParsedProject
+import lambdanet.PrepareRepos.{ParsedProject}
 import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 import me.tongfei.progressbar.ProgressBar
 import org.nd4j.linalg.api.buffer.DataType
@@ -35,7 +35,7 @@ object Training {
     val dropAllAnnots = false
     val modelConfig = ModelConfig(
       predictAny = false,
-      annotsSampling = if (dropAllAnnots) AnnotsSampling(0, 0) else AnnotsSampling(0.0, 0.8),
+      annotsSampling = if (dropAllAnnots) AnnotsSampling(0, 0) else AnnotsSampling(0.0, 0.81),
       maxLibRatio = 100.0,
     )
     import modelConfig._
@@ -639,7 +639,8 @@ object Training {
           tasks.par.foreach(_.apply())
 
           val dateTime = Calendar.getInstance().getTime
-          write.over(saveDir / "time.txt", dateTime.toString)
+          write.over(saveDir / "currentTime.txt", dateTime.toString)
+          write.over(saveDir / "timeStats.txt", DebugTime.show)
         }
       }
 

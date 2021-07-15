@@ -5,12 +5,10 @@ import lambdanet.translation.PredicateGraph._
 import NeuralInference._
 import ammonite.ops.pwd
 import lambdanet.PrepareRepos.ParsedRepos
-import lambdanet.SequenceModel.SeqPredictor
-import lambdanet.train.Training.AnnotsSampling
 import lambdanet.translation.ImportsResolution.NameDef
 import lambdanet.translation.PredicateGraph
 import lambdanet.translation.QLang.QModule
-import lambdanet.utils.QLangAccuracy.FseAccuracy
+import lambdanet.utils.QLangAccuracy.{FseAccuracy, top1Accuracy}
 
 import scala.collection.parallel.ForkJoinTaskSupport
 import scala.util.Random
@@ -58,7 +56,7 @@ object DataSet {
   ): DataSet = {
     import PrepareRepos._
 
-    var ParsedRepos(libDefs, trainSet, devSet, testSet) = repos
+    val ParsedRepos(libDefs, trainSet, devSet, testSet) = repos
     val libTypesToPredict: Set[LibTypeNode] =
       selectLibTypes(
         libDefs,
@@ -68,7 +66,6 @@ object DataSet {
 
     val nonGenerifyIt = nonGenerify(libDefs)
 
-    var inSpace = Counted(0, 0)
     val data: Vector[Vector[ProcessedProject]] = {
       ((trainSet ++ devSet).zip(Stream.continually(true)) ++
         testSet.zip(Stream.continually(testSetUseInferred))).toVector.par.map {
@@ -80,23 +77,23 @@ object DataSet {
             onlyPredictLibType,
             predictAny
           )
-          val annots1 =
-            (if (useInferred) p.allUserAnnots else p.nonInferredUserAnnots)
-              .mapValuesNow(nonGenerifyIt)
-              .filter { x =>
-                stats.predictionSpace.allTypes.contains(x._2).tap { in =>
-                  import cats.implicits._
-                  inSpace.synchronized {
-                    inSpace |+|= Counted(1, if (in) 1 else 0)
-                  }
-                }
-              }
+          def processAnnots(annots: Map[ProjNode, PType]) =
+            annots.mapValuesNow(nonGenerifyIt)
+              .filter { case (_, ty) => stats.predictionSpace.allTypes.contains(ty)}
 
-          if (annots1.isEmpty) Vector()
+          val (toPredict, visible) =
+            (if(useInferred){
+              (p.allUserAnnots, Map[ProjNode, PType]())
+            } else {
+              (p.nonInferredUserAnnots, p.allUserAnnots -- p.nonInferredUserAnnots.keySet)
+            }).pipe{ case (l, r) => (processAnnots(l), processAnnots(r))}
+
+          if (toPredict.isEmpty) Vector()
           else {
             val d = ProcessedProject(
               projectName = path,
-              nodesToPredict = annots1,
+              nodesToPredict = toPredict,
+              visibleAnnotations = visible,
               graph = g,
               qModules = qModules.map { m =>
                 m.copy(mapping = m.mapping.mapValuesNow(_.map(nonGenerifyIt)))
@@ -252,14 +249,21 @@ case class ProjectLabelStats(nodesToPredict: Map[ProjNode, PType]) {
       .format(libLabelRatio)
 }
 
+/**
+ * @param visibleAnnotations These are type annotations that can be used as the inputs
+ *                           to the GNN. On the test set, these are all the annotations
+ *                           that are inferred by the compiler.
+ */
 case class ProcessedProject(
     projectName: ProjectPath,
     nodesToPredict: Map[ProjNode, PType],
+    visibleAnnotations: Map[ProjNode, PType],
     qModules: Vector[QModule],
     graph: PredicateGraph,
     stats: ProjectStats,
     libDefs: LibDefs,
 ) {
+  require(visibleAnnotations.keySet.intersect(nodesToPredict.keySet).isEmpty)
   if (nodesToPredict.isEmpty) {
     throw EmptyNodesToPredict
   }
@@ -272,7 +276,7 @@ case class ProcessedProject(
   def mkPredictor(
       userAnnots: Map[ProjNode, PType],
       taskSupport: Option[ForkJoinTaskSupport],
-      checkGraph: Boolean = true
+      checkGraph: Boolean = true,
   ): Predictor = {
     if (checkGraph)
       require(graph.userAnnotations.isEmpty, "User annotations already exist in the graph.")

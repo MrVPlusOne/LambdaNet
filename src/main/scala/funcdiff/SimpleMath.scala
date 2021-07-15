@@ -458,12 +458,10 @@ object SimpleMath {
 
     def show: String = {
       stat.toSeq
-        .sortBy(_._2)
-        .reverse
-        .map {
-          case (name, time) =>
-            s"$name: ${prettyPrintTime(time)}"
-        }
+        .sortBy(_._2).reverseMap {
+        case (name, time) =>
+          s"$name: ${prettyPrintTime(time)}"
+      }
         .mkString("\n")
     }
   }

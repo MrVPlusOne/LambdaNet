@@ -7,7 +7,16 @@ import lambdanet.PrepareRepos.{ParsedProject, parseProject, parsedReposDir}
 import lambdanet.architecture.LabelEncoder.TrainableLabelEncoder
 import lambdanet.architecture.{LabelEncoder, NNArchitecture}
 import lambdanet.train.Training.{AnnotsSampling, ForwardResult}
-import lambdanet.train.{Counted, DataSet, Loss, LossAggMode, ProcessedProject, ProjectLabelStats, ProjectStats, TopNDistribution}
+import lambdanet.train.{
+  Counted,
+  DataSet,
+  Loss,
+  LossAggMode,
+  ProcessedProject,
+  ProjectLabelStats,
+  ProjectStats,
+  TopNDistribution
+}
 import lambdanet.translation.ImportsResolution.ErrorHandler
 import lambdanet.translation.PredicateGraph
 import lambdanet.translation.PredicateGraph.{LibTypeNode, PNode, PType, ProjNode}
@@ -146,6 +155,10 @@ case class Model(
     val predSpace = datum.predictionSpace
 
     val (kept, dropped) = annotsSampling.randomSplit(datum.nodesToPredict, random)
+    val visibleAnnots =
+      if (annotsSampling.maxKeepProb > 0)
+        kept ++ datum.visibleAnnotations
+      else kept
 
     val downsampled = maxLibRatio match {
       case Some(ratio) => ProjectLabelStats(dropped).downsampleLibAnnots(ratio, random)
@@ -161,7 +174,7 @@ case class Model(
 
     val targets = groundTruths.map(predSpace.indexOfType)
 
-    val predictor = datum.mkPredictor(kept, taskSupport)
+    val predictor = datum.mkPredictor(visibleAnnots, taskSupport)
 
     val decoding = announced("run predictor", announceTimes) {
       predictor
@@ -203,7 +216,6 @@ case class Model(
       .mapValuesNow { pairs =>
         pairs.map { case ((n, ty), _) => (n, ty, datum.projectName) }.toSet
       }
-
 
     val totalCount = groundTruths.length
     assert(toPredict.length == grouped.values.map(_.size).sum)
