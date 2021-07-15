@@ -4,6 +4,7 @@ import ammonite.{ops => amm}
 import amm.{Path, RelPath}
 import lambdanet.Annot.{Fixed, Missing, User}
 import lambdanet.TypeInferenceService.ModelConfig
+import lambdanet.utils.Js.Null
 
 import scala.io.StdIn
 
@@ -45,4 +46,9 @@ object JavaAPI {
     Fixed[T](ty)
 
   def missing: Annot[GType] = Missing
+
+  def option[T](v: T):Option[T] = v match {
+    case Null => None
+    case _    => Some(v)
+  }
 }
