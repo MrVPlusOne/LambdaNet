@@ -43,7 +43,6 @@ object RunTrainedModel {
     val repos1 = repos.copy(devSet = List(), testSet = List(testProject))
     val dataSet = DataSet.makeDataSet(
       repos1,
-      taskSupport = Some(new ForkJoinTaskSupport(new ForkJoinPool(numOfThreads))),
       testSetUseInferred = false,
       //todo: change this if you want to predict user defined types
       onlyPredictLibType = false,

@@ -53,12 +53,11 @@ object TrainingState {
         }
         .getOrElse {
           val resultsDirEmpty = ls(resultsDir) == Seq(logger.file)
-          if (!resultsDirEmpty){
-            print(s"directory $resultsDir is not empty.\nRemove it first? (y/n): ")
-            Console.flush()
-            if(scala.io.StdIn.readLine().strip().toLowerCase() == "y"){
+          if (!resultsDirEmpty) {
+            println(s"directory $resultsDir is not empty. Remove it first? (y/n): ")
+            if (scala.io.StdIn.readLine().strip().toLowerCase() == "y") {
               rm(resultsDir)
-            }else{
+            } else {
               printInfo("Training aborted.")
               System.exit(0)
             }

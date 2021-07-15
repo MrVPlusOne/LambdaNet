@@ -52,14 +52,13 @@ object DataSet {
 
   def makeDataSet(
       repos: ParsedRepos,
-      taskSupport: Option[ForkJoinTaskSupport],
       onlyPredictLibType: Boolean,
       predictAny: Boolean,
-      testSetUseInferred: Boolean = false
+      testSetUseInferred: Boolean = false,
   ): DataSet = {
     import PrepareRepos._
 
-    val ParsedRepos(libDefs, trainSet, devSet, testSet) = repos
+    var ParsedRepos(libDefs, trainSet, devSet, testSet) = repos
     val libTypesToPredict: Set[LibTypeNode] =
       selectLibTypes(
         libDefs,
@@ -290,17 +289,14 @@ case class ProcessedProject(
   def showInline: String = {
     val stats = ProjectLabelStats(nodesToPredict).showInline
     s"{name: $projectName, " +
+      s"graph: ${graph.showSizes}, " +
       s"stats: $stats, " +
       s"predictionSpace: ${predictionSpace.size}}"
   }
 
   override def toString: String = showInline
 
-  def showDetail: String = {
-    s"""$showInline
-       |${predictionSpace}
-       |""".stripMargin
-  }
+  def showDetail: String = showInline
 
   val fseAcc: FseAccuracy = FseAccuracy(qModules, predictionSpace)
 

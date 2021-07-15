@@ -12,7 +12,9 @@ import lambdanet.architecture._
 import lambdanet.utils.{EventLogger, FileLogger, QLangAccuracy, QLangDisplay}
 import TrainingState._
 import botkop.numsca.Tensor
+import lambdanet.PrepareRepos.ParsedProject
 import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
+import me.tongfei.progressbar.ProgressBar
 import org.nd4j.linalg.api.buffer.DataType
 import upickle.{default => pickle}
 
@@ -188,9 +190,20 @@ object Training {
       ammonite.ops.write(resultsDir / "modelConfig.json", configStr)
 
       val repos = DataSet.loadRepos(toyMode, predictAny = predictAny)
+      def projFilter(p: ParsedProject) = {
+        val size = p.pGraph.predicates.size
+        (size <= 10000).tap{ small =>
+          if(!small) printInfo(s"Project ${p.path} ($size predicates) is filtered due to large size.")
+        }
+      }
+
+      val filteredRepos = repos.copy(
+        trainSet = repos.trainSet.filter(projFilter),
+        devSet = repos.devSet.filter(projFilter),
+        testSet = repos.testSet.filter(projFilter),
+      )
       val dataSet = DataSet.makeDataSet(
-        repos,
-        taskSupport,
+        filteredRepos,
         useSeqModel,
         onlyPredictLibType,
         predictAny,
@@ -325,15 +338,18 @@ object Training {
       printResult(s"maxBatchSize: $maxBatchSize, avgAnnotations: $avgAnnotations")
 
       def run(maxTrainingEpochs: Int): Unit = {
-        (trainingState.epoch0 + 1 to maxTrainingEpochs).foreach { epoch =>
+        val epochCost = trainSet.size * 3 + devSet.size + testSet.size
+        val epochs = trainingState.epoch0 + 1 to maxTrainingEpochs
+        val pb = new ProgressBar("Training", epochs.size * epochCost)
+        epochs.foreach { epoch =>
           shouldAnnounce = epoch == 1 // only announce in the first epoch for debugging purpose
           announced(s"epoch $epoch") {
             TensorExtension.checkNaN = false // (epoch - 1) % 10 == 0
             handleExceptions(epoch) {
-              trainStep(epoch)
+              trainStep(epoch, pb)
               DebugTime.logTime("testSteps") {
-                testStep(epoch, isTestSet = false)
-                testStep(epoch, isTestSet = true)
+                testStep(epoch, pb, isTestSet = false)
+                testStep(epoch, pb, isTestSet = true)
               }
               if (epoch == 1 || epoch % saveInterval == 0)
                 DebugTime.logTime("saveTraining") {
@@ -367,18 +383,18 @@ object Training {
         logger.logString("accuracy-distr", epoch, str)
       }
 
-      def trainStep(epoch: Int): Unit = {
+      def trainStep(epoch: Int, pb: ProgressBar): Unit = {
         import Console.{GREEN, BLUE}
 
         val startTime = System.nanoTime()
-        val stats = trainSet.zipWithIndex.map {
+        val stats = random.shuffle(trainSet).zipWithIndex.map {
           case (datum, i) =>
             announced(
               s"$GREEN[epoch $epoch]$BLUE train on $datum",
               shouldAnnounce
             ) {
-              //              println(DebugTime.show)
               checkShouldStop(epoch)
+              pb.setExtraMessage("forward ")
               val (loss, fwd, _) = forward(
                 datum,
                 shouldDownsample = true,
@@ -388,6 +404,7 @@ object Training {
               printResult(
                 s"[epoch $epoch] (progress: ${i + 1}/${trainSet.size}) " + fwd
               )
+              pb.step()
               checkShouldStop(epoch)
 
               def optimize(loss: CompNode) = {
@@ -407,13 +424,15 @@ object Training {
                 s"optimization: $datum",
                 Timeouts.optimizationTimeout
               ) {
-                announced("optimization", shouldAnnounce = true) {
+                pb.setExtraMessage("optimize")
+                announced("optimization", shouldAnnounce = false) {
                   val stats = DebugTime.logTime("optimization") {
                     optimize(loss)
                   }
                   calcGradInfo(stats)
                 }
               }.toVector
+              pb.stepBy(2)
 
               if (debugTime) {
                 println(DebugTime.show)
@@ -459,7 +478,7 @@ object Training {
         println(DebugTime.show)
       }
 
-      def testStep(epoch: Int, isTestSet: Boolean): Unit = {
+      def testStep(epoch: Int, pb: ProgressBar, isTestSet: Boolean): Unit = {
         val dataSetName = if (isTestSet) "test" else "dev"
         val dataSet = if (isTestSet) testSet else devSet
         announced(s"test on $dataSetName set") {
@@ -469,6 +488,7 @@ object Training {
             dataSet.zipWithIndex.flatMap {
               case (datum, i) =>
                 checkShouldStop(epoch)
+                pb.setExtraMessage("testing ")
                 announced(s"test on $datum", shouldAnnounce) {
                   forward(
                     datum,
@@ -502,6 +522,7 @@ object Training {
                           )
                           ._1
                       }
+                      pb.step()
                       (fwd, fse1, libTop5, projTop5).tap { _ =>
                         printResult(s"(progress: ${i + 1}/${dataSet.size})")
                       }

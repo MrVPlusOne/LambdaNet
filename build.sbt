@@ -57,7 +57,8 @@ libraryDependencies ++= Seq(
   "com.github.nscala-time" %% "nscala-time" % "2.22.0",
   "com.lihaoyi" %% "upickle" % "1.3.8",
   "com.lihaoyi" %% "scalatags" % "0.7.0",
-  "org.plotly-scala" %% "plotly-render" % "0.8.0"
+  "org.plotly-scala" %% "plotly-render" % "0.8.0",
+  "me.tongfei" % "progressbar" % "0.9.2",
 )
 
 addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.0")
