@@ -57,7 +57,7 @@ class FileLogger(val file: Path, printToConsole: Boolean) {
     val startTime = System.nanoTime()
     action.tap { _ =>
       val took = prettyPrintTime(System.nanoTime() - startTime, 2)
-      println(infoStr(s"  [finish] '$actionName' finished. (took $took)"))
+      println(infoStr(s"  [finish] (took $took) '$actionName' finished."))
     }
   }
 }

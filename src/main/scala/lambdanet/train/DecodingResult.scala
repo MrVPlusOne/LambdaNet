@@ -102,10 +102,17 @@ case class Joint(logits: CompNode) extends DecodingResult {
       logits,
       targets
     ) // this gives the log probability of correctness for each node
-    if (aggMode == LossAggMode.Product)
-      mean(logPs * weights)
-    else
-      log(mean(exp(logPs) * weights))
+    import botkop.{numsca => ns}
+    (aggMode match {
+      case LossAggMode.Sum =>
+        val b = ns.max(logPs.value)
+        log(mean(exp(logPs - b) * weights)) + b
+      case LossAggMode.Product =>
+        mean(logPs * weights)
+    }).tap{
+      import TensorExtension.TensorWrapper
+      l => assert(!l.value.hasNaN, "Loss contains NaN.")
+    }
   }
 
   def sortedPredictions: Vector[Vector[Int]] = {

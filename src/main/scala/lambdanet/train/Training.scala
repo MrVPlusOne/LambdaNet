@@ -32,7 +32,7 @@ object Training {
     NeuralInference.checkOMP()
     Tensor.floatingDataType = DataType.DOUBLE
 
-    val dropAllAnnots = false
+    val dropAllAnnots = true
     val modelConfig = ModelConfig(
       predictAny = false,
       annotsSampling = if (dropAllAnnots) AnnotsSampling(0, 0) else AnnotsSampling(0.0, 0.81),
@@ -793,7 +793,7 @@ object Training {
 
       if (useSeqModel) "seqModel-theirName1-node"
       else
-        s"${ablationFlag}NewData-GAT$gatHead-fc${NNArchitecture.messageLayers}" +
+        s"${ablationFlag}NewData-v2.1-GAT$gatHead-fc${NNArchitecture.messageLayers}" +
           s"$annotsSampling-$flags-${gnnIterations}"
     }
 
