@@ -51,4 +51,7 @@ object JavaAPI {
     case Null => None
     case _    => Some(v)
   }
+
+  type Annotation = Annot[GType]
+  type SourceSpan = SrcSpan
 }
