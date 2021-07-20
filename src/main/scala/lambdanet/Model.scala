@@ -5,25 +5,14 @@ import ammonite.ops.Path
 import lambdanet.NeuralInference.Predictor
 import lambdanet.PrepareRepos.{ParsedProject, parseProject, parsedReposDir}
 import lambdanet.SequenceModel.SeqArchitecture
+import lambdanet.Surface.GModule
 import lambdanet.architecture.LabelEncoder.TrainableLabelEncoder
 import lambdanet.architecture.{LabelEncoder, NNArchitecture}
 import lambdanet.train.TrainingLoop.{ForwardResult, maxLibRatio, projWeight}
 import lambdanet.train.TrainingState.iterationNum
-import lambdanet.train.{
-  Counted,
-  DataSet,
-  Loss,
-  LossModel,
-  ProcessedProject,
-  TopNDistribution
-}
+import lambdanet.train.{Counted, DataSet, Loss, LossModel, ProcessedProject, TopNDistribution}
 import lambdanet.translation.ImportsResolution.ErrorHandler
-import lambdanet.translation.PredicateGraph.{
-  LibTypeNode,
-  PNode,
-  PType,
-  ProjNode
-}
+import lambdanet.translation.PredicateGraph.{LibTypeNode, PNode, PType, ProjNode}
 
 import scala.collection.parallel.ForkJoinTaskSupport
 import scala.concurrent.forkjoin.ForkJoinPool
@@ -242,6 +231,36 @@ case class Model(
           libDefs,
           sourcePath / amm.up,
           sourcePath,
+          skipSet = skipSet,
+          shouldPruneGraph = false,
+          errorHandler = handler,
+          warnOnErrors = warnOnErrors,
+        )
+
+      val predictor = Predictor(
+        project.path,
+        project.pGraph,
+        libTypesToPredict,
+        libDefs,
+        taskSupport,
+        onlyPredictLibType
+      )
+      predictOnParsed(project, predictor, predictTopK)
+    }
+
+    def predictOnProjectWithGModules(
+                          sourcePath: Path,
+                          gModules: Vector[GModule],
+                          skipSet: Set[String] = Set("node_modules"),
+                          onlyPredictLibType: Boolean = false,
+                          warnOnErrors: Boolean,
+                        ) = {
+      val project =
+        parseProject(
+          libDefs,
+          sourcePath / amm.up,
+          sourcePath,
+          gModules,
           skipSet = skipSet,
           shouldPruneGraph = false,
           errorHandler = handler,

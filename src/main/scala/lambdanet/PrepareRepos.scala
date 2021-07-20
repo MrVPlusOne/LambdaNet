@@ -2,23 +2,11 @@ package lambdanet
 
 import ammonite.ops._
 import funcdiff.SimpleMath
+import lambdanet.Surface.GModule
 import lambdanet.translation.IR.IRModule
-import lambdanet.translation.ImportsResolution.{
-  ErrorHandler,
-  ModuleExports,
-  NameDef
-}
+import lambdanet.translation.ImportsResolution.{ErrorHandler, ModuleExports, NameDef}
 import lambdanet.translation._
-import lambdanet.translation.PredicateGraph.{
-  DefineRel,
-  LibNode,
-  PNode,
-  PNodeAllocator,
-  PObject,
-  PType,
-  ProjNode,
-  TyPredicate
-}
+import lambdanet.translation.PredicateGraph.{DefineRel, LibNode, PNode, PNodeAllocator, PObject, PType, ProjNode, TyPredicate}
 import lambdanet.translation.QLang.QModule
 import lambdanet.utils.ProgramParsing
 import lambdanet.utils.ProgramParsing.GProject
@@ -654,4 +642,70 @@ object PrepareRepos {
       ParsedProject(projectName, qModules, irModules, graph)
     }
 
+  def parseProject(
+                    libDefs: LibDefs,
+                    projectsBase: Path,
+                    projectRoot: Path,
+                    gModules: Vector[GModule],
+                    skipSet: Set[String] = Set("dist", "__tests__", "test", "tests"),
+                    shouldPruneGraph: Boolean = true,
+                    shouldPrintProject: Boolean = false,
+                    warnOnErrors: Boolean = true,
+                    errorHandler: ErrorHandler = ErrorHandler.alwaysThrowError,
+                  ): ParsedProject =
+    SimpleMath.withErrorMessage(s"In project: $projectRoot") {
+      import libDefs._
+
+      val p = ProgramParsing.parseGProjectFromGModules(
+        projectRoot,
+        gModules,
+        filter = (path: Path) => {
+          path.segments.forall(!skipSet.contains(_))
+        },
+      )
+
+      if (shouldPrintProject) println { p.prettyPrint }
+
+      val allocator = new PNodeAllocator(forLib = false)
+      val irTranslator = new IRTranslation(allocator)
+
+      val projectName = projectRoot.relativeTo(projectsBase)
+      val qModules = QLangTranslation.fromProject(
+        projectName,
+        p.modules,
+        baseCtx,
+        libExports,
+        allocator,
+        p.pathMapping,
+        p.devDependencies,
+        errorHandler
+      )
+      val irModules = qModules.map(irTranslator.fromQModule)
+      val allAnnots = irModules.flatMap(_.mapping).toMap
+      val fixedAnnots = allAnnots.collect { case (n, Annot.Fixed(t)) => n -> t }
+
+      val graph0 =
+        PredicateGraphTranslation.fromIRModules(
+          fixedAnnots,
+          allocator,
+          irModules
+        )
+      val userTypes =
+        graph0.nodes.filter(n => !n.fromLib && n.isType).map(ProjNode)
+
+      val userAnnots = allAnnots.collect {
+        case (n, Annot.User(t, _)) => ProjNode(n) -> t
+      }
+      val graph =
+        if (shouldPruneGraph)
+          pruneGraph(graph0, userAnnots.keySet ++ userTypes)
+        else graph0
+
+      if (warnOnErrors)
+        errorHandler.warnErrors()
+      printResult(s"Project parsed: '$projectRoot'")
+      println("number of nodes: " + graph.nodes.size)
+
+      ParsedProject(projectName, qModules, irModules, graph)
+    }
 }
