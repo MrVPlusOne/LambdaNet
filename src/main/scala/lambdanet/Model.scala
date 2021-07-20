@@ -251,9 +251,9 @@ case class Model(
     def predictOnProjectWithGModules(
                           sourcePath: Path,
                           gModules: Vector[GModule],
+                          warnOnErrors: Boolean,
                           skipSet: Set[String] = Set("node_modules"),
                           onlyPredictLibType: Boolean = false,
-                          warnOnErrors: Boolean,
                         ) = {
       val project =
         parseProjectWithGModule(

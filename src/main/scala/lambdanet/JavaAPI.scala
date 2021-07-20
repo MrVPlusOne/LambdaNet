@@ -3,7 +3,11 @@ package lambdanet
 import ammonite.{ops => amm}
 import amm.{Path, RelPath}
 import lambdanet.Annot.{Fixed, Missing, User}
+import lambdanet.Model.PredictionService
+import lambdanet.Surface.GModule
 import lambdanet.TypeInferenceService.ModelConfig
+import lambdanet.train.TopNDistribution
+import lambdanet.translation.PredicateGraph.{PNode, PType}
 import lambdanet.utils.Js.Null
 
 import scala.io.StdIn
@@ -58,4 +62,7 @@ object JavaAPI {
   def annotationCompatibility(value: Object): Annot[GType] = value.asInstanceOf[Annot[GType]]
 
   def optionSrcSpanCompatibility(value: Object): Option[SrcSpan] = value.asInstanceOf[Option[SrcSpan]]
+
+  def predictWithGModule(model: Model, sourcePath: Path, gModules: Vector[GModule], numOfThreads: Int, predictTopK: Int): Map[PNode, TopNDistribution[PType]] =
+    model.PredictionService(numOfThreads, predictTopK).predictOnProjectWithGModules(sourcePath, gModules, false)
 }
