@@ -68,7 +68,12 @@ object JavaAPI {
   def typeForSrcSpanFromMap(map: Map[PNode, TopNDistribution[PType]], srcSpan: Option[SrcSpan]): String = {
     var variableType = ""
     map.foreach{case(key, value) => {
-      if(key.srcSpan.equals(srcSpan)) {
+      val sourceSpan = key.srcSpan.get
+      val targetSpan = srcSpan.get
+      if(sourceSpan.start._1 == targetSpan.start._1 &&
+          sourceSpan.until._1 == targetSpan.until._1 &&
+          sourceSpan.start._2 == targetSpan.start._2 &&
+          sourceSpan.until._2 == targetSpan.until._2) {
         variableType = value.topValue.toString
       }
     }}
