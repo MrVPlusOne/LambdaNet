@@ -52,6 +52,6 @@ object JavaAPI {
     case _    => Some(v)
   }
 
-  type Annotation = Annot[GType]
-  type SourceSpan = SrcSpan
+  def argsCompatibility(args: Vector[(Symbol, Object, Object)]): Vector[(Symbol, TyAnnot, SrcSpan)] =
+    args.asInstanceOf[Vector[(Symbol, TyAnnot, SrcSpan)]]
 }
