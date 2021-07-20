@@ -3,7 +3,7 @@ package lambdanet
 import ammonite.{ops => amm}
 import ammonite.ops.Path
 import lambdanet.NeuralInference.Predictor
-import lambdanet.PrepareRepos.{ParsedProject, parseProject, parsedReposDir}
+import lambdanet.PrepareRepos.{ParsedProject, parseProject, parseProjectWithGModule, parsedReposDir}
 import lambdanet.SequenceModel.SeqArchitecture
 import lambdanet.Surface.GModule
 import lambdanet.architecture.LabelEncoder.TrainableLabelEncoder
@@ -256,7 +256,7 @@ case class Model(
                           warnOnErrors: Boolean,
                         ) = {
       val project =
-        parseProject(
+        parseProjectWithGModule(
           libDefs,
           sourcePath / amm.up,
           sourcePath,

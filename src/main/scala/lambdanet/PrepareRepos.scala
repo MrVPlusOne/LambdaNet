@@ -642,7 +642,7 @@ object PrepareRepos {
       ParsedProject(projectName, qModules, irModules, graph)
     }
 
-  def parseProject(
+  def parseProjectWithGModule(
                     libDefs: LibDefs,
                     projectsBase: Path,
                     projectRoot: Path,
