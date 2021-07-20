@@ -65,6 +65,13 @@ object JavaAPI {
   def predictWithGModule(model: Model, sourcePath: Path, gModules: Vector[GModule], numOfThreads: Int, predictTopK: Int): Map[PNode, TopNDistribution[PType]] =
     model.PredictionService(numOfThreads, predictTopK).predictOnProjectWithGModules(sourcePath, gModules, false)
 
-  def typeForSrcSpanFromMap(map: Map[PNode, TopNDistribution[PType]], srcSpan: Option[SrcSpan]) =
-    map.foreach{case(key, value) => if(key.srcSpan.equals(srcSpan)) value.topValue.toString}
+  def typeForSrcSpanFromMap(map: Map[PNode, TopNDistribution[PType]], srcSpan: Option[SrcSpan]): String = {
+    var variableType = ""
+    map.foreach{case(key, value) => {
+      if(key.srcSpan.equals(srcSpan)) {
+        variableType = value.topValue.toString
+      }
+    }}
+    variableType
+  }
 }
