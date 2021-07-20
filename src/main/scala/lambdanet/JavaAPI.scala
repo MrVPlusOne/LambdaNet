@@ -3,7 +3,6 @@ package lambdanet
 import ammonite.{ops => amm}
 import amm.{Path, RelPath}
 import lambdanet.Annot.{Fixed, Missing, User}
-import lambdanet.Model.PredictionService
 import lambdanet.Surface.GModule
 import lambdanet.TypeInferenceService.ModelConfig
 import lambdanet.train.TopNDistribution
