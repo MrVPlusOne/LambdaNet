@@ -54,4 +54,8 @@ object JavaAPI {
 
   def argsCompatibility(args: Vector[(Symbol, Object, Object)]): Vector[(Symbol, TyAnnot, SrcSpan)] =
     args.asInstanceOf[Vector[(Symbol, TyAnnot, SrcSpan)]]
+
+  def annotationCompatibility(value: Object): Annot[GType] = value.asInstanceOf[Annot[GType]]
+
+  def optionSrcSpanCompatibility(value: Object): Option[SrcSpan] = value.asInstanceOf[Option[SrcSpan]]
 }
