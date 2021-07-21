@@ -287,7 +287,7 @@ case class Model(
         alsoPredictNonSourceNodes: Boolean = false,
         warnOnErrors: Boolean,
     ): PredictionResults = {
-      val project =
+      val project = announced("parse project") {
         parseProject(
           libDefs,
           sourcePath / amm.up,
@@ -298,6 +298,7 @@ case class Model(
           warnOnErrors = warnOnErrors,
           predictAny = predictAny,
         )
+      }
 
       def checkSource(node: PredicateGraph.PNode): Boolean =
         alsoPredictNonSourceNodes || node.srcSpan.nonEmpty

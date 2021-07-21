@@ -6,6 +6,7 @@ import lambdanet.architecture.{LabelEncoder, NNArchitecture}
 import lambdanet.train.{DecodingResult, NamingBaseline, ProjectStats}
 import lambdanet.train.NamingBaseline.{nodeName, typeName}
 import lambdanet.translation.ImportsResolution.NameDef
+import org.nd4j.linalg.api.buffer.DataType
 import translation.PredicateGraph
 
 import scala.collection.mutable
@@ -24,15 +25,17 @@ object NeuralInference {
 
   /** When set to false, each message passing has independent parameters */
   val fixBetweenIteration = false
-
   val noAttentional: Boolean = false
   val noContextual: Boolean = false
   val noLogical: Boolean = false
 
+  checkOMP()
+  Tensor.floatingDataType = DataType.DOUBLE
+
   def checkOMP() = {
     if (!sys.env.get("OMP_NUM_THREADS").contains("1")) {
-      warnStr(
-        "Warning: environment variable OMP_NUM_THREADS needs to be set to 1 " +
+      throw new Error(
+        "Environment variable OMP_NUM_THREADS needs to be set to 1 " +
           "to avoid unnecessarily large memory usage and performance penalty"
       )
     }
@@ -251,8 +254,6 @@ object NeuralInference {
         }
       }
     }
-
-
 
     type BatchedMsgModels = Map[MessageKind, Vector[MessageModel]]
     val batchedMsgModels: BatchedMsgModels = {

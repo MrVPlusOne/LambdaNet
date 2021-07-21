@@ -29,9 +29,6 @@ object Training {
   val debugTime: Boolean = false
 
   def main(args: Array[String]): Unit = {
-    NeuralInference.checkOMP()
-    Tensor.floatingDataType = DataType.DOUBLE
-
     val dropAllAnnots = true
     val modelConfig = ModelConfig(
       predictAny = false,

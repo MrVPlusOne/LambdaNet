@@ -398,7 +398,7 @@ object PrepareRepos {
       import cats.implicits._
 
       if (exists(dir)) {
-        warnStr(s"Overriding results in $dir")
+        printWarning(s"Overriding results in $dir", mustWarn = true)
         rm(dir)
       }
       mkdir(dir)
