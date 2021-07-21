@@ -63,14 +63,13 @@ object JavaAPI {
 
   def optionSrcSpanCompatibility(value: Object): Option[SrcSpan] = value.asInstanceOf[Option[SrcSpan]]
 
-  def predictWithGModule(modelPath: Path,
+  def predictWithGModule(model: Model,
                          sourcePath: Path,
                          gModules: Vector[GModule],
                          numOfThreads: Int, predictTopK: Int,
                         ): Map[PNode, TopNDistribution[PType]] = {
-    val model = readObjectFromFile[Model](modelPath.toIO)
     val predictionService = model.PredictionService(numOfThreads, predictTopK)
-    predictionService.predictOnProjectWithGModules(sourcePath, gModules, false)
+    predictionService.predictOnProjectWithGModules(sourcePath, gModules, warnOnErrors = false)
   }
 
   def typeForSrcSpanFromMap(map: Map[PNode, TopNDistribution[PType]], srcSpan: Option[SrcSpan]): String = {
