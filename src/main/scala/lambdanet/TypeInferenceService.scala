@@ -2,9 +2,11 @@ package lambdanet
 
 import ammonite.ops.Path
 import ammonite.{ops => amm}
-import funcdiff.SimpleMath.{readObjectFromFile}
+import amm.pwd
+import funcdiff.SimpleMath.readObjectFromFile
 import lambdanet.train.{LossAggMode, TopNDistribution}
 import lambdanet.translation.PredicateGraph
+import lambdanet.utils.ModelFormatConversion
 
 
 object TypeInferenceService {
@@ -36,7 +38,8 @@ object TypeInferenceService {
   def main(args: Array[String]): Unit = {
     NeuralInference.checkOMP()
 
-    val modelDir = LoadModel.newestModelDir
+    val modelDir = pwd / "running-results/NewData-GAT1-fc2AnnotsSampling(0.0,0.81)--decay-lossAgg_sum-encodeSignature-6/saved/epoch40"
+
     val modelPath = modelDir / "model.serialized"
 
     val model = announced("Loading model") {

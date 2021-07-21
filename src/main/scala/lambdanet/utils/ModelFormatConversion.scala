@@ -1,10 +1,12 @@
-package lambdanet
+package lambdanet.utils
 
 import ammonite.ops.{Path, pwd}
+import lambdanet.{Model, SM, announced}
 
-object LoadModel {
-  val newestModelDir: Path =
+object ModelFormatConversion {
+  val newestModelDir: Path = {
     pwd / "models" / "NewData-GAT1-fc2-decay-with_any-lossAgg_sum-encodeSignature-6"
+  }
 
   def main(args: Array[String]): Unit = {
     val modelDir = newestModelDir

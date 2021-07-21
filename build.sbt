@@ -2,8 +2,8 @@ name := "LambdaNet"
 
 version := "0.4.0"
 
-organization in ThisBuild := "mrvplusone.github.io"
-scalaVersion in ThisBuild := "2.12.13"
+ThisBuild/organization := "mrvplusone.github.io"
+ThisBuild/scalaVersion := "2.12.13"
 
 scalacOptions ++= Seq(
   "-feature",
@@ -13,8 +13,8 @@ scalacOptions ++= Seq(
 )
 
 // to make the classpath right
-fork in run := true
-connectInput in run := true  // for StdIn to work
+run/fork := true
+run/connectInput := true  // for StdIn to work
 
 val runOnMac = System.getProperty("os.name") == "Mac OS X"
 val memories = {
@@ -92,17 +92,21 @@ libraryDependencies ++= javaFXModules.map(m =>
 
 val train = taskKey[Unit]("start training")
 train :=
-  (runMain in Compile).toTask(" lambdanet.train.Training").value
+  (Compile/runMain).toTask(" lambdanet.train.Training").value
 
 val prepareRepos =
   taskKey[Unit]("parse and prepare data for training and evaluation")
 prepareRepos :=
-  (runMain in Compile).toTask(" lambdanet.PrepareRepos").value
+  (Compile/runMain).toTask(" lambdanet.PrepareRepos").value
 
 TaskKey[Unit]("prepareAndTrain") := Def.sequential(prepareRepos, train).value
 
 val runTrained = taskKey[Unit]("run trained model")
 runTrained :=
-  (runMain in Compile).toTask(" lambdanet.RunTrainedModel").value
+  (Compile/runMain).toTask(" lambdanet.RunTrainedModel").value
 
-discoveredMainClasses in Compile += "driver.JavaDriver"
+val service = taskKey[Unit]("run type inference service")
+service :=
+  (Compile/runMain).toTask(" lambdanet.TypeInferenceService").value
+
+Compile/discoveredMainClasses += "driver.JavaDriver"

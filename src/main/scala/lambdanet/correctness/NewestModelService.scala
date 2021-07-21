@@ -2,10 +2,11 @@ package lambdanet.correctness
 
 import ammonite.ops.Path
 import funcdiff.SimpleMath.readObjectFromFile
-import lambdanet.{LoadModel, Model, announced}
+import lambdanet.utils.ModelFormatConversion
+import lambdanet.{Model, announced}
 
 object NewestModelService {
-  val modelDir: Path = LoadModel.newestModelDir
+  val modelDir: Path = ModelFormatConversion.newestModelDir
   val modelCachePath: Path = modelDir / "model.serialized"
 
   lazy val model: Model =
