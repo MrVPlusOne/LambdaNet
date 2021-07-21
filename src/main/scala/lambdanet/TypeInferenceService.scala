@@ -2,18 +2,28 @@ package lambdanet
 
 import ammonite.ops.Path
 import ammonite.{ops => amm}
+import amm.RelPath
 import amm.pwd
 import funcdiff.SimpleMath.readObjectFromFile
 import lambdanet.train.{LossAggMode, TopNDistribution}
 import lambdanet.translation.PredicateGraph
 import lambdanet.utils.ModelFormatConversion
 
-
 object TypeInferenceService {
 
   case class PredictionResults(
-      map: Map[PredicateGraph.PNode, TopNDistribution[PredicateGraph.PType]]
+      map: Map[PredicateGraph.PNode, TopNDistribution[PredicateGraph.PType]],
+      srcLines: Map[ProjectPath, Array[String]],
   ) {
+    def sourceText(span: SrcSpan): String = {
+      val SrcSpan((r1, c1), (r2, c2), file) = span
+      if (r1 == r2){
+        srcLines(file)(r1).substring(c1, c2)
+      } else {
+        srcLines(file)(r1).substring(c1) + " ..."
+      }
+    }
+
     def prettyPrint(): Unit = {
       val byFile = map.keys.groupBy(_.srcSpan.get.srcFile).toSeq.sortBy(_._1)
       byFile.foreach {
@@ -29,7 +39,7 @@ object TypeInferenceService {
                 }
               }
               .mkString(", ")
-            println(s"$span: $rankedList")
+            println(s"$span '${sourceText(n.srcSpan.get)}': $rankedList")
           }
       }
     }
@@ -38,7 +48,9 @@ object TypeInferenceService {
   def main(args: Array[String]): Unit = {
     NeuralInference.checkOMP()
 
-    val modelDir = pwd / "running-results/NewData-GAT1-fc2AnnotsSampling(0.0,0.81)--decay-lossAgg_sum-encodeSignature-6/saved/epoch40"
+    val modelDir = pwd / RelPath(
+      "running-results/NewData-GAT1-fc2AnnotsSampling(0.0,0.81)--decay-lossAgg_sum-encodeSignature-6/saved/epoch40"
+    )
 
     val modelPath = modelDir / "model.serialized"
 
@@ -50,14 +62,18 @@ object TypeInferenceService {
     printResult("Type Inference Service successfully started.")
     printResult(s"Current working directory: ${amm.pwd}")
     while (true) {
-      print("Enter project path: ")
+      println("Enter project path: ")
       System.out.flush()
       try {
         val line = scala.io.StdIn.readLine()
         require(line.strip().nonEmpty, "Specified path should not be empty.")
         val sourcePath = Path(line, amm.pwd)
-        val results = service.predictOnProject(sourcePath, warnOnErrors = false)
-        PredictionResults(results).prettyPrint()
+        val results = service.predictOnProject(
+          sourcePath,
+          predictAny = false,
+          onlyPredictLibType = false,
+          warnOnErrors = false
+        ).prettyPrint()
       } catch {
         case e: Throwable =>
           println(s"Got exception: ${e.getMessage}")

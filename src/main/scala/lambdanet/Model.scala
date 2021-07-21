@@ -4,8 +4,10 @@ import ammonite.{ops => amm}
 import ammonite.ops.Path
 import lambdanet.NeuralInference.Predictor
 import lambdanet.PrepareRepos.{ParsedProject, parseProject, parsedReposDir}
+import lambdanet.TypeInferenceService.PredictionResults
 import lambdanet.architecture.LabelEncoder.TrainableLabelEncoder
 import lambdanet.architecture.{LabelEncoder, NNArchitecture}
+import lambdanet.train.DataSet.nonGenerify
 import lambdanet.train.Training.{AnnotsSampling, ForwardResult}
 import lambdanet.train.{
   Counted,
@@ -249,6 +251,8 @@ case class Model(
         Some(new ForkJoinTaskSupport(new ForkJoinPool(numOfThreads)))
       else None
 
+    lazy val nonGenerifyIt = nonGenerify(libDefs)
+
     def predictOnGraph(
         pGraph: PredicateGraph,
         nodeSelector: PNode => Boolean = _ => true,
@@ -278,11 +282,11 @@ case class Model(
     def predictOnProject(
         sourcePath: Path,
         skipSet: Set[String] = Set("node_modules"),
-        predictAny: Boolean = true,
-        onlyPredictLibType: Boolean = false,
+        predictAny: Boolean,
+        onlyPredictLibType: Boolean,
         alsoPredictNonSourceNodes: Boolean = false,
         warnOnErrors: Boolean,
-    ): Map[PNode, TopNDistribution[PType]] = {
+    ): PredictionResults = {
       val project =
         parseProject(
           libDefs,
@@ -298,12 +302,17 @@ case class Model(
       def checkSource(node: PredicateGraph.PNode): Boolean =
         alsoPredictNonSourceNodes || node.srcSpan.nonEmpty
 
-      // todo: figure out a way to specify which annotations should be used as labels
-      // and which should be used as user annotations
-      val userAnnotations = ???
+      // all user annotations will be used
+      val userAnnotations = project.allUserAnnots.mapValuesNow(nonGenerifyIt)
 
-      val stats = ???
       val graph = project.pGraph.addUserAnnotations(userAnnotations)
+      val stats = ProjectStats.computeProjectStats(
+        project.pGraph,
+        libTypesToPredict,
+        libDefs,
+        onlyPredictLibType,
+        predictAny,
+      )
       val predictor = Predictor(
         graph,
         stats,
@@ -315,19 +324,22 @@ case class Model(
 
       val nodesToPredict = project.allAnnots.keySet.collect {
         case n if n.fromProject && checkSource(n) => ProjNode(n)
-      }.toVector
-      predictForNodes(nodesToPredict, predictor, predictTopK)
+      } -- project.nonInferredUserAnnots.keySet
+      val prediction = predictForNodes(nodesToPredict.toVector, predictor, predictTopK)
+      val srcLines = project.srcTexts.mapValuesNow(_.split("\n"))
+      PredictionResults(prediction, srcLines)
     }
 
     def predictOnProject(
         sourcePath: Path,
         warnOnErrors: Boolean,
         skipSet: Array[String],
-    ): Map[PNode, TopNDistribution[PType]] = {
+    ): PredictionResults = {
       predictOnProject(
         sourcePath,
         skipSet = skipSet.toSet,
         warnOnErrors = warnOnErrors,
+        predictAny = false,
         onlyPredictLibType = false,
       )
     }

@@ -3,7 +3,6 @@ package driver;
 
 import funcdiff.SimpleMath$;
 import lambdanet.Model;
-import lambdanet.TypeInferenceService;
 
 public class JavaDriver {
     public static void main(String[] args) {
@@ -32,7 +31,7 @@ public class JavaDriver {
                 String[] skipSet = {"node_modules"};
                 var results =
                         predService.predictOnProject(sourcePath, false, skipSet);
-                new TypeInferenceService.PredictionResults(results).prettyPrint();
+                results.prettyPrint();
             } catch (Throwable e) {
                 System.out.println("Got exception: " + e.getMessage());
                 e.printStackTrace();

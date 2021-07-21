@@ -16,7 +16,12 @@ object PrecomputeResults {
     val outputPath = inputPath / "results.serialized"
     if (amm.exists(outputPath) && !overwrite)
       return
-    val results = service.predictOnProject(inputPath, warnOnErrors = false)
+    val results = service.predictOnProject(
+      inputPath,
+      predictAny = true,
+      onlyPredictLibType = false,
+      warnOnErrors = false
+    )
     SM.saveObjectToFile(outputPath.toIO)(results.asInstanceOf[Serializable])
   }
 

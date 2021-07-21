@@ -4,7 +4,7 @@ import lambdanet._
 import lambdanet.translation.PredicateGraph._
 import NeuralInference._
 import ammonite.ops.pwd
-import lambdanet.PrepareRepos.ParsedRepos
+import lambdanet.PrepareRepos.{ParsedProject, ParsedRepos}
 import lambdanet.translation.ImportsResolution.NameDef
 import lambdanet.translation.PredicateGraph
 import lambdanet.translation.QLang.QModule
