@@ -88,6 +88,12 @@ object TypeInferenceService {
     }
   }
 
+  def loadModel(modelCachePath: Path): Model = {
+    announced("Load model from cache") {
+      readObjectFromFile[Model](modelCachePath.toIO)
+    }
+  }
+
   def main(args: Array[String]): Unit = {
     val modelDir = amm.pwd / "models" / "newParsing-GAT1-fc2-newSim-decay-6"
     val paramPath = modelDir / "params.serialized"
