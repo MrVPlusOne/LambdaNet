@@ -2,6 +2,7 @@ package lambdanet
 
 import ammonite.{ops => amm}
 import amm.{Path, RelPath}
+import funcdiff.SimpleMath.readObjectFromFile
 import lambdanet.Annot.{Fixed, Missing, User}
 import lambdanet.Surface.GModule
 import lambdanet.TypeInferenceService.ModelConfig
@@ -62,11 +63,12 @@ object JavaAPI {
 
   def optionSrcSpanCompatibility(value: Object): Option[SrcSpan] = value.asInstanceOf[Option[SrcSpan]]
 
-  def predictWithGModule(model: Model,
+  def predictWithGModule(modelPath: Path,
                          sourcePath: Path,
                          gModules: Vector[GModule],
                          numOfThreads: Int, predictTopK: Int,
                         ): Map[PNode, TopNDistribution[PType]] = {
+    val model = readObjectFromFile[Model](modelPath.toIO)
     val predictionService = model.PredictionService(numOfThreads, predictTopK)
     predictionService.predictOnProjectWithGModules(sourcePath, gModules, false)
   }
