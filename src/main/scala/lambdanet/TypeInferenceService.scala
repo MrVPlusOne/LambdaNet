@@ -89,9 +89,7 @@ object TypeInferenceService {
   }
 
   def loadModel(modelPath: Path): Model = {
-    announced("Load model from cache") {
-      readObjectFromFile[Model](modelPath.toIO)
-    }
+    readObjectFromFile[Model](modelPath.toIO)
   }
 
   def main(args: Array[String]): Unit = {

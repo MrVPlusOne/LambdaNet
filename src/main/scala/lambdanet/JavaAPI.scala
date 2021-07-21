@@ -2,6 +2,7 @@ package lambdanet
 
 import ammonite.{ops => amm}
 import amm.{Path, RelPath}
+import com.sun.media.sound.ModelPatch
 import funcdiff.SimpleMath.readObjectFromFile
 import lambdanet.Annot.{Fixed, Missing, User}
 import lambdanet.Surface.GModule
@@ -63,11 +64,12 @@ object JavaAPI {
 
   def optionSrcSpanCompatibility(value: Object): Option[SrcSpan] = value.asInstanceOf[Option[SrcSpan]]
 
-  def predictWithGModule(model: Model,
+  def predictWithGModule(modelPath: Path,
                          sourcePath: Path,
                          gModules: Vector[GModule],
                          numOfThreads: Int, predictTopK: Int,
                         ): Map[PNode, TopNDistribution[PType]] = {
+    val model = loadModel(modelPath)
     val predictionService = model.PredictionService(numOfThreads, predictTopK)
     predictionService.predictOnProjectWithGModules(sourcePath, gModules, warnOnErrors = false)
   }
@@ -85,5 +87,11 @@ object JavaAPI {
       }
     }}
     variableType
+  }
+
+  def loadModel(modelPath: Path): Model = {
+    announced("Load model from cache") {
+      readObjectFromFile[Model](modelPath.toIO)
+    }
   }
 }
