@@ -44,6 +44,7 @@ libraryDependencies ++= Seq(
   "com.lihaoyi" %% "fastparse" % "2.0.4",
   "org.scalacheck" %% "scalacheck" % "1.14.0",
   "org.scalatest" %% "scalatest" % "3.0.3" % Test,
+  "ch.qos.logback" % "logback-classic" % "1.2.3",
   "com.lihaoyi" %% "ammonite-ops" % "1.0.3",
   "org.json4s" %% "json4s-native" % "3.6.3",
   "com.github.daddykotex" %% "courier" % "1.0.0", // for email notifications
