@@ -62,8 +62,14 @@ object JavaAPI {
 
   def optionSrcSpanCompatibility(value: Object): Option[SrcSpan] = value.asInstanceOf[Option[SrcSpan]]
 
-  def predictWithGModule(model: Model, sourcePath: Path, gModules: Vector[GModule], numOfThreads: Int, predictTopK: Int): Map[PNode, TopNDistribution[PType]] =
-    model.PredictionService(numOfThreads, predictTopK).predictOnProjectWithGModules(sourcePath, gModules, false)
+  def predictWithGModule(model: Model,
+                         sourcePath: Path,
+                         gModules: Vector[GModule],
+                         numOfThreads: Int, predictTopK: Int,
+                        ): Map[PNode, TopNDistribution[PType]] = {
+    val predictionService = model.PredictionService(numOfThreads, predictTopK)
+    predictionService.predictOnProjectWithGModules(sourcePath, gModules, false)
+  }
 
   def typeForSrcSpanFromMap(map: Map[PNode, TopNDistribution[PType]], srcSpan: Option[SrcSpan]): String = {
     var variableType = ""
