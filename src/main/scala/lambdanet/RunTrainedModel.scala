@@ -64,7 +64,7 @@ object RunTrainedModel {
         shouldDownsample = false,
         shouldDropout = false,
         maxBatchSize = None
-      )
+      )(funcdiff.ModeEval)
       .get
     QLangDisplay.renderProjectToDirectory(
       datum.projectName.toString,

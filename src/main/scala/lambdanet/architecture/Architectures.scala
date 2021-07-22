@@ -28,7 +28,7 @@ case class SimpleArchitecture(dimEmbedding: Int, pc: ParamCollection)
       name: SymbolPath,
       messages: GenSeq[(K, Chain[Message])],
       embedding: K => CompNode
-  ): Map[K, Message] = {
+  )(implicit mode: GraphMode): Map[K, Message] = {
     messages
       .map {
         case (n, ms) =>
@@ -42,7 +42,7 @@ case class SimpleArchitecture(dimEmbedding: Int, pc: ParamCollection)
       name: SymbolPath,
       embedding: Map[K, CompNode],
       messages: Map[K, CompNode]
-  ): Map[K, CompNode] = {
+  )(implicit mode: GraphMode): Map[K, CompNode] = {
     val inputs = embedding.toVector.map {
       case (k, v) =>
         k -> (v, messages.getOrElse(k, emptyMessage))
@@ -62,6 +62,7 @@ case class SimpleArchitecture(dimEmbedding: Int, pc: ParamCollection)
   * Implements the <a href="https://arxiv.org/abs/1710.10903">Graph Attention Networks</a>
   * GNN architecture. It aggregates messages using the multi-head attention kernel.
   */
+@SerialVersionUID(7956816594728538398L)
 case class GATArchitecture(
     numHeads: Int,
     dimEmbedding: Int,
@@ -82,7 +83,7 @@ case class GATArchitecture(
       name: SymbolPath,
       messages: GenSeq[(K, Chain[Message])],
       embedding: K => CompNode
-  ): Map[K, Message] = {
+  )(implicit mode: GraphMode): Map[K, Message] = {
 
     require(dimEmbedding % numHeads == 0)
     val dimValue = dimEmbedding / numHeads
@@ -171,7 +172,7 @@ case class GATArchitecture(
       name: SymbolPath,
       embedding: Map[K, CompNode],
       messages: Map[K, CompNode]
-  ): Map[K, CompNode] = {
+  )(implicit mode: GraphMode): Map[K, CompNode] = {
     val inputs = embedding.toVector.map {
       case (k, v) =>
         k -> (v, messages.getOrElse(k, emptyMessage))

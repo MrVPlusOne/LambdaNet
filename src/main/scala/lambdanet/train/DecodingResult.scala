@@ -34,12 +34,12 @@ trait DecodingResult {
       projWeight: Real,
       libNum: Int,
       aggMode: LossAggMode.Value,
-  ): CompNode
+  )(implicit mode: GraphMode): CompNode
 
   protected def crossEntropyWithLogitsLoss(
       logits: CompNode,
       targets: Vector[Int]
-  ): CompNode = {
+  )(implicit mode: GraphMode): CompNode = {
     val predSpaceSize = logits.shape(1).toInt
     crossEntropyOnSoftmax(logits, oneHot(targets, predSpaceSize))
   }
@@ -93,7 +93,7 @@ case class Joint(logits: CompNode) extends DecodingResult {
       projWeight: Double,
       libNum: Int,
       aggMode: LossAggMode.Value,
-  ): Loss = {
+  )(implicit mode: GraphMode): Loss = {
     val weights = targets
       .map(_ < libNum)
       .map(if (_) 1.0 else projWeight)
@@ -174,7 +174,7 @@ case class TwoStage(
       projWeight: Real,
       libNum: Int,
       aggMode: LossAggMode.Value,
-  ): Loss = {
+  )(implicit mode: GraphMode): Loss = {
     def lossFromRows(rows: Vector[CompNode], targets: Vector[Int]) = {
       if (rows.isEmpty) const(Tensor(0.0).reshape(1, 1))
       else

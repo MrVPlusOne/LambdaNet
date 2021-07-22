@@ -1,5 +1,6 @@
 package lambdanet
 
+import funcdiff.{GraphMode, ModeEval, ModeTraining}
 import ammonite.{ops => amm}
 import ammonite.ops.Path
 import lambdanet.NeuralInference.Predictor
@@ -121,6 +122,7 @@ case class Model(
       predictor: Predictor,
       predictTopK: Int,
   ): Map[PNode, TopNDistribution[PType]] = {
+    implicit val m: GraphMode = ModeEval
     val predSpace = predictor.stats.predictionSpace
     val decoding = announced("run predictor") {
       predictor
@@ -151,7 +153,7 @@ case class Model(
       projWeight: Double,
       taskSupport: Option[ForkJoinTaskSupport],
       announceTimes: Boolean = false,
-  ): (Loss, ForwardResult, Map[PNode, TopNDistribution[PType]]) = {
+  )(implicit mode: GraphMode): (Loss, ForwardResult, Map[PNode, TopNDistribution[PType]]) = {
     NeuralInference.checkOMP()
 
     val predSpace = datum.predictionSpace
@@ -257,6 +259,7 @@ case class Model(
         onlyPredictLibType: Boolean = false,
         predictAny: Boolean = true,
     ): Map[PNode, TopNDistribution[PType]] = {
+      implicit val m: GraphMode = ModeEval
       val stats = ProjectStats.computeProjectStats(
         pGraph,
         libTypesToPredict,

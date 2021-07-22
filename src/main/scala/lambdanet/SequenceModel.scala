@@ -60,7 +60,7 @@ object SequenceModel {
         nameEncoder: LabelEncoder,
         nodesToPredict: Vector[ProjNode],
         nameDropout: Boolean
-    ): DecodingResult = {
+    )(implicit mode: GraphMode): DecodingResult = {
       val states =
         encode(architecture, nameEncoder, nameDropout, nodesToPredict.map(_.n))
       val input = stackRows(states)
@@ -72,7 +72,7 @@ object SequenceModel {
         nameEncoder: LabelEncoder,
         useDropout: Boolean,
         nodesToPredict: Vector[PNode]
-    ): Vector[CompNode] = {
+    )(implicit mode: GraphMode): Vector[CompNode] = {
       val encodeName = nameEncoder.newEncoder(useDropout)
       val embedding = architecture
         .aggregate(leftBatched, rightBatched, encodeName)
@@ -108,7 +108,7 @@ object SequenceModel {
         leftBatched: BatchedSeq,
         rightBatched: BatchedSeq,
         encodeName: Symbol => CompNode
-    ): Map[PNode, CompNode] = {
+    )(implicit mode: GraphMode): Map[PNode, CompNode] = {
       import botkop.numsca._
 
       def encodeToken(token: Token): CompNode = {
@@ -166,7 +166,7 @@ object SequenceModel {
       }.toMap
     }
 
-    def predict(states: CompNode, predSpaceSize: Int): CompNode = {
+    def predict(states: CompNode, predSpaceSize: Int)(implicit mode: GraphMode): CompNode = {
       states ~>
         linear('predict / 'L1, dimEmbedding) ~> relu ~>
         linear('predict / 'L2, dimEmbedding) ~> relu ~>
@@ -182,13 +182,13 @@ object SequenceModel {
         name: SymbolPath,
         messages: GenSeq[(K, Chain[Message])],
         embedding: K => CompNode
-    ): Map[K, Message] = nstct()
+    )(implicit mode: GraphMode): Map[K, Message] = nstct()
 
     def update[K](
         name: SymbolPath,
         embedding: Map[K, CompNode],
         messages: Map[K, CompNode]
-    ): Map[K, CompNode] = nstct()
+    )(implicit mode: GraphMode): Map[K, CompNode] = nstct()
   }
 
   sealed trait Token

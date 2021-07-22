@@ -220,7 +220,7 @@ object Training {
               maxBatchSize = Some(600),
               projWeight = projWeight,
               taskSupport = taskSupport,
-            )
+            )(ModeEval)
             ._2
           Seq(s1, s2) = Seq(fwd.incorrectSet -> false, fwd.correctSet -> true)
             .map {
@@ -260,7 +260,7 @@ object Training {
           shouldDownsample: Boolean,
           shouldDropout: Boolean,
           maxBatchSize: Option[Int]
-      ) = {
+      )(implicit mode: GraphMode) = {
         gc()
 
         limitTimeOpt("train-forward", Timeouts.forwardTimeout)(
@@ -371,6 +371,7 @@ object Training {
 
       def trainStep(epoch: Int, pb: ProgressBar): Unit = {
         import Console.{GREEN, BLUE}
+        implicit val m: GraphMode = ModeTraining
 
         val startTime = System.nanoTime()
         val stats = random.shuffle(trainSet).zipWithIndex.map {
@@ -481,7 +482,7 @@ object Training {
                     shouldDownsample = !isTestSet,
                     shouldDropout = false,
                     maxBatchSize = Some(maxBatchSize)
-                  ).map {
+                  )(ModeEval).map {
                     case (_, fwd, pred) =>
                       val (fse1, _, _) = datum.fseAcc
                         .countTopNCorrect(
@@ -597,7 +598,7 @@ object Training {
                       shouldDownsample = false,
                       shouldDropout = false,
                       maxBatchSize = None
-                    ).map {
+                    )(ModeEval).map {
                       case (_, fwd, pred) =>
                         printResult(
                           s"(progress: ${i + 1}/${testSet.size})"

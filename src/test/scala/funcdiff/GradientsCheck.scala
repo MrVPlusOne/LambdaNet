@@ -12,6 +12,7 @@ import scala.language.postfixOps
 import scala.util.Random
 
 class GradientScalarCheck extends TestUtils {
+  implicit val m: GraphMode = ModeTraining
 
   "Divide" should "throw error when divided by zero" in {
     val x = const(Tensor(6))
@@ -112,6 +113,7 @@ class GradientScalarCheck extends TestUtils {
 class GradientMatrixTest extends TestUtils {
   Nd4j.setDefaultDataTypes(DataType.DOUBLE, DataType.DOUBLE)
   ns.rand.setSeed(231)
+  implicit val m: GraphMode = ModeTraining
 
   val gruModule = {
     val pc = ParamCollection()

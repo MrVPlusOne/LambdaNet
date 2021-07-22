@@ -25,6 +25,7 @@ object NNArchitecture {
   val compareDecoding = true
 }
 
+@SerialVersionUID(-8088530984660956411L)
 abstract class NNArchitecture(
     val arcName: String,
     val dimMessage: Int,
@@ -54,7 +55,7 @@ abstract class NNArchitecture(
       encodeName: Symbol => CompNode,
       labelUsages: LabelUsages,
       isLibLabel: Symbol => Boolean
-  ): UpdateMessages = {
+  )(implicit mode: GraphMode): UpdateMessages = {
     import MessageKind._
     import MessageModel._
     import cats.implicits._
@@ -244,7 +245,7 @@ abstract class NNArchitecture(
       embed: Embedding,
       candidates: Vector[CompNode],
       name: SymbolPath
-  ): Embedding = {
+  )(implicit mode: GraphMode): Embedding = {
 
     val (keys0, values0) = stackRows(candidates)
       .pipe { batch =>
@@ -271,7 +272,7 @@ abstract class NNArchitecture(
       candidates: Vector[(PType, CompNode)],
       similarityScoresOpt: Option[Tensor],
       name: SymbolPath
-  ): Embedding = {
+  )(implicit mode: GraphMode): Embedding = {
     val defaultV = randomVar(name / 'defaultV)
 
     val weightedSum = similarityScoresOpt match {
@@ -302,7 +303,7 @@ abstract class NNArchitecture(
       candidates: Vector[CompNode],
       name: SymbolPath,
       parallelism: Int
-  ): Joint =
+  )(implicit mode: GraphMode): Joint =
     if (compareDecoding) {
       val parInputs =
         inputs0.grouped((inputs0.size / parallelism) + 1).toArray.par
@@ -336,7 +337,7 @@ abstract class NNArchitecture(
       Joint(inputs1.dot(candidates1.t))
     }
 
-  def encodeLibType(n: PNode, encodeName: Symbol => CompNode): CompNode = {
+  def encodeLibType(n: PNode, encodeName: Symbol => CompNode)(implicit mode: GraphMode): CompNode = {
     def encodeNameOpt(nameOpt: Option[Symbol]): CompNode = {
       nameOpt.map(encodeName).getOrElse(randomVar('libTypeNameMissing))
     }
@@ -352,7 +353,7 @@ abstract class NNArchitecture(
       inputs: Vector[CompNode],
       numLibType: Int,
       dropoutP: Option[Double]
-  ): CompNode = {
+  )(implicit mode: GraphMode): CompNode = {
     def drop(n: CompNode) = dropoutP match {
       case Some(p) => dropout(p)(n)
       case _       => n
@@ -369,7 +370,7 @@ abstract class NNArchitecture(
       projCandidates: Vector[CompNode],
       similarityScores: Tensor,
       parallelism: Int
-  ): DecodingResult = {
+  )(implicit mode: GraphMode): DecodingResult = {
     val sharpness = getVar('decodingSharpness)(Tensor(1.0).reshape(1, 1))
 
     val logits = similarity(
@@ -391,7 +392,7 @@ abstract class NNArchitecture(
       useDropout: Boolean,
       similarityScores: Option[Tensor],
       parallelism: Int
-  ): DecodingResult = {
+  )(implicit mode: GraphMode): DecodingResult = {
     val inputs1 =
       stackRows(inputs)
 
@@ -425,7 +426,7 @@ abstract class NNArchitecture(
     TwoStage(pIsLib, libLogits, projLogits)
   }
 
-  def encodeFunction(args: Vector[CompNode], to: CompNode): CompNode = {
+  def encodeFunction(args: Vector[CompNode], to: CompNode)(implicit mode: GraphMode): CompNode = {
     (to +: args).zipWithIndex
       .map {
         case (a, i) => a -> encodePosition(i - 1)
@@ -435,7 +436,7 @@ abstract class NNArchitecture(
       .pipe(sum(_, axis = 0))
   }
 
-  def encodeObject(elements: Vector[(LabelVector, CompNode)]): CompNode = {
+  def encodeObject(elements: Vector[(LabelVector, CompNode)])(implicit mode: GraphMode): CompNode = {
     if (elements.isEmpty) {
       randomVar('emptyObject)
     } else {
@@ -450,7 +451,7 @@ abstract class NNArchitecture(
       experience: CompNode,
       signature: CompNode,
       name: CompNode
-  ): CompNode = {
+  )(implicit mode: GraphMode): CompNode = {
     nonLinearLayer('encodeLibTerm)(
       concatN(axis = 1, fromRows = true)(
         Vector(experience, signature, name)
@@ -461,7 +462,7 @@ abstract class NNArchitecture(
   def encodeLibTerm(
       experience: CompNode,
       name: CompNode
-  ): CompNode = {
+  )(implicit mode: GraphMode): CompNode = {
     nonLinearLayer('encodeLibTerm)(
       concatN(axis = 1, fromRows = true)(
         Vector(experience, name)
@@ -473,19 +474,19 @@ abstract class NNArchitecture(
       name: SymbolPath,
       messages: GenSeq[(K, Chain[Message])],
       embedding: K => CompNode
-  ): Map[K, Message]
+  )(implicit mode: GraphMode): Map[K, Message]
 
   def update[K](
       name: SymbolPath,
       embedding: Map[K, CompNode],
       messages: Map[K, CompNode]
-  ): Map[K, CompNode]
+  )(implicit mode: GraphMode): Map[K, CompNode]
 
   /** stack inputs vertically (axis=0) for batching */
   def verticalBatching[K](
       inputs: Vector[(K, CompNode)],
       transformation: CompNode => CompNode
-  ): Map[K, Chain[CompNode]] = {
+  )(implicit mode: GraphMode): Map[K, Chain[CompNode]] = {
     import cats.implicits._
     import numsca.:>
 
@@ -502,7 +503,7 @@ abstract class NNArchitecture(
   def verticalBatching2[K](
       inputs: Vector[(K, (CompNode, CompNode))],
       transformation: (CompNode, CompNode) => CompNode
-  ): Map[K, Chain[CompNode]] = {
+  )(implicit mode: GraphMode): Map[K, Chain[CompNode]] = {
     import cats.implicits._
     import numsca.:>
 
@@ -521,19 +522,19 @@ abstract class NNArchitecture(
   def linearLayer(
       path: SymbolPath,
       input: CompNode
-  ): CompNode = {
+  )(implicit mode: GraphMode): CompNode = {
     linear(path / 'L0, dimMessage)(input)
   }
 
-  def messageLayer(path: SymbolPath)(input: CompNode): CompNode = {
+  def messageLayer(path: SymbolPath)(input: CompNode)(implicit mode: GraphMode): CompNode = {
     fcNetwork(path, numLayer = messageLayers)(input)
   }
 
-  def nonLinearLayer(path: SymbolPath)(input: CompNode): CompNode = {
+  def nonLinearLayer(path: SymbolPath)(input: CompNode)(implicit mode: GraphMode): CompNode = {
     fcNetwork(path, numLayer = 2)(input)
   }
 
-  def fcNetwork(path: SymbolPath, numLayer: Int)(input: CompNode): CompNode = {
+  def fcNetwork(path: SymbolPath, numLayer: Int)(input: CompNode)(implicit mode: GraphMode): CompNode = {
     require(numLayer >= 1)
     def oneLayer(i: Int)(input: CompNode) = {
       val p = path / Symbol(s"L$i")
@@ -547,7 +548,7 @@ abstract class NNArchitecture(
       path: SymbolPath,
       input: CompNode,
       useDropout: Boolean = false
-  ): CompNode = {
+  )(implicit mode: GraphMode): CompNode = {
     def oneLayer(name: Symbol)(input: CompNode) = {
       val p = path / name
       linear(p, dimMessage)(input) ~> relu

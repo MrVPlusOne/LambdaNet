@@ -1,5 +1,6 @@
 package lambdanet.test
 
+import funcdiff.{GraphMode, ModeEval}
 import ammonite.ops._
 import funcdiff.SimpleMath.{mean, readObjectFromFile, stdDev}
 import lambdanet.PrepareRepos.{ParsedRepos, parsedReposDir}
@@ -38,6 +39,7 @@ object EvalUserAnnots {
     val taskSupport = new ForkJoinTaskSupport(new ForkJoinPool(numOfThreads))
     val table = new StringBuilder()
     table.append("Ratio, Total Acc, Lib Acc, Proj Acc\n")
+    implicit val m: GraphMode = ModeEval
 
     val steps = annotsRatios.length * repeats * dataSet.testSet.size
     val prog = new ProgressBar("Evaluating", steps)

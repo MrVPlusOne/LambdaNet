@@ -8,6 +8,7 @@ import funcdiff.Optimizer.{Adam, SGD}
 
 class RnnOptimizationTest extends TestUtils {
   ns.rand.setSeed(11)
+  implicit val m: GraphMode = ModeTraining
 
   {
     val nState = 5

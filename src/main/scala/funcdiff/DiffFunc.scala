@@ -4,8 +4,6 @@ import botkop.numsca._
 import TensorExtension._
 import botkop.numsca
 import botkop.{numsca => ns}
-import org.nd4j.linalg.api.ndarray.INDArray
-import org.nd4j.linalg.factory.Nd4j
 
 trait DiffFunc {
   def name: String

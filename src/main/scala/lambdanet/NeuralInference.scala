@@ -65,7 +65,7 @@ object NeuralInference {
         nameEncoder: LabelEncoder,
         labelDropout: Boolean,
         encodeLibSignature: Boolean,
-    ) {
+    )(implicit mode: GraphMode) {
       import architecture.{randomVar}
 
       /** returns softmax logits */
