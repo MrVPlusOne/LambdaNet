@@ -31,7 +31,6 @@ object Training {
 
     val dropAllAnnots = true
     val modelConfig = ModelConfig(
-      toyMode = true,
       predictAny = false,
       annotsSampling = if (dropAllAnnots) AnnotsSampling(0, 0) else AnnotsSampling(0.0, 0.81),
       maxLibRatio = 100.0,

@@ -157,10 +157,8 @@ case class Model(
     val predSpace = datum.predictionSpace
 
     val (kept, dropped) = annotsSampling.randomSplit(datum.nodesToPredict, random)
-    val visibleAnnots =
-      if (annotsSampling.maxKeepProb > 0)
-        kept ++ datum.visibleAnnotations
-      else kept
+    val (keptInferred, _) = annotsSampling.randomSplit(datum.visibleAnnotations, random)
+    val inputAnnots = kept ++ keptInferred
 
     val downsampled = maxLibRatio match {
       case Some(ratio) => ProjectLabelStats(dropped).downsampleLibAnnots(ratio, random)
@@ -176,7 +174,7 @@ case class Model(
 
     val targets = groundTruths.map(predSpace.indexOfType)
 
-    val predictor = datum.mkPredictor(visibleAnnots, taskSupport)
+    val predictor = datum.mkPredictor(inputAnnots, taskSupport)
 
     val decoding = announced("run predictor", announceTimes) {
       predictor

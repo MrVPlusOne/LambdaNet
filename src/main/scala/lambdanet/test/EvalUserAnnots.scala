@@ -5,7 +5,7 @@ import funcdiff.SimpleMath.{mean, readObjectFromFile, stdDev}
 import lambdanet.PrepareRepos.{ParsedRepos, parsedReposDir}
 import lambdanet.train.{DataSet, toAccuracy}
 import lambdanet.train.Training.AnnotsSampling
-import lambdanet.{Configs, Model, announced}
+import lambdanet.{Configs, Model, announced, printInfo}
 import me.tongfei.progressbar.ProgressBar
 
 import java.util.concurrent.ForkJoinPool
@@ -37,14 +37,14 @@ object EvalUserAnnots {
     val numOfThreads = Configs().numOfThreads()
     val taskSupport = new ForkJoinTaskSupport(new ForkJoinPool(numOfThreads))
     val table = new StringBuilder()
-    table.append("Ratio, Lib Acc, Proj Acc, Total Acc\n")
+    table.append("Ratio, Total Acc, Lib Acc, Proj Acc\n")
 
     val steps = annotsRatios.length * repeats * dataSet.testSet.size
     val prog = new ProgressBar("Evaluating", steps)
     for (ratio <- annotsRatios) yield {
       import cats.implicits._
-      val (libAcc, projAcc, totalAcc) = (0 until repeats).map { _ =>
-        val (lib, proj, total) = dataSet.testSet.foldMap { p =>
+      val (totalAcc, libAcc, projAcc) = (0 until repeats).map { _ =>
+        val (total, lib, proj) = dataSet.testSet.foldMap { p =>
           val fr = model
             .forwardStep(
               p,
@@ -57,23 +57,26 @@ object EvalUserAnnots {
             )
             ._2
           prog.step()
-          (fr.libCorrect, fr.projCorrect, fr.libCorrect |+| fr.projCorrect)
+          (fr.totalCorrect, fr.libCorrect, fr.projCorrect)
         }
-        (toAccuracy(lib), toAccuracy(proj), toAccuracy(total))
+        (toAccuracy(total)*100, toAccuracy(lib)*100, toAccuracy(proj)*100)
       }.unzip3
       table.append(s"$ratio, ")
-      table.append(Vector(libAcc, projAcc, totalAcc).map(Gaussian.apply).mkString(", "))
+      table.append(Vector(totalAcc, libAcc, projAcc).map(Gaussian.apply).mkString(", "))
       table.append("\n")
+      val result = table.mkString
+      println("-----")
+      println(result)
+      println("-----")
+      write.over(pwd / "EvalUserAnnots.csv", table.mkString)
     }
-    val result = table.toString()
-    println(result)
-    write(pwd / "EvalUserAnnots.csv", result)
+    prog.close()
   }
 
   case class Gaussian(mean: Double, std: Double) {
     override def toString: String = {
-      val precision = (if (std < 1.0) math.ceil(-math.log10(std)).toInt else 1) + 1
-      s"%.${precision}f±%.${precision}f".format(mean, std)
+      val precision = if (std < 1.0) math.ceil(-math.log10(std)).toInt else 1
+      s"%.${precision}f±%.${precision+1}f".format(mean, std)
     }
   }
 
