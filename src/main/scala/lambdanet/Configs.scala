@@ -7,7 +7,7 @@ import java.io.FileNotFoundException
 
 case class Configs(configDir: Path = pwd / "configs") {
   def numOfThreads(): Int = {
-    loadOrCreate(configDir / "threads.txt", _.trim.toInt) {
+    loadOrCreate(configDir / "threads.txt", _.toInt) {
       Runtime.getRuntime.availableProcessors() / 2
     }
   }
@@ -36,7 +36,7 @@ object Configs {
       default: => T
   ): T =
     if (exists(file)) {
-      parser(read(file))
+      parser(read(file).trim)
     } else {
       val v = default
       write.over(file, writer(v))

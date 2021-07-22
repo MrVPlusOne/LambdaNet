@@ -11,12 +11,12 @@ import funcdiff._
 import lambdanet.architecture._
 import lambdanet.utils.{EventLogger, FileLogger, QLangAccuracy, QLangDisplay}
 import TrainingState._
+import ammonite.{ops => amm}
 import botkop.numsca.Tensor
 import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 import me.tongfei.progressbar.ProgressBar
 import upickle.{default => pickle}
 
-import java.io.FileNotFoundException
 import scala.collection.parallel.ForkJoinTaskSupport
 import scala.concurrent.{Await, ExecutionContext, Future, TimeoutException}
 import scala.language.reflectiveCalls
@@ -27,32 +27,32 @@ object Training {
   val debugTime: Boolean = false
 
   def main(args: Array[String]): Unit = {
+    checkMemoryConfigs()
+
     val dropAllAnnots = true
     val modelConfig = ModelConfig(
+      toyMode = true,
       predictAny = false,
       annotsSampling = if (dropAllAnnots) AnnotsSampling(0, 0) else AnnotsSampling(0.0, 0.81),
       maxLibRatio = 100.0,
     )
-    import modelConfig._
-
-    {
-      import ammonite.ops._
-      val f = pwd / "configs" / "memory.txt"
-      if (!exists(f)) {
-        printWarning(
-          s"$f not exits. Using default memory limits, which is likely " +
-            s"to be too small. If you see timeouts during training, try to create this file " +
-            s"with two integers in it, one on each line, which specify the heap and " +
-            s"off-heap memory limit in Gigabytes."
-        )
-      }
-    }
 
     val configs = Configs()
-    val resultsDir = configs.resultsDir().tap { d =>
-      lambdanet.printResult(s"save results to directory: $d")
-    }
+    val resultsDir = configs.resultsDir() / modelConfig.taskName
+    lambdanet.printResult(s"save results to directory: $resultsDir")
     val trainConfig = SystemConfig(configs.numOfThreads(), resultsDir)
+
+    val resultsDirEmpty = !amm.exists(resultsDir) || amm.ls(resultsDir).isEmpty
+    if (!resultsDirEmpty) {
+      println(s"directory $resultsDir is not empty. Remove it first? (y/n): ")
+      if (scala.io.StdIn.readLine().strip().toLowerCase() == "y") {
+        amm.rm(resultsDir)
+      } else {
+        printInfo("Training aborted.")
+        System.exit(0)
+      }
+    }
+    amm.mkdir(resultsDir / "control")
 
     Trainer(
       modelConfig,
@@ -87,11 +87,13 @@ object Training {
       val allNodes = correctSet ++ incorrectSet
       val nLib = allNodes.count(_._2.madeFromLibTypes)
       val nProj = allNodes.size - nLib
+      val nTotal = nLib + nProj
       s"forward result: {loss: ${toAccuracyD(loss)}, " +
-        s"user_annotations: ${kept.size}," +
-        s"dropped_annotations: ${dropped.size}, " +
-        s"lib_acc: ${toAccuracy(libCorrect)} ($nLib nodes), " +
-        s"proj_acc: ${toAccuracy(projCorrect)} ($nProj nodes)}"
+        s"total_acc: %.4f ($nTotal nodes), ".format(totalAccuracy) +
+        s"lib_acc: %.4f ($nLib nodes), ".format(toAccuracy(libCorrect)) +
+        s"proj_acc: %.4f ($nProj nodes), ".format(toAccuracy(projCorrect)) +
+        s"user_annotations: ${kept.size}, " +
+        s"dropped_annotations: ${dropped.size}}"
     }
 
     private def countCorrect(isLibType: Boolean) = {
@@ -108,6 +110,9 @@ object Training {
 
     def libCorrect: Counted[LibCorrect] = countCorrect(true)
     def projCorrect: Counted[ProjCorrect] = countCorrect(false)
+    def totalCorrect: Counted[Correct] =
+      Counted(correctSet.size + incorrectSet.size, correctSet.size)
+    def totalAccuracy: Double = toAccuracy(totalCorrect)
 
     def isConsistent: Boolean = {
       categoricalAcc.keySet == (correctSet ++ incorrectSet).map(_._2)
@@ -168,7 +173,8 @@ object Training {
 
       val model = makeModel(pc, dataSet)
       val maxTrainingEpochs = if (toyMode) 90 else 100
-      TrainingLoop(dataSet, model, state, logger).run(maxTrainingEpochs)
+      val earlyStopEpochs = 10
+      TrainingLoop(dataSet, model, state, logger).run(maxTrainingEpochs, earlyStopEpochs)
     }
 
     def makeModel(pc: ParamCollection, dataSet: DataSet) = {
@@ -287,6 +293,7 @@ object Training {
       import trainingState._
       val architecture: NNArchitecture = modelWrapper.model.architecture
       val pc: ParamCollection = architecture.pc
+      type Epoch = Int
 
       val (maxBatchSize, avgAnnotations) = {
         val sizes = dataSetLabelNums(dataSet.trainSet, random)
@@ -294,29 +301,52 @@ object Training {
       }
       printResult(s"maxBatchSize: $maxBatchSize, avgAnnotations: $avgAnnotations")
 
-      def run(maxTrainingEpochs: Int): Unit = {
+      def run(maxTrainingEpochs: Int, earlyStopEpochs: Int): Unit = {
+        TensorExtension.checkNaN = false // (epoch - 1) % 10 == 0
+
         val epochCost = trainSet.size * 3 + devSet.size + testSet.size
         val epochs = trainingState.epoch0 + 1 to maxTrainingEpochs
+        var bestModel: Option[(Epoch, ForwardResult)] = None
+        var shouldStop = false
         val pb = new ProgressBar("Training", epochs.size * epochCost)
-        epochs.foreach { epoch =>
-          shouldAnnounce = epoch == 1 // only announce in the first epoch for debugging purpose
-          announced(s"epoch $epoch") {
-            TensorExtension.checkNaN = false // (epoch - 1) % 10 == 0
-            handleExceptions(epoch) {
-              trainStep(epoch, pb)
-              DebugTime.logTime("testSteps") {
-                testStep(epoch, pb, isTestSet = false)
-                testStep(epoch, pb, isTestSet = true)
-              }
-              if (epoch == 1 || epoch % saveInterval == 0)
-                DebugTime.logTime("saveTraining") {
-                  saveTraining(epoch, s"epoch$epoch")
-                }
+
+        def loopStep(epoch: Epoch): Unit = {
+          trainStep(epoch, pb)
+          val fr = DebugTime.logTime("testSteps") {
+            testStep(epoch, pb, isTestSet = true) // test set
+            testStep(epoch, pb, isTestSet = false) // dev set, used for early stopping
+          }
+          if (bestModel.isEmpty || fr.totalAccuracy > bestModel.get._2.totalAccuracy) {
+            bestModel = Some((epoch, fr))
+            DebugTime.logTime("saveTraining") {
+              saveTraining(epoch, "bestModel", skipTest = false)
             }
+          }
+          if (epoch == 1 || epoch % saveInterval == 0)
+            DebugTime.logTime("saveTraining") {
+              saveTraining(epoch, s"epoch$epoch", skipTest = true)
+            }
+
+          printInfo(s"[[epoch $epoch]] dev set performance: $fr")
+          val lastImprove = bestModel.get._1
+          if (epoch - lastImprove >= earlyStopEpochs) {
+            shouldStop = true
+            printInfo(s"Early stopping triggered since the last improvement was " +
+              s"at epoch $lastImprove.")
           }
         }
 
-        saveTraining(maxTrainingEpochs, "finished")
+        epochs.foreach { epoch =>
+          shouldAnnounce = epoch == 1 // only announce in the first epoch for debugging purpose
+          if (!shouldStop)
+            announced(s"epoch $epoch") {
+              handleExceptions(epoch) { loopStep(epoch) }
+            }
+        }
+
+        printInfo("Training finished.")
+        val (bestEpoch, performance) = bestModel.get
+        printInfo(s"{Best_epoch: $bestEpoch, test_performance: $performance}")
       }
 
       val saveInterval = if (toyMode) 40 else 5
@@ -435,13 +465,13 @@ object Training {
         println(DebugTime.show)
       }
 
-      def testStep(epoch: Int, pb: ProgressBar, isTestSet: Boolean): Unit = {
+      def testStep(epoch: Int, pb: ProgressBar, isTestSet: Boolean): ForwardResult = {
         val dataSetName = if (isTestSet) "test" else "dev"
         val dataSet = if (isTestSet) testSet else devSet
         announced(s"test on $dataSetName set") {
           import cats.implicits._
 
-          val (stat, fse1Acc, libTop5Acc, projTop5Acc) =
+          val (fr, fse1Acc, libTop5Acc, projTop5Acc) =
             dataSet.zipWithIndex.flatMap {
               case (datum, i) =>
                 checkShouldStop(epoch)
@@ -487,9 +517,9 @@ object Training {
                 }
             }.combineAll
 
-          import stat.{libCorrect, projCorrect, confusionMatrix, categoricalAcc}
+          import fr.{libCorrect, projCorrect, confusionMatrix, categoricalAcc}
           import logger._
-          logScalar(s"$dataSetName-loss", epoch, toAccuracyD(stat.loss))
+          logScalar(s"$dataSetName-loss", epoch, toAccuracyD(fr.loss))
           logScalar(s"$dataSetName-libAcc", epoch, toAccuracy(libCorrect))
           logScalar(s"$dataSetName-libTop5Acc", epoch, toAccuracy(libTop5Acc))
           logScalar(s"$dataSetName-projAcc", epoch, toAccuracy(projCorrect))
@@ -520,6 +550,7 @@ object Training {
             epoch,
             typeAccString(projTypeAcc)
           )
+          fr
         }
       }
 
@@ -597,6 +628,7 @@ object Training {
 
           val dateTime = Calendar.getInstance().getTime
           write.over(saveDir / "currentTime.txt", dateTime.toString)
+          write.over(saveDir / "currentEpoch.txt", epoch.toString)
           write.over(saveDir / "timeStats.txt", DebugTime.show)
         }
       }
@@ -787,5 +819,17 @@ object Training {
     implicit val rw: ReadWriter[ModelConfig] = macroRW
     implicit val rwEnum: ReadWriter[LossAggMode.Value] =
       pickle.readwriter[Int].bimap(_.id, LossAggMode.apply)
+  }
+
+  def checkMemoryConfigs(): Unit = {
+    import ammonite.ops._
+    val f = pwd / "configs" / "memory.txt"
+    if (!exists(f))
+      printWarning(
+        s"$f not exits. Using default memory limits, which is likely " +
+          s"to be too small. If you see timeouts during training, try to create this file " +
+          s"with two integers in it, one on each line, which specify the heap and " +
+          s"off-heap memory limit in Gigabytes."
+      )
   }
 }
