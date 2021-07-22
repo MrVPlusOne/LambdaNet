@@ -479,9 +479,9 @@ abstract class NNArchitecture(
 
   def mergeMessages[K](
       name: SymbolPath,
-      messages: GenSeq[(K, Chain[Message])],
+      messages: Vector[(K, Chain[Message])],
       embedding: K => CompNode
-  )(implicit mode: GraphMode): Map[K, Message]
+  )(implicit mode: GraphMode): Vector[(K, Message)]
 
   def update[K](
       name: SymbolPath,

@@ -31,7 +31,6 @@ object Training {
 
     val dropAllAnnots = true
     val modelConfig = ModelConfig(
-      toyMode = true,
       predictAny = false,
       annotsSampling = if (dropAllAnnots) AnnotsSampling(0, 0) else AnnotsSampling(0.0, 0.81),
       maxLibRatio = 100.0,
@@ -174,7 +173,7 @@ object Training {
 
       val model = makeModel(pc, dataSet)
       val maxTrainingEpochs = if (toyMode) 90 else 100
-      val earlyStopEpochs = 10
+      val earlyStopEpochs = if (toyMode) 30 else 10
       TrainingLoop(dataSet, model, state, logger).run(maxTrainingEpochs, earlyStopEpochs)
     }
 

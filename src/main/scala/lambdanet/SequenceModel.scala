@@ -180,9 +180,9 @@ object SequenceModel {
 
     def mergeMessages[K](
         name: SymbolPath,
-        messages: GenSeq[(K, Chain[Message])],
+        messages: Vector[(K, Chain[Message])],
         embedding: K => CompNode
-    )(implicit mode: GraphMode): Map[K, Message] = nstct()
+    )(implicit mode: GraphMode): Vector[(K, Message)] = nstct()
 
     def update[K](
         name: SymbolPath,

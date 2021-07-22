@@ -203,7 +203,18 @@ private[funcdiff] object DiffFunc {
     def name: String = s"slice{ranges=${TensorExtension.showRanges(ranges)}}"
 
     override def shortName: String = "slice"
+  }
 
+  case class GetRow(x1: CompNode, i: Int, keepDim: Boolean = true) extends UnaryFunc {
+    val value = Tensor(x1.value.array.getRow(i, keepDim))
+
+    def name: String = s"getRow{i=$i, keepDim=$keepDim}"
+
+    def backprop1(grad: Gradient): Gradient = {
+      grad.putInRanges(List(i, :>), x1.shape)
+    }
+
+    override def shortName: String = "getRow"
   }
 
   case class Transpose(x1: CompNode) extends UnaryFunc {

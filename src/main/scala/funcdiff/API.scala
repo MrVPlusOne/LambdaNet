@@ -202,10 +202,9 @@ trait APITrait {
     def ~>[B <: CompNode](f: CompNode => B)(implicit mode: GraphMode): B = f(x1)
 
     def rows(implicit mode: GraphMode): Vector[CompNode] = {
-      //todo: use more efficient implementation
-      val numOfRows = x1.shape(0)
-      (0 until numOfRows.toInt).map { r =>
-        x1.slice(r, :>)
+      val Vector(nRows, _) = x1.shape.sizes
+      (0 until nRows.toInt).map { r =>
+        funcNode(GetRow(x1, r, keepDim = true))
       }.toVector
     }
   }

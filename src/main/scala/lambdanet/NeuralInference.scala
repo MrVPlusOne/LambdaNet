@@ -10,6 +10,7 @@ import org.nd4j.linalg.api.buffer.DataType
 import translation.PredicateGraph
 
 import scala.collection.mutable
+import scala.util.Random
 
 /**
   * Utilities to build the graph neural network from a given [[PredicateGraph]].
@@ -55,6 +56,7 @@ object NeuralInference {
     import stats._
     private val parallelism =
       taskSupport.map(_.environment.getParallelism).getOrElse(1)
+    private val rand = new Random()
 
     case class run(
         architecture: NNArchitecture,
@@ -156,19 +158,20 @@ object NeuralInference {
         }
 
         val merged = logTime("merge messages") {
-          architecture.mergeMessages(
-            'mergeMessages / s"iter-$iteration",
-            parallelize(messages.toSeq),
-            embedding.vars
-          )
+          chunkedMap(rand.shuffle(messages.toVector))(msgMap =>
+            architecture.mergeMessages(
+              'mergeMessages / s"iter-$iteration",
+              msgMap,
+              embedding.vars,
+            )
+          ).flatten.seq.toMap
         }
+
         logTime("update embedding") {
           Embedding(
-            chunkedMap(embedding.vars.toVector)(
+            chunkedMap(rand.shuffle(embedding.vars.toVector))(
               embed => architecture.update('vars, embed.toMap, merged)
-            )(
-              _.reduce(_ ++ _)
-            )
+            ).reduce(_ ++ _)
           )
         }
       }
@@ -247,10 +250,10 @@ object NeuralInference {
       }
     }
 
-    private def chunkedMap[X, Y, Z](xs: Vector[X])(f: Vector[X] => Y)(merge: GenSeq[Y] => Z): Z = {
+    private def chunkedMap[X, Y](xs: Vector[X])(f: Vector[X] => Y): GenSeq[Y] = {
       val chunkSize = math.ceil(xs.length.toDouble / parallelism).toInt
       val chunks = parallelize(xs.grouped(chunkSize).toSeq)
-      merge(chunks.map(f))
+      chunks.map(f)
     }
 
     type BatchedMsgModels = Map[MessageKind, Vector[MessageModel]]
