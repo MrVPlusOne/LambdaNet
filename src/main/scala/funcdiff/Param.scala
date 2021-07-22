@@ -40,6 +40,8 @@ case class SymbolPath(repr: Symbol) {
       SymbolPath(Symbol(repr.name + "/" + seg.name))
     })
 
+  def /(seg: String): SymbolPath = this/(Symbol(seg))
+
   def ++(other: SymbolPath): SymbolPath = this / other.repr
 
   override def toString: String = {

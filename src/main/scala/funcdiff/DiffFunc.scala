@@ -379,6 +379,9 @@ private[funcdiff] object DiffFunc {
     }
   }
 
+  /**
+   * @param fromRows Whether all arguments are row vectors and have the same shape.
+   */
   case class ConcatN(args: IS[CompNode], axis: Int, fromRows: Boolean)
       extends DiffFunc {
 

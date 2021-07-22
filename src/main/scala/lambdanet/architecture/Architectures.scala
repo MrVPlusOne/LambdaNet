@@ -2,6 +2,7 @@ package lambdanet.architecture
 
 import cats.data.Chain
 import funcdiff._
+import lambdanet.ChainingSyntax
 import lambdanet.NeuralInference.Message
 import lambdanet.translation.PredicateGraph.ProjNode
 
@@ -84,9 +85,6 @@ case class GATArchitecture(
       messages: GenSeq[(K, Chain[Message])],
       embedding: K => CompNode
   )(implicit mode: GraphMode): Map[K, Message] = {
-
-    require(dimEmbedding % numHeads == 0)
-    val dimValue = dimEmbedding / numHeads
     messages
       .map {
         case (n, ms) =>
@@ -100,13 +98,18 @@ case class GATArchitecture(
 
             val key1 = trans('key1, dimEmbedding)(n1) // [1, D]
             val keys2 = trans('keys2, dimEmbedding)(stacked) // [N, D]
-            val values2 = trans('values2, dimValue)(stacked) // [N, D]
+            val values2 = trans('values2, dimEmbedding)(stacked) // [N, D]
 
             val attention = softmax(leakyRelu(key1.dot(keys2.t), 0.2)) // [1, N]
             attention.dot(values2) // [1, D]
           }
+          val msg =
+            if(numHeads == 1) heads.head
+            else
+              concatN(1, fromRows = true)(heads.toVector)
+                .pipe(linear(name / "mergeHeads", dimEmbedding, useBias = false))
 
-          n -> concatN(1, fromRows = true)(heads.toVector)
+          n -> msg
       }
       .seq
       .toMap

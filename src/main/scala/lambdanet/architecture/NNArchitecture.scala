@@ -20,6 +20,8 @@ import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 import scala.collection.GenSeq
 import NNArchitecture._
 
+import scala.collection.parallel.{ForkJoinTaskSupport, TaskSupport}
+
 object NNArchitecture {
   val messageLayers = 2
   val compareDecoding = true
@@ -302,22 +304,24 @@ abstract class NNArchitecture(
       inputs0: Vector[CompNode],
       candidates: Vector[CompNode],
       name: SymbolPath,
-      parallelism: Int
+      taskSupport: Option[ForkJoinTaskSupport],
   )(implicit mode: GraphMode): Joint =
     if (compareDecoding) {
-      val parInputs =
-        inputs0.grouped((inputs0.size / parallelism) + 1).toArray.par
+      val parInputs: GenSeq[Vector[CompNode]] = taskSupport match {
+        case Some(ts) =>
+          val parallelism = ts.environment.getParallelism
+          inputs0.grouped((inputs0.size / parallelism) + 1).toArray.par
+            .tap(_.tasksupport = ts)
+        case None => Vector(inputs0)
+      }
       val chunks = parInputs.map { inputs =>
         val rows = for {
           input <- inputs
           cand <- candidates
-        } yield {
-          input -> cand
-        }
+        } yield input -> cand
 
         val logits0 = concatTupledRows(rows) ~>
           linear(name / 'sim0, dimMessage) ~> relu ~>
-          //      (if (useDropout) dropout(0.5) else identity) ~>
           linear(name / 'sim1, dimMessage / 2) ~> relu ~>
           linear(name / 'sim2, dimMessage / 4) ~> relu ~>
           linear(name / 'sim3, 1)
@@ -337,7 +341,9 @@ abstract class NNArchitecture(
       Joint(inputs1.dot(candidates1.t))
     }
 
-  def encodeLibType(n: PNode, encodeName: Symbol => CompNode)(implicit mode: GraphMode): CompNode = {
+  def encodeLibType(n: PNode, encodeName: Symbol => CompNode)(
+      implicit mode: GraphMode
+  ): CompNode = {
     def encodeNameOpt(nameOpt: Option[Symbol]): CompNode = {
       nameOpt.map(encodeName).getOrElse(randomVar('libTypeNameMissing))
     }
@@ -369,7 +375,7 @@ abstract class NNArchitecture(
       libCandidates: Vector[CompNode],
       projCandidates: Vector[CompNode],
       similarityScores: Tensor,
-      parallelism: Int
+      taskSupport: Option[ForkJoinTaskSupport],
   )(implicit mode: GraphMode): DecodingResult = {
     val sharpness = getVar('decodingSharpness)(Tensor(1.0).reshape(1, 1))
 
@@ -377,7 +383,7 @@ abstract class NNArchitecture(
       inputs,
       libCandidates ++ projCandidates,
       'libDistr,
-      parallelism
+      taskSupport
     ).logits
       .pipe(_ + const(similarityScores) * sharpness)
 
@@ -391,7 +397,7 @@ abstract class NNArchitecture(
       isLibOracle: Option[Vector[Boolean]],
       useDropout: Boolean,
       similarityScores: Option[Tensor],
-      parallelism: Int
+      taskSupport: Option[ForkJoinTaskSupport],
   )(implicit mode: GraphMode): DecodingResult = {
     val inputs1 =
       stackRows(inputs)
@@ -408,17 +414,16 @@ abstract class NNArchitecture(
           .map(x => if (x) 1000.0 else -1000.0)
           .pipe(x => const(Tensor(x.toArray).reshape(-1, 1)))
     }
-
     val libLogits = similarity(
       inputs,
       libCandidates,
       'libDistr,
-      parallelism
+      taskSupport,
     ).logits
     val sharpness = getVar('decodingSharpness)(Tensor(1.0).reshape(1, 1))
     val projLogits =
       if (projCandidates.nonEmpty)
-        similarity(inputs, projCandidates, 'projDistr, parallelism).logits
+        similarity(inputs, projCandidates, 'projDistr, taskSupport).logits
           .pipe(_ + const(similarityScores.get) * sharpness)
           .pipe(Some.apply)
       else None
@@ -436,7 +441,9 @@ abstract class NNArchitecture(
       .pipe(sum(_, axis = 0))
   }
 
-  def encodeObject(elements: Vector[(LabelVector, CompNode)])(implicit mode: GraphMode): CompNode = {
+  def encodeObject(
+      elements: Vector[(LabelVector, CompNode)]
+  )(implicit mode: GraphMode): CompNode = {
     if (elements.isEmpty) {
       randomVar('emptyObject)
     } else {
@@ -534,7 +541,9 @@ abstract class NNArchitecture(
     fcNetwork(path, numLayer = 2)(input)
   }
 
-  def fcNetwork(path: SymbolPath, numLayer: Int)(input: CompNode)(implicit mode: GraphMode): CompNode = {
+  def fcNetwork(path: SymbolPath, numLayer: Int)(
+      input: CompNode
+  )(implicit mode: GraphMode): CompNode = {
     require(numLayer >= 1)
     def oneLayer(i: Int)(input: CompNode) = {
       val p = path / Symbol(s"L$i")

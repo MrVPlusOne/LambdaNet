@@ -213,6 +213,7 @@ package object numsca {
     new Tensor(newArray)
   }
 
+  /** Requires all `rows` to be row vectors and have the same shape.  */
   def fromRows(rows: IndexedSeq[Tensor], axis: Int): Tensor = {
     val first = rows.head
     assert(first.shape(0) == 1, s"shape = ${first.shape}")

@@ -31,9 +31,11 @@ object Training {
 
     val dropAllAnnots = true
     val modelConfig = ModelConfig(
+      toyMode = true,
       predictAny = false,
       annotsSampling = if (dropAllAnnots) AnnotsSampling(0, 0) else AnnotsSampling(0.0, 0.81),
       maxLibRatio = 100.0,
+      gatHeads = 4,
     )
 
     val configs = Configs()
@@ -43,7 +45,7 @@ object Training {
 
     val resultsDirEmpty = !amm.exists(resultsDir) || amm.ls(resultsDir).isEmpty
     if (!resultsDirEmpty) {
-      println(s"directory $resultsDir is not empty. Remove it first? (y/n): ")
+      println(warnStr(s"directory $resultsDir is not empty. Remove it first? (y/n): "))
       if (scala.io.StdIn.readLine().strip().toLowerCase() == "y") {
         amm.rm(resultsDir)
       } else {
@@ -182,7 +184,7 @@ object Training {
       val architecture =
         if (useSeqModel)
           SequenceModel.SeqArchitecture(dimMessage, pc)
-        else GATArchitecture(gatHead, dimMessage, pc)
+        else GATArchitecture(gatHeads, dimMessage, pc)
       //        else SimpleArchitecture(state.dimMessage, pc)
       printResult(s"NN Architecture: ${architecture.arcName}")
 
@@ -330,8 +332,10 @@ object Training {
           val lastImprove = bestModel.get._1
           if (epoch - lastImprove >= earlyStopEpochs) {
             shouldStop = true
-            printInfo(s"Early stopping triggered since the last improvement was " +
-              s"at epoch $lastImprove.")
+            printInfo(
+              s"Early stopping triggered since the last improvement was " +
+                s"at epoch $lastImprove."
+            )
           }
         }
 
@@ -421,9 +425,7 @@ object Training {
               }.toVector
               pb.stepBy(2)
 
-              if (debugTime) {
-                println(DebugTime.show)
-              }
+              amm.write.over(resultsDir / "time_stats.txt", DebugTime.show)
               (fwd, gradInfo, datum)
             }
         }
@@ -747,17 +749,38 @@ object Training {
     implicit val rw: ReadWriter[AnnotsSampling] = macroRW
   }
 
-  /** Records the training-time model configurations. */
+  /**
+   * Records the training-time model configurations.
+   * @param toyMode if true, will run the model on a toy dataset for fast debugging purpose.
+   * @param useSeqModel if true, will use RNN architecture instead of GNN.
+   * @param gnnIterations how many GNN iteration layers to use.
+   * @param useDropout whether to use dropout in some layers.
+   * @param predictAny whether to include the special type `any` in the prediction space.
+   * @param maxLibRatio the maximal ratio of (library type labels)/(project type labels).
+   *                    Ectra library labels will be randomly down-sampled.
+   * @param projWeight the relative weight ratio between a project type label and a
+   *                   library type label. Setting this > 1 during training will encourage
+   *                   the model to predict project types more frequently.
+   * @param gatHeads the number of attention heads in the GAT message aggregation kernel.
+   * @param weightDecay i.e., the factor for L2 regularization.
+   * @param onlyPredictLibType if true, the model will only predict library types.
+   * @param lossAggMode how to compute the loss. See [[LossAggMode]].
+   * @param encodeLibSignature whether the GNN take the type signature of library nodes as
+   *                           additional inputs.
+   * @param annotsSampling During training, this defines how user annotations will be
+   *                       randomly sampled as inputs and labels.
+   *
+   */
+  @SerialVersionUID(3L)
   case class ModelConfig(
       toyMode: Boolean = false,
       useSeqModel: Boolean = false,
       gnnIterations: Int = 6,
       useDropout: Boolean = true,
-      useOracleForIsLib: Boolean = false,
       predictAny: Boolean = true,
       maxLibRatio: Real = 9.0,
       projWeight: Real = 1.0,
-      gatHead: Int = 1,
+      gatHeads: Int = 1,
       weightDecay: Option[Real] = Some(1e-4),
       onlyPredictLibType: Boolean = false,
       lossAggMode: LossAggMode.Value = LossAggMode.Sum,
@@ -783,7 +806,7 @@ object Training {
 
       if (useSeqModel) "seqModel-theirName1-node"
       else
-        s"${ablationFlag}UserAnnot-v1.1-GAT$gatHead-fc${NNArchitecture.messageLayers}" +
+        s"${ablationFlag}UserAnnot-v1.2-GAT$gatHeads-fc${NNArchitecture.messageLayers}" +
           s"$annotsSampling-$flags-${gnnIterations}"
     }
 

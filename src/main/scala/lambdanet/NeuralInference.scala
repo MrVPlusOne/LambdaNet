@@ -157,27 +157,19 @@ object NeuralInference {
 
         val merged = logTime("merge messages") {
           architecture.mergeMessages(
-            'mergeMessages / Symbol(s"iter-$iteration"),
+            'mergeMessages / s"iter-$iteration",
             parallelize(messages.toSeq),
             embedding.vars
           )
         }
-
         logTime("update embedding") {
           Embedding(
-            architecture.update('vars, embedding.vars, merged)
+            chunkedMap(embedding.vars.toVector)(
+              embed => architecture.update('vars, embed.toMap, merged)
+            )(
+              _.reduce(_ ++ _)
+            )
           )
-//            .pipe { embed =>
-//            val candidates =
-//              predictionSpace.projTypeVec.map(v => v -> encodeType(v))
-//            architecture.attendPredictionSpaceByName(
-//              projectNodes.toVector,
-//              projectNodes.toVector.map{ embed.vars },
-//              candidates,
-//              similarityScores,
-//              s"attendPredictionSpace$iteration"
-//            )
-//          }
         }
       }
 
@@ -202,7 +194,7 @@ object NeuralInference {
           inputs,
           libCandidates ++ projCandidates,
           'decodingSimilarity,
-          parallelism
+          taskSupport,
         )
       }
 
@@ -253,6 +245,12 @@ object NeuralInference {
           case None    => randomVar("nameMissing")
         }
       }
+    }
+
+    private def chunkedMap[X, Y, Z](xs: Vector[X])(f: Vector[X] => Y)(merge: GenSeq[Y] => Z): Z = {
+      val chunkSize = math.ceil(xs.length.toDouble / parallelism).toInt
+      val chunks = parallelize(xs.grouped(chunkSize).toSeq)
+      merge(chunks.map(f))
     }
 
     type BatchedMsgModels = Map[MessageKind, Vector[MessageModel]]
