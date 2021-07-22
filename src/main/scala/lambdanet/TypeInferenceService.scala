@@ -46,8 +46,6 @@ object TypeInferenceService {
   }
 
   def main(args: Array[String]): Unit = {
-    NeuralInference.checkOMP()
-
     val modelDir = pwd / RelPath(
       "running-results/NewData-GAT1-fc2AnnotsSampling(0.0,0.81)--decay-lossAgg_sum-encodeSignature-6/saved/epoch40"
     )

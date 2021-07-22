@@ -12,10 +12,8 @@ import lambdanet.architecture._
 import lambdanet.utils.{EventLogger, FileLogger, QLangAccuracy, QLangDisplay}
 import TrainingState._
 import botkop.numsca.Tensor
-import lambdanet.PrepareRepos.{ParsedProject}
 import lambdanet.translation.PredicateGraph.{PNode, PType, ProjNode}
 import me.tongfei.progressbar.ProgressBar
-import org.nd4j.linalg.api.buffer.DataType
 import upickle.{default => pickle}
 
 import java.io.FileNotFoundException
@@ -50,36 +48,11 @@ object Training {
       }
     }
 
-    val threadNumber: Int = {
-      import ammonite.ops._
-      val f = pwd / "configs" / "threads.txt"
-      if (exists(f)) {
-        read(f).trim.toInt
-      } else {
-        Runtime.getRuntime.availableProcessors() / 2
-      }
+    val configs = Configs()
+    val resultsDir = configs.resultsDir().tap { d =>
+      lambdanet.printResult(s"save results to directory: $d")
     }
-    val resultsDir: ammonite.ops.Path = {
-      import ammonite.ops._
-      val f = pwd / "configs" / "resultsDir.txt"
-      if (!exists(f)) {
-        throw new FileNotFoundException(
-          s"$f not exits. It should contain the file " +
-            s"path that specifies which directory the training results would be saved to."
-        )
-      }
-      val pathText = read(f).trim
-      val path = util
-        .Try {
-          pwd / RelPath(pathText)
-        }
-        .getOrElse(Path(pathText))
-      (path / taskName).tap { d =>
-        lambdanet.printResult(s"save results to directory: $d")
-      }
-    }
-
-    val trainConfig = SystemConfig(threadNumber, resultsDir)
+    val trainConfig = SystemConfig(configs.numOfThreads(), resultsDir)
 
     Trainer(
       modelConfig,
@@ -187,21 +160,8 @@ object Training {
       ammonite.ops.write(resultsDir / "modelConfig.json", configStr)
 
       val repos = DataSet.loadRepos(toyMode, predictAny = predictAny)
-      def projFilter(p: ParsedProject) = {
-        val size = p.pGraph.predicates.size
-        (size <= 10000).tap{ small =>
-          if(!small) printInfo(s"Project ${p.path} ($size predicates) is filtered due to large size.")
-        }
-      }
-
-      val filteredRepos = repos.copy(
-        trainSet = repos.trainSet.filter(projFilter),
-        devSet = repos.devSet.filter(projFilter),
-        testSet = repos.testSet.filter(projFilter),
-      )
       val dataSet = DataSet.makeDataSet(
-        filteredRepos,
-        useSeqModel,
+        repos,
         onlyPredictLibType,
         predictAny,
       )

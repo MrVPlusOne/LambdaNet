@@ -8,15 +8,13 @@ import lambdanet.translation.ImportsResolution.{ErrorHandler, NameDef}
 import lambdanet.translation.PredicateGraph.{PAny, PNode}
 import lambdanet.utils.QLangDisplay
 
-import scala.collection.parallel.ForkJoinTaskSupport
-import scala.concurrent.forkjoin.ForkJoinPool
 import scala.util.Random
 
 object RunTrainedModel {
 
   val modelDir: Path = pwd / "models"
 
-  @deprecated("Instead of loading a ParamCollection, load a saved Model instead. The Model " +
+  @deprecated("Instead of loading a ParamCollection, load a saved Model instead. The `Model` " +
     "class contains the all the hyper-parameters needed to reconstruct the original model.")
   def runTrainedModel(
       paramPath: Path,
@@ -54,7 +52,7 @@ object RunTrainedModel {
 
       Training.Trainer(
         Training.ModelConfig(),
-        SystemConfig(numOfThreads = 8, pwd / "test-trained")
+        SystemConfig(numOfThreads = numOfThreads, pwd / "test-trained")
       ).makeModel(pc, dataSet)
     }
 

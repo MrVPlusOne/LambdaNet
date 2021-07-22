@@ -5,6 +5,7 @@ import ammonite.ops.Path
 import java.io.{File, FileInputStream, FileOutputStream, ObjectInputStream, ObjectOutputStream, ObjectStreamClass, Serializable}
 import scala.util.Random
 import collection.mutable
+import Numeric.Implicits._
 
 object SimpleMath {
 
@@ -102,10 +103,16 @@ object SimpleMath {
     else x
   }
 
-  def mean(xs: Seq[Double]): Double = {
-    require(xs.nonEmpty)
-    xs.sum / xs.length
+  def mean[T: Numeric](xs: Iterable[T]): Double = xs.sum.toDouble / xs.size
+
+  def variance[T: Numeric](xs: Iterable[T]): Double = {
+    if(xs.size > 1) {
+      val mu = mean(xs)
+      xs.map(x => square(x.toDouble() - mu)).sum / (xs.size - 1)
+    } else Double.NaN
   }
+
+  def stdDev[T: Numeric](xs: Iterable[T]): Double = math.sqrt(variance(xs))
 
   def meanOrElse(xs: Seq[Double], default: Double): Double = {
     if (xs.nonEmpty) {

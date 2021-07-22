@@ -9,7 +9,6 @@ object Timeouts {
   type Duration = FiniteDuration
 
   var restartOnTimeout = true
-
   var forwardTimeout: Duration = 100.seconds
   var optimizationTimeout: Duration = 120.seconds
 

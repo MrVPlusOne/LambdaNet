@@ -49,14 +49,28 @@ object DataSet {
   }
 
   def makeDataSet(
-      repos: ParsedRepos,
+      allRepos: ParsedRepos,
       onlyPredictLibType: Boolean,
       predictAny: Boolean,
       testSetUseInferred: Boolean = false,
+      maxProjectSize: Int = 10000,
   ): DataSet = {
     import PrepareRepos._
 
-    val ParsedRepos(libDefs, trainSet, devSet, testSet) = repos
+    def projFilter(p: ParsedProject) = {
+      val size = p.pGraph.predicates.size
+      (size <= maxProjectSize).tap{ small =>
+        if(!small) printInfo(s"Project ${p.path} ($size predicates) is filtered due to large size.")
+      }
+    }
+
+    val repos = allRepos.copy(
+      trainSet = allRepos.trainSet.filter(projFilter),
+      devSet = allRepos.devSet.filter(projFilter),
+      testSet = allRepos.testSet.filter(projFilter),
+    )
+
+    import repos.{libDefs, trainSet, devSet, testSet}
     val libTypesToPredict: Set[LibTypeNode] =
       selectLibTypes(
         libDefs,

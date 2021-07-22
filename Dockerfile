@@ -52,5 +52,5 @@ WORKDIR /usr/src/lambdanet
 
 # Compile Scala files
 RUN sbt "runMain lambdanet.JavaAPI"
-
+ENV OMP_NUM_THREADS=1
 CMD ["/bin/sh"]
