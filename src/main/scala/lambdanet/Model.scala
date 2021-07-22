@@ -9,17 +9,8 @@ import lambdanet.TypeInferenceService.PredictionResults
 import lambdanet.architecture.LabelEncoder.TrainableLabelEncoder
 import lambdanet.architecture.{LabelEncoder, NNArchitecture}
 import lambdanet.train.DataSet.nonGenerify
-import lambdanet.train.Training.{AnnotsSampling, ForwardResult}
-import lambdanet.train.{
-  Counted,
-  DataSet,
-  Loss,
-  LossAggMode,
-  ProcessedProject,
-  ProjectLabelStats,
-  ProjectStats,
-  TopNDistribution
-}
+import lambdanet.train.Training.{AnnotsSampling, ForwardResult, ModelConfig}
+import lambdanet.train.{Counted, DataSet, Loss, LossAggMode, ProcessedProject, ProjectLabelStats, ProjectStats, TopNDistribution}
 import lambdanet.translation.ImportsResolution.ErrorHandler
 import lambdanet.translation.PredicateGraph
 import lambdanet.translation.PredicateGraph.{LibTypeNode, PNode, PType, ProjNode}
@@ -31,11 +22,9 @@ import scala.util.Random
 case object Model {
 
   def fromData(
+      config: ModelConfig,
       dataSet: DataSet,
-      gnnIterations: Int,
       architecture: NNArchitecture,
-      lossAggMode: LossAggMode.Value,
-      encodeLibSignature: Boolean,
       random: Random,
   ): Model = {
     import dataSet._
@@ -68,7 +57,7 @@ case object Model {
       )
 
     Model(
-      gnnIterations,
+      config: ModelConfig,
       architecture,
       libDefs,
       libTypesToPredict,
@@ -76,8 +65,6 @@ case object Model {
       nameEncoder,
       labelCoverage,
       random,
-      lossAggMode,
-      encodeLibSignature,
     )
   }
 
@@ -89,9 +76,10 @@ case object Model {
 
 }
 
-@SerialVersionUID(2L)
+//noinspection TypeAnnotation
+@SerialVersionUID(3L)
 case class Model(
-    gnnIterations: Int,
+    config: ModelConfig,
     architecture: NNArchitecture,
     libDefs: LibDefs,
     libTypesToPredict: Set[LibTypeNode],
@@ -99,9 +87,11 @@ case class Model(
     nameEncoder: LabelEncoder,
     labelCoverage: TrainableLabelEncoder,
     random: Random,
-    lossAggMode: LossAggMode.Value,
-    encodeLibSignature: Boolean,
 ) {
+  import config.{predictAny, onlyPredictLibType}
+  def gnnIterations = config.gnnIterations
+  def encodeLibSignature = config.encodeLibSignature
+  def lossAggMode = config.lossAggMode
 
   import lambdanet.train.{ConfusionMatrix, Correct, DecodingResult, confusionMatrix}
 
@@ -122,7 +112,6 @@ case class Model(
       predictor: Predictor,
       predictTopK: Int,
   ): Map[PNode, TopNDistribution[PType]] = {
-    implicit val m: GraphMode = ModeEval
     val predSpace = predictor.stats.predictionSpace
     val decoding = announced("run predictor") {
       predictor
@@ -135,7 +124,7 @@ case class Model(
           nameEncoder,
           labelDropout = false,
           encodeLibSignature,
-        )
+        )(ModeEval)
         .result
     }
     val predVec = decoding
@@ -256,8 +245,6 @@ case class Model(
     def predictOnGraph(
         pGraph: PredicateGraph,
         nodeSelector: PNode => Boolean = _ => true,
-        onlyPredictLibType: Boolean = false,
-        predictAny: Boolean = true,
     ): Map[PNode, TopNDistribution[PType]] = {
       implicit val m: GraphMode = ModeEval
       val stats = ProjectStats.computeProjectStats(
@@ -283,8 +270,6 @@ case class Model(
     def predictOnProject(
         sourcePath: Path,
         skipSet: Set[String] = Set("node_modules"),
-        predictAny: Boolean,
-        onlyPredictLibType: Boolean,
         alsoPredictNonSourceNodes: Boolean = false,
         warnOnErrors: Boolean,
     ): PredictionResults = {
@@ -341,8 +326,6 @@ case class Model(
         sourcePath,
         skipSet = skipSet.toSet,
         warnOnErrors = warnOnErrors,
-        predictAny = false,
-        onlyPredictLibType = false,
       )
     }
 

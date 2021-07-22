@@ -68,8 +68,6 @@ object TypeInferenceService {
         val sourcePath = Path(line, amm.pwd)
         val results = service.predictOnProject(
           sourcePath,
-          predictAny = false,
-          onlyPredictLibType = false,
           warnOnErrors = false
         ).prettyPrint()
       } catch {

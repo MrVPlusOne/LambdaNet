@@ -17,11 +17,12 @@ import scala.collection.parallel.ForkJoinTaskSupport
   * the user annotations and conditioning the prediction on the rest.
   */
 object EvalUserAnnots {
-  def loadModelData(modelDir: Path, predictAny: Boolean, onlyPredictLibType: Boolean) = {
+  def loadModelData(modelDir: Path) = {
     val modelPath = modelDir / "model.serialized"
     val model = announced("Loading model") {
       readObjectFromFile[Model](modelPath)
     }
+    import model.config.{predictAny, onlyPredictLibType}
     val repos = ParsedRepos.readFromDir(parsedReposDir(predictAny))
     val dataSet = DataSet.makeDataSet(repos, onlyPredictLibType, predictAny)
     (model, dataSet)
@@ -31,7 +32,7 @@ object EvalUserAnnots {
     val modelDir = pwd / RelPath(
       "running-results/NewData-GAT1-fc2AnnotsSampling(0.0,0.81)--decay-lossAgg_sum-encodeSignature-6/saved/epoch40"
     )
-    val (model, dataSet) = loadModelData(modelDir, predictAny = false, onlyPredictLibType = false)
+    val (model, dataSet) = loadModelData(modelDir)
     val annotsRatios = Vector(0.0, 0.2, 0.4, 0.6, 0.8, 0.9)
     val repeats = 10
 

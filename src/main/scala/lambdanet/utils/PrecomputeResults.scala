@@ -18,8 +18,6 @@ object PrecomputeResults {
       return
     val results = service.predictOnProject(
       inputPath,
-      predictAny = true,
-      onlyPredictLibType = false,
       warnOnErrors = false
     )
     SM.saveObjectToFile(outputPath.toIO)(results.asInstanceOf[Serializable])

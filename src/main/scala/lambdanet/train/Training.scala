@@ -191,7 +191,7 @@ object Training {
 
       val rand = new Random(1)
       val model = announced("Building model") {
-        Model.fromData(dataSet, gnnIterations, architecture, lossAggMode, encodeLibSignature, rand)
+        Model.fromData(modelConfig, dataSet, architecture, rand)
       }
 
       ammonite.ops.write(resultsDir / "model_config.serial", model.description)
@@ -747,6 +747,7 @@ object Training {
     implicit val rw: ReadWriter[AnnotsSampling] = macroRW
   }
 
+  /** Records the training-time model configurations. */
   case class ModelConfig(
       toyMode: Boolean = false,
       useSeqModel: Boolean = false,
@@ -782,7 +783,7 @@ object Training {
 
       if (useSeqModel) "seqModel-theirName1-node"
       else
-        s"${ablationFlag}NewData-v2.1-GAT$gatHead-fc${NNArchitecture.messageLayers}" +
+        s"${ablationFlag}UserAnnot-v1.1-GAT$gatHead-fc${NNArchitecture.messageLayers}" +
           s"$annotsSampling-$flags-${gnnIterations}"
     }
 
