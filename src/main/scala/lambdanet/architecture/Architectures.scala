@@ -7,6 +7,7 @@ import lambdanet.ChainingSyntax
 import lambdanet.NeuralInference.Message
 import lambdanet.translation.PredicateGraph.ProjNode
 
+import scala.collection.GenSeq
 
 /**
   * A simple GNN architecture that aggregate messages by taking their mean and updates
@@ -25,17 +26,23 @@ case class SimpleArchitecture(dimEmbedding: Int, pc: ParamCollection)
 
   private val emptyMessage = getVar('emptyMessage) { randomVec() }
 
+//  def mergeMessages[K](
+//      name: SymbolPath,
+//      messages: Vector[(K, Chain[Message])],
+//      embedding: K => CompNode
+//  )(implicit mode: GraphMode): Vector[(K, Message)] = {
+//    messages
+//      .map {
+//        case (n, ms) =>
+//          n -> meanN(ms.toVector)
+//      }
+//  }
   def mergeMessages[K](
       name: SymbolPath,
-      messages: Vector[(K, Chain[Message])],
+      messages: GenSeq[(K, Chain[Message])],
       embedding: K => CompNode
-  )(implicit mode: GraphMode): Vector[(K, Message)] = {
-    messages
-      .map {
-        case (n, ms) =>
-          n -> meanN(ms.toVector)
-      }
-  }
+  )(implicit mode: GraphMode): Map[K, Message] =
+    messages.map { case (n, ms) => n -> meanN(ms.toVector) }.seq.toMap
 
   def update[K](
       name: SymbolPath,
@@ -66,7 +73,7 @@ case class GATArchitecture(
     numHeads: Int,
     dimEmbedding: Int,
     pc: ParamCollection
-) extends NNArchitecture(s"GAT-$dimEmbedding", dimEmbedding) {
+) extends NNArchitecture(s"GAT-$numHeads-$dimEmbedding", dimEmbedding) {
 
   def initialEmbedding(projectNodes: Set[ProjNode]): Embedding = {
     val nodeVec = randomVar('nodeInitVec)
@@ -80,10 +87,47 @@ case class GATArchitecture(
 
   def mergeMessages[K](
       name: SymbolPath,
+      messages: GenSeq[(K, Chain[Message])],
+      embedding: K => CompNode
+  )(implicit mode: GraphMode): Map[K, Message] = {
+    val dimValue = if (numHeads == 1) dimEmbedding else dimEmbedding / 2
+    messages
+      .map {
+        case (n, ms) =>
+          val n1 = embedding(n)
+          val stacked = stackRows(ms.prepend(n1).toVector) // [N, D]
+          val heads = for (i <- 0 until numHeads) yield {
+            val prefix = name / s"mergeMsgs$i"
+            def trans(name1: Symbol, targetDim: Int)(values: CompNode) =
+              linear(prefix / name1, targetDim, useBias = false)(values)
+
+            val key1 = trans('key1, dimValue)(n1) // [1, D]
+            val keys2 =
+              if (dimValue == dimEmbedding) stacked
+              else trans('keys2, dimValue)(stacked) // [N, D]
+            val values2 = trans('values2, dimValue)(stacked) // [N, D]
+
+            val attention = softmax(leakyRelu(key1.dot(keys2.t), 0.2)) // [1, N]
+            attention.dot(values2) // [1, D]
+          }
+          val msg =
+            if (numHeads == 1) heads.head
+            else
+              concatN(1, fromRows = true)(heads.toVector)
+                .pipe(linear(name / "mergeHeads", dimEmbedding, useBias = false))
+
+          n -> msg
+      }
+      .seq
+      .toMap
+  }
+
+  def mergeMessagesBatched[K](
+      name: SymbolPath,
       messages: Vector[(K, Chain[Message])],
       embedding: K => CompNode
   )(implicit mode: GraphMode): Vector[(K, Message)] = {
-    val dimValue = if(numHeads == 1) dimEmbedding else dimEmbedding / 2
+    val dimValue = if (numHeads == 1) dimEmbedding else dimEmbedding / 2
     val (nodes, msgChains) = messages.unzip // N nodes
     val allStacked = stackRows(msgChains.flatMap(_.toVector))
     // records the rows positions that separates nodes

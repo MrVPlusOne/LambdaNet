@@ -158,13 +158,18 @@ object NeuralInference {
         }
 
         val merged = logTime("merge messages") {
-          chunkedMap(rand.shuffle(messages.toVector))(msgMap =>
-            architecture.mergeMessages(
-              'mergeMessages / s"iter-$iteration",
-              msgMap,
-              embedding.vars,
-            )
-          ).flatten.seq.toMap
+//          chunkedMap(rand.shuffle(messages.toVector))(msgMap =>
+//            architecture.mergeMessages(
+//              'mergeMessages / s"iter-$iteration",
+//              msgMap,
+//              embedding.vars,
+//            )
+//          ).flatten.seq.toMap
+          architecture.mergeMessages(
+            'mergeMessages / s"iter-$iteration",
+            parallelize(messages.toSeq),
+            embedding.vars,
+          )
         }
 
         logTime("update embedding") {

@@ -29,12 +29,12 @@ object Training {
   def main(args: Array[String]): Unit = {
     checkMemoryConfigs()
 
-    val dropAllAnnots = true
+    val dropAllAnnots = false
     val modelConfig = ModelConfig(
       predictAny = false,
       annotsSampling = if (dropAllAnnots) AnnotsSampling(0, 0) else AnnotsSampling(0.0, 0.81),
       maxLibRatio = 100.0,
-      gatHeads = 4,
+      gatHeads = 1,
     )
 
     val configs = Configs()
@@ -805,7 +805,7 @@ object Training {
 
       if (useSeqModel) "seqModel-theirName1-node"
       else
-        s"${ablationFlag}UserAnnot-v1.2-GAT$gatHeads-fc${NNArchitecture.messageLayers}" +
+        s"${ablationFlag}UserAnnot-v1.3-GAT$gatHeads-fc${NNArchitecture.messageLayers}" +
           s"$annotsSampling-$flags-${gnnIterations}"
     }
 

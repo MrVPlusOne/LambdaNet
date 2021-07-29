@@ -310,7 +310,10 @@ abstract class NNArchitecture(
       val parInputs: GenSeq[Vector[CompNode]] = taskSupport match {
         case Some(ts) =>
           val parallelism = ts.environment.getParallelism
-          inputs0.grouped((inputs0.size / parallelism) + 1).toArray.par
+          inputs0
+            .grouped((inputs0.size / parallelism) + 1)
+            .toArray
+            .par
             .tap(_.tasksupport = ts)
         case None => Vector(inputs0)
       }
@@ -479,9 +482,14 @@ abstract class NNArchitecture(
 
   def mergeMessages[K](
       name: SymbolPath,
-      messages: Vector[(K, Chain[Message])],
+      messages: GenSeq[(K, Chain[Message])],
       embedding: K => CompNode
-  )(implicit mode: GraphMode): Vector[(K, Message)]
+  )(implicit mode: GraphMode): Map[K, Message]
+//  def mergeMessages[K](
+//      name: SymbolPath,
+//      messages: Vector[(K, Chain[Message])],
+//      embedding: K => CompNode
+//  )(implicit mode: GraphMode): Vector[(K, Message)]
 
   def update[K](
       name: SymbolPath,

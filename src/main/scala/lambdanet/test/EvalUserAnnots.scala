@@ -30,8 +30,9 @@ object EvalUserAnnots {
 
   def main(args: Array[String]): Unit = {
     val modelDir = pwd / RelPath(
-      "running-results/NewData-GAT1-fc2AnnotsSampling(0.0,0.81)--decay-lossAgg_sum-encodeSignature-6/saved/epoch40"
+      "running-results/UserAnnot-v1.3-GAT1-fc2AnnotsSampling(0.0,0.81)--decay-lossAgg_sum-encodeSignature-6/saved/bestModel",
     )
+    printInfo(s"Evaluating model at $modelDir...")
     val (model, dataSet) = loadModelData(modelDir)
     val annotsRatios = Vector(0.0, 0.2, 0.4, 0.6, 0.8, 0.9)
     val repeats = 10
@@ -71,7 +72,7 @@ object EvalUserAnnots {
       println("-----")
       println(result)
       println("-----")
-      write.over(pwd / "EvalUserAnnots.csv", table.mkString)
+      write.over(modelDir / "EvalUserAnnots.csv", table.mkString)
     }
     prog.close()
   }
