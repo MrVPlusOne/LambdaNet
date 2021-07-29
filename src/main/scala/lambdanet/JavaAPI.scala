@@ -64,12 +64,12 @@ object JavaAPI {
 
   def optionSrcSpanCompatibility(value: Object): Option[SrcSpan] = value.asInstanceOf[Option[SrcSpan]]
 
-  def predictWithGModule(modelPath: Path,
+  def predictWithGModule(model: Model,
                          sourcePath: Path,
                          gModules: Vector[GModule],
-                         numOfThreads: Int, predictTopK: Int,
+                         numOfThreads: Int,
+                         predictTopK: Int,
                         ): Map[PNode, TopNDistribution[PType]] = {
-    val model = loadModel(modelPath)
     val predictionService = model.PredictionService(numOfThreads, predictTopK)
     predictionService.predictOnProjectWithGModules(sourcePath, gModules, warnOnErrors = false)
   }
