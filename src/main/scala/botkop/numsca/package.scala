@@ -1,17 +1,11 @@
 package botkop
 
-import funcdiff.DebugTime
 import org.nd4j.linalg.api.iter.NdIndexIterator
 import org.nd4j.linalg.api.ndarray.INDArray
 import org.nd4j.linalg.api.ops.impl.indexaccum.{IMax, IMin}
-import org.nd4j.linalg.api.ops.impl.transforms.custom.{
-  GreaterThanOrEqual,
-  LessThanOrEqual
-}
 import org.nd4j.linalg.api.ops.random.impl.Choice
 import org.nd4j.linalg.api.rng
 import org.nd4j.linalg.factory.{NDArrayFactory, Nd4j}
-import org.nd4j.linalg.factory.Nd4j.PadMode
 import org.nd4j.linalg.indexing.{INDArrayIndex, NDArrayIndex}
 import org.nd4j.linalg.ops.transforms.Transforms
 
@@ -69,7 +63,6 @@ package object numsca {
 
   def randn(shape: Long*): Tensor = new Tensor(Nd4j.randn(shape.toArray: _*))
   def randn(shape: Shape): Tensor = randn(shape.sizes: _*)
-
   def rand(shape: Long*): Tensor = new Tensor(Nd4j.rand(shape.toArray))
   def rand(shape: Shape): Tensor = rand(shape.sizes: _*)
 
@@ -174,10 +167,6 @@ package object numsca {
   def multiply(a: Tensor, b: Tensor): Tensor = a * b
   def dot(a: Tensor, b: Tensor): Tensor = a dot b
 
-  def pad(x: Tensor, padWidth: Array[Array[Int]], mode: PadMode): Tensor = {
-    val a = Nd4j.pad(x.array, padWidth, mode)
-    new Tensor(a)
-  }
 
   def clip(t: Tensor, min: Double, max: Double): Tensor = t.clip(min, max)
 
@@ -213,6 +202,7 @@ package object numsca {
     new Tensor(newArray)
   }
 
+  /** Requires all `rows` to be row vectors and have the same shape.  */
   def fromRows(rows: IndexedSeq[Tensor], axis: Int): Tensor = {
     val first = rows.head
     assert(first.shape(0) == 1, s"shape = ${first.shape}")

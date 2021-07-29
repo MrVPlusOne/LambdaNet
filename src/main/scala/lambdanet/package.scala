@@ -49,15 +49,19 @@ package object lambdanet extends SimpleMath.ExtensionsTrait {
   }
 
   trait IdAllocator[T] {
-    val allocated: mutable.Buffer[T] = mutable.Buffer()
+//    val allocated: mutable.Buffer[T] = mutable.Buffer()
 
-    private var _id = 0
+    private var _state = 0
 
     def useNewId(f: Int => T): T = {
-      val r = f(_id)
-      _id += 1
-      allocated += r
+      val r = f(_state)
+      _state += 1
+//      allocated += r
       r
+    }
+
+    def setState(s: Int): Unit = {
+      _state = s
     }
   }
 
@@ -168,20 +172,18 @@ package object lambdanet extends SimpleMath.ExtensionsTrait {
 
   def resultStr(s: String) = s"$GREEN$s$RESET"
 
-  def announced[A](actionName: String)(action: => A): A = {
-    import SimpleMath.prettyPrintTime
-
-    println(infoStr(s"  [start] '$actionName' started..."))
-    val startTime = System.nanoTime()
-    (try {
-      action
-    } catch {
-      case e: Exception => throw e
-    }).tap { _ =>
-      val took = prettyPrintTime(System.nanoTime() - startTime, 2)
-      println(infoStr(s"  [finish] '$actionName' finished. (took $took)"))
-    }
-  }
+  def announced[A](actionName: String, shouldAnnounce: Boolean = true)(
+      action: => A
+  ): A =
+    if (shouldAnnounce) {
+      import SimpleMath.prettyPrintTime
+      println(infoStr(s"  [start] '$actionName' started..."))
+      val startTime = System.nanoTime()
+      action.tap { _ =>
+        val took = prettyPrintTime(System.nanoTime() - startTime, 2)
+        println(infoStr(s"  [finish] '$actionName' finished. (took $took)"))
+      }
+    } else action
 
   def announcedAndLogTime[A](actionName: String)(action: => A): A = {
     announced(actionName)(DebugTime.logTime(actionName)(action))

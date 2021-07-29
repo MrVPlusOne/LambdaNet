@@ -153,14 +153,11 @@ object TensorExtension {
       }
     }
 
-    def assertNoNaN(): Unit = {
-      if (checkNaN) {
-        BooleanIndexing.or(
-          data.value.array,
-          new IsNaN()
-        )
-      }
-    }
+    def hasNaN: Boolean =
+      BooleanIndexing.or(
+        data.value.array,
+        new IsNaN()
+      )
   }
 
   def oneHot(labels: Seq[Int], categories: Int): Tensor = {

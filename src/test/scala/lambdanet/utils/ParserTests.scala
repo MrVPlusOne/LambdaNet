@@ -39,6 +39,18 @@ class ParserTests extends WordSpec with MyTest {
     }
   }
 
+  "Union type parsing test" in {
+    val filePath = pwd / RelPath("data/tests/union-types/union.ts")
+    val modules = ProgramParsing.parseGModulesFromFiles(
+      Seq(filePath.name),
+      filePath / up,
+    )
+    modules.foreach { module =>
+      println(s"=== module: '${module.moduleName}' ===")
+      module.stmts.foreach(println)
+    }
+  }
+
   "Source file parsing test" in {
     val projectRoot = pwd / RelPath("data/ts-algorithms")
     val files = ls
@@ -55,7 +67,6 @@ class ParserTests extends WordSpec with MyTest {
       module.stmts.foreach(println)
     }
   }
-
 
   "JSon parsing tests" in {
     assert(Js.True == ProgramParsing.parseJson("""/* abc some @text */ true"""))
@@ -152,7 +163,14 @@ class ParserTests extends WordSpec with MyTest {
     val f = pwd / RelPath("data/tests/export-import")
     lambdanet.shouldWarn = true
     val parsed =
-      parseProject(libDefs, f/up, f, skipSet = Set(), shouldPruneGraph = false)
+      parseProject(
+        libDefs,
+        f / up,
+        f,
+        skipSet = Set(),
+        shouldPruneGraph = false,
+        predictAny = true
+      )
     val g = parsed.pGraph
     g.predicates.foreach(println)
     g.predicates.collect {
@@ -161,7 +179,7 @@ class ParserTests extends WordSpec with MyTest {
     }
   }
 
-  "predicate graph tests" in {
+  "predicate graph tests" when {
     import PrepareRepos._
 
     val libDefs =
@@ -169,69 +187,82 @@ class ParserTests extends WordSpec with MyTest {
         SimpleMath.readObjectFromFile[LibDefs](libDefsFile.toIO)
       }
 
-    val dir = pwd / RelPath(
-      "data/tests/weirdInterfaces"
-    )
-    val parsed@ParsedProject(_, qModules, irModules, g) =
-      parseProject(
-        libDefs,
-        dir/up,
-        dir,
-        skipSet = Set(),
-        errorHandler =
-          ErrorHandler(ErrorHandler.StoreError, ErrorHandler.StoreError),
-        shouldPrintProject = true
-      ).mergeEqualities
-    SM.saveObjectToFile((pwd/"data"/"testSerialization.serialized").toIO)(parsed)
-    val annots = parsed.allUserAnnots
-    val truth = annots.map { case (k, v) => k.n -> v }
-    val projName = "gigobyte_ui-stack"
-
-    QLangDisplay.renderProjectToDirectory(projName, qModules, truth.map {
-      case (k, v) => k -> TopNDistribution(Vector(1.0 -> v))
-    }, Set())(
-      dir / "predictions"
-    )
-
-    val rightPreds: Set[AnnotPlace] = truth.map {
-      case (k, v) => (k, v, RelPath(projName))
-    }.toSet
-    QLangDisplay.renderPredictionIndexToDir(
-      rightPreds,
-      rightPreds,
-      dir,
-      "predictions"
-    )
-
-    irModules.foreach { m =>
-      SequenceModel
-        .tokenizeModule(m, libDefs.nodeMapping ++ m.mapping)
-        .tap(println)
-    }
-
-    g.predicates.toVector.sortBy(_.toString).foreach(println)
-
-    println {
-      PredicateGraphVisualization.asMamGraph(
-        libDefs,
-        annots,
-        "\"SpringElectricalEmbedding\"",
-        g
+    def runOnProject(projDir: Path): Unit = {
+      val parsed =
+        parseProject(
+          libDefs,
+          projDir / up,
+          projDir,
+          skipSet = Set(),
+          errorHandler =
+            ErrorHandler(ErrorHandler.StoreError, ErrorHandler.StoreError),
+          shouldPrintProject = true,
+          predictAny = true,
+        ).mergeEqualities
+      import parsed.{pGraph, irModules, qModules}
+      SM.saveObjectToFile((pwd / "data" / "testSerialization.serialized").toIO)(
+        parsed
       )
+      val annots = parsed.allUserAnnots
+      val truth = annots.map { case (k, v) => k.n -> v }
+      val projName = projDir.name
+
+      QLangDisplay.renderProjectToDirectory(projName, qModules, truth.map {
+        case (k, v) => k -> TopNDistribution(Vector(1.0 -> v))
+      }, Set())(
+        projDir / "dummy-predictions"
+      )
+
+      val rightPreds: Set[AnnotPlace] = truth.map {
+        case (k, v) => (k, v, RelPath(projName))
+      }.toSet
+      QLangDisplay.renderPredictionIndexToDir(
+        rightPreds,
+        rightPreds,
+        projDir,
+        "dummy-predictions"
+      )
+
+      irModules.foreach { m =>
+        SequenceModel
+          .tokenizeModule(m, libDefs.nodeMapping ++ m.mapping)
+          .tap(println)
+      }
+
+      pGraph.predicates.toVector.sortBy(_.toString).foreach(println)
+
+      println {
+        PredicateGraphVisualization.asMamGraph(
+          libDefs,
+          annots,
+          "\"SpringElectricalEmbedding\"",
+          pGraph
+        )
+      }
+
+      val libTypesToPredict: Set[LibTypeNode] =
+        selectLibTypes(libDefs, Seq(annots), coverageGoal = 0.95)
+
+//      println {
+//        Predictor(
+//          pGraph,
+//          libTypesToPredict,
+//          libDefs,
+//          None,
+//          onlyPredictLibType = false,
+//          predictAny = true,
+//        ).visualizeNeuralGraph
+//      }
     }
 
-    val libTypesToPredict: Set[LibTypeNode] =
-      selectLibTypes(libDefs, Seq(annots), coverageGoal = 0.95)
 
-    println {
-      Predictor(
-        projName,
-        g,
-        libTypesToPredict,
-        libDefs,
-        None,
-      ).visualizeNeuralGraph
+    "static method parsing test" in {
+      val dir = pwd / RelPath("data/tests/static-methods")
+      runOnProject(dir)
     }
 
+    "big graph test" in {
+      runOnProject(pwd / RelPath("data/tests/weirdInterfaces"))
+    }
   }
 }

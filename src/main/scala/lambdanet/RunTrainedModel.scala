@@ -1,26 +1,21 @@
 package lambdanet
 
 import ammonite.ops._
-import funcdiff.{Optimizer, ParamCollection, SimpleMath}
-import lambdanet.train.{
-  DataSet,
-  ProcessedProject,
-  Timeouts,
-  TrainingLoop,
-  TrainingState
-}
+import funcdiff.ParamCollection
+import lambdanet.train.Training.SystemConfig
+import lambdanet.train.{DataSet, Timeouts, Training}
 import lambdanet.translation.ImportsResolution.{ErrorHandler, NameDef}
 import lambdanet.translation.PredicateGraph.{PAny, PNode}
 import lambdanet.utils.QLangDisplay
 
-import scala.collection.parallel.ForkJoinTaskSupport
-import scala.concurrent.forkjoin.ForkJoinPool
 import scala.util.Random
 
 object RunTrainedModel {
 
   val modelDir: Path = pwd / "models"
 
+  @deprecated("Instead of loading a ParamCollection, load a saved Model instead. The `Model` " +
+    "class contains the all the hyper-parameters needed to reconstruct the original model.")
   def runTrainedModel(
       paramPath: Path,
       sourcePath: Path,
@@ -29,7 +24,8 @@ object RunTrainedModel {
   ): Unit = {
     import PrepareRepos._
 
-    val repos = ParsedRepos.readFromDir(parsedReposDir)
+    val predictAny = false
+    val repos = ParsedRepos.readFromDir(parsedReposDir(predictAny))
     val libDefs = repos.libDefs
     val handler = ErrorHandler(ErrorHandler.StoreError, ErrorHandler.StoreError)
     val testProject =
@@ -40,23 +36,24 @@ object RunTrainedModel {
         skipSet = Set("node_modules", "__tests__", "test", "tests"),
         shouldPruneGraph = false,
         errorHandler = handler,
+        predictAny = predictAny,
       )
     val repos1 = repos.copy(devSet = List(), testSet = List(testProject))
     val dataSet = DataSet.makeDataSet(
       repos1,
-      Some(new ForkJoinTaskSupport(new ForkJoinPool(numOfThreads))),
-      useSeqModel = false,
-      toyMode = false,
       testSetUseInferred = false,
       //todo: change this if you want to predict user defined types
-      onlyPredictLibType = false
+      onlyPredictLibType = false,
+      predictAny = false,
     )
 
     val model = announced("Loading model...") {
       val pc = ParamCollection.fromFile(paramPath)
-      TrainingLoop
-        .config(numOfThreads = 8, pwd / "test-trained", None)
-        .makeModel(pc, dataSet)
+
+      Training.Trainer(
+        Training.ModelConfig(),
+        SystemConfig(numOfThreads = numOfThreads, pwd / "test-trained")
+      ).makeModel(pc, dataSet)
     }
 
     val datum = dataSet.testSet.head
@@ -67,7 +64,7 @@ object RunTrainedModel {
         shouldDownsample = false,
         shouldDropout = false,
         maxBatchSize = None
-      )
+      )(funcdiff.ModeEval)
       .get
     QLangDisplay.renderProjectToDirectory(
       datum.projectName.toString,
@@ -82,7 +79,7 @@ object RunTrainedModel {
   }
 
   /** Renames js files as ts files (needed to run our tool on js files)  */
-  def renameToTs() = {
+  def renameToTs(): Unit = {
     val jsFiles = PrepareRepos.reposDir / RelPath("javascript-algorithms-ts")
     for { f <- ls.rec(jsFiles) if f.ext == "js" } {
       def changeExtension(name: String, old: String, newExt: String): String = {
@@ -98,7 +95,7 @@ object RunTrainedModel {
   }
 
   /** Checks predictions on a class of simple functions */
-  def searchForFunctions() = {
+  def searchForFunctions(): Unit = {
     import translation.QLang._
     val unknownType = NameDef.unknownType
 
@@ -116,7 +113,7 @@ object RunTrainedModel {
 
     val random = new Random(1)
 
-    val repos = DataSet.loadRepos(toyMode = false)
+    val repos = DataSet.loadRepos(toyMode = false, predictAny = false)
     val selected = for {
       p <- repos.devSet.toVector
       m <- p.qModules
@@ -147,7 +144,7 @@ object RunTrainedModel {
 //      "newParsing-lib-GAT1-fc2-newSim-decay-6/params.serialized"
     )
     // todo: change this to the root directory of the target TS project to predict
-    val sourcePath = pwd / RelPath("data/ts-algorithms")
+    val sourcePath = pwd / RelPath("data/train/mojiito-master")
 
     val outputPath = sourcePath
 

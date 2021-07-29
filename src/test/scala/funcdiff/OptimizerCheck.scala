@@ -4,6 +4,7 @@ import botkop.{numsca => ns}
 import funcdiff.Optimizer._
 
 class OptimizerCheck extends TestUtils {
+  implicit val m: GraphMode = ModeTraining
   val optimizers =
     Seq[Optimizer](SGD(learningRate = 0.3), Adam(learningRate = 0.1))
 

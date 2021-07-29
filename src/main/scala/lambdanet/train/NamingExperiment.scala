@@ -54,8 +54,9 @@ object NamingExperiment {
     import ammonite.ops._
     import cats.implicits._
 
-    val repos = announced(s"read data set from: $parsedReposDir") {
-      ParsedRepos.readFromDir(parsedReposDir)
+    val pd = parsedReposDir(predictAny = false)
+    val repos = announced(s"read data set from: $pd") {
+      ParsedRepos.readFromDir(pd)
     }
     val train = repos.trainSet.map(toData).combineAll
     val dev = repos.devSet.map(toData).combineAll

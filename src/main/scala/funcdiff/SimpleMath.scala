@@ -1,17 +1,11 @@
 package funcdiff
 
-import java.io.{
-  File,
-  FileInputStream,
-  FileOutputStream,
-  ObjectInputStream,
-  ObjectOutputStream,
-  ObjectStreamClass,
-  Serializable
-}
+import ammonite.ops.Path
 
+import java.io.{File, FileInputStream, FileOutputStream, ObjectInputStream, ObjectOutputStream, ObjectStreamClass, Serializable}
 import scala.util.Random
 import collection.mutable
+import Numeric.Implicits._
 
 object SimpleMath {
 
@@ -109,10 +103,16 @@ object SimpleMath {
     else x
   }
 
-  def mean(xs: Seq[Double]): Double = {
-    require(xs.nonEmpty)
-    xs.sum / xs.length
+  def mean[T: Numeric](xs: Iterable[T]): Double = xs.sum.toDouble / xs.size
+
+  def variance[T: Numeric](xs: Iterable[T]): Double = {
+    if(xs.size > 1) {
+      val mu = mean(xs)
+      xs.map(x => square(x.toDouble() - mu)).sum / (xs.size - 1)
+    } else Double.NaN
   }
+
+  def stdDev[T: Numeric](xs: Iterable[T]): Double = math.sqrt(variance(xs))
 
   def meanOrElse(xs: Seq[Double], default: Double): Double = {
     if (xs.nonEmpty) {
@@ -465,12 +465,10 @@ object SimpleMath {
 
     def show: String = {
       stat.toSeq
-        .sortBy(_._2)
-        .reverse
-        .map {
-          case (name, time) =>
-            s"$name: ${prettyPrintTime(time)}"
-        }
+        .sortBy(_._2).reverseMap {
+        case (name, time) =>
+          s"$name: ${prettyPrintTime(time)}"
+      }
         .mkString("\n")
     }
   }
@@ -502,6 +500,18 @@ object SimpleMath {
     }
   }
 
+  def saveObjectToFile(path: Path)(obj: Serializable): Unit =
+    saveObjectToFile(path.toIO)(obj)
+
+  def loadObjectFromFile[T](path: File): T = {
+    val ois = new ObjectInputStream(new FileInputStream(path))
+    try {
+      ois.readObject().asInstanceOf[T]
+    } finally {
+      ois.close()
+    }
+  }
+
   val loader = Thread.currentThread().getContextClassLoader
   def readObjectFromFile[T](path: File): T = {
     val ois = new ObjectInputStream(new FileInputStream(path)) {
@@ -515,6 +525,13 @@ object SimpleMath {
       ois.close()
     }
   }
+
+  def readObjectFromFile[T](path: String): T = {
+    readObjectFromFile(new File(path))
+  }
+
+  def readObjectFromFile[T](path: Path): T =
+    readObjectFromFile(path.toIO)
 
   type Weight = Double
   def weightedAverage(xs: Seq[(Weight, Double)]): Double = {

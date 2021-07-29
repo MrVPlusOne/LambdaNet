@@ -2,71 +2,28 @@ package lambdanet
 
 import ammonite.ops.Path
 import ammonite.{ops => amm}
-import funcdiff.ParamCollection
-import funcdiff.SimpleMath.{readObjectFromFile, saveObjectToFile}
-import lambdanet.PrepareRepos.ParsedRepos
-import lambdanet.architecture.GATArchitecture
-import lambdanet.train.{DataSet, TopNDistribution}
+import amm.RelPath
+import amm.pwd
+import funcdiff.SimpleMath.readObjectFromFile
+import lambdanet.train.{LossAggMode, TopNDistribution}
 import lambdanet.translation.PredicateGraph
-
-import scala.collection.parallel.ForkJoinTaskSupport
-import scala.concurrent.forkjoin.ForkJoinPool
-import scala.util.Random
+import lambdanet.utils.ModelFormatConversion
 
 object TypeInferenceService {
 
-  case class ModelConfig(
-      dimMessage: Int = 32,
-      gatHeads: Int = 1,
-      seed: Long = 1,
-  )
-
-  def loadModel(
-      paramPath: Path,
-      modelCachePath: Path,
-      modelConfig: ModelConfig,
-      numOfThreads: Int,
-      parsedReposDir: Path = amm.pwd / 'data / "parsedRepos",
-  ): Model =
-    if (amm.exists(modelCachePath)) {
-      announced("Load model from cache") {
-        readObjectFromFile[Model](modelCachePath.toIO)
+  case class PredictionResults(
+      map: Map[PredicateGraph.PNode, TopNDistribution[PredicateGraph.PType]],
+      srcLines: Map[ProjectPath, Array[String]],
+  ) {
+    def sourceText(span: SrcSpan): String = {
+      val SrcSpan((r1, c1), (r2, c2), file) = span
+      if (r1 == r2){
+        srcLines(file)(r1).substring(c1, c2)
+      } else {
+        srcLines(file)(r1).substring(c1) + " ..."
       }
-    } else {
-      import modelConfig._
-
-      println(
-        s"No model file found under '$modelCachePath', creating new model..."
-      )
-
-      val pc = announced("Load model weights")(
-        ParamCollection.fromFile(paramPath)
-      )
-
-      val dataSet = announced("Process data set") {
-        val repos = ParsedRepos.readFromDir(parsedReposDir)
-        DataSet.makeDataSet(
-          repos,
-          Some(new ForkJoinTaskSupport(new ForkJoinPool(numOfThreads))),
-          useSeqModel = false,
-          toyMode = false,
-          onlyPredictLibType = false
-        )
-      }
-      val model = announced("Create model") {
-        val architecture = GATArchitecture(gatHeads, dimMessage, pc)
-        Model.fromData(dataSet, architecture, new Random(seed))
-      }
-
-      announced(s"Save model to '$modelCachePath'") {
-        saveObjectToFile(modelCachePath.toIO)(model)
-      }
-      model
     }
 
-  case class PredictionResults(
-      map: Map[PredicateGraph.PNode, TopNDistribution[PredicateGraph.PType]]
-  ) {
     def prettyPrint(): Unit = {
       val byFile = map.keys.groupBy(_.srcSpan.get.srcFile).toSeq.sortBy(_._1)
       byFile.foreach {
@@ -82,34 +39,37 @@ object TypeInferenceService {
                 }
               }
               .mkString(", ")
-            println(s"$span: $rankedList")
+            println(s"$span '${sourceText(n.srcSpan.get)}': $rankedList")
           }
       }
     }
   }
 
   def main(args: Array[String]): Unit = {
-    val modelDir = amm.pwd / "models" / "newParsing-GAT1-fc2-newSim-decay-6"
-    val paramPath = modelDir / "params.serialized"
-    val modelCachePath = modelDir / "model.serialized"
-    val modelConfig = ModelConfig()
+    val modelDir = pwd / RelPath(
+      "running-results/NewData-GAT1-fc2AnnotsSampling(0.0,0.81)--decay-lossAgg_sum-encodeSignature-6/saved/epoch40"
+    )
 
-    val model =
-      loadModel(paramPath, modelCachePath, modelConfig, numOfThreads = 8)
+    val modelPath = modelDir / "model.serialized"
+
+    val model = announced("Loading model") {
+      readObjectFromFile[Model](modelPath)
+    }
 
     val service = model.PredictionService(numOfThreads = 8, predictTopK = 5)
     printResult("Type Inference Service successfully started.")
     printResult(s"Current working directory: ${amm.pwd}")
     while (true) {
-      print("Enter project path: ")
+      println("Enter project path: ")
       System.out.flush()
       try {
         val line = scala.io.StdIn.readLine()
-        if(line.strip().nonEmpty) {
-          val sourcePath = Path(line, amm.pwd)
-          val results = service.predictOnProject(sourcePath, warnOnErrors = false)
-          PredictionResults(results).prettyPrint()
-        }
+        require(line.strip().nonEmpty, "Specified path should not be empty.")
+        val sourcePath = Path(line, amm.pwd)
+        val results = service.predictOnProject(
+          sourcePath,
+          warnOnErrors = false
+        ).prettyPrint()
       } catch {
         case e: Throwable =>
           println(s"Got exception: ${e.getMessage}")

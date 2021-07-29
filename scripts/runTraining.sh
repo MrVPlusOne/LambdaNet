@@ -9,6 +9,7 @@
 #cd ./scripts/ts/
 #tsc
 #cd ../..
+#git pull # useful when running on server
 export OMP_NUM_THREADS=1
-sbt "train"; sbt "runMain lambdanet.utils.ReportFinish"
+sbt "train"
 

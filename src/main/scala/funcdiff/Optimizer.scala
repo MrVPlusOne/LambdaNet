@@ -57,7 +57,7 @@ trait Optimizer extends Serializable {
         (path, g) <- transformed
         p <- paramMap.get(path).toIterable
         delta = parameterChangeAmount(p, g) * scaleLearningRate
-      } yield {
+      } yield p.synchronized{
         if (newlyCreated contains p.node) {
           delta.addToTensor(p.node.value)
         } else {
@@ -84,6 +84,7 @@ trait Optimizer extends Serializable {
       backPropInParallel: Option[(ExecutionContext, Duration)] = None,
       scaleLearningRate: Double = 1.0
   ): OptimizeStats = {
+    implicit val mode: funcdiff.GraphMode = funcdiff.ModeTraining
     maximize(
       -objective,
       params,

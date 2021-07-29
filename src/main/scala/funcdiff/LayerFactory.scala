@@ -41,7 +41,7 @@ case class LayerFactory(
       nOut: Size,
       useBias: Boolean = true,
       initializer: WeightsInitializer = LayerFactory.xavier
-  )(input: CompNode): CompNode = withPrefix(name) { prefix =>
+  )(input: CompNode)(implicit mode: GraphMode): CompNode = withPrefix(name) { prefix =>
     val nIn = input.shape(1)
     val w = getVar(prefix / 'w, attributes = Set(NeedRegularization)) {
       initializer(nIn, nOut)
@@ -56,7 +56,7 @@ case class LayerFactory(
 
   def dropout(keepProb: Double)(
       input: CompNode
-  ): CompNode = {
+  )(implicit mode: GraphMode): CompNode = {
     require(keepProb > 0 && keepProb < 1)
     val mask = (ns.rand(input.shape) < keepProb).boolToFloating / keepProb
     input * const(mask)
@@ -67,7 +67,7 @@ case class LayerFactory(
       inTraining: Boolean,
       momentum: Double = 0.9,
       eps: Double = 1e-5
-  )(input: CompNode): CompNode = withPrefix(name) { prefix =>
+  )(input: CompNode)(implicit mode: GraphMode): CompNode = withPrefix(name) { prefix =>
     val inputMean = mean(input, axis = 0)
     val inputVariance = mean(square(input - inputMean), axis = 0)
 
@@ -96,7 +96,7 @@ case class LayerFactory(
   def gru(
       name: SymbolPath,
       initializer: WeightsInitializer = LayerFactory.xavier
-  )(state: CompNode, input: CompNode): CompNode = withPrefix(name) { prefix =>
+  )(state: CompNode, input: CompNode)(implicit mode: GraphMode): CompNode = withPrefix(name) { prefix =>
     val inputSize = input.shape(1)
     val stateSize = state.shape(1)
 
@@ -141,7 +141,7 @@ case class LayerFactory(
   )(
       hAndC: (CompNode, CompNode),
       input: CompNode
-  ): (CompNode, CompNode) = withPrefix(name) { prefix =>
+  )(implicit mode: GraphMode): (CompNode, CompNode) = withPrefix(name) { prefix =>
     val (h, c) = hAndC
 
     val inputSize = input.shape(1)
@@ -195,7 +195,7 @@ case class LayerFactory(
       name: SymbolPath,
       stateShape: Shape,
       combiner: (CompNode, CompNode) => CompNode
-  )(inputs: IS[CompNode]): IS[CompNode] = withPrefix(name) { prefix =>
+  )(inputs: IS[CompNode])(implicit mode: GraphMode): IS[CompNode] = withPrefix(name) { prefix =>
     val leftInit: CompNode = getVar(prefix / 'leftInit) {
       ns.randn(stateShape)
     }
@@ -215,7 +215,7 @@ case class LayerFactory(
       name: SymbolPath,
       transformKey: Boolean = false,
       transformValue: Boolean = false
-  )(xKey: CompNode, ys: IS[(CompNode, CompNode)]): CompNode =
+  )(xKey: CompNode, ys: IS[(CompNode, CompNode)])(implicit mode: GraphMode): CompNode =
     withPrefix(name) { _ =>
       require(ys.nonEmpty)
       val keyDim = xKey.shape(1)

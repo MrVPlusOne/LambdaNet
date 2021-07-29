@@ -3,15 +3,20 @@ package lambdanet
 import botkop.numsca.{Shape, Tensor}
 import lambdanet.architecture.Embedding
 import lambdanet.architecture.{LabelEncoder, NNArchitecture}
-import lambdanet.train.{DecodingResult, NamingBaseline}
+import lambdanet.train.{DecodingResult, NamingBaseline, ProjectStats}
 import lambdanet.train.NamingBaseline.{nodeName, typeName}
 import lambdanet.translation.ImportsResolution.NameDef
+import org.nd4j.linalg.api.buffer.DataType
+import translation.PredicateGraph
 
 import scala.collection.mutable
+import scala.util.Random
 
+/**
+  * Utilities to build the graph neural network from a given [[PredicateGraph]].
+  */
 object NeuralInference {
   import funcdiff._
-  import translation.PredicateGraph
   import PredicateGraph._
   import PredicateGraph.PNode
   import scala.collection.GenSeq
@@ -21,24 +26,37 @@ object NeuralInference {
 
   /** When set to false, each message passing has independent parameters */
   val fixBetweenIteration = false
-
   val noAttentional: Boolean = false
   val noContextual: Boolean = false
   val noLogical: Boolean = false
+
+  checkOMP()
+  Tensor.floatingDataType = DataType.DOUBLE
+
+  def checkOMP() = {
+    if (!sys.env.get("OMP_NUM_THREADS").contains("1")) {
+      throw new Error(
+        "Environment variable OMP_NUM_THREADS needs to be set to 1 " +
+          "to avoid unnecessarily large memory usage and performance penalty"
+      )
+    }
+  }
 
   /** Pre-computes a (batched) neural network sketch reusable
     * across multiple training steps for the given [[PredicateGraph]].
     * The actual forward propagation only happens in [[run]]. */
   case class Predictor(
-      projectName: ProjectPath,
       graph: PredicateGraph,
-      libraryTypeNodes: Set[LibTypeNode],
+      stats: ProjectStats,
       libDefs: LibDefs,
       taskSupport: Option[ForkJoinTaskSupport],
-      onlyPredictLibType: Boolean = false
+      onlyPredictLibType: Boolean,
+      predictAny: Boolean,
   ) {
+    import stats._
     private val parallelism =
       taskSupport.map(_.environment.getParallelism).getOrElse(1)
+    private val rand = new Random()
 
     case class run(
         architecture: NNArchitecture,
@@ -47,39 +65,39 @@ object NeuralInference {
         labelEncoder: LabelEncoder,
         isLibLabel: Symbol => Boolean,
         nameEncoder: LabelEncoder,
-        labelDropout: Boolean
-    ) {
+        labelDropout: Boolean,
+        encodeLibSignature: Boolean,
+    )(implicit mode: GraphMode) {
       import architecture.{randomVar}
 
       /** returns softmax logits */
-      def result: Vector[DecodingResult] = {
+      def result: DecodingResult = {
         val encodeLibNode = computeLibNodeEncoding()
 
-        def encodeType(embed: Embedding)(ty: PType) = ty match {
+        /**
+          * Encodes either a [[PTyVar]] or a [[PAny]].
+          */
+        def encodeTypeNode(embed: Embedding)(ty: PType) = ty match {
           case PTyVar(node) =>
             if (node.fromLib) encodeLibNode(LibNode(node))
             else embed.vars(ProjNode(node))
-          case _ => throw new Error()
+          case PAny => encodeLibNode(LibNode(NameDef.anyType.node))
+          case _    => throw new Error(s"Unable to encode PType Node: $ty")
         }
 
-        val embeddings = logTime("iterate") {
+        val embed = logTime("iterate") {
           (0 until iterations)
-            .scanLeft(architecture.initialEmbedding(projectNodes)) {
-              (embed, i) =>
-                updateEmbedding(encodeLibNode)(
-                  embed,
-                  encodeType(embed),
-                  if (fixBetweenIteration) 0
-                  else i
-                )
+            .scanLeft(architecture.initialEmbedding(projectNodes)) { (embed, i) =>
+              updateEmbedding(encodeLibNode)(
+                embed,
+                if (fixBetweenIteration) 0
+                else i
+              )
             }
-            .toVector
+            .last
         }
-
-        embeddings.map { embed =>
-          logTime("decode") {
-            decode(embed, encodeType(embed))
-          }
+        logTime("decode") {
+          decode(embed, encodeTypeNode(embed))
         }
       }
 
@@ -96,10 +114,16 @@ object NeuralInference {
           libTermEmbeddingMap.getOrElseUpdate(
             n0, {
               val n = n0.n
-              val v1 = randomVar('libNode / n.n.symbol)
-              val v2 = libSignatureEmbedding(libDefs.libNodeType(n))
-              val name = encodeNameOpt(n.n.nameOpt)
-              architecture.encodeLibTerm(v1, v2, name)
+              if (encodeLibSignature) {
+                val v1 = randomVar('libNode / n.n.symbol)
+                val v2 = libSignatureEmbedding(libDefs.libNodeType(n))
+                val name = encodeNameOpt(n.n.nameOpt)
+                architecture.encodeLibTerm(v1, v2, name)
+              } else {
+                val v1 = randomVar('libNode / n.n.symbol)
+                val name = encodeNameOpt(n.n.nameOpt)
+                architecture.encodeLibTerm(v1, name)
+              }
             }
           )
 
@@ -114,7 +138,6 @@ object NeuralInference {
           encodeLibNode: LibNode => CompNode
       )(
           embedding: Embedding,
-          encodeType: PType => CompNode,
           iteration: Int
       ): Embedding = {
 
@@ -135,28 +158,26 @@ object NeuralInference {
         }
 
         val merged = logTime("merge messages") {
+//          chunkedMap(rand.shuffle(messages.toVector))(msgMap =>
+//            architecture.mergeMessages(
+//              'mergeMessages / s"iter-$iteration",
+//              msgMap,
+//              embedding.vars,
+//            )
+//          ).flatten.seq.toMap
           architecture.mergeMessages(
-            'mergeMessages / Symbol(s"iter-$iteration"),
+            'mergeMessages / s"iter-$iteration",
             parallelize(messages.toSeq),
-            embedding.vars
+            embedding.vars,
           )
         }
 
         logTime("update embedding") {
           Embedding(
-            architecture.update('vars, embedding.vars, merged)
+            chunkedMap(rand.shuffle(embedding.vars.toVector))(
+              embed => architecture.update('vars, embed.toMap, merged)
+            ).reduce(_ ++ _)
           )
-//            .pipe { embed =>
-//            val candidates =
-//              predictionSpace.projTypeVec.map(v => v -> encodeType(v))
-//            architecture.attendPredictionSpaceByName(
-//              projectNodes.toVector,
-//              projectNodes.toVector.map{ embed.vars },
-//              candidates,
-//              similarityScores,
-//              s"attendPredictionSpace$iteration"
-//            )
-//          }
         }
       }
 
@@ -181,12 +202,16 @@ object NeuralInference {
           inputs,
           libCandidates ++ projCandidates,
           'decodingSimilarity,
-          parallelism
+          taskSupport,
         )
       }
 
       private val nodeForAny = NameDef.anyType.node
 
+      /**
+        * Computes the embedding of a (potentially structured) [[PType]], using a simple
+        * recursive NN architecture on the type AST.
+       **/
       private def signatureEmbeddingMap(
           leafEmbedding: PNode => CompNode,
           labelEncoding: Symbol => CompNode
@@ -230,47 +255,10 @@ object NeuralInference {
       }
     }
 
-    val projectNodes: Set[ProjNode] =
-      graph.nodes.filter(_.fromProject).map(ProjNode)
-    val projectObjectTypes: Set[PType] =
-      if (onlyPredictLibType) Set()
-      else
-        // only collect named types to avoid intermediate type nodes generated by resolveType
-        graph.predicates.collect {
-          case DefineRel(c, _: PObject) if c.isType && c.nameOpt.nonEmpty =>
-            PTyVar(c)
-        }
-    val projectTypes: Set[PType] = {
-      graph.nodes
-        .filter(n => n.fromProject && n.isType && n.nameOpt.nonEmpty)
-        .map(PTyVar)
-    }
-    val libraryNodes: Set[LibNode] =
-      graph.nodes.filter(_.fromLib).map(LibNode) ++ unknownNodes
-    val predictionSpace = PredictionSpace(
-      libraryTypeNodes
-        .map(_.n.n.pipe(PTyVar)) ++ projectObjectTypes - NameDef.unknownType // ++ Set(PAny),
-    )
-
-    val labelUsages: LabelUsages = {
-      import cats.implicits._
-
-      val classesInvolvingLabel =
-        (libDefs.libClassDefs ++ graph.predicates).toVector.collect {
-          case DefineRel(c, PObject(fields)) =>
-            fields.toVector.foldMap {
-              case (label, field) =>
-                Map(label -> Vector(ClassFieldUsage(c, field)))
-            }
-        }.combineAll
-
-      val accessesInvolvingLabel =
-        graph.predicates.toVector.collect {
-          case DefineRel(r, PAccess(receiver, label)) =>
-            Map(label -> Vector(AccessFieldUsage(receiver, r)))
-        }.combineAll
-
-      LabelUsages(classesInvolvingLabel, accessesInvolvingLabel)
+    private def chunkedMap[X, Y](xs: Vector[X])(f: Vector[X] => Y): GenSeq[Y] = {
+      val chunkSize = math.ceil(xs.length.toDouble / parallelism).toInt
+      val chunks = parallelize(xs.grouped(chunkSize).toSeq)
+      chunks.map(f)
     }
 
     type BatchedMsgModels = Map[MessageKind, Vector[MessageModel]]
@@ -521,8 +509,7 @@ object NeuralInference {
 
     case class KindNaming(name: String) extends MessageKind
 
-    case class KindBinaryLabeled(name: String, labelType: LabelType)
-        extends MessageKind
+    case class KindBinaryLabeled(name: String, labelType: LabelType) extends MessageKind
 
     /** All field accesses involving `label` */
     case class KindAccess(label: Symbol) extends MessageKind
@@ -568,16 +555,76 @@ object NeuralInference {
     }
   }
 
+  val unknownNodes: Set[LibNode] =
+    Set(LibNode(unknownDef.term.get), LibNode(unknownDef.ty.get))
+
+  /**
+  a b=T1 f
+  a <: b
+  b = f(a)
+  T1 l: B1
+  T2 l: B2
+  T3 l: B1
+  P1 l: b1
+
+
+  f: {T1, T2, T3, P1, Any}
+  x: {B1, B2, b1, Any}
+
+  a.f(x)
+
+  a.f(x, y ,z)
+  f(x)
+
+  v1 = a.f
+  v2 = v1(x)
+
+  x1 <: arg1
+  x2 <: arg2
+  f <: ret
+  g = (arg1, arg2) -> ret
+  f = g(x1, x2)
+  g <: Function
+
+  x = f.l
+  x == b1
+
+  c := x
+  c := x  --> Tx <: Tc
+
+    */
+  // These field usage code should probably be moved into PredicateGraph, but
+  // let's keep them here for now to prevent breaking serialization
   case class ClassFieldUsage(`class`: PNode, field: PNode) extends MessageModel
 
-  case class AccessFieldUsage(receiver: PNode, result: PNode)
-      extends MessageModel
+  case class AccessFieldUsage(receiver: PNode, result: PNode) extends MessageModel
 
   case class LabelUsages(
       classesInvolvingLabel: Map[Symbol, Vector[ClassFieldUsage]],
       accessesInvolvingLabel: Map[Symbol, Vector[AccessFieldUsage]]
   )
 
-  val unknownNodes: Set[LibNode] =
-    Set(LibNode(unknownDef.term.get), LibNode(unknownDef.ty.get))
+  def computeLabelUsages(
+      libDefs: LibDefs,
+      graph: PredicateGraph
+  ): LabelUsages = {
+    import cats.implicits._
+
+    val classesInvolvingLabel =
+      (libDefs.libClassDefs ++ graph.predicates).toVector.collect {
+        case DefineRel(c, PObject(fields)) =>
+          fields.toVector.foldMap {
+            case (label, field) =>
+              Map(label -> Vector(ClassFieldUsage(c, field)))
+          }
+      }.combineAll
+
+    val accessesInvolvingLabel =
+      graph.predicates.toVector.collect {
+        case DefineRel(r, PAccess(receiver, label)) =>
+          Map(label -> Vector(AccessFieldUsage(receiver, r)))
+      }.combineAll
+
+    LabelUsages(classesInvolvingLabel, accessesInvolvingLabel)
+  }
 }

@@ -18,7 +18,7 @@ trait LabelEncoder {
 
   private val random = new Random()
 
-  def newEncoder(useDropout: Boolean): Symbol => CompNode = {
+  def newEncoder(useDropout: Boolean)(implicit mode: GraphMode): Symbol => CompNode = {
     val map = new TrieMap[Symbol, CompNode]()
 
     def shouldDropout(): Boolean =
@@ -26,7 +26,7 @@ trait LabelEncoder {
         random.nextDouble() < dropoutProb
       } else false
 
-    l: Symbol => {
+    (l: Symbol) => {
       map.getOrElseUpdate(l, impl(l, shouldDropout))
     }
   }
@@ -34,7 +34,7 @@ trait LabelEncoder {
   protected def impl(
       label: Symbol,
       shouldDropout: () => Boolean
-  ): CompNode
+  )(implicit mode: GraphMode): CompNode
 }
 
 object LabelEncoder {
@@ -48,7 +48,7 @@ object LabelEncoder {
     protected def impl(
         label: Symbol,
         shouldDropout: () => Boolean
-    ): CompNode = {
+    )(implicit mode: GraphMode): CompNode = {
       const(architecture.randomUnitVec())
 
     }
@@ -65,7 +65,7 @@ object LabelEncoder {
     protected def impl(
         label: Symbol,
         shouldDropout: () => Boolean
-    ): CompNode = {
+    )(implicit mode: GraphMode): CompNode = {
       zeroVec
     }
   }
@@ -113,6 +113,7 @@ object LabelEncoder {
     }
   }
 
+  @SerialVersionUID(1086019288003381497L)
   case class TrainableLabelEncoder(
       architecture: NNArchitecture,
       dropoutProb: Real,
@@ -128,7 +129,7 @@ object LabelEncoder {
     protected def impl(
         label0: Symbol,
         shouldDropout: () => Boolean
-    ): CompNode = {
+    )(implicit mode: GraphMode): CompNode = {
       def dropoutImpl: CompNode = {
         val i = randomLabelId()
         architecture.randomUnitVar('label / Symbol(s"?$i"))
@@ -181,6 +182,7 @@ object LabelEncoder {
     }
   }
 
+  @SerialVersionUID(7296992186902228726L)
   case class SegmentedLabelEncoder(
       symbolPath: SymbolPath,
       architecture: NNArchitecture,
@@ -195,7 +197,7 @@ object LabelEncoder {
     protected def impl(
         label: Symbol,
         shouldDropout: () => Boolean
-    ): CompNode = {
+    )(implicit mode: GraphMode): CompNode = {
       def dropoutImpl: CompNode = {
         val i = randomLabelId()
         architecture.randomUnitVar('segments / Symbol(s"?$i"))
@@ -283,8 +285,8 @@ object LabelEncoder {
       SM.selectBasedOnFrequency(totalUsages.toSeq, coverageGoal)
     printResult(s"number of segments selected: ${segments.length}")
     printResult(s"coverage achieved: $achieved")
-    printResult(s"Fist 100 segs: ${segments.take(100)}")
-    printResult(s"Last 50 segs: ${segments.takeRight(50)}")
+    printResult(s"Fist 10 segs: ${segments.take(10)}")
+    printResult(s"Last 10 segs: ${segments.takeRight(10)}")
     (segments, achieved)
   }
 }

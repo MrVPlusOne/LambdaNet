@@ -57,7 +57,7 @@ class FileLogger(val file: Path, printToConsole: Boolean) {
     val startTime = System.nanoTime()
     action.tap { _ =>
       val took = prettyPrintTime(System.nanoTime() - startTime, 2)
-      println(infoStr(s"  [finish] '$actionName' finished. (took $took)"))
+      println(infoStr(s"  [finish] (took $took) '$actionName' finished."))
     }
   }
 }
@@ -69,7 +69,7 @@ object EventLogger {
 
   case class MapValue(v: Vector[(String, Double)]) extends EventValue
 
-  case class Event(name: String, iteration: Double, value: EventValue)
+  case class Event(name: String, iteration: Int, value: EventValue)
 
   case class PlotConfig(options: String*)
 
@@ -80,7 +80,7 @@ import lambdanet.utils.EventLogger._
 
 class EventLogger(
     file: Path,
-    printToConsole: Boolean,
+    var printToConsole: Boolean,
     overrideMode: Boolean
 ) {
 
@@ -98,7 +98,7 @@ class EventLogger(
     }
   }
 
-  def logScalar(name: String, iteration: Double, value: Double): Unit = {
+  def logScalar(name: String, iteration: Int, value: Double): Unit = {
     log(Event(name, iteration, DoubleValue(value)))
   }
 

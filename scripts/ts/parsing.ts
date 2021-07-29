@@ -85,6 +85,8 @@ basicTypes.set(SyntaxKind.EnumKeyword, "Enum");
 basicTypes.set(SyntaxKind.VoidKeyword, "void");
 basicTypes.set(SyntaxKind.ObjectKeyword, "object");
 basicTypes.set(SyntaxKind.BigIntKeyword, "BigInt");
+basicTypes.set(SyntaxKind.UndefinedKeyword, "undefined");
+basicTypes.set(SyntaxKind.NullKeyword, "null");
 
 let ignoredTypes = new Set<SyntaxKind>();
 ignoredTypes.add(SyntaxKind.MappedType);
@@ -92,10 +94,9 @@ ignoredTypes.add(SyntaxKind.ConditionalType);
 ignoredTypes.add(SyntaxKind.ThisType);
 ignoredTypes.add(SyntaxKind.UnknownKeyword);
 ignoredTypes.add(SyntaxKind.IndexedAccessType);
-ignoredTypes.add(SyntaxKind.UndefinedKeyword);
 ignoredTypes.add(SyntaxKind.NeverKeyword);
 ignoredTypes.add(SyntaxKind.TypeOperator);
-ignoredTypes.add(SyntaxKind.NullKeyword);
+
 
 function parseTVars(n: { typeParameters?: ts.NodeArray<ts.TypeParameterDeclaration> }): string[] {
   return n.typeParameters ? n.typeParameters.map(p => p.name.text) : [];
@@ -206,16 +207,14 @@ function parseTypeNode(node: ts.TypeNode): GType {
     return new ObjectType(members);
   } else if (node.kind == SyntaxKind.UnionType) {
     let n = node as ts.UnionTypeNode;
-    if (n.types.length == 2) {
-      let second = parseTypeNode(n.types[1]);
-      if (second.category == "TVar" &&
-        (second.name == "null" || second.name == "undefined")) {
-        return parseTypeNode(n.types[0]);
-      } else {
-        return anyType;
-      }
-    }
-    return anyType;
+    let filtered = n.types.map(parseTypeNode).filter(t => {
+      let toRemove = t.category == "TVar" && (t.name == "undefined" || t.name == "null")
+      return !toRemove
+    })
+    if(filtered.length == 1)
+      return filtered[0];
+    else
+      return anyType;
   } else if (ignoredTypes.has(node.kind)) {
     return anyType;
   } else if (node.kind == SyntaxKind.LiteralType) {

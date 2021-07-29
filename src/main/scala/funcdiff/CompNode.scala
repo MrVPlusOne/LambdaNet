@@ -9,6 +9,7 @@ import lambdanet.architecture
 
 import scala.concurrent._
 
+@SerialVersionUID(-3589004851443771726L)
 class CompNode(val func: DiffFunc) extends Serializable {
   val value: Tensor = func.value
 
@@ -16,7 +17,7 @@ class CompNode(val func: DiffFunc) extends Serializable {
 
   def shape: Shape = value.shape
 
-  def reshape(newShape: Shape): CompNode = funcNode(Reshape(newShape, this))
+  def reshape(newShape: Shape)(implicit mode: GraphMode): CompNode = funcNode(Reshape(newShape, this))
 
   def backprop: Map[CompNode, Gradient] = CompNode.backprop(this)
 
@@ -173,7 +174,7 @@ object CompNode {
         currentTask = fut
       }
 
-      def get: Future[Gradient] = {
+      def get: Future[Gradient] = synchronized {
         currentTask.map { _ =>
           builder.retrieve
         }

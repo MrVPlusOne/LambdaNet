@@ -12,11 +12,8 @@ object TrainingState {
       .toMap
     val step = map("epoch").asInstanceOf[Int]
     val optimizer = map("optimizer").asInstanceOf[Optimizer]
-    val iterationNum = map("iterationNum").asInstanceOf[Int]
-    TrainingState(step, iterationNum, optimizer)
+    TrainingState(step, optimizer)
   }
-
-  val iterationNum: Int = 6
 
   def loadTrainingState(
       resultsDir: Path,
@@ -28,7 +25,7 @@ object TrainingState {
     def mkEventLogger(overrideMode: Boolean) = {
       new EventLogger(
         loggerFile,
-        printToConsole = true,
+        printToConsole = false,
         overrideMode = overrideMode
       )
     }
@@ -55,20 +52,12 @@ object TrainingState {
 
         }
         .getOrElse {
-          val resultsDirEmpty = ls(resultsDir) == Seq(logger.file)
-          require(
-            resultsDirEmpty,
-            s"directory $resultsDir is not empty. Clear or remove it first."
-          )
-          mkdir(resultsDir / "control")
           val state = TrainingState(
             epoch0 = 0,
             optimizer = Optimizer.Adam(learningRate = 1e-3),
-            iterationNum = iterationNum
-          )
+          ).tap(println)
           (state, new ParamCollection(), mkEventLogger(overrideMode = true))
         }
-        .tap(println)
     }
   }
 
@@ -76,14 +65,12 @@ object TrainingState {
 
 case class TrainingState(
     epoch0: Int,
-    iterationNum: Int,
     optimizer: Optimizer
 ) {
   def saveToFile(file: Path): Unit = {
     val toSave =
       List[(String, Any)](
         "epoch" -> epoch0,
-        "iterationNum" -> iterationNum,
         "optimizer" -> optimizer
       )
     SM.saveObjectToFile(file.toIO)(toSave)
@@ -92,7 +79,6 @@ case class TrainingState(
   override def toString: String = {
     s"""TrainingState:
        |  epoch: $epoch0
-       |  iterationNum: $iterationNum
        |  optimizer: $optimizer
        """.stripMargin
   }

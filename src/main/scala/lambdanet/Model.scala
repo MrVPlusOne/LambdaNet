@@ -1,29 +1,19 @@
 package lambdanet
 
+import funcdiff.{GraphMode, ModeEval, ModeTraining}
 import ammonite.{ops => amm}
 import ammonite.ops.Path
 import lambdanet.NeuralInference.Predictor
 import lambdanet.PrepareRepos.{ParsedProject, parseProject, parsedReposDir}
-import lambdanet.SequenceModel.SeqArchitecture
+import lambdanet.TypeInferenceService.PredictionResults
 import lambdanet.architecture.LabelEncoder.TrainableLabelEncoder
 import lambdanet.architecture.{LabelEncoder, NNArchitecture}
-import lambdanet.train.TrainingLoop.{ForwardResult, maxLibRatio, projWeight}
-import lambdanet.train.TrainingState.iterationNum
-import lambdanet.train.{
-  Counted,
-  DataSet,
-  Loss,
-  LossModel,
-  ProcessedProject,
-  TopNDistribution
-}
+import lambdanet.train.DataSet.nonGenerify
+import lambdanet.train.Training.{AnnotsSampling, ForwardResult, ModelConfig}
+import lambdanet.train.{Counted, DataSet, Loss, LossAggMode, ProcessedProject, ProjectLabelStats, ProjectStats, TopNDistribution}
 import lambdanet.translation.ImportsResolution.ErrorHandler
-import lambdanet.translation.PredicateGraph.{
-  LibTypeNode,
-  PNode,
-  PType,
-  ProjNode
-}
+import lambdanet.translation.PredicateGraph
+import lambdanet.translation.PredicateGraph.{LibTypeNode, PNode, PType, ProjNode}
 
 import scala.collection.parallel.ForkJoinTaskSupport
 import scala.concurrent.forkjoin.ForkJoinPool
@@ -32,6 +22,7 @@ import scala.util.Random
 case object Model {
 
   def fromData(
+      config: ModelConfig,
       dataSet: DataSet,
       architecture: NNArchitecture,
       random: Random,
@@ -66,13 +57,14 @@ case object Model {
       )
 
     Model(
+      config: ModelConfig,
       architecture,
       libDefs,
       libTypesToPredict,
       labelEncoder,
       nameEncoder,
       labelCoverage,
-      random
+      random,
     )
   }
 
@@ -84,8 +76,10 @@ case object Model {
 
 }
 
-@SerialVersionUID(-3921127094529696688L)
+//noinspection TypeAnnotation
+@SerialVersionUID(3L)
 case class Model(
+    config: ModelConfig,
     architecture: NNArchitecture,
     libDefs: LibDefs,
     libTypesToPredict: Set[LibTypeNode],
@@ -93,39 +87,46 @@ case class Model(
     nameEncoder: LabelEncoder,
     labelCoverage: TrainableLabelEncoder,
     random: Random,
-    lossModel: LossModel = LossModel.NormalLoss,
 ) {
+  import config.{predictAny, onlyPredictLibType}
+  def gnnIterations = config.gnnIterations
+  def encodeLibSignature = config.encodeLibSignature
+  def lossAggMode = config.lossAggMode
 
-  import lambdanet.train.{
-    ConfusionMatrix,
-    Correct,
-    DecodingResult,
-    confusionMatrix
+  import lambdanet.train.{ConfusionMatrix, Correct, DecodingResult, confusionMatrix}
+
+  def description: String = {
+    s"""Model------
+       |gnnIterations: $gnnIterations
+       |architecture: ${architecture.arcName}
+       |labelEncoder: ${labelEncoder.name}
+       |nameEncoder: ${nameEncoder.name}
+       |labelCoverage: ${labelCoverage.name}
+       |lossAggMode: ${lossAggMode}
+       |encodeLibSignature: $encodeLibSignature
+       |------Model""".stripMargin
   }
 
-  def predictOnParsed(
-      p: ParsedProject,
+  def predictForNodes(
+      nodesToPredict: Vector[ProjNode],
       predictor: Predictor,
       predictTopK: Int,
   ): Map[PNode, TopNDistribution[PType]] = {
-    val predSpace = predictor.predictionSpace
-    val nodesToPredict = p.allAnnots.keySet.collect {
-      case n if n.srcSpan.nonEmpty && n.fromProject => ProjNode(n)
-    }.toVector
-    val decodingVec = announced("run predictor") {
+    val predSpace = predictor.stats.predictionSpace
+    val decoding = announced("run predictor") {
       predictor
         .run(
           architecture,
           nodesToPredict,
-          iterationNum,
+          gnnIterations,
           labelEncoder,
           labelCoverage.isLibLabel,
           nameEncoder,
-          labelDropout = false
-        )
+          labelDropout = false,
+          encodeLibSignature,
+        )(ModeEval)
         .result
     }
-    val decoding = decodingVec.last
     val predVec = decoding
       .topNPredictionsWithCertainty(predictTopK)
       .map { _.map(predSpace.typeOfIndex) }
@@ -134,67 +135,71 @@ case class Model(
 
   def forwardStep(
       datum: ProcessedProject,
-      shouldDownsample: Boolean,
+      annotsSampling: AnnotsSampling,
       shouldDropout: Boolean,
-      maxBatchSize: Option[Int]
-  ): (Loss, ForwardResult, Map[PNode, TopNDistribution[PType]]) = {
-    import datum._
+      maxLibRatio: Option[Double],
+      maxBatchSize: Option[Int],
+      projWeight: Double,
+      taskSupport: Option[ForkJoinTaskSupport],
+      announceTimes: Boolean = false,
+  )(implicit mode: GraphMode): (Loss, ForwardResult, Map[PNode, TopNDistribution[PType]]) = {
+    NeuralInference.checkOMP()
 
     val predSpace = datum.predictionSpace
 
-    val annotsToUse =
-      if (shouldDownsample) datum.downsampleLibAnnots(maxLibRatio, random)
-      else nodesToPredict
+    val (kept, dropped) = annotsSampling.randomSplit(datum.nodesToPredict, random)
+    val (keptInferred, _) = annotsSampling.randomSplit(datum.visibleAnnotations, random)
+    val inputAnnots = kept ++ keptInferred
 
-    val (nodes, groundTruths) = annotsToUse.toVector
+    val downsampled = maxLibRatio match {
+      case Some(ratio) => ProjectLabelStats(dropped).downsampleLibAnnots(ratio, random)
+      case None        => dropped
+    }
+    assert(downsampled.size <= dropped.size)
+
+    val (toPredict, groundTruths) = downsampled.toVector
       .pipe(random.shuffle(_))
       .take(maxBatchSize.getOrElse(Int.MaxValue))
       .unzip
+    assert(toPredict.size <= downsampled.size)
+
     val targets = groundTruths.map(predSpace.indexOfType)
 
-    val decodingVec = announced("run predictor") {
-      datum.predictor match {
-        case Left(seqPredictor) =>
-          seqPredictor
-            .run(
-              architecture.asInstanceOf[SeqArchitecture],
-              nameEncoder,
-              nodes,
-              shouldDropout
-            )
-            .pipe(Vector(_))
-        case Right(predictor) =>
-          predictor
-            .run(
-              architecture,
-              nodes,
-              iterationNum,
-              labelEncoder,
-              labelCoverage.isLibLabel,
-              nameEncoder,
-              shouldDropout
-            )
-            .result
-      }
+    val predictor = datum.mkPredictor(inputAnnots, taskSupport)
+
+    val decoding = announced("run predictor", announceTimes) {
+      predictor
+        .run(
+          architecture,
+          toPredict,
+          gnnIterations,
+          labelEncoder,
+          labelCoverage.isLibLabel,
+          nameEncoder,
+          shouldDropout,
+          encodeLibSignature,
+        )
+        .result
     }
-    val decoding = decodingVec.last
 
     val (correctness, confMat, typeAccs) =
-      announced("compute training accuracy") {
+      announced("compute training accuracy", announceTimes) {
         analyzeDecoding(
           decoding,
           groundTruths,
           predSpace
         )
       }
+    assert(correctness.length == groundTruths.length)
 
-    val loss = lossModel.predictionLoss(
-      decodingVec.par
-        .map(_.toLoss(targets, projWeight, predSpace.libTypeVec.length))
+    val loss = decoding.toLoss(
+      targets,
+      projWeight,
+      predSpace.libTypeVec.length,
+      lossAggMode
     )
 
-    val totalCount = groundTruths.length
-    val mapped = nodes
+    val grouped = toPredict
       .map(_.n)
       .zip(groundTruths)
       .zip(correctness)
@@ -203,19 +208,23 @@ case class Model(
         pairs.map { case ((n, ty), _) => (n, ty, datum.projectName) }.toSet
       }
 
+    val totalCount = groundTruths.length
+    assert(toPredict.length == grouped.values.map(_.size).sum)
     val fwd = ForwardResult(
       Counted(totalCount, loss.value.squeeze() * totalCount),
-      mapped.getOrElse(true, Set()),
-      mapped.getOrElse(false, Set()),
+      kept.keySet.map(k => (k, datum.projectName)),
+      dropped.keySet.map(k => (k, datum.projectName)),
+      grouped.getOrElse(true, Set()),
+      grouped.getOrElse(false, Set()),
       confMat,
-      typeAccs
+      typeAccs,
     ).tap(r => assert(r.isConsistent))
 
     val predictions = {
       val predVec = decoding
         .topNPredictionsWithCertainty(6)
         .map { _.map(predSpace.typeOfIndex) }
-      nodes.map(_.n).zip(predVec).toMap
+      toPredict.map(_.n).zip(predVec).toMap
     }
 
     (loss, fwd, predictions)
@@ -231,13 +240,40 @@ case class Model(
         Some(new ForkJoinTaskSupport(new ForkJoinPool(numOfThreads)))
       else None
 
+    lazy val nonGenerifyIt = nonGenerify(libDefs)
+
+    def predictOnGraph(
+        pGraph: PredicateGraph,
+        nodeSelector: PNode => Boolean = _ => true,
+    ): Map[PNode, TopNDistribution[PType]] = {
+      implicit val m: GraphMode = ModeEval
+      val stats = ProjectStats.computeProjectStats(
+        pGraph,
+        libTypesToPredict,
+        libDefs,
+        onlyPredictLibType,
+        predictAny
+      )
+      val predictor = Predictor(
+        pGraph,
+        stats,
+        libDefs,
+        taskSupport,
+        onlyPredictLibType,
+        predictAny,
+      )
+      val nodes =
+        pGraph.projNodes.filter(nodeSelector).map(ProjNode)
+      predictForNodes(nodes.toVector, predictor, predictTopK)
+    }
+
     def predictOnProject(
         sourcePath: Path,
         skipSet: Set[String] = Set("node_modules"),
-        onlyPredictLibType: Boolean = false,
+        alsoPredictNonSourceNodes: Boolean = false,
         warnOnErrors: Boolean,
-    ) = {
-      val project =
+    ): PredictionResults = {
+      val project = announced("parse project") {
         parseProject(
           libDefs,
           sourcePath / amm.up,
@@ -246,29 +282,50 @@ case class Model(
           shouldPruneGraph = false,
           errorHandler = handler,
           warnOnErrors = warnOnErrors,
+          predictAny = predictAny,
         )
+      }
 
-      val predictor = Predictor(
-        project.path,
+      def checkSource(node: PredicateGraph.PNode): Boolean =
+        alsoPredictNonSourceNodes || node.srcSpan.nonEmpty
+
+      // all user annotations will be used
+      val userAnnotations = project.allUserAnnots.mapValuesNow(nonGenerifyIt)
+
+      val graph = project.pGraph.addUserAnnotations(userAnnotations)
+      val stats = ProjectStats.computeProjectStats(
         project.pGraph,
         libTypesToPredict,
         libDefs,
-        taskSupport,
-        onlyPredictLibType
+        onlyPredictLibType,
+        predictAny,
       )
-      predictOnParsed(project, predictor, predictTopK)
+      val predictor = Predictor(
+        graph,
+        stats,
+        libDefs,
+        taskSupport,
+        onlyPredictLibType,
+        predictAny,
+      )
+
+      val nodesToPredict = project.allAnnots.keySet.collect {
+        case n if n.fromProject && checkSource(n) => ProjNode(n)
+      } -- project.nonInferredUserAnnots.keySet
+      val prediction = predictForNodes(nodesToPredict.toVector, predictor, predictTopK)
+      val srcLines = project.srcTexts.mapValuesNow(_.split("\n"))
+      PredictionResults(prediction, srcLines)
     }
 
     def predictOnProject(
         sourcePath: Path,
         warnOnErrors: Boolean,
         skipSet: Array[String],
-    ): Map[PNode, TopNDistribution[PType]] = {
+    ): PredictionResults = {
       predictOnProject(
         sourcePath,
         skipSet = skipSet.toSet,
         warnOnErrors = warnOnErrors,
-        onlyPredictLibType = false
       )
     }
 

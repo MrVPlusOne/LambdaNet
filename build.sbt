@@ -1,9 +1,9 @@
 name := "LambdaNet"
 
-version := "0.3"
+version := "0.4.0"
 
-organization in ThisBuild := "mrvplusone.github.io"
-scalaVersion in ThisBuild := "2.12.10"
+ThisBuild/organization := "mrvplusone.github.io"
+ThisBuild/scalaVersion := "2.12.13"
 
 scalacOptions ++= Seq(
   "-feature",
@@ -13,8 +13,8 @@ scalacOptions ++= Seq(
 )
 
 // to make the classpath right
-fork in run := true
-connectInput in run := true  // for StdIn to work
+run/fork := true
+run/connectInput := true  // for StdIn to work
 
 val runOnMac = System.getProperty("os.name") == "Mac OS X"
 val memories = {
@@ -55,8 +55,10 @@ libraryDependencies ++= Seq(
   "org.typelevel" %% "cats-core" % "2.0.0-M3" withSources(),
   "org.typelevel" %% "cats-effect" % "2.0.0-M3" withSources(),
   "com.github.nscala-time" %% "nscala-time" % "2.22.0",
-  "com.lihaoyi" %% "upickle" % "0.7.5",
-  "com.lihaoyi" %% "scalatags" % "0.7.0"
+  "com.lihaoyi" %% "upickle" % "1.3.8",
+  "com.lihaoyi" %% "scalatags" % "0.7.0",
+  "org.plotly-scala" %% "plotly-render" % "0.8.0",
+  "me.tongfei" % "progressbar" % "0.9.2",
 )
 
 addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.0")
@@ -68,21 +70,43 @@ libraryDependencies ++= Seq(
   "io.circe" %% "circe-parser"
 ).map(_ % circeVersion)
 
+// Add dependency on ScalaFX library
+libraryDependencies += "org.scalafx" %% "scalafx" % "14-R19"
+
+// Determine OS version of JavaFX binaries
+lazy val osName = System.getProperty("os.name") match {
+  case n if n.startsWith("Linux")   => "linux"
+  case n if n.startsWith("Mac")     => "mac"
+  case n if n.startsWith("Windows") => "win"
+  case _                            => throw new Exception("Unknown platform!")
+}
+
+// Add dependency on JavaFX libraries, OS dependent
+lazy val javaFXModules =
+  Seq("base", "controls", "fxml", "graphics", "media", "swing", "web")
+libraryDependencies ++= javaFXModules.map(m =>
+  "org.openjfx" % s"javafx-$m" % "14.0.1" classifier osName,
+)
+
 // My tasks
 
 val train = taskKey[Unit]("start training")
 train :=
-  (runMain in Compile).toTask(" lambdanet.train.TrainingLoop").value
+  (Compile/runMain).toTask(" lambdanet.train.Training").value
 
 val prepareRepos =
   taskKey[Unit]("parse and prepare data for training and evaluation")
 prepareRepos :=
-  (runMain in Compile).toTask(" lambdanet.PrepareRepos").value
+  (Compile/runMain).toTask(" lambdanet.PrepareRepos").value
 
 TaskKey[Unit]("prepareAndTrain") := Def.sequential(prepareRepos, train).value
 
 val runTrained = taskKey[Unit]("run trained model")
 runTrained :=
-  (runMain in Compile).toTask(" lambdanet.RunTrainedModel").value
+  (Compile/runMain).toTask(" lambdanet.RunTrainedModel").value
 
-discoveredMainClasses in Compile += "driver.JavaDriver"
+val service = taskKey[Unit]("run type inference service")
+service :=
+  (Compile/runMain).toTask(" lambdanet.TypeInferenceService").value
+
+Compile/discoveredMainClasses += "driver.JavaDriver"

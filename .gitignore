@@ -22,8 +22,24 @@ out
 
 *.class
 *.log
+SA_results/
+results.serialized
 configs/*
 running-result/
 *.tgz
 /src/main/scala/learn_cats/
 
+data/**/*.html
+data/**/*.js
+data/**/*.css
+data/**/*.map
+
+*.zip
+node_modules/
+data/parsedRepos*
+docker-sync.yml
+models/
+package-lock.json
+.DS_STORE
+/src/main/scala/lambdanet/correctness/CrossEntropyExperimentScript.scala
+/CE_Results/
