@@ -4,7 +4,8 @@ import funcdiff.{GraphMode, ModeEval, ModeTraining}
 import ammonite.{ops => amm}
 import ammonite.ops.Path
 import lambdanet.NeuralInference.Predictor
-import lambdanet.PrepareRepos.{ParsedProject, parseProject, parsedReposDir}
+import lambdanet.PrepareRepos.{ParsedProject, parseProject, parseProjectWithGModule, parsedReposDir}
+import lambdanet.Surface.GModule
 import lambdanet.TypeInferenceService.PredictionResults
 import lambdanet.architecture.LabelEncoder.TrainableLabelEncoder
 import lambdanet.architecture.{LabelEncoder, NNArchitecture}
@@ -321,6 +322,7 @@ case class Model(
                           sourcePath: Path,
                           gModules: Vector[GModule],
                           warnOnErrors: Boolean,
+                          alsoPredictNonSourceNodes: Boolean = false,
                           skipSet: Set[String] = Set("node_modules"),
                           onlyPredictLibType: Boolean = false,
                         ) = {
@@ -336,15 +338,35 @@ case class Model(
           warnOnErrors = warnOnErrors,
         )
 
-      val predictor = Predictor(
-        project.path,
+      def checkSource(node: PredicateGraph.PNode): Boolean =
+        alsoPredictNonSourceNodes || node.srcSpan.nonEmpty
+
+      // all user annotations will be used
+      val userAnnotations = project.allUserAnnots.mapValuesNow(nonGenerifyIt)
+
+      val graph = project.pGraph.addUserAnnotations(userAnnotations)
+      val stats = ProjectStats.computeProjectStats(
         project.pGraph,
         libTypesToPredict,
         libDefs,
-        taskSupport,
-        onlyPredictLibType
+        onlyPredictLibType,
+        predictAny,
       )
-      predictOnParsed(project, predictor, predictTopK)
+      val predictor = Predictor(
+        graph,
+        stats,
+        libDefs,
+        taskSupport,
+        onlyPredictLibType,
+        predictAny,
+      )
+
+      val nodesToPredict = project.allAnnots.keySet.collect {
+        case n if n.fromProject && checkSource(n) => ProjNode(n)
+      } -- project.nonInferredUserAnnots.keySet
+      val prediction = predictForNodes(nodesToPredict.toVector, predictor, predictTopK)
+      val srcLines = project.srcTexts.mapValuesNow(_.split("\n"))
+      PredictionResults(prediction, srcLines)
     }
 
     def predictOnProject(

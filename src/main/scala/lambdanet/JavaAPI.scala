@@ -2,11 +2,10 @@ package lambdanet
 
 import ammonite.{ops => amm}
 import amm.{Path, RelPath}
-import com.sun.media.sound.ModelPatch
 import funcdiff.SimpleMath.readObjectFromFile
 import lambdanet.Annot.{Fixed, Missing, User}
 import lambdanet.Surface.GModule
-import lambdanet.TypeInferenceService.ModelConfig
+import lambdanet.TypeInferenceService.PredictionResults
 import lambdanet.train.TopNDistribution
 import lambdanet.translation.PredicateGraph.{PNode, PType}
 import lambdanet.utils.Js.Null
@@ -70,7 +69,7 @@ object JavaAPI {
                          gModules: Vector[GModule],
                          numOfThreads: Int,
                          predictTopK: Int,
-                        ): Map[PNode, TopNDistribution[PType]] = {
+                        ): PredictionResults = {
     val predictionService = model.PredictionService(numOfThreads, predictTopK)
     predictionService.predictOnProjectWithGModules(sourcePath, gModules, warnOnErrors = false)
   }

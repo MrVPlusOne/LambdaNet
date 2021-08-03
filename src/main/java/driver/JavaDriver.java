@@ -2,28 +2,22 @@ package driver;
 
 
 import ammonite.ops.Path;
+import funcdiff.SimpleMath$;
 import lambdanet.JavaAPI$;
 import lambdanet.Model;
 import lambdanet.TypeInferenceService;
 import lambdanet.TypeInferenceService$;
-import lambdanet.train.TopNDistribution;
-import lambdanet.translation.PredicateGraph;
-import scala.collection.immutable.Map;
 
 public class JavaDriver {
     public static void main(String[] args) {
         JavaAPI$ api = lambdanet.JavaAPI$.MODULE$;
-        TypeInferenceService$ typeInfer = TypeInferenceService$.MODULE$;
         Path workDir = api.pwd();
 
         Path modelDir = api.joinPath(workDir,
                 "models/newParsing-GAT1-fc2-newSim-decay-6");
-        Path paramPath = api.joinPath(modelDir, "params.serialized");
         Path modelCachePath = api.joinPath(modelDir, "model.serialized");
-        TypeInferenceService.ModelConfig modelConfig = api.defaultModelConfig();
-        Path parsedReposDir = api.joinPath(workDir, "data/parsedRepos");
 
-        Model model = typeInfer.loadModel(paramPath, modelCachePath, modelConfig, 8, parsedReposDir);
+        Model model = (Model) SimpleMath$.MODULE$.readObjectFromFile(modelCachePath);
         Model.PredictionService predService = api.predictionService(model, 8, 5);
         System.out.println("Type Inference Service successfully started.");
         System.out.println("Current working directory: " + workDir);
@@ -39,7 +33,7 @@ public class JavaDriver {
                         api.absPath(line) :
                         api.joinPath(workDir, line);
                 String[] skipSet = {"node_modules"};
-                Map<PredicateGraph.PNode, TopNDistribution<PredicateGraph.PType>> results =
+                TypeInferenceService.PredictionResults results =
                         predService.predictOnProject(sourcePath, false, skipSet);
                 results.prettyPrint();
                 System.out.println("DONE");
