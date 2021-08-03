@@ -336,6 +336,7 @@ case class Model(
           shouldPruneGraph = false,
           errorHandler = handler,
           warnOnErrors = warnOnErrors,
+          predictAny = predictAny,
         )
 
       def checkSource(node: PredicateGraph.PNode): Boolean =

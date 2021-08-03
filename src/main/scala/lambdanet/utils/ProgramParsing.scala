@@ -255,6 +255,10 @@ object ProgramParsing {
       }
       .map(_.relativeTo(root))
 
+    val srcTexts = sources.map{ p =>
+      p -> read(root/p)
+    }.toMap
+
     def handleTypesPrefix(p: ProjectPath): Set[ProjectPath] = {
       if (p.segments.head == "@types") Set(RelPath(p.segments.tail, 0), p)
       else Set(p)
@@ -267,7 +271,8 @@ object ProgramParsing {
 
     GProject(
       root,
-      gModules,
+      srcTexts,
+      ProgramParsing.parseGModulesFromFiles(sources, root),
       mapping,
       subProjects,
       devDependencies

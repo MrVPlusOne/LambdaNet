@@ -725,6 +725,7 @@ object PrepareRepos {
                     projectRoot: Path,
                     gModules: Vector[GModule],
                     skipSet: Set[String] = Set("dist", "__tests__", "test", "tests"),
+                    predictAny: Boolean,
                     shouldPruneGraph: Boolean = true,
                     shouldPrintProject: Boolean = false,
                     warnOnErrors: Boolean = true,
@@ -783,6 +784,6 @@ object PrepareRepos {
       printResult(s"Project parsed: '$projectRoot'")
       println("number of nodes: " + graph.nodes.size)
 
-      ParsedProject(projectName, qModules, irModules, graph)
+      ParsedProject(projectName, p.srcTexts, qModules, irModules, graph, predictAny)
     }
 }
