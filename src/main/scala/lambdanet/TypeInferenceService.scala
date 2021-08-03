@@ -47,10 +47,13 @@ object TypeInferenceService {
 
   def main(args: Array[String]): Unit = {
     val modelPath = Configs().modelDir() / "model.serialized"
+    println(s"Loading model from the directory: $modelPath...")
 
     val model = announced("Loading model") {
       readObjectFromFile[Model](modelPath)
     }
+
+    println(s"Model trained with the configuration: ${model.config.toJsonString}")
 
     val service = model.PredictionService(numOfThreads = 8, predictTopK = 5)
     printResult("Type Inference Service successfully started.")

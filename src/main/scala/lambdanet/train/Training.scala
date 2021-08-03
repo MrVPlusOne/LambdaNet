@@ -160,7 +160,7 @@ object Training {
 
       val (state, pc, logger) = loadTrainingState(resultsDir, fileLogger)
 
-      val configStr = pickle.write(modelConfig, indent = 4)
+      val configStr = modelConfig.toJsonString
       printInfo(s"Config: $configStr")
       ammonite.ops.write(resultsDir / "modelConfig.json", configStr)
 
@@ -786,6 +786,8 @@ object Training {
       encodeLibSignature: Boolean = true,
       annotsSampling: AnnotsSampling = AnnotsSampling(0.0, 0.0)
   ) {
+    def toJsonString: String = pickle.write(this, indent = 4)
+
     val taskName: String = {
       val flags = Seq(
         "toy" -> toyMode,
