@@ -24,7 +24,8 @@ object JavaAPI {
 
   def joinPath(head: Path, tail: String): Path = head / RelPath(tail)
 
-  def defaultModelConfig: ModelConfig = ModelConfig()
+  def mkSrcSpan(start1: Int, start2: Int, until1: Int, until2: Int, srcFile: ProjectPath): SrcSpan =
+    SrcSpan((start1, start2), (until1, until2), srcFile)
 
   def predictionService(model: Model, numOfThreads: Int, predictTopK: Int) =
     model.PredictionService(numOfThreads, predictTopK)

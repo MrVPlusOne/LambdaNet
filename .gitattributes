@@ -1,4 +1,4 @@
 scripts/ResultsLogger.nb binary
 scripts/bootstrap/* binary
-data binary
-data/* binary
+data/* linguist-vendored
+data/** linguist-vendored

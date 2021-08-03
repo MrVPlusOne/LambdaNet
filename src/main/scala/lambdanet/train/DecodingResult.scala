@@ -1,17 +1,27 @@
 package lambdanet.train
 
-import lambdanet._
 import botkop.numsca
+import botkop.numsca.{:>, Tensor, argmaxAxis}
 import funcdiff.TensorExtension.oneHot
 import funcdiff._
-import numsca.{:>, Tensor, argmaxAxis}
+import lambdanet._
 
 case class TopNDistribution[T](distr: Vector[(Real, T)]) {
   def topValue: T = distr.head._2
 
+  val typeProb: Map[T, Real] = distr.map { case (k, v) => (v, k) }.toMap
+
   def map[V](f: T => V): TopNDistribution[V] =
     TopNDistribution(distr.map { case (prob, t) => (prob, f(t)) })
+}
 
+object TopNDistribution {
+  def apply[T](
+      distr: Vector[(Real, T)],
+      cacheTypeProb: Map[T, Real]
+  ): TopNDistribution[T] = new TopNDistribution(distr) {
+    override val typeProb: Map[T, Real] = cacheTypeProb
+  }
 }
 
 trait DecodingResult {
@@ -19,12 +29,17 @@ trait DecodingResult {
 
   def topNPredictionsWithCertainty(n: Int): Vector[TopNDistribution[Int]]
 
-  def toLoss(targets: Vector[Int], projWeight: Real, libNum: Int): CompNode
+  def toLoss(
+      targets: Vector[Int],
+      projWeight: Real,
+      libNum: Int,
+      aggMode: LossAggMode.Value,
+  )(implicit mode: GraphMode): CompNode
 
   protected def crossEntropyWithLogitsLoss(
       logits: CompNode,
       targets: Vector[Int]
-  ): CompNode = {
+  )(implicit mode: GraphMode): CompNode = {
     val predSpaceSize = logits.shape(1).toInt
     crossEntropyOnSoftmax(logits, oneHot(targets, predSpaceSize))
   }
@@ -40,12 +55,30 @@ object DecodingResult {
         .reverse
         .take(n)
         .toVector
-        .pipe(TopNDistribution.apply)
+        .pipe(TopNDistribution(_))
     }
 }
 
-import DecodingResult._
+import lambdanet.train.DecodingResult._
 
+/**
+  * Defines how to compute the total loss from the losses of individual
+  * type variables. When mode is `Sum`, it means we are trying to maximize
+  * the expected number of correct labels. When mode is `Product`, it means
+  * we are trying to maximize the joint probability of predicting all type
+  * variables correctly with the assumption that the type distributions on each
+  * type variable is fully independent.
+  */
+object LossAggMode extends Enumeration {
+  val Sum, Product = Value
+}
+
+/**
+  * Build a single softmax from both library type and project type similarities.
+  * This loss is equal to log(P), and P's definition depends on `aggMode`:
+  * with P = \product_i{P_i}, where P_i is the
+  * probability of predicting correctly for label i.
+  */
 case class Joint(logits: CompNode) extends DecodingResult {
   def topPredictions: Vector[Int] = {
     numsca
@@ -55,16 +88,31 @@ case class Joint(logits: CompNode) extends DecodingResult {
       .toVector
   }
 
-  def toLoss(targets: Vector[Int], projWeight: Double, libNum: Int): Loss = {
+  def toLoss(
+      targets: Vector[Int],
+      projWeight: Double,
+      libNum: Int,
+      aggMode: LossAggMode.Value,
+  )(implicit mode: GraphMode): Loss = {
     val weights = targets
       .map(_ < libNum)
       .map(if (_) 1.0 else projWeight)
       .pipe(x => Tensor(x.toArray).reshape(-1, 1))
-    (crossEntropyWithLogitsLoss(
+    val logPs = crossEntropyWithLogitsLoss(
       logits,
       targets
-    ) * weights)
-      .pipe(mean)
+    ) // this gives the log probability of correctness for each node
+    import botkop.{numsca => ns}
+    (aggMode match {
+      case LossAggMode.Sum =>
+        val b = ns.max(logPs.value)
+        log(mean(exp(logPs - b) * weights)) + b
+      case LossAggMode.Product =>
+        mean(logPs * weights)
+    }).tap{
+      import TensorExtension.TensorWrapper
+      l => assert(!l.value.hasNaN, "Loss contains NaN.")
+    }
   }
 
   def sortedPredictions: Vector[Vector[Int]] = {
@@ -86,6 +134,8 @@ case class Joint(logits: CompNode) extends DecodingResult {
   }
 }
 
+/** First decides whether is a library type, then select from the
+  * corresponding softmax distributions */
 case class TwoStage(
     isLibLogits: CompNode,
     libLogits: CompNode,
@@ -119,7 +169,12 @@ case class TwoStage(
     }.toVector
   }
 
-  def toLoss(targets: Vector[Int], projWeight: Real, libNum: Int): Loss = {
+  def toLoss(
+      targets: Vector[Int],
+      projWeight: Real,
+      libNum: Int,
+      aggMode: LossAggMode.Value,
+  )(implicit mode: GraphMode): Loss = {
     def lossFromRows(rows: Vector[CompNode], targets: Vector[Int]) = {
       if (rows.isEmpty) const(Tensor(0.0).reshape(1, 1))
       else
@@ -156,6 +211,9 @@ case class TwoStage(
     val projTargets = targets.filter(_ >= libNum).map(_ - libNum)
     val projLoss = lossFromRows(projRows, projTargets) * projWeight
 
-    mean(libLoss.concat(projLoss, axis = 0)) + mean(binaryLoss)
+    if(aggMode == LossAggMode.Product)
+      mean(libLoss.concat(projLoss, axis = 0)) + mean(binaryLoss)
+    else
+      throw new NotImplementedError(s"Loss for mode $aggMode not implemented yet.")
   }
 }

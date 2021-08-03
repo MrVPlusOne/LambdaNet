@@ -12,6 +12,11 @@ function f2(x: number, c: Window, y: boolean, k: number[]): string {
   return 'a';
 }
 
+// tests any prediction
+function f3(x: any) {
+  return x
+}
+
 let x1: boolean;
 let y1: Window;
 let c1: Event;

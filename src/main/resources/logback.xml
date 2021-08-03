@@ -3,7 +3,8 @@
 
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n
+            </pattern>
         </encoder>
     </appender>
 
@@ -14,6 +15,7 @@
     <logger name="botkop" level="OFF"/>
     <logger name="org.nd4j" level="OFF"/>
     <logger name="org.reflections" level="ERROR"/>
+    <logger name="lambdanet.correctness" level="OFF"/>
 
     <root level="OFF">
         <appender-ref ref="ASYNCSTDOUT"/>

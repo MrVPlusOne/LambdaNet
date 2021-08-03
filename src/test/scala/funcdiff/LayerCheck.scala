@@ -4,6 +4,7 @@ import botkop.numsca
 import botkop.numsca.Shape
 
 class LayerCheck extends TestUtils {
+  implicit val m: GraphMode = ModeTraining
 
   "Linear layer" should "have the right shape" in {
     val nInput = 5

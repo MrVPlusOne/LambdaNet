@@ -9,9 +9,8 @@ object Timeouts {
   type Duration = FiniteDuration
 
   var restartOnTimeout = true
-
   var forwardTimeout: Duration = 100.seconds
-  var optimizationTimeout: Duration = 100.seconds
+  var optimizationTimeout: Duration = 120.seconds
 
   def readFromFile(): Unit = {
     val file = pwd / "configs" / "timeouts.json"

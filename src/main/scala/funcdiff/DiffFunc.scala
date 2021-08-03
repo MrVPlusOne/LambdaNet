@@ -4,8 +4,6 @@ import botkop.numsca._
 import TensorExtension._
 import botkop.numsca
 import botkop.{numsca => ns}
-import org.nd4j.linalg.api.ndarray.INDArray
-import org.nd4j.linalg.factory.Nd4j
 
 trait DiffFunc {
   def name: String
@@ -205,7 +203,18 @@ private[funcdiff] object DiffFunc {
     def name: String = s"slice{ranges=${TensorExtension.showRanges(ranges)}}"
 
     override def shortName: String = "slice"
+  }
 
+  case class GetRow(x1: CompNode, i: Int, keepDim: Boolean = true) extends UnaryFunc {
+    val value = Tensor(x1.value.array.getRow(i, keepDim))
+
+    def name: String = s"getRow{i=$i, keepDim=$keepDim}"
+
+    def backprop1(grad: Gradient): Gradient = {
+      grad.putInRanges(List(i, :>), x1.shape)
+    }
+
+    override def shortName: String = "getRow"
   }
 
   case class Transpose(x1: CompNode) extends UnaryFunc {
@@ -381,6 +390,9 @@ private[funcdiff] object DiffFunc {
     }
   }
 
+  /**
+   * @param fromRows Whether all arguments are row vectors and have the same shape.
+   */
   case class ConcatN(args: IS[CompNode], axis: Int, fromRows: Boolean)
       extends DiffFunc {
 

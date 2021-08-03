@@ -4,12 +4,7 @@ import lambdanet.translation.PredicateGraph._
 import QLang._
 import ammonite.ops.RelPath
 import funcdiff.SimpleMath
-import lambdanet.translation.ImportsResolution.{
-  ErrorHandler,
-  ModuleExports,
-  NameDef,
-  PathMapping
-}
+import lambdanet.translation.ImportsResolution.{ErrorHandler, ModuleExports, NameDef, PathMapping}
 import lambdanet.translation.PLang.PModule
 import lambdanet.Surface.GModule
 import lambdanet.utils.ProgramParsing
@@ -97,11 +92,18 @@ object QLang {
 
   }
 
-  case class VarDef(node: PNode, init: Option[QExpr], isConst: Boolean)
-      extends QStmt
+  case class VarDef(node: PNode, init: Option[QExpr], isConst: Boolean) extends QStmt {
+//    init.foreach { e =>
+//      e.subst { p =>
+//        if (p == node) {
+//          throw new Error(s"recursive definition encountered in statement: $this")
+//        }
+//        p
+//      }
+//    }
+  }
 
   case class AssignStmt(lhs: QExpr, rhs: QExpr) extends QStmt
-
   case class ExprStmt(e: QExpr) extends QStmt
 
   case class ReturnStmt(e: QExpr, ret: PNode) extends QStmt
@@ -186,7 +188,15 @@ object QLang {
     'void -> 'Void,
     'object -> 'Object,
     'array -> 'Array,
-    'bigint -> 'BigInt
+    'bigint -> 'BigInt,
+    // constructor types
+    'NumberConstructor -> 'Number,
+    'StringConstructor -> 'String,
+    'BooleanConstructor -> 'Boolean,
+    'SymbolConstructor -> 'Symbol,
+    'ObjectConstructor -> 'Object,
+    'ArrayConstructor -> 'Array,
+    'BigIntConstructor -> 'BigInt,
   )
   val basicTypes: Set[Symbol] = basicTypeRenaming.values.toSet
 }
@@ -381,7 +391,8 @@ object QLangTranslation {
                 })
                 processNd(nd, canBeNamespace)
               case a @ Surface.Access(e, l) =>
-                rec(e, canBeNamespace = true) match {
+                val left = rec(e, canBeNamespace = true)
+                left match {
                   case Left(ModuleExports.empty) =>
                     Right(Var(NameDef.unknownDef.term.get)) // todo: might need to double check this
                   case Left(ex) =>
@@ -452,8 +463,7 @@ object QLangTranslation {
             d.name -> NameDef.termDef(d.node)
           case f: PLang.FuncDef =>
             f.name -> NameDef.termDef(f.funcNode)
-          case a: PLang.NamespaceAliasStmt
-              if ctx.getNamespaceOpt(a.rhs).nonEmpty =>
+          case a: PLang.NamespaceAliasStmt if ctx.getNamespaceOpt(a.rhs).nonEmpty =>
             a.name -> NameDef.namespaceDef(ctx.getNamespace(a.rhs))
         }.toMap
 

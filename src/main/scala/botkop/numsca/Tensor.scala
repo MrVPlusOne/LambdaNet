@@ -4,6 +4,7 @@ import funcdiff.{Gradient, IS, Real}
 import org.nd4j.linalg.api.buffer.DataType
 import org.nd4j.linalg.api.iter.NdIndexIterator
 import org.nd4j.linalg.api.ndarray.INDArray
+import org.nd4j.linalg.api.ops.impl.reduce.custom.BatchMmul
 import org.nd4j.linalg.factory.{Broadcast, Nd4j}
 import org.nd4j.linalg.indexing.{INDArrayIndex, NDArrayIndex}
 import org.nd4j.linalg.ops.transforms.Transforms

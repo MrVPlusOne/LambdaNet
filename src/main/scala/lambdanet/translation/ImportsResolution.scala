@@ -5,7 +5,13 @@ import ammonite.ops.RelPath
 import funcdiff.SimpleMath
 import lambdanet.{ExportLevel, ImportStmt, ProjectPath, ReferencePath}
 import lambdanet.translation.PLang._
-import lambdanet.translation.PredicateGraph.{PNode, PNodeAllocator, PTyVar}
+import lambdanet.translation.PredicateGraph.{
+  PAny,
+  PNode,
+  PNodeAllocator,
+  PTyVar,
+  PType
+}
 import lambdanet._
 import lambdanet.ExportStmt._
 import lambdanet.ImportStmt._
@@ -110,6 +116,8 @@ object ImportsResolution {
 
     val unknownType = PTyVar(NameDef.unknownDef.ty.get)
     val anyType = PTyVar(new PNodeAllocator(forLib = true).anyNode)
+
+    def isAny(ty: PType): Boolean = ty == PAny || ty == anyType
 
     val empty: NameDef = NameDef(None, None, None)
 
@@ -299,8 +307,11 @@ object ImportsResolution {
     def collectDefs(
         stmts: Vector[PStmt]
     ): ModuleExports = {
+      // default exports
       var defaults = NameDef.empty
+      // public exports
       var publics = Map[Symbol, NameDef]()
+      // all symbols in the current scope
       var all = Map[Symbol, NameDef]()
 
       def record(
@@ -321,7 +332,8 @@ object ImportsResolution {
       }
 
       def addToInternals(stmts: Vector[PStmt]): Unit = {
-        all |+|= collectDefs(stmts).internalSymbols
+        // note the order: inner definitions cannot override outer definitions
+        all = collectDefs(stmts).internalSymbols |+| all
       }
 
       stmts.foreach {
@@ -329,14 +341,19 @@ object ImportsResolution {
           record(vd.node, vd.exportLevel)
         case fd: FuncDef =>
           record(fd.funcNode, fd.exportLevel)
-          addToInternals(Vector(fd.body))
+//          addToInternals(Vector(fd.body))
         case cd: ClassDef =>
           record(cd.classNode, cd.exportLevel)
-          addToInternals(cd.funcDefs)
+//          addToInternals(cd.funcDefs)
         case ts: TypeAliasStmt =>
           record(ts.node, ts.exportLevel)
         case Namespace(name, block, level) =>
-          val nd = NameDef.namespaceDef(collectDefs(block.stmts))
+          val exports = collectDefs(block.stmts)
+          val thisDef = exports.internalSymbols.get('this)
+          assert(thisDef.isEmpty,
+            s"in namespace: $name, definition: ${thisDef.get}, " +
+              s"block stmts:\n${block.stmts.mkString("\n")}")
+          val nd = NameDef.namespaceDef(exports)
           val rhs =
             Map(name -> nd)
           all |+|= rhs

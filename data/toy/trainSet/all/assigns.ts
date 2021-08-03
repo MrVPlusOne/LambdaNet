@@ -2,6 +2,10 @@ let num1: number = 1;
 let bool1: boolean = true;
 let str1: string = "s";
 let window1: Window = window;
+// ensure that any is in the prediction space
+let any1: any = undefined
+let any2: any = undefined
+let any3: any = undefined
 
 class C2{
   num2: number;

@@ -13,7 +13,7 @@ class BatchingService(f: CompNode => CompNode) {
     p.future
   }
 
-  def compute(): Unit = {
+  def compute(implicit mode: GraphMode): Unit = {
     val (xs, ps) = registered.toVector.unzip
     val ys = f(stackRows(xs))
     ys.rows.zip(ps).foreach {

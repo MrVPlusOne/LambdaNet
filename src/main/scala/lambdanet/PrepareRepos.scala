@@ -5,13 +5,17 @@ import funcdiff.SimpleMath
 import lambdanet.Surface.GModule
 import lambdanet.translation.IR.IRModule
 import lambdanet.translation.ImportsResolution.{ErrorHandler, ModuleExports, NameDef}
+import lambdanet.translation.PredicateGraph._
 import lambdanet.translation._
 import lambdanet.translation.PredicateGraph.{DefineRel, LibNode, PNode, PNodeAllocator, PObject, PType, ProjNode, TyPredicate}
 import lambdanet.translation.QLang.QModule
-import lambdanet.utils.ProgramParsing
+import lambdanet.translation._
 import lambdanet.utils.ProgramParsing.GProject
+import lambdanet.utils.{DownloadRepos, ProgramParsing}
 
-import scala.collection.{immutable, mutable}
+import java.util.concurrent.ForkJoinPool
+import scala.collection.mutable
+import scala.collection.parallel.ForkJoinTaskSupport
 import scala.util.Random
 
 @SerialVersionUID(2)
@@ -21,6 +25,10 @@ case class LibDefs(
     libExports: Map[ProjectPath, ModuleExports],
     classes: Set[QLang.ClassDef]
 ) {
+
+  /**
+    * Returns the known type for each library node
+    */
   def libNodeType(n: LibNode): PType =
     nodeMapping(n.n).typeOpt
       .getOrElse(PredictionSpace.unknownType)
@@ -35,20 +43,33 @@ case class LibDefs(
 object PrepareRepos {
   val reposDir: Path = pwd / up / "lambda-repos"
   val libDefsFile: Path = pwd / "models" / "libDefs.serialized"
-//  val parsedRepoPath: Path = pwd / "data" / "parsedDataSet.serialized"
-  val parsedReposDir: Path = pwd / 'data / "parsedRepos"
+  def parsedReposDir(predictAny: Boolean): Path =
+    if (predictAny) pwd / 'data / "parsedRepos-with_any"
+    else pwd / 'data / "parsedRepos-no_any"
 
   val allReposDir: Path = reposDir / "allRepos"
 
+  /** use this function to download, parse, filter, divide, and serialize the
+  / training, dev, and test sets. */
   def main(args: Array[String]): Unit = {
+    // step1: download all repos under `reposDir/allRepos`
+//    DownloadRepos.downloadAllRepos(PrepareRepos.reposDir)
+
+    // step2: create libDefs
 //    val defs = parseLibDefs()
 //    SimpleMath.saveObjectToFile(libDefsFile.toIO)(defs)
 //    println(s"library definitions saved to $libDefsFile")
 
-//    remixDividedDataSet()
-//    parseAndFilterDataSet()
+    // step3: parse then randomly divide date set into train/dev/test
+    // might need to exclude the repo named "OmniSharp_omnisharp-atom" since it somehow
+    // causes out-of-memory issue
+    val predictAny = false
+    parseAndFilterDataSet(predictAny, loadLibDefs = true)
     divideDataSet()
-//    parseAndSerializeDataSet()
+    //    remixDividedDataSet()
+
+    // step4: parse filtered repos again and serialize them into `parsedReposDir` for fast future loading.
+    parseAndSerializeDataSet(predictAny, loadLibDefs = true)
   }
 
   private def remixDividedDataSet(): Unit = {
@@ -73,14 +94,15 @@ object PrepareRepos {
 
   def parseRepos(
       dataSetDirs: Seq[Path],
-      loadFromFile: Boolean = true,
-      inParallel: Boolean = true,
+      predictAny: Boolean,
+      loadLibDefs: Boolean = true,
+      numThreads: Int = 8,
       maxLinesOfCode: Int = Int.MaxValue,
       parsedCallback: (Path, RepoResult) => Unit = (_, _) => ()
   ): (LibDefs, Seq[List[ParsedProject]]) = {
     lambdanet.shouldWarn = false
 
-    val libDefs = if (loadFromFile) {
+    val libDefs = if (loadLibDefs) {
       announced(s"loading library definitions from $libDefsFile...") {
         SimpleMath.readObjectFromFile[LibDefs](libDefsFile.toIO)
       }
@@ -94,7 +116,14 @@ object PrepareRepos {
     def fromDir(dir: Path) =
       (ls ! dir)
         .filter(f => f.isDir)
-        .pipe(x => if (inParallel) x.par else x)
+        .pipe(
+          x =>
+            if (numThreads == 1) x
+            else
+              x.par.tap {
+                _.tasksupport = new ForkJoinTaskSupport(new ForkJoinPool(numThreads))
+              }
+        )
         .flatMap { f =>
           val r = if (countTsCode(f, dir) < maxLinesOfCode) {
             try {
@@ -105,6 +134,7 @@ object PrepareRepos {
                 shouldPruneGraph = false,
                 errorHandler = ErrorHandler.alwaysStoreError,
                 warnOnErrors = true,
+                predictAny = predictAny,
               ).mergeEqualities
 
               Successful(p0).tap { _ =>
@@ -143,10 +173,10 @@ object PrepareRepos {
     map.getOrElse("TypeScript", 0)
   }
 
-  def parseAndFilterDataSet(): Unit = {
+  def parseAndFilterDataSet(predictAny: Boolean, loadLibDefs: Boolean): Unit = {
     def projectDestination(p: ParsedProject): String = {
       val nodes = p.pGraph.nodes.size
-      if (nodes < 500 || nodes > 10000)
+      if (nodes < 500 || nodes > 20000)
         return "TooBigOrSmall"
       val annots = p.allUserAnnots
       val annotsRatio = annots.size.toDouble / p.pGraph.predicates.size
@@ -167,9 +197,10 @@ object PrepareRepos {
     announced("parsePredGraphs")(
       parseRepos(
         Seq(allReposDir),
-        loadFromFile = false,
-        inParallel = true,
-        maxLinesOfCode = 20000,
+        loadLibDefs = loadLibDefs,
+        numThreads = 10,
+        predictAny = predictAny,
+        maxLinesOfCode = 30000,
         parsedCallback = (file, pOpt) => {
           val dest = pOpt match {
             case Successful(p) =>
@@ -221,74 +252,104 @@ object PrepareRepos {
     }
   }
 
-  private def testNewSerialization(): Unit = {
+  private def testNewSerialization(predictAny: Boolean): Unit = {
+    val pd = parsedReposDir(predictAny)
     val repos = announced("read1") {
       SM.readObjectFromFile[ParsedRepos](
-        (parsedReposDir / up / "parsedDataSet.serialized").toIO
+        (pd / up / "parsedDataSet.serialized").toIO
       )
     }
 
     announced("write") {
-      repos.serializeIntoDir(parsedReposDir)
+      repos.serializeIntoDir(pd)
     }
 
     announced("read2") {
-      ParsedRepos.readFromDir(parsedReposDir)
+      ParsedRepos.readFromDir(pd)
     }
 
   }
 
-  def parseAndSerializeDataSet(): Unit = {
+  def parseAndSerializeDataSet(
+      predictAny: Boolean,
+      loadLibDefs: Boolean
+  ): Unit = {
     val basePath = reposDir / "divided"
     val trainSetDir: Path = basePath / "trainSet"
     val devSetDir: Path = basePath / "devSet"
     val testSetDir: Path = basePath / "testSet"
+    val pd = parsedReposDir(predictAny)
+
     val (libDefs, Seq(trainSet, devSet, testSet)) =
       announced("parsePredGraphs") {
         var progress = 0
         parseRepos(
           Seq(trainSetDir, devSetDir, testSetDir),
-          loadFromFile = false,
+          loadLibDefs = loadLibDefs,
+          numThreads = 10,
           parsedCallback = (_, _) =>
             synchronized {
               progress += 1
               printResult(s"Progress: $progress")
-            }
+            },
+          predictAny = predictAny,
         )
       }
-    val stats = repoStatistics(trainSet ++ devSet ++ testSet)
-    val avgStats = stats.headers
-      .zip(stats.average)
-      .map {
-        case (h, n) => "%s: %.1f".format(h, n)
-      }
-      .mkString(", ")
-    printResult(avgStats)
-    write.over(parsedReposDir / up / "stats.txt", avgStats)
+    for ((setName, dataset) <- Seq("train" -> trainSet, "dev" -> devSet, "test" -> testSet)) {
+      val stats = repoStatistics(dataset)
+      val avgStats = stats.headers
+        .zip(stats.average)
+        .map {
+          case (h, n) => "%s: %.1f".format(h, n)
+        }
+        .mkString(", ")
+      printResult(avgStats)
+      write.over(pd / up / s"stats-$setName.txt", avgStats)
+    }
 
-    announced(s"save data set to dir: $parsedReposDir") {
+    announced(s"save data set to dir: $pd") {
       ParsedRepos(libDefs, trainSet, devSet, testSet)
-        .serializeIntoDir(parsedReposDir)
+        .serializeIntoDir(pd)
     }
   }
 
-  // don't predict unknown and any
-  val typesNotToPredict: Set[PType] =
-    Set(NameDef.unknownType, NameDef.anyType)
-
+  /**
+    * @param predictAny when set to true, will include any into the prediction
+    *                   space. However, even if it's set to true, only user-annotated
+    *                   `any`s will be used as training signal since TS Compiler
+    *                   can infer a lot of spurious `any`s.
+    * @param srcTexts maps source file path to the corresponding code text. Combined with
+    *                 the `srcSpan` field in `PNode`, this can be used to map the predictions
+    *                 back into source code positions.
+    */
   @SerialVersionUID(2)
   case class ParsedProject(
       path: ProjectPath,
+      srcTexts: Map[ProjectPath, String],
       qModules: Vector[QModule],
       irModules: Vector[IRModule],
-      pGraph: PredicateGraph
+      pGraph: PredicateGraph,
+      predictAny: Boolean,
   ) {
+    import NameDef.{isAny, unknownType}
+
     def allAnnots: Map[PNode, PAnnot] = irModules.flatMap(_.mapping).toMap
+
+    private def shouldExclude(a: Annot.User[PType]): Boolean = {
+      a.ty == unknownType || (isAny(a.ty) && (!predictAny || a.inferred))
+    }
+
+    @transient
+    lazy val rawAllUserAnnots: Map[PNode, PAnnot] =
+      allAnnots.collect {
+        case (n, ant @ Annot.User(_, _)) if !shouldExclude(ant) =>
+          n -> ant
+      }
 
     @transient
     lazy val allUserAnnots: Map[ProjNode, PType] = {
       allAnnots.collect {
-        case (n, Annot.User(t, _)) if !typesNotToPredict.contains(t) =>
+        case (n, ant @ Annot.User(t, _)) if !shouldExclude(ant) =>
           ProjNode(n) -> t
       }
     }
@@ -296,7 +357,7 @@ object PrepareRepos {
     @transient
     lazy val nonInferredUserAnnots: Map[ProjNode, PType] = {
       allAnnots.collect {
-        case (n, Annot.User(t, false)) if !typesNotToPredict.contains(t) =>
+        case (n, ant @ Annot.User(t, false)) if !shouldExclude(ant) =>
           ProjNode(n) -> t
       }
     }
@@ -305,13 +366,13 @@ object PrepareRepos {
       val (graph1, merger) = pGraph.mergeEqualities
       val qModules1 = qModules.map { _.mapNodes(merger) }
       val irModules1 = irModules.map { _.mapNodes(merger) }
-      ParsedProject(path, qModules1, irModules1, graph1)
+      copy(qModules = qModules1, irModules = irModules1, pGraph = graph1)
     }
   }
 
-  import concurrent.{Future, Await}
   import concurrent.ExecutionContext.Implicits.global
   import concurrent.duration._
+  import concurrent.{Await, Future}
 
   @SerialVersionUID(2)
   case class ParsedRepos(
@@ -320,6 +381,13 @@ object PrepareRepos {
       devSet: List[ParsedProject],
       testSet: List[ParsedProject]
   ) {
+    def setPredictAny(predictAny: Boolean): ParsedRepos =
+      copy(
+        trainSet = trainSet.map(_.copy(predictAny = predictAny)),
+        devSet = devSet.map(_.copy(predictAny = predictAny)),
+        testSet = testSet.map(_.copy(predictAny = predictAny)),
+      )
+
     import ParsedRepos._
 
     def meta(chunkNum: Int) =
@@ -332,7 +400,10 @@ object PrepareRepos {
     ): Unit = {
       import cats.implicits._
 
-      if (exists(dir)) rm(dir)
+      if (exists(dir)) {
+        printWarning(s"Overriding results in $dir", mustWarn = true)
+        rm(dir)
+      }
       mkdir(dir)
 
       def withName(
@@ -374,20 +445,22 @@ object PrepareRepos {
       def totoalProjectNum = trainSetSize + devSetSize + testSetSize
     }
 
-    def readFromDir(dir: Path, timeoutSeconds: Int = 200): ParsedRepos = {
+    def readFromDir(dir: Path, timeoutSeconds: Int = 400): ParsedRepos = {
       import cats.implicits._
 
       val meta = SM.readObjectFromFile[Meta]((dir / "meta").toIO)
       import meta._
       val libDefsF = Future {
-        announced("read libDefs") {
+        announced("Read libDefs") {
           SM.readObjectFromFile[LibDefs]((dir / "libDefs").toIO)
         }
       }
       Thread.sleep(100)
       val chunksF = (0 until chunkNum).toVector.map { i =>
         Future {
-          SM.readObjectFromFile[List[ParsedProject]]((dir / s"chunk$i").toIO)
+          announced(s"Read repo chunk $i")(
+            SM.readObjectFromFile[List[ParsedProject]]((dir / s"chunk$i").toIO)
+          )
         }
       }.sequence
       val resultF = for {
@@ -417,7 +490,7 @@ object PrepareRepos {
     val predicates = 4
 
     val headers: Vector[String] =
-      Vector("libNodes", "projNodes", "libAnnots", "projAnnots", "predicates")
+      Vector("libNodes", "projNodes", "libAnnots", "projAnnots", "anyAnnots", "predicates")
   }
 
   def repoStatistics(results: Seq[ParsedProject]): RepoStats = {
@@ -431,7 +504,8 @@ object PrepareRepos {
         val nPred = graph.predicates.size
         val libAnnots = p.allUserAnnots.count(_._2.madeFromLibTypes)
         val projAnnots = p.allUserAnnots.size - libAnnots
-        path -> Vector(nLib, nProj, libAnnots, projAnnots, nPred)
+        val anyAnnots = p.allUserAnnots.count(x => NameDef.isAny(x._2))
+        path -> Vector(nLib, nProj, libAnnots, projAnnots, anyAnnots, nPred)
       }
       .sortBy(_._2.last)
 
@@ -454,7 +528,7 @@ object PrepareRepos {
     println("default module parsed")
 
     println("parsing library modules...")
-    val GProject(_, modules, mapping, subProjects, devDependencies) =
+    val GProject(_, _, modules, mapping, subProjects, devDependencies) =
       ProgramParsing
         .parseGProjectFromRoot(
           declarationsDir,
@@ -538,6 +612,7 @@ object PrepareRepos {
       }
       .toSet
 
+    //todo (jiayi): also collect all functions
     println("Declaration files parsed.")
     LibDefs(baseCtx1, nodeMapping, libExports, classes)
   }
@@ -570,7 +645,8 @@ object PrepareRepos {
     }
 
     val newNodes = activeNodes.map(_.n) ++ graph.nodes.filter(_.fromLib)
-    PredicateGraph(newNodes, newPredicates).tap { g =>
+    val newAnnots = graph.userAnnotations.filter { case (n, _) => newNodes.contains(n.n) }
+    PredicateGraph(newNodes, newPredicates, newAnnots, graph.typeMap).tap { g =>
       printResult(
         s"Before pruning: ${graph.nodes.size}, after: ${g.nodes.size}"
       )
@@ -581,6 +657,7 @@ object PrepareRepos {
       libDefs: LibDefs,
       projectsBase: Path,
       projectRoot: Path,
+      predictAny: Boolean,
       skipSet: Set[String] = Set("dist", "__tests__", "test", "tests"),
       shouldPruneGraph: Boolean = true,
       shouldPrintProject: Boolean = false,
@@ -639,7 +716,7 @@ object PrepareRepos {
       printResult(s"Project parsed: '$projectRoot'")
       println("number of nodes: " + graph.nodes.size)
 
-      ParsedProject(projectName, qModules, irModules, graph)
+      ParsedProject(projectName, p.srcTexts, qModules, irModules, graph, predictAny)
     }
 
   def parseProjectWithGModule(
