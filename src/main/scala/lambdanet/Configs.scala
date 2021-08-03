@@ -16,12 +16,7 @@ case class Configs(configDir: Path = pwd / "configs") {
     val f = configDir / "resultsDir.txt"
     loadOrCreate(
       f,
-      pathText =>
-        util
-          .Try {
-            pwd / RelPath(pathText)
-          }
-          .getOrElse(Path(pathText))
+      Configs.readFilePath
     ){
       throw new FileNotFoundException(
         s"$f not exits. It should contain the file " +
@@ -29,9 +24,27 @@ case class Configs(configDir: Path = pwd / "configs") {
       )
     }
   }
+
+  def modelDir(): Path = {
+    val f = configDir / "modelPath.txt"
+    loadOrCreate(
+      f,
+      Configs.readFilePath
+    ){
+      throw new FileNotFoundException(
+        s"$f not exits. It should contain the directory of the trained model" +
+          s" (which contains the `model.serialized` file)."
+      )
+    }
+  }
 }
 
 object Configs {
+  def readFilePath(str: String): Path = {
+    if(str.startsWith("/")) Path(str)
+    else pwd / RelPath(str)
+  }
+
   def loadOrCreate[T](file: Path, parser: String => T, writer: T => String = (x: T) => x.toString)(
       default: => T
   ): T =

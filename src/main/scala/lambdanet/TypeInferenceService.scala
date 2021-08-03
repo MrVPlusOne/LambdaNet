@@ -46,11 +46,7 @@ object TypeInferenceService {
   }
 
   def main(args: Array[String]): Unit = {
-    val modelDir = pwd / RelPath(
-      "running-results/NewData-GAT1-fc2AnnotsSampling(0.0,0.81)--decay-lossAgg_sum-encodeSignature-6/saved/epoch40"
-    )
-
-    val modelPath = modelDir / "model.serialized"
+    val modelPath = Configs().modelDir() / "model.serialized"
 
     val model = announced("Loading model") {
       readObjectFromFile[Model](modelPath)
