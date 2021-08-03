@@ -83,7 +83,7 @@ object JavaAPI {
           sourceSpan.until._1 == targetSpan.until._1 &&
           sourceSpan.start._2 == targetSpan.start._2 &&
           sourceSpan.until._2 == targetSpan.until._2) {
-        variableType = value.topValue.toString
+        variableType = value.topValue.showSimple
       }
     }}
     variableType
