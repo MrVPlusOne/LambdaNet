@@ -201,8 +201,7 @@ object ImportsResolution {
   }
 
   sealed trait ResolutionError extends Error
-  case class SourceFileMissingError(path: ProjectPath, ctx: ModuleExports)
-      extends ResolutionError {
+  case class SourceFileMissingError(path: ProjectPath, ctx: ModuleExports) extends ResolutionError {
     override def toString: String =
       s"Source file missing for path: $path, ctx: $ctx"
   }

@@ -71,8 +71,7 @@ object SimpleMath {
       new BufferedTotalMap[K, V](partialMap, default)
   }
 
-  class BufferedTotalMap[K, V](partialMap: K => Option[V], default: K => V)
-      extends Function[K, V] {
+  class BufferedTotalMap[K, V](partialMap: K => Option[V], default: K => V) extends Function[K, V] {
     import collection.concurrent.TrieMap
     val map: TrieMap[K, V] = TrieMap[K, V]()
 

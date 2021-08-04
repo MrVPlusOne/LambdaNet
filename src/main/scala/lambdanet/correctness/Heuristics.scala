@@ -8,8 +8,7 @@ object Heuristics {
   ): Set[Set[PNode]] = {
     typeUnfold
       .collect {
-        case (node, PAccess(obj, label))
-            if typeUnfold.get(obj).exists(_.isInstanceOf[PObject]) =>
+        case (node, PAccess(obj, label)) if typeUnfold.get(obj).exists(_.isInstanceOf[PObject]) =>
           val field = typeUnfold(obj).asInstanceOf[PObject].fields(label)
           (field, node)
       }

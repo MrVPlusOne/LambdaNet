@@ -120,8 +120,7 @@ private[funcdiff] object DiffFunc {
     def name: String = "mean"
   }
 
-  case class MeanByAxis(x1: CompNode, axis: Int, keepDim: Boolean = true)
-      extends UnaryFunc {
+  case class MeanByAxis(x1: CompNode, axis: Int, keepDim: Boolean = true) extends UnaryFunc {
     require(x1.shape.elements > 0)
     val value: Tensor = numsca.meanAxis(x1.value, axis, keepDim)
 

@@ -178,8 +178,7 @@ object GType {
 
   case class ApplyError(expr: GExpr, inferredType: GType) extends TypeCheckError
 
-  case class AccessError(expr: GExpr, field: Symbol, inferredType: GType)
-      extends TypeCheckError
+  case class AccessError(expr: GExpr, field: Symbol, inferredType: GType) extends TypeCheckError
 
   val boolType = TyVar(Symbol("boolean"))
   val voidType = TyVar(Symbol("void"))
@@ -214,8 +213,7 @@ object GType {
     lazy val context1 = context.copy(subRel = subRel + (child -> parent))
 
     (child, parent) match {
-      case (b1: TyVar, b2: TyVar)
-          if baseTypes.contains(b1.id) && baseTypes.contains(b2.id) =>
+      case (b1: TyVar, b2: TyVar) if baseTypes.contains(b1.id) && baseTypes.contains(b2.id) =>
         if (b1 == b2) Some(context1) else None
       case (TyVar(id), _) =>
         if (typeUnfold.contains(id)) {

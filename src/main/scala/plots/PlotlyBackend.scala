@@ -2,8 +2,7 @@ package plots
 
 import ammonite.{ops => amm}
 
-case class PlotlyBackend(vSpacing: Int = -100, hSpacing: Int = 0)
-    extends VisualizationFramework {
+case class PlotlyBackend(vSpacing: Int = -100, hSpacing: Int = 0) extends VisualizationFramework {
   import cats.data.{Chain, RWS}
   import cats.implicits._
   import scalatags.Text.TypedTag

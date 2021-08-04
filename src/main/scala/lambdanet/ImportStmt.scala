@@ -20,8 +20,7 @@ sealed trait ImportStmt {
 
 object ExportStmt {
 
-  case class ExportDefault(newName: Option[Symbol], from: Option[ReferencePath])
-      extends ExportStmt
+  case class ExportDefault(newName: Option[Symbol], from: Option[ReferencePath]) extends ExportStmt
 
   case class ExportSingle(
       oldName: Symbol,

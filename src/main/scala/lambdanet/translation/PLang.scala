@@ -100,8 +100,7 @@ object PLang {
       exportLevel: ExportLevel.Value
   ) extends PStmt
 
-  case class Namespace(name: Symbol, block: BlockStmt, level: ExportLevel.Value)
-      extends PStmt
+  case class Namespace(name: Symbol, block: BlockStmt, level: ExportLevel.Value) extends PStmt
 
   case class PImport(content: ImportStmt) extends PStmt
   case class PExport(content: ExportStmt) extends PStmt
