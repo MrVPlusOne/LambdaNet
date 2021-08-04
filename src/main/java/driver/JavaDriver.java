@@ -28,7 +28,7 @@ public class JavaDriver {
             System.out.flush();
             String line = api.readLine();
             try {
-                assert !line.isEmpty() : "Specified path should not be empty.";
+                assert !line.trim().isEmpty() : "Specified path should not be empty.";
                 Path sourcePath = line.startsWith("/") ?
                         api.absPath(line) :
                         api.joinPath(workDir, line);

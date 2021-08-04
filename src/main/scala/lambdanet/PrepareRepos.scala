@@ -666,23 +666,13 @@ object PrepareRepos {
     SimpleMath.withErrorMessage(s"In project: $projectRoot") {
       import libDefs._
 
-      var p: GProject = null
-      if(gModules != null) {
-        p = ProgramParsing.parseGProjectFromRoot(
-          projectRoot,
-          gModules,
-          filter = (path: Path) => {
-            path.segments.forall(!skipSet.contains(_))
-          }
-        )
-      } else {
-        p = ProgramParsing.parseGProjectFromRoot(
-          projectRoot,
-          filter = (path: Path) => {
-            path.segments.forall(!skipSet.contains(_))
-          }
-        )
-      }
+      val p = ProgramParsing.parseGProjectFromRoot(
+        projectRoot,
+        gModules,
+        filter = (path: Path) => {
+          path.segments.forall(!skipSet.contains(_))
+        }
+      )
 
       if (shouldPrintProject) println { p.prettyPrint }
 

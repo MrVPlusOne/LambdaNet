@@ -281,30 +281,17 @@ case class Model(
         warnOnErrors: Boolean,
     ): PredictionResults = {
       val project = announced("parse project") {
-        if(gModules != null) {
-          parseProject(
-            libDefs,
-            sourcePath / amm.up,
-            sourcePath,
-            predictAny,
-            gModules,
-            skipSet = skipSet,
-            shouldPruneGraph = false,
-            errorHandler = handler,
-            warnOnErrors = warnOnErrors,
-          )
-        } else {
-          parseProject(
-            libDefs,
-            sourcePath / amm.up,
-            sourcePath,
-            skipSet = skipSet,
-            shouldPruneGraph = false,
-            errorHandler = handler,
-            warnOnErrors = warnOnErrors,
-            predictAny = predictAny,
-          )
-        }
+        parseProject(
+          libDefs,
+          sourcePath / amm.up,
+          sourcePath,
+          predictAny,
+          gModules,
+          skipSet = skipSet,
+          shouldPruneGraph = false,
+          errorHandler = handler,
+          warnOnErrors = warnOnErrors,
+        )
       }
 
       def checkSource(node: PredicateGraph.PNode): Boolean =

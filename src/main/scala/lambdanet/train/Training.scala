@@ -45,7 +45,7 @@ object Training {
     val resultsDirEmpty = !amm.exists(resultsDir) || amm.ls(resultsDir).isEmpty
     if (!resultsDirEmpty) {
       println(warnStr(s"directory $resultsDir is not empty. Remove it first? (y/n): "))
-      if (scala.io.StdIn.readLine().toLowerCase() == "y") {
+      if (scala.io.StdIn.readLine().trim().toLowerCase() == "y") {
         amm.rm(resultsDir)
       } else {
         printInfo("Training aborted.")
