@@ -1,6 +1,5 @@
 package lambdanet
 
-import Lambdanet.LambdanetForkJoinWorkerThreadFactory
 import funcdiff.{GraphMode, ModeEval, ModeTraining}
 import ammonite.{ops => amm}
 import ammonite.ops.Path
@@ -12,16 +11,17 @@ import lambdanet.architecture.LabelEncoder.TrainableLabelEncoder
 import lambdanet.architecture.{LabelEncoder, NNArchitecture}
 import lambdanet.train.DataSet.nonGenerify
 import lambdanet.train.Training.{AnnotsSampling, ForwardResult, ModelConfig}
-import lambdanet.train.{Counted, DataSet, Loss, LossAggMode, ProcessedProject, ProjectLabelStats, ProjectStats, TopNDistribution}
+import lambdanet.train._
 import lambdanet.translation.ImportsResolution.ErrorHandler
 import lambdanet.translation.PredicateGraph
 import lambdanet.translation.PredicateGraph.{LibTypeNode, PNode, PType, ProjNode}
 
+import java.util.concurrent.{ForkJoinPool, ForkJoinWorkerThread}
 import scala.collection.parallel.ForkJoinTaskSupport
-import scala.concurrent.forkjoin.ForkJoinPool
 import scala.util.Random
 
-case object Model {
+@SerialVersionUID(-639226779165037135L)
+object Model {
 
   def fromData(
       config: ModelConfig,
@@ -76,6 +76,16 @@ case object Model {
         rand.nextInt(vocabSize)
       }
 
+  def mkTaskSupport(nThreads: Int): ForkJoinTaskSupport = {
+    val factory = new ForkJoinPool.ForkJoinWorkerThreadFactory {
+      def newThread(pool: ForkJoinPool): ForkJoinWorkerThread = {
+        new ForkJoinWorkerThread(pool) {
+          setContextClassLoader(this.getClass.getClassLoader)
+        }
+      }
+    }
+    new ForkJoinTaskSupport(new ForkJoinPool(nThreads, factory, null, false))
+  }
 }
 
 //noinspection TypeAnnotation
@@ -238,12 +248,7 @@ case class Model(
       handler: ErrorHandler = ErrorHandler.alwaysStoreError,
   ) {
     val taskSupport: Option[ForkJoinTaskSupport] =
-      if (numOfThreads > 1)
-        Some(new ForkJoinTaskSupport(new ForkJoinPool(
-                                            numOfThreads,
-                                            new LambdanetForkJoinWorkerThreadFactory(),
-                                            null,
-                                            false)))
+      if (numOfThreads > 1) Some(Model.mkTaskSupport(numOfThreads))
       else None
 
     lazy val nonGenerifyIt = nonGenerify(libDefs)
@@ -275,9 +280,10 @@ case class Model(
 
     def predictOnProject(
         sourcePath: Path,
-        gModules: Vector[GModule] = null,
+        gModulesOpt: Option[Vector[GModule]] = None,
         skipSet: Set[String] = Set("node_modules"),
         alsoPredictNonSourceNodes: Boolean = false,
+        shouldPruneGraph: Boolean = false,
         warnOnErrors: Boolean,
     ): PredictionResults = {
       val project = announced("parse project") {
@@ -286,9 +292,9 @@ case class Model(
           sourcePath / amm.up,
           sourcePath,
           predictAny,
-          gModules,
+          gModulesOpt,
           skipSet = skipSet,
-          shouldPruneGraph = false,
+          shouldPruneGraph = shouldPruneGraph,
           errorHandler = handler,
           warnOnErrors = warnOnErrors,
         )
@@ -325,6 +331,7 @@ case class Model(
       PredictionResults(prediction, srcLines)
     }
 
+    /** Convenient method for Java API. */
     def predictOnProject(
         sourcePath: Path,
         warnOnErrors: Boolean,

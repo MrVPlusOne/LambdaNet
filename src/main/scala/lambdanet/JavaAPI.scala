@@ -71,23 +71,23 @@ object JavaAPI {
                          predictTopK: Int,
                         ): PredictionResults = {
     val predictionService = model.PredictionService(numOfThreads, predictTopK)
-    predictionService.predictOnProject(sourcePath, gModules, warnOnErrors = false)
+    predictionService.predictOnProject(
+      sourcePath, gModulesOpt = Some(gModules), warnOnErrors = false
+    )
   }
 
-  def typeForSrcSpanFromMap(map: Map[PNode, TopNDistribution[PType]], srcSpan: Option[SrcSpan]): String = {
-    var variableType = ""
-    map.foreach{case(key, value) => {
-      val sourceSpan = key.srcSpan.get
-      val targetSpan = srcSpan.get
-      if(sourceSpan.start._1 == targetSpan.start._1 &&
-          sourceSpan.until._1 == targetSpan.until._1 &&
-          sourceSpan.start._2 == targetSpan.start._2 &&
-          sourceSpan.until._2 == targetSpan.until._2) {
-        variableType = value.topValue.showSimple
-      }
-    }}
-    variableType
+  def extractPredictionFromLocation(
+    map: Map[PNode, TopNDistribution[PType]], location: SrcSpan
+  ): TopNDistribution[PType] = {
+    def matchLocation(span: SrcSpan) =
+      span.start == location.start && span.until == location.until
+    map
+      .collectFirst{ case (k, v) if matchLocation(k.srcSpan.get) => v }
+      .getOrElse(throw new Error(s"No prediction for location: $location"))
   }
+
+  def typeForSrcSpanFromMap(map: Map[PNode, TopNDistribution[PType]], location: SrcSpan): String =
+    extractPredictionFromLocation(map, location).topValue.showSimple
 
   def loadModel(modelPath: Path): Model = {
     announced("Load model from cache") {

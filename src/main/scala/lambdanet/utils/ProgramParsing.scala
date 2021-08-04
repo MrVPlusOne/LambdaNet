@@ -88,7 +88,7 @@ object ProgramParsing {
 
   def parseGProjectFromRoot(
       root: Path,
-      gModules: Vector[GModule] = null,
+      gModulesOpt: Option[Vector[GModule]] = None,
       declarationFileMode: Boolean = false,
       filter: Path => Boolean = _ => true
   ): GProject = {
@@ -159,8 +159,8 @@ object ProgramParsing {
       }
       .map(_.relativeTo(root))
 
-    val srcTexts = sources.map{ p =>
-      p -> read(root/p)
+    val srcTexts = sources.map { p =>
+      p -> read(root / p)
     }.toMap
 
     def handleTypesPrefix(p: ProjectPath): Set[ProjectPath] = {
@@ -172,24 +172,18 @@ object ProgramParsing {
       .map(_._2)
       .toSet[PackageFile]
       .flatMap(_.devDependencies.flatMap(handleTypesPrefix))
-    if(gModules != null) {
-      GProject(
-        root,
-        srcTexts,
-        gModules,
-        mapping,
-        subProjects,
-        devDependencies
-      )
-    } else {
-      GProject(
-        root,
-        srcTexts,
-        ProgramParsing.parseGModulesFromFiles(sources, root),
-        mapping,
-        subProjects,
-        devDependencies
-      )
+    gModulesOpt match {
+      case Some(gModules) =>
+        GProject(root, srcTexts, gModules, mapping, subProjects, devDependencies)
+      case None =>
+        GProject(
+          root,
+          srcTexts,
+          ProgramParsing.parseGModulesFromFiles(sources, root),
+          mapping,
+          subProjects,
+          devDependencies
+        )
     }
   }
 
@@ -472,9 +466,8 @@ object ProgramParsing {
       type Creator = Option[ReferencePath] => Vector[ExportStmt]
 
       def exportDefault[_: P]: P[Creator] =
-        P("{" ~ "default" ~/ ("as" ~/ identifier).? ~ "}").map {
-          newNameOpt => p =>
-            Vector(ExportDefault(newNameOpt.map(Symbol.apply), p))
+        P("{" ~ "default" ~/ ("as" ~/ identifier).? ~ "}").map { newNameOpt => p =>
+          Vector(ExportDefault(newNameOpt.map(Symbol.apply), p))
         }
 
       def exportDefault2[_: P]: P[Creator] =

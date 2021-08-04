@@ -656,7 +656,7 @@ object PrepareRepos {
       projectsBase: Path,
       projectRoot: Path,
       predictAny: Boolean,
-      gModules: Vector[GModule] = null,
+      gModulesOpt: Option[Vector[GModule]] = None,
       skipSet: Set[String] = Set("dist", "__tests__", "test", "tests"),
       shouldPruneGraph: Boolean = true,
       shouldPrintProject: Boolean = false,
@@ -668,7 +668,7 @@ object PrepareRepos {
 
       val p = ProgramParsing.parseGProjectFromRoot(
         projectRoot,
-        gModules,
+        gModulesOpt,
         filter = (path: Path) => {
           path.segments.forall(!skipSet.contains(_))
         }
