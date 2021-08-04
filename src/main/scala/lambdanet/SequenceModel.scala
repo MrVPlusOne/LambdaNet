@@ -166,7 +166,9 @@ object SequenceModel {
       }.toMap
     }
 
-    def predict(states: CompNode, predSpaceSize: Int)(implicit mode: GraphMode): CompNode = {
+    def predict(states: CompNode, predSpaceSize: Int)(
+        implicit mode: GraphMode
+    ): CompNode = {
       states ~>
         linear('predict / 'L1, dimEmbedding) ~> relu ~>
         linear('predict / 'L2, dimEmbedding) ~> relu ~>

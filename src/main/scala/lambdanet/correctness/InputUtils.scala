@@ -8,20 +8,26 @@ import lambdanet.translation.PredicateGraph.PNode
 import lambdanet.translation.{PAnnot, PredicateGraph, PredicateGraphLoader}
 
 object InputUtils {
-  def loadGraphAndPredict(inputPath: Path): (PredicateGraph, Map[PNode, PAnnot], TypeDistrs) = {
+  def loadGraphAndPredict(
+      inputPath: Path
+  ): (PredicateGraph, Map[PNode, PAnnot], TypeDistrs) = {
     val resultsPath = inputPath / "results.serialized"
     val project = PredicateGraphLoader.load(inputPath)
     loadGraphAndPredict(resultsPath, project)
   }
 
-  def loadGraphAndPredict(resultsPath: Path, project: ParsedProject): (PredicateGraph, Map[PNode, PAnnot], TypeDistrs) = {
+  def loadGraphAndPredict(
+      resultsPath: Path,
+      project: ParsedProject
+  ): (PredicateGraph, Map[PNode, PAnnot], TypeDistrs) = {
     val graph = project.pGraph
     val nodeAnnots = project.rawAllUserAnnots
     val results =
       if (amm.exists(resultsPath)) {
         SM.readObjectFromFile[TypeDistrs](resultsPath.toIO)
       } else {
-        val res = NewestModelService.service.predictOnGraph(graph, nodeSelector = _.fromProject)
+        val res =
+          NewestModelService.service.predictOnGraph(graph, nodeSelector = _.fromProject)
         SM.saveObjectToFile(resultsPath.toIO)(res.asInstanceOf[Serializable])
         res
       }

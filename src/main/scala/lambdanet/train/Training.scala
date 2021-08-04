@@ -32,7 +32,8 @@ object Training {
     val dropAllAnnots = false
     val modelConfig = ModelConfig(
       predictAny = false,
-      annotsSampling = if (dropAllAnnots) AnnotsSampling(0, 0) else AnnotsSampling(0.0, 0.81),
+      annotsSampling =
+        if (dropAllAnnots) AnnotsSampling(0, 0) else AnnotsSampling(0.0, 0.81),
       maxLibRatio = 100.0,
       gatHeads = 1,
     )
@@ -667,7 +668,10 @@ object Training {
     }
 
     /** Randomly samples the number of prediction labels for each given project */
-    private def dataSetLabelNums(projects: Seq[ProcessedProject], random: Random): Seq[Int] = {
+    private def dataSetLabelNums(
+        projects: Seq[ProcessedProject],
+        random: Random
+    ): Seq[Int] = {
       projects.map { d =>
         random.synchronized {
           val (kept, dropped) = annotsSampling.randomSplit(d.nodesToPredict, random)
@@ -749,27 +753,27 @@ object Training {
   }
 
   /**
-   * Records the training-time model configurations.
-   * @param toyMode if true, will run the model on a toy dataset for fast debugging purpose.
-   * @param useSeqModel if true, will use RNN architecture instead of GNN.
-   * @param gnnIterations how many GNN iteration layers to use.
-   * @param useDropout whether to use dropout in some layers.
-   * @param predictAny whether to include the special type `any` in the prediction space.
-   * @param maxLibRatio the maximal ratio of (library type labels)/(project type labels).
-   *                    Ectra library labels will be randomly down-sampled.
-   * @param projWeight the relative weight ratio between a project type label and a
-   *                   library type label. Setting this > 1 during training will encourage
-   *                   the model to predict project types more frequently.
-   * @param gatHeads the number of attention heads in the GAT message aggregation kernel.
-   * @param weightDecay i.e., the factor for L2 regularization.
-   * @param onlyPredictLibType if true, the model will only predict library types.
-   * @param lossAggMode how to compute the loss. See [[LossAggMode]].
-   * @param encodeLibSignature whether the GNN take the type signature of library nodes as
-   *                           additional inputs.
-   * @param annotsSampling During training, this defines how user annotations will be
-   *                       randomly sampled as inputs and labels.
-   *
-   */
+    * Records the training-time model configurations.
+    * @param toyMode if true, will run the model on a toy dataset for fast debugging purpose.
+    * @param useSeqModel if true, will use RNN architecture instead of GNN.
+    * @param gnnIterations how many GNN iteration layers to use.
+    * @param useDropout whether to use dropout in some layers.
+    * @param predictAny whether to include the special type `any` in the prediction space.
+    * @param maxLibRatio the maximal ratio of (library type labels)/(project type labels).
+    *                    Ectra library labels will be randomly down-sampled.
+    * @param projWeight the relative weight ratio between a project type label and a
+    *                   library type label. Setting this > 1 during training will encourage
+    *                   the model to predict project types more frequently.
+    * @param gatHeads the number of attention heads in the GAT message aggregation kernel.
+    * @param weightDecay i.e., the factor for L2 regularization.
+    * @param onlyPredictLibType if true, the model will only predict library types.
+    * @param lossAggMode how to compute the loss. See [[LossAggMode]].
+    * @param encodeLibSignature whether the GNN take the type signature of library nodes as
+    *                           additional inputs.
+    * @param annotsSampling During training, this defines how user annotations will be
+    *                       randomly sampled as inputs and labels.
+    *
+    */
   @SerialVersionUID(3L)
   case class ModelConfig(
       toyMode: Boolean = false,

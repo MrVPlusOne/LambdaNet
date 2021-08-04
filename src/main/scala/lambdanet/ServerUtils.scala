@@ -1,10 +1,9 @@
 package lambdanet
 
-
-object ServerUtils{
+object ServerUtils {
 
   val serverPath = "utopia1:/mnt/nas/jiayi/withAny"
-  def downloadPredictions(task:String, epoch:Int): String = {
+  def downloadPredictions(task: String, epoch: Int): String = {
     val remoteDir = s"$serverPath/$task/saved/epoch$epoch"
     val localDir = s"~/Downloads/LambdaNetDownloads/$task-predictions-epoch$epoch"
 

@@ -59,8 +59,9 @@ object DataSet {
 
     def projFilter(p: ParsedProject) = {
       val size = p.pGraph.predicates.size
-      (size <= maxProjectSize).tap{ small =>
-        if(!small) printInfo(s"Project ${p.path} ($size predicates) is filtered due to large size.")
+      (size <= maxProjectSize).tap { small =>
+        if (!small)
+          printInfo(s"Project ${p.path} ($size predicates) is filtered due to large size.")
       }
     }
 
@@ -92,15 +93,16 @@ object DataSet {
             predictAny
           )
           def processAnnots(annots: Map[ProjNode, PType]) =
-            annots.mapValuesNow(nonGenerifyIt)
-              .filter { case (_, ty) => stats.predictionSpace.allTypes.contains(ty)}
+            annots
+              .mapValuesNow(nonGenerifyIt)
+              .filter { case (_, ty) => stats.predictionSpace.allTypes.contains(ty) }
 
           val (toPredict, visible) =
-            (if(useInferred){
-              (p.allUserAnnots, Map[ProjNode, PType]())
-            } else {
-              (p.nonInferredUserAnnots, p.allUserAnnots -- p.nonInferredUserAnnots.keySet)
-            }).pipe{ case (l, r) => (processAnnots(l), processAnnots(r))}
+            (if (useInferred) {
+               (p.allUserAnnots, Map[ProjNode, PType]())
+             } else {
+               (p.nonInferredUserAnnots, p.allUserAnnots -- p.nonInferredUserAnnots.keySet)
+             }).pipe { case (l, r) => (processAnnots(l), processAnnots(r)) }
 
           if (toPredict.isEmpty) Vector()
           else {
@@ -264,10 +266,10 @@ case class ProjectLabelStats(nodesToPredict: Map[ProjNode, PType]) {
 }
 
 /**
- * @param visibleAnnotations These are type annotations that can be used as the inputs
- *                           to the GNN. On the test set, these are all the annotations
- *                           that are inferred by the compiler.
- */
+  * @param visibleAnnotations These are type annotations that can be used as the inputs
+  *                           to the GNN. On the test set, these are all the annotations
+  *                           that are inferred by the compiler.
+  */
 case class ProcessedProject(
     projectName: ProjectPath,
     nodesToPredict: Map[ProjNode, PType],

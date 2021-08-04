@@ -167,7 +167,6 @@ package object numsca {
   def multiply(a: Tensor, b: Tensor): Tensor = a * b
   def dot(a: Tensor, b: Tensor): Tensor = a dot b
 
-
   def clip(t: Tensor, min: Double, max: Double): Tensor = t.clip(min, max)
 
 //  def concatNd4j(ts: Seq[Tensor], axis: Int): Tensor = {

@@ -4,7 +4,11 @@ package lambdanet.correctness
 import ammonite.ops.RelPath
 import ammonite.{ops => amm}
 import lambdanet.LibDefs
-import lambdanet.correctness.Objective.{AverageNegativeLogLikelihood, HammingLoss, NegativeLogLikelihood}
+import lambdanet.correctness.Objective.{
+  AverageNegativeLogLikelihood,
+  HammingLoss,
+  NegativeLogLikelihood
+}
 import lambdanet.translation.PredicateGraph
 import lambdanet.translation.PredicateGraph._
 import lambdanet.translation.PredicateGraphLoader.libDefs
@@ -70,7 +74,8 @@ object CrossEntropyExperiment {
     }
     val objective = objectiveConstructor(results)
 
-    val allPTypes: Set[PredicateGraph.PType] = results.flatMap(_._2.distr.map(_._2))(collection.breakOut)
+    val allPTypes: Set[PredicateGraph.PType] =
+      results.flatMap(_._2.distr.map(_._2))(collection.breakOut)
     val shallowSubtype = ShallowSubtype(checker, allPTypes)
 
     val fixedTypes =
@@ -165,8 +170,10 @@ object CrossEntropyExperiment {
     val groundTruthDifference: Assignment.Difference =
       Assignment.diff(results, groundTruth.truth, best)
     println(s"${groundTruthDifference.diff.size} differences found")
-    println(s"${groundTruthDifference.diff
-      .count { case (node, (gold, _)) => results(node).typeProb.contains(gold) }} differences remain after filtering unpredicted types")
+    println(
+      s"${groundTruthDifference.diff
+        .count { case (node, (gold, _)) => results(node).typeProb.contains(gold) }} differences remain after filtering unpredicted types"
+    )
     println(groundTruthDifference)
     println()
 

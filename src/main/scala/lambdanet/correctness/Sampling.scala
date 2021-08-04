@@ -3,6 +3,7 @@ package lambdanet.correctness
 import java.util.concurrent.ThreadLocalRandom
 
 object Sampling {
+
   /**
     * @param items items with unnormalized PMF
     */

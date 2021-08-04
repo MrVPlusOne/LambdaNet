@@ -23,7 +23,13 @@ object JavaAPI {
 
   def joinPath(head: Path, tail: String): Path = head / RelPath(tail)
 
-  def mkSrcSpan(start1: Int, start2: Int, until1: Int, until2: Int, srcFile: ProjectPath): SrcSpan =
+  def mkSrcSpan(
+      start1: Int,
+      start2: Int,
+      until1: Int,
+      until2: Int,
+      srcFile: ProjectPath
+  ): SrcSpan =
     SrcSpan((start1, start2), (until1, until2), srcFile)
 
   def predictionService(model: Model, numOfThreads: Int, predictTopK: Int) =
@@ -41,8 +47,14 @@ object JavaAPI {
   def pair[X, Y](x: X, y: Y): (X, Y) =
     (x, y)
 
-  def srcSpan(startLine: Int, startIndex: Int, endLine: Int, endIndex: Int, sourcePath: RelPath): SrcSpan =
-    SrcSpan((startLine, startIndex),(endLine, endIndex), sourcePath)
+  def srcSpan(
+      startLine: Int,
+      startIndex: Int,
+      endLine: Int,
+      endIndex: Int,
+      sourcePath: RelPath
+  ): SrcSpan =
+    SrcSpan((startLine, startIndex), (endLine, endIndex), sourcePath)
 
   def userAnnotation[T](ty: T, inferred: Boolean): Annot[T] =
     User[T](ty, inferred)
@@ -52,41 +64,52 @@ object JavaAPI {
 
   def missing: Annot[GType] = Missing
 
-  def option[T](v: T):Option[T] = v match {
+  def option[T](v: T): Option[T] = v match {
     case Null => None
     case _    => Some(v)
   }
 
-  def argsCompatibility(args: Vector[(Symbol, Object, Object)]): Vector[(Symbol, TyAnnot, SrcSpan)] =
+  def argsCompatibility(
+      args: Vector[(Symbol, Object, Object)]
+  ): Vector[(Symbol, TyAnnot, SrcSpan)] =
     args.asInstanceOf[Vector[(Symbol, TyAnnot, SrcSpan)]]
 
-  def annotationCompatibility(value: Object): Annot[GType] = value.asInstanceOf[Annot[GType]]
+  def annotationCompatibility(value: Object): Annot[GType] =
+    value.asInstanceOf[Annot[GType]]
 
-  def optionSrcSpanCompatibility(value: Object): Option[SrcSpan] = value.asInstanceOf[Option[SrcSpan]]
+  def optionSrcSpanCompatibility(value: Object): Option[SrcSpan] =
+    value.asInstanceOf[Option[SrcSpan]]
 
-  def predictWithGModule(model: Model,
-                         sourcePath: Path,
-                         gModules: Vector[GModule],
-                         numOfThreads: Int,
-                         predictTopK: Int,
-                        ): PredictionResults = {
+  def predictWithGModule(
+      model: Model,
+      sourcePath: Path,
+      gModules: Vector[GModule],
+      numOfThreads: Int,
+      predictTopK: Int,
+  ): PredictionResults = {
     val predictionService = model.PredictionService(numOfThreads, predictTopK)
     predictionService.predictOnProject(
-      sourcePath, gModulesOpt = Some(gModules), warnOnErrors = false
+      sourcePath,
+      gModulesOpt = Some(gModules),
+      warnOnErrors = false
     )
   }
 
   def extractPredictionFromLocation(
-    map: Map[PNode, TopNDistribution[PType]], location: SrcSpan
+      map: Map[PNode, TopNDistribution[PType]],
+      location: SrcSpan
   ): TopNDistribution[PType] = {
     def matchLocation(span: SrcSpan) =
       span.start == location.start && span.until == location.until
     map
-      .collectFirst{ case (k, v) if matchLocation(k.srcSpan.get) => v }
+      .collectFirst { case (k, v) if matchLocation(k.srcSpan.get) => v }
       .getOrElse(throw new Error(s"No prediction for location: $location"))
   }
 
-  def typeForSrcSpanFromMap(map: Map[PNode, TopNDistribution[PType]], location: SrcSpan): String =
+  def typeForSrcSpanFromMap(
+      map: Map[PNode, TopNDistribution[PType]],
+      location: SrcSpan
+  ): String =
     extractPredictionFromLocation(map, location).topValue.showSimple
 
   def loadModel(modelPath: Path): Model = {

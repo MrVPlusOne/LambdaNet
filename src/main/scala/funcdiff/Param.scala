@@ -13,14 +13,14 @@ object ParameterAttribute {
 }
 
 /**
- * Each [[Param]] contains a mutable [[ParamNode]], representing a trainable parameter.
- *
- * Note that in the future, [[Param]] will not be serializable and should only be provided by
- * [[ParamCollection]] to ensure reference consistency. (currently keep it serializable
- * to be able to load previously trained model)
- *
- * todo: make this not serializable
- */
+  * Each [[Param]] contains a mutable [[ParamNode]], representing a trainable parameter.
+  *
+  * Note that in the future, [[Param]] will not be serializable and should only be provided by
+  * [[ParamCollection]] to ensure reference consistency. (currently keep it serializable
+  * to be able to load previously trained model)
+  *
+  * todo: make this not serializable
+  */
 @SerialVersionUID(1L)
 class Param(
     var node: ParamNode,
@@ -41,7 +41,7 @@ case class SymbolPath(repr: Symbol) {
     })
 
   @inline
-  def /(seg: String): SymbolPath = this/Symbol(seg)
+  def /(seg: String): SymbolPath = this / Symbol(seg)
 
   def ++(other: SymbolPath): SymbolPath = this / other.repr
 

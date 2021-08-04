@@ -39,8 +39,7 @@ trait LabelEncoder {
 
 object LabelEncoder {
 
-  case class RandomLabelEncoder(architecture: NNArchitecture)
-      extends LabelEncoder {
+  case class RandomLabelEncoder(architecture: NNArchitecture) extends LabelEncoder {
     def name: String = "RandomLabelEncoder"
 
     def dropoutProb: Real = 0.0
@@ -54,8 +53,7 @@ object LabelEncoder {
     }
   }
 
-  case class ConstantLabelEncoder(architecture: NNArchitecture)
-      extends LabelEncoder {
+  case class ConstantLabelEncoder(architecture: NNArchitecture) extends LabelEncoder {
     def name: String = "ConstLabelEncoder"
 
     private val zeroVec: Tensor = architecture.zeroVec()

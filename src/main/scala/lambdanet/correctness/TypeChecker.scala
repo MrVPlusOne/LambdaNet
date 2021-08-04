@@ -117,9 +117,14 @@ object TypeChecker {
       subtypesToCheck.groupBy(_._1).mapValuesNow(_.map(x => Right(Left(x._2))))
     val children: Bounds[NodeOrType] =
       subtypesToCheck.groupBy(_._2).mapValuesNow(_.map(x => Left(Left(x._1))))
-    val syntheticCalls = PMethodCall.generate(defineRels, libDefs).asInstanceOf[Set[PSyntheticCall]] ++ PFuncCall.generate(defineRels, libDefs).asInstanceOf[Set[PSyntheticCall]]
+    val syntheticCalls = PMethodCall
+      .generate(defineRels, libDefs)
+      .asInstanceOf[Set[PSyntheticCall]] ++ PFuncCall
+      .generate(defineRels, libDefs)
+      .asInstanceOf[Set[PSyntheticCall]]
     val callBounds = syntheticCallBounds(syntheticCalls)
-    val subtypingNodes = monoid[Bounds[NodeOrType]].combineAll(Seq(parents, children, callBounds))
+    val subtypingNodes =
+      monoid[Bounds[NodeOrType]].combineAll(Seq(parents, children, callBounds))
 
     val defaultContext = PTypeContext(graph, libDefs, additionalSubrel)
     TypeChecker(

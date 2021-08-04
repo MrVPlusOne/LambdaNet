@@ -17,7 +17,7 @@ object TypeInferenceService {
   ) {
     def sourceText(span: SrcSpan): String = {
       val SrcSpan((r1, c1), (r2, c2), file) = span
-      if (r1 == r2){
+      if (r1 == r2) {
         srcLines(file)(r1).substring(c1, c2)
       } else {
         srcLines(file)(r1).substring(c1) + " ..."
@@ -65,10 +65,12 @@ object TypeInferenceService {
         val line = scala.io.StdIn.readLine()
         require(line.trim().nonEmpty, "Specified path should not be empty.")
         val sourcePath = Path(line, amm.pwd)
-        val results = service.predictOnProject(
-          sourcePath,
-          warnOnErrors = false
-        ).prettyPrint()
+        service
+          .predictOnProject(
+            sourcePath,
+            warnOnErrors = false
+          )
+          .prettyPrint()
       } catch {
         case e: Throwable =>
           println(s"Got exception: ${e.getMessage}")

@@ -4,7 +4,12 @@ import lambdanet.translation.PredicateGraph._
 import QLang._
 import ammonite.ops.RelPath
 import funcdiff.SimpleMath
-import lambdanet.translation.ImportsResolution.{ErrorHandler, ModuleExports, NameDef, PathMapping}
+import lambdanet.translation.ImportsResolution.{
+  ErrorHandler,
+  ModuleExports,
+  NameDef,
+  PathMapping
+}
 import lambdanet.translation.PLang.PModule
 import lambdanet.Surface.GModule
 import lambdanet.utils.ProgramParsing

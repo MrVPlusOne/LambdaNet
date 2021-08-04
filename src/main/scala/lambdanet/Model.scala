@@ -154,7 +154,9 @@ case class Model(
       projWeight: Double,
       taskSupport: Option[ForkJoinTaskSupport],
       announceTimes: Boolean = false,
-  )(implicit mode: GraphMode): (Loss, ForwardResult, Map[PNode, TopNDistribution[PType]]) = {
+  )(
+      implicit mode: GraphMode
+  ): (Loss, ForwardResult, Map[PNode, TopNDistribution[PType]]) = {
     NeuralInference.checkOMP()
 
     val predSpace = datum.predictionSpace

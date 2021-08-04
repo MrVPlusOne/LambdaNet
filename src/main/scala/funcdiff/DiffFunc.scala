@@ -147,8 +147,7 @@ private[funcdiff] object DiffFunc {
     def name: String = "sum"
   }
 
-  case class SumByAxis(x1: CompNode, axis: Int, keepDim: Boolean = true)
-      extends UnaryFunc {
+  case class SumByAxis(x1: CompNode, axis: Int, keepDim: Boolean = true) extends UnaryFunc {
     val value: Tensor = ns.sumAxis(x1.value, axis, keepDim)
 
     def backprop1(grad: Gradient): Gradient = {
@@ -174,8 +173,7 @@ private[funcdiff] object DiffFunc {
   }
 
   case class LeakyRelu(x1: CompNode, slope: Double) extends UnaryFunc {
-    val value
-        : Tensor = ns.maximum(x1.value, 0.0) + ns.minimum(x1.value, 0.0) * slope
+    val value: Tensor = ns.maximum(x1.value, 0.0) + ns.minimum(x1.value, 0.0) * slope
 
     def backprop1(grad: Gradient): Gradient = {
       grad * ((x1.value > 0).boolToFloating + (x1.value < 0).boolToFloating * slope)
@@ -391,10 +389,9 @@ private[funcdiff] object DiffFunc {
   }
 
   /**
-   * @param fromRows Whether all arguments are row vectors and have the same shape.
-   */
-  case class ConcatN(args: IS[CompNode], axis: Int, fromRows: Boolean)
-      extends DiffFunc {
+    * @param fromRows Whether all arguments are row vectors and have the same shape.
+    */
+  case class ConcatN(args: IS[CompNode], axis: Int, fromRows: Boolean) extends DiffFunc {
 
     val value: Tensor =
       if (fromRows) ns.fromRows(args.map(_.value), axis)
@@ -445,8 +442,7 @@ private[funcdiff] object DiffFunc {
   }
 
   // ================ Loss functions ======================
-  case class CrossEntropyOnSoftmax(logits: CompNode, targets: Tensor)
-      extends UnaryFunc {
+  case class CrossEntropyOnSoftmax(logits: CompNode, targets: Tensor) extends UnaryFunc {
     require(
       targets.shape == logits.shape,
       s"Targets shape (${targets.shape}) is different from logits (${logits.shape})."
@@ -472,8 +468,7 @@ private[funcdiff] object DiffFunc {
     }
   }
 
-  case class CrossEntropyOnSigmoid(logits: CompNode, targets: Tensor)
-      extends UnaryFunc {
+  case class CrossEntropyOnSigmoid(logits: CompNode, targets: Tensor) extends UnaryFunc {
     require(targets.shape(1) == 1)
     require(logits.shape(1) == 1)
 

@@ -10,11 +10,13 @@ import TensorExtension.epsilon
 trait APITrait {
 
   sealed trait GraphMode
+
   /** [[CompNode]] created under this mode consumes less memory but does not support back
-   *  propagation. Use this mode during testing. */
+    *  propagation. Use this mode during testing. */
   case object ModeEval extends GraphMode
+
   /** [[CompNode]] created under this mode needs to keep the entire computation graph
-   * in the memory to support gradient back propagation. Use this mode during training. */
+    * in the memory to support gradient back propagation. Use this mode during training. */
   case object ModeTraining extends GraphMode
 
   var debugOpTime = true
@@ -32,7 +34,7 @@ trait APITrait {
 
   def funcNode(func: DiffFunc)(implicit mode: GraphMode): CompNode =
     mode match {
-      case ModeEval => new CompNode(ConstFunc(func.value))
+      case ModeEval     => new CompNode(ConstFunc(func.value))
       case ModeTraining => new CompNode(func)
     }
 
@@ -48,7 +50,8 @@ trait APITrait {
 
   def mean(x1: CompNode)(implicit mode: GraphMode): CompNode = funcNode(Mean(x1))
 
-  def mean(x1: CompNode, axis: Int)(implicit mode: GraphMode): CompNode = funcNode(MeanByAxis(x1, axis))
+  def mean(x1: CompNode, axis: Int)(implicit mode: GraphMode): CompNode =
+    funcNode(MeanByAxis(x1, axis))
 
   def square(x1: CompNode)(implicit mode: GraphMode): CompNode = x1 * x1
 
@@ -62,7 +65,9 @@ trait APITrait {
 
   def sum(x1: CompNode)(implicit mode: GraphMode): CompNode = funcNode(Sum(x1))
 
-  def sum(x1: CompNode, axis: Int, keepDim: Boolean = true)(implicit mode: GraphMode): CompNode =
+  def sum(x1: CompNode, axis: Int, keepDim: Boolean = true)(
+      implicit mode: GraphMode
+  ): CompNode =
     funcNode(SumByAxis(x1, axis, keepDim))
 
   def softmax(x1: CompNode)(implicit mode: GraphMode): CompNode = funcNode(Softmax(x1))
@@ -71,7 +76,8 @@ trait APITrait {
 
   def abs(x1: CompNode)(implicit mode: GraphMode): CompNode = funcNode(Abs(x1))
 
-  def max(x1: CompNode, x2: CompNode)(implicit mode: GraphMode): CompNode = funcNode(MaxBinary(x1, x2))
+  def max(x1: CompNode, x2: CompNode)(implicit mode: GraphMode): CompNode =
+    funcNode(MaxBinary(x1, x2))
 
   def plusN(xs: IS[CompNode])(implicit mode: GraphMode): CompNode = funcNode(PlusN(xs))
 
@@ -89,22 +95,32 @@ trait APITrait {
 
   def stackRows(xs: IS[CompNode])(implicit mode: GraphMode) = funcNode(StackRows(xs))
 
-  def concatTupledRows(rows: IS[(CompNode, CompNode)])(implicit mode: GraphMode): CompNode = {
+  def concatTupledRows(
+      rows: IS[(CompNode, CompNode)]
+  )(implicit mode: GraphMode): CompNode = {
     val (l, r) = rows.unzip
     stackRows(l).concat(stackRows(r), axis = 1)
   }
 
-  def crossEntropy(prediction: CompNode, targets: Tensor)(implicit mode: GraphMode): CompNode =
+  def crossEntropy(prediction: CompNode, targets: Tensor)(
+      implicit mode: GraphMode
+  ): CompNode =
     -sum(log(prediction + epsilon) * targets, axis = 1)
 
-  def crossEntropyOnSoftmax(logits: CompNode, targets: Tensor)(implicit mode: GraphMode): CompNode =
+  def crossEntropyOnSoftmax(logits: CompNode, targets: Tensor)(
+      implicit mode: GraphMode
+  ): CompNode =
     funcNode(CrossEntropyOnSoftmax(logits, targets))
 
-  def crossEntropyOnSigmoid(logits: CompNode, targets: Tensor)(implicit mode: GraphMode): CompNode = {
+  def crossEntropyOnSigmoid(logits: CompNode, targets: Tensor)(
+      implicit mode: GraphMode
+  ): CompNode = {
     funcNode(CrossEntropyOnSigmoid(logits, targets))
   }
 
-  def crossEntropyOnSoftmaxIneff(logits: CompNode, targets: Tensor)(implicit mode: GraphMode): CompNode =
+  def crossEntropyOnSoftmaxIneff(logits: CompNode, targets: Tensor)(
+      implicit mode: GraphMode
+  ): CompNode =
     -sum(log(softmax(logits) + epsilon) * targets, axis = 1)
 
   def normSquared(x1: CompNode)(implicit mode: GraphMode): CompNode =
@@ -178,7 +194,7 @@ trait APITrait {
 
   implicit class ExtendedFunctions(x1: CompNode) {
 
-    def unary_-(implicit mode: GraphMode) : CompNode = funcNode(Negate(x1))
+    def unary_-(implicit mode: GraphMode): CompNode = funcNode(Negate(x1))
 
     def t(implicit mode: GraphMode): CompNode = funcNode(Transpose(x1))
 
@@ -195,7 +211,8 @@ trait APITrait {
     def concat(x2: CompNode, axis: Int)(implicit mode: GraphMode): CompNode =
       funcNode(Concat(x1, x2, axis))
 
-    def slice(ranges: NumscaRange*)(implicit mode: GraphMode): CompNode = funcNode(Slice(x1, ranges))
+    def slice(ranges: NumscaRange*)(implicit mode: GraphMode): CompNode =
+      funcNode(Slice(x1, ranges))
 
     def dot(x2: CompNode)(implicit mode: GraphMode): CompNode = funcNode(Dot(x1, x2))
 

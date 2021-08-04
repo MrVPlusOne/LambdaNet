@@ -109,7 +109,7 @@ case class Joint(logits: CompNode) extends DecodingResult {
         log(mean(exp(logPs - b) * weights)) + b
       case LossAggMode.Product =>
         mean(logPs * weights)
-    }).tap{
+    }).tap {
       import TensorExtension.TensorWrapper
       l => assert(!l.value.hasNaN, "Loss contains NaN.")
     }
@@ -211,7 +211,7 @@ case class TwoStage(
     val projTargets = targets.filter(_ >= libNum).map(_ - libNum)
     val projLoss = lossFromRows(projRows, projTargets) * projWeight
 
-    if(aggMode == LossAggMode.Product)
+    if (aggMode == LossAggMode.Product)
       mean(libLoss.concat(projLoss, axis = 0)) + mean(binaryLoss)
     else
       throw new NotImplementedError(s"Loss for mode $aggMode not implemented yet.")

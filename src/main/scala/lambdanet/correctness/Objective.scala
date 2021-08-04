@@ -45,17 +45,17 @@ object Objective {
   }
 
   case class NegativeLogLikelihood(
-    proposal: TypeDistrs,
+      proposal: TypeDistrs,
   ) extends NegativeLogLikelihoodBase
 
   case class AverageNegativeLogLikelihood(
-    proposal: TypeDistrs,
+      proposal: TypeDistrs,
   ) extends AverageNLLBase
 
   case class PenalizedAverageNLL(
-    proposal: TypeDistrs,
-    checker: TypeChecker,
-    coefficient: Double
+      proposal: TypeDistrs,
+      checker: TypeChecker,
+      coefficient: Double
   ) extends PenalizedAverageNLLBase
 
   case class HammingLoss(

@@ -5,13 +5,7 @@ import ammonite.ops.RelPath
 import funcdiff.SimpleMath
 import lambdanet.{ExportLevel, ImportStmt, ProjectPath, ReferencePath}
 import lambdanet.translation.PLang._
-import lambdanet.translation.PredicateGraph.{
-  PAny,
-  PNode,
-  PNodeAllocator,
-  PTyVar,
-  PType
-}
+import lambdanet.translation.PredicateGraph.{PAny, PNode, PNodeAllocator, PTyVar, PType}
 import lambdanet._
 import lambdanet.ExportStmt._
 import lambdanet.ImportStmt._
@@ -350,9 +344,11 @@ object ImportsResolution {
         case Namespace(name, block, level) =>
           val exports = collectDefs(block.stmts)
           val thisDef = exports.internalSymbols.get('this)
-          assert(thisDef.isEmpty,
+          assert(
+            thisDef.isEmpty,
             s"in namespace: $name, definition: ${thisDef.get}, " +
-              s"block stmts:\n${block.stmts.mkString("\n")}")
+              s"block stmts:\n${block.stmts.mkString("\n")}"
+          )
           val nd = NameDef.namespaceDef(exports)
           val rhs =
             Map(name -> nd)
@@ -471,8 +467,7 @@ object ImportsResolution {
                     }
                   case i: ImportModule =>
                     ModuleExports(
-                      internalSymbols =
-                        Map(i.newName -> NameDef.namespaceDef(exports))
+                      internalSymbols = Map(i.newName -> NameDef.namespaceDef(exports))
                     )
                   case i: ImportDefault =>
                     if (exports == ModuleExports.empty)
@@ -506,8 +501,7 @@ object ImportsResolution {
                     .getOrElse(thisExports.internalSymbols)
                     .get(oldName)
                     .map(
-                      defs =>
-                        ModuleExports(publicSymbols = Map(newName -> defs))
+                      defs => ModuleExports(publicSymbols = Map(newName -> defs))
                     )
                     .combineAll
                 case ExportOtherModule(from) =>

@@ -133,8 +133,7 @@ object SimulatedAnnealingExperiment {
       nll = sumLogValues.nll.map(_ / params.numSamples),
       penalty = sumLogValues.penalty.map(_ / params.numSamples),
       nodeAccuracy = sumLogValues.nodeAccuracy.map(_ / params.numSamples),
-      correctedNodeAccuracy =
-        sumLogValues.correctedNodeAccuracy.map(_ / params.numSamples),
+      correctedNodeAccuracy = sumLogValues.correctedNodeAccuracy.map(_ / params.numSamples),
       proportionOfAny = sumLogValues.proportionOfAny.map(_ / params.numSamples),
       proportionOfNodesCoveredByAny =
         sumLogValues.proportionOfNodesCoveredByAny.map(_ / params.numSamples),
@@ -169,8 +168,7 @@ object SimulatedAnnealingExperiment {
       Seq(ys, bestYs, nll, penalty),
       CommonOptions(
         plotName = Some("Negative log-likelihoods over time on simple"),
-        axesNames =
-          (Some("Epoch"), Some("Negative log-likelihood (less is better)")),
+        axesNames = (Some("Epoch"), Some("Negative log-likelihood (less is better)")),
         legends = Some(Seq("current", "best", "NLL", "penalty"))
       )
     )

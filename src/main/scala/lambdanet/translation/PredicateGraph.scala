@@ -40,7 +40,7 @@ case class PredicateGraph(
     val maxId = nodes.map(_.getId).max
     val allocator = new PNodeAllocator(forLib = false, state = maxId + 1)
     val trans = new PredicateGraphTranslation.Translator(allocator)
-    for((k, v) <- typeMap) {
+    for ((k, v) <- typeMap) {
       trans.typeMap(k) = v
     }
     import trans.{addRel, encodePType}
@@ -48,7 +48,11 @@ case class PredicateGraph(
     newAnnots.foreach {
       case (n, ty) =>
         val rel =
-          BinaryRel(lhs = n.n, rhs = encodePType(ty), category = BinaryRelCat.userAnnotation)
+          BinaryRel(
+            lhs = n.n,
+            rhs = encodePType(ty),
+            category = BinaryRelCat.userAnnotation
+          )
         addRel(rel)
     }
 
@@ -401,7 +405,8 @@ object PredicateGraph {
     val userAnnotation = Value
   }
 
-  case class BinaryRel(lhs: PNode, rhs: PNode, category: BinaryRelCat.Value) extends TyPredicate {
+  case class BinaryRel(lhs: PNode, rhs: PNode, category: BinaryRelCat.Value)
+      extends TyPredicate {
     val allNodes: Set[PNode] = Set(lhs, rhs)
   }
 

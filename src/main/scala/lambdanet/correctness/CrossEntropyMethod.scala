@@ -3,7 +3,13 @@ package lambdanet.correctness
 import funcdiff.Real
 
 object CrossEntropyMethod {
-  case class CEResult[S, P](param: P, elites: Vector[S], scores: Vector[Real], converged: Boolean, iterations: Int)
+  case class CEResult[S, P](
+      param: P,
+      elites: Vector[S],
+      scores: Vector[Real],
+      converged: Boolean,
+      iterations: Int
+  )
 
   /**
     * @param x0 the initial parameter
@@ -11,15 +17,15 @@ object CrossEntropyMethod {
     * @tparam P Param
     */
   def ceMinimize[S, P](
-    f: S => Real,
-    x0: P,
-    genSamples: (P, Int) => Vector[S],
-    updateParam: (P, Vector[S], Vector[Real]) => P,
-    numSamples: Int,
-    numElites: Int,
-    isConverged: (P, Vector[S], Vector[Real], Int) => Boolean,
-    maxIters: Int = 1000,
-    metrics: Seq[(P, Vector[S], Vector[Real], Int) => Unit]
+      f: S => Real,
+      x0: P,
+      genSamples: (P, Int) => Vector[S],
+      updateParam: (P, Vector[S], Vector[Real]) => P,
+      numSamples: Int,
+      numElites: Int,
+      isConverged: (P, Vector[S], Vector[Real], Int) => Boolean,
+      maxIters: Int = 1000,
+      metrics: Seq[(P, Vector[S], Vector[Real], Int) => Unit]
   ): CEResult[S, P] = {
     var converged = false
     var t = 0

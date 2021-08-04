@@ -8,11 +8,9 @@ object ImportStmt {
       newName: Symbol
   ) extends ImportStmt
 
-  case class ImportDefault(path: ReferencePath, newName: Symbol)
-      extends ImportStmt
+  case class ImportDefault(path: ReferencePath, newName: Symbol) extends ImportStmt
 
-  case class ImportModule(path: ReferencePath, newName: Symbol)
-      extends ImportStmt
+  case class ImportModule(path: ReferencePath, newName: Symbol) extends ImportStmt
 
 }
 

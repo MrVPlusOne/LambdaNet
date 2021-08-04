@@ -434,7 +434,9 @@ abstract class NNArchitecture(
     TwoStage(pIsLib, libLogits, projLogits)
   }
 
-  def encodeFunction(args: Vector[CompNode], to: CompNode)(implicit mode: GraphMode): CompNode = {
+  def encodeFunction(args: Vector[CompNode], to: CompNode)(
+      implicit mode: GraphMode
+  ): CompNode = {
     (to +: args).zipWithIndex
       .map {
         case (a, i) => a -> encodePosition(i - 1)
@@ -541,11 +543,15 @@ abstract class NNArchitecture(
     linear(path / 'L0, dimMessage)(input)
   }
 
-  def messageLayer(path: SymbolPath)(input: CompNode)(implicit mode: GraphMode): CompNode = {
+  def messageLayer(
+      path: SymbolPath
+  )(input: CompNode)(implicit mode: GraphMode): CompNode = {
     fcNetwork(path, numLayer = messageLayers)(input)
   }
 
-  def nonLinearLayer(path: SymbolPath)(input: CompNode)(implicit mode: GraphMode): CompNode = {
+  def nonLinearLayer(
+      path: SymbolPath
+  )(input: CompNode)(implicit mode: GraphMode): CompNode = {
     fcNetwork(path, numLayer = 2)(input)
   }
 

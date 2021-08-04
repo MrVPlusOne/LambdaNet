@@ -17,7 +17,8 @@ class CompNode(val func: DiffFunc) extends Serializable {
 
   def shape: Shape = value.shape
 
-  def reshape(newShape: Shape)(implicit mode: GraphMode): CompNode = funcNode(Reshape(newShape, this))
+  def reshape(newShape: Shape)(implicit mode: GraphMode): CompNode =
+    funcNode(Reshape(newShape, this))
 
   def backprop: Map[CompNode, Gradient] = CompNode.backprop(this)
 
@@ -49,8 +50,7 @@ class CompNode(val func: DiffFunc) extends Serializable {
 }
 
 @SerialVersionUID(2L)
-class ParamNode(v: Tensor, val path: SymbolPath)
-    extends CompNode(ConstFunc(v)) {
+class ParamNode(v: Tensor, val path: SymbolPath) extends CompNode(ConstFunc(v)) {
 
   override def toString: String = {
     s"param{$path, shape=${value.shape}"

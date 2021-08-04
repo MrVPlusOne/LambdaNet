@@ -2,8 +2,16 @@ package lambdanet.correctness
 
 import ammonite.ops.RelPath
 import ammonite.{ops => amm}
-import lambdanet.correctness.CrossEntropyTypeInference.{AssignmentGen, IsConverged, UpdateTypeDistrs}
-import lambdanet.correctness.Objective.{AverageNegativeLogLikelihood, HammingLoss, NegativeLogLikelihood}
+import lambdanet.correctness.CrossEntropyTypeInference.{
+  AssignmentGen,
+  IsConverged,
+  UpdateTypeDistrs
+}
+import lambdanet.correctness.Objective.{
+  AverageNegativeLogLikelihood,
+  HammingLoss,
+  NegativeLogLikelihood
+}
 import lambdanet.translation.PredicateGraph
 import lambdanet.translation.PredicateGraph.{BinaryRel, BinaryRelCat, DefineRel}
 import lambdanet.translation.PredicateGraphLoader.libDefs

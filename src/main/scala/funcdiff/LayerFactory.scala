@@ -96,41 +96,42 @@ case class LayerFactory(
   def gru(
       name: SymbolPath,
       initializer: WeightsInitializer = LayerFactory.xavier
-  )(state: CompNode, input: CompNode)(implicit mode: GraphMode): CompNode = withPrefix(name) { prefix =>
-    val inputSize = input.shape(1)
-    val stateSize = state.shape(1)
+  )(state: CompNode, input: CompNode)(implicit mode: GraphMode): CompNode =
+    withPrefix(name) { prefix =>
+      val inputSize = input.shape(1)
+      val stateSize = state.shape(1)
 
-    val Wg = paramCollection
-      .getVar(prefix / 'Wg, attributes = Set(NeedRegularization)) {
-        initializer(inputSize, 2 * stateSize)
+      val Wg = paramCollection
+        .getVar(prefix / 'Wg, attributes = Set(NeedRegularization)) {
+          initializer(inputSize, 2 * stateSize)
+        }
+      val Ug = paramCollection
+        .getVar(prefix / 'Ug, attributes = Set(NeedRegularization)) {
+          initializer(stateSize, 2 * stateSize)
+        }
+      val bg = paramCollection.getVar(prefix / 'bg) {
+        ns.zeros(1, 2 * stateSize)
       }
-    val Ug = paramCollection
-      .getVar(prefix / 'Ug, attributes = Set(NeedRegularization)) {
-        initializer(stateSize, 2 * stateSize)
+
+      val gates = sigmoid(input.dot(Wg) + state.dot(Ug) + bg)
+      val updateGate = gates.slice(:>, 0 :> stateSize)
+      val restGate = gates.slice(:>, stateSize :>)
+
+      val Wh = paramCollection
+        .getVar(prefix / 'Wh, attributes = Set(NeedRegularization)) {
+          initializer(inputSize, stateSize)
+        }
+      val Uh = paramCollection
+        .getVar(prefix / 'Uh, attributes = Set(NeedRegularization)) {
+          initializer(stateSize, stateSize)
+        }
+      val bh = paramCollection.getVar(prefix / 'bh) {
+        ns.zeros(1, stateSize)
       }
-    val bg = paramCollection.getVar(prefix / 'bg) {
-      ns.zeros(1, 2 * stateSize)
+
+      val hHat = tanh(input.dot(Wh) + (state * restGate).dot(Uh) + bh)
+      updateGate * hHat + state * (-updateGate + 1)
     }
-
-    val gates = sigmoid(input.dot(Wg) + state.dot(Ug) + bg)
-    val updateGate = gates.slice(:>, 0 :> stateSize)
-    val restGate = gates.slice(:>, stateSize :>)
-
-    val Wh = paramCollection
-      .getVar(prefix / 'Wh, attributes = Set(NeedRegularization)) {
-        initializer(inputSize, stateSize)
-      }
-    val Uh = paramCollection
-      .getVar(prefix / 'Uh, attributes = Set(NeedRegularization)) {
-        initializer(stateSize, stateSize)
-      }
-    val bh = paramCollection.getVar(prefix / 'bh) {
-      ns.zeros(1, stateSize)
-    }
-
-    val hHat = tanh(input.dot(Wh) + (state * restGate).dot(Uh) + bh)
-    updateGate * hHat + state * (-updateGate + 1)
-  }
 
   /**
     * Long short-term memory unit: [https://en.wikipedia.org/wiki/Long_short-term_memory]
@@ -195,19 +196,20 @@ case class LayerFactory(
       name: SymbolPath,
       stateShape: Shape,
       combiner: (CompNode, CompNode) => CompNode
-  )(inputs: IS[CompNode])(implicit mode: GraphMode): IS[CompNode] = withPrefix(name) { prefix =>
-    val leftInit: CompNode = getVar(prefix / 'leftInit) {
-      ns.randn(stateShape)
-    }
-    val states1 = inputs.scanLeft(leftInit)(gru(name / 'leftRNN))
-    val rightInit: CompNode = getVar(prefix / 'rightInit) {
-      ns.randn(stateShape)
-    }
-    val states2 =
-      inputs.reverse.scanLeft(rightInit)(gru(name / 'rightRNN)).reverse
-    states1.zip(states2).map {
-      case (l, r) => combiner(l, r)
-    }
+  )(inputs: IS[CompNode])(implicit mode: GraphMode): IS[CompNode] = withPrefix(name) {
+    prefix =>
+      val leftInit: CompNode = getVar(prefix / 'leftInit) {
+        ns.randn(stateShape)
+      }
+      val states1 = inputs.scanLeft(leftInit)(gru(name / 'leftRNN))
+      val rightInit: CompNode = getVar(prefix / 'rightInit) {
+        ns.randn(stateShape)
+      }
+      val states2 =
+        inputs.reverse.scanLeft(rightInit)(gru(name / 'rightRNN)).reverse
+      states1.zip(states2).map {
+        case (l, r) => combiner(l, r)
+      }
   }
 
   /** performs weighted-sum over ys using dot-product attention */

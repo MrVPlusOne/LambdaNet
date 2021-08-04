@@ -7,7 +7,7 @@ import lambdanet.translation.{PAnnot, PredicateGraphLoader}
 // TODO: Can pre-filter annots for better performance
 case class AnnotAndType(annot: PType, typ: PType)
 
-case class Accuracy private(truth: Assignment) {
+case class Accuracy private (truth: Assignment) {
   def getWrongNodes(assignment: Assignment): Map[PNode, AnnotAndType] = {
     val annotatedNodes = assignment.filterKeys(truth.contains)
     for {
@@ -40,8 +40,8 @@ case class GroundTruth(truth: Assignment)
 object GroundTruth {
   // dummyImplicit needed to avoid type erasure issue
   def apply(
-    annots: Map[PNode, PAnnot],
-    toPlainType: Boolean
+      annots: Map[PNode, PAnnot],
+      toPlainType: Boolean
   )(implicit dummyImplicit: DummyImplicit): GroundTruth = {
     val gold = annots.collect {
       case (node, annot) if annot.typeOpt.nonEmpty => (node, annot.typeOpt.get)

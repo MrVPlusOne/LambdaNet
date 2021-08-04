@@ -11,7 +11,7 @@ object Statistics {
 
   object Average {
     def apply[T](
-      x: Option[T]
+        x: Option[T]
     )(implicit fractional: Fractional[T]): Average[T] =
       if (x.nonEmpty) {
         Average(x.get, 1)
@@ -21,15 +21,15 @@ object Statistics {
   }
 
   implicit def AverageMonoid[T](
-                                 implicit fractional: Fractional[T]
-                               ): Monoid[Average[T]] =
+      implicit fractional: Fractional[T]
+  ): Monoid[Average[T]] =
     new Monoid[Average[T]] {
       override def empty: Average[T] =
         Average(fractional.zero, 0)
 
       override def combine(
-        x: Average[T],
-        y: Average[T]
+          x: Average[T],
+          y: Average[T]
       ): Average[T] =
         Average(
           fractional.plus(x.sum, y.sum),

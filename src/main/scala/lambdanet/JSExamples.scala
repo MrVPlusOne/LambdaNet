@@ -38,21 +38,18 @@ object JSExamples {
   }
 
   val operatorTokens = Seq(
-    'LessThanToken, 'LessThanSlashToken, 'GreaterThanToken,
-    'LessThanEqualsToken, 'GreaterThanEqualsToken, 'EqualsEqualsToken,
-    'ExclamationEqualsToken, 'EqualsEqualsEqualsToken,
-    'ExclamationEqualsEqualsToken, 'EqualsGreaterThanToken, 'PlusToken,
-    'MinusToken, 'AsteriskToken, 'AsteriskAsteriskToken, 'SlashToken,
+    'LessThanToken, 'LessThanSlashToken, 'GreaterThanToken, 'LessThanEqualsToken,
+    'GreaterThanEqualsToken, 'EqualsEqualsToken, 'ExclamationEqualsToken,
+    'EqualsEqualsEqualsToken, 'ExclamationEqualsEqualsToken, 'EqualsGreaterThanToken,
+    'PlusToken, 'MinusToken, 'AsteriskToken, 'AsteriskAsteriskToken, 'SlashToken,
     'PercentToken, 'PlusPlusToken, 'MinusMinusToken, 'LessThanLessThanToken,
-    'GreaterThanGreaterThanToken, 'GreaterThanGreaterThanGreaterThanToken,
-    'AmpersandToken, 'BarToken, 'CaretToken, 'ExclamationToken, 'TildeToken,
-    'AmpersandAmpersandToken, 'BarBarToken, 'QuestionToken, 'ColonToken,
-    'AtToken, 'EqualsToken, 'PlusEqualsToken, 'MinusEqualsToken,
-    'AsteriskEqualsToken, 'AsteriskAsteriskEqualsToken, 'SlashEqualsToken,
-    'PercentEqualsToken, 'LessThanLessThanEqualsToken,
-    'GreaterThanGreaterThanEqualsToken,
-    'GreaterThanGreaterThanGreaterThanEqualsToken, 'AmpersandEqualsToken,
-    'BarEqualsToken, 'CaretEqualsToken, 'FirstCompoundAssignment
+    'GreaterThanGreaterThanToken, 'GreaterThanGreaterThanGreaterThanToken, 'AmpersandToken,
+    'BarToken, 'CaretToken, 'ExclamationToken, 'TildeToken, 'AmpersandAmpersandToken,
+    'BarBarToken, 'QuestionToken, 'ColonToken, 'AtToken, 'EqualsToken, 'PlusEqualsToken,
+    'MinusEqualsToken, 'AsteriskEqualsToken, 'AsteriskAsteriskEqualsToken,
+    'SlashEqualsToken, 'PercentEqualsToken, 'LessThanLessThanEqualsToken,
+    'GreaterThanGreaterThanEqualsToken, 'GreaterThanGreaterThanGreaterThanEqualsToken,
+    'AmpersandEqualsToken, 'BarEqualsToken, 'CaretEqualsToken, 'FirstCompoundAssignment
   )
 
   val specialVars = Map[Symbol, GType](

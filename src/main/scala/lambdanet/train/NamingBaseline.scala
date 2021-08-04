@@ -28,8 +28,7 @@ object NamingBaseline {
       import cats.implicits._
       testSet.par
         .map(
-          datum =>
-            testOnDatum(datum, useOracle = false, transformName).result //|+|
+          datum => testOnDatum(datum, useOracle = false, transformName).result //|+|
           //testOnDatum(datum, useOracle = true, transformName).result
         )
         .seq

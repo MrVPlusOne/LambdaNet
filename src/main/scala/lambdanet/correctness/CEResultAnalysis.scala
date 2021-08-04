@@ -34,18 +34,24 @@ object CEResultAnalysis {
     }
     println(ceResult.param.values.map(_.topValue).count(_ == PAny))
     val checker = TypeChecker(graph, libDefs)
-    val bad = ceResult.elites.iterator.map(x => (x, checker.violate(x))).filter(_._2.nonEmpty).take(5)
-    bad.foreach { case (assignment, set) =>
-      val relatedNodes: Set[PNode] = set.flatMap { case (a, b) => Set(a, b) }
-      println("Assignment:")
-      assignment.filterKeys(relatedNodes.contains).foreach(println)
-      println("Violated constraints:")
-      set.foreach { case (a, b) =>
-        checker.defaultContext.isSubtype(a, b, assignment)
-        println(a, b)
-      }
+    val bad =
+      ceResult.elites.iterator
+        .map(x => (x, checker.violate(x)))
+        .filter(_._2.nonEmpty)
+        .take(5)
+    bad.foreach {
+      case (assignment, set) =>
+        val relatedNodes: Set[PNode] = set.flatMap { case (a, b) => Set(a, b) }
+        println("Assignment:")
+        assignment.filterKeys(relatedNodes.contains).foreach(println)
+        println("Violated constraints:")
+        set.foreach {
+          case (a, b) =>
+            checker.defaultContext.isSubtype(a, b, assignment)
+            println(a, b)
+        }
 
-      println
+        println
     }
 
     val groundTruth = GroundTruth(nodeAnnots, toPlainType = true)

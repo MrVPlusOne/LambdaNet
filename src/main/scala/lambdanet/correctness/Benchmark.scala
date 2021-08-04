@@ -39,7 +39,11 @@ object Benchmark {
     SM.readObjectFromFile[Seq[ParsedProject]](chunkPath.toIO)
   }
 
-  def run(testSetPath: Path, predictionResultsPath: Path, outputPath: Path/*, experiment: Experiment*/): Unit = {
+  def run(
+      testSetPath: Path,
+      predictionResultsPath: Path,
+      outputPath: Path /*, experiment: Experiment*/
+  ): Unit = {
     if (!amm.exists(predictionResultsPath)) {
       amm.mkdir(predictionResultsPath)
     }

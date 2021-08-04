@@ -22,19 +22,19 @@ object SimulatedAnnealing {
     * Minimize f using simulated annealing. Record intermediate objective values.
     */
   def searchWithLog(
-    g: PredicateGraph,
-    proposal: TypeDistrs,
-    randomNeighbor: Assignment => (Assignment, Double),
-    project: Correction,
-    correct: Correction,
-    t: Int => Double,
-    numEpochs: Int,
-    f: Assignment => Double,
-    reboot: Boolean = false,
-    accuracy: Accuracy,
-    checker: TypeChecker,
-    // TODO: Use this to limit reboot times,
-    rebootLimit: Int = 5
+      g: PredicateGraph,
+      proposal: TypeDistrs,
+      randomNeighbor: Assignment => (Assignment, Double),
+      project: Correction,
+      correct: Correction,
+      t: Int => Double,
+      numEpochs: Int,
+      f: Assignment => Double,
+      reboot: Boolean = false,
+      accuracy: Accuracy,
+      checker: TypeChecker,
+      // TODO: Use this to limit reboot times,
+      rebootLimit: Int = 5
   ): (Assignment, IntermediateValues) = {
     val mostLikely = proposal.mapValues(_.topValue)
     var x = mostLikely
@@ -83,7 +83,8 @@ object SimulatedAnnealing {
       val projectX = project(nextX)
       val nextY = f(projectX)
       val deltaY = nextY - y
-      if (deltaY <= 0 || Random.nextDouble() < math.exp(-deltaY / t(epoch)) * transitionRatio) {
+      if (deltaY <= 0 || Random
+            .nextDouble() < math.exp(-deltaY / t(epoch)) * transitionRatio) {
         x = nextX
         y = nextY
       }
@@ -212,8 +213,7 @@ trait OneDifferenceRandomNeighborBase {
   }
 }
 
-trait WeightedOneDifferenceRandomNeighborBase
-    extends OneDifferenceRandomNeighborBase {
+trait WeightedOneDifferenceRandomNeighborBase extends OneDifferenceRandomNeighborBase {
   override def changeType(x: Assignment, nodeIndex: Int): (Assignment, Double) = {
     // fixme: Create a prefix-sum of type probabilities for O(log n) lookup
     val vec: Seq[(PNode, PType)] = x.toVector
@@ -223,13 +223,16 @@ trait WeightedOneDifferenceRandomNeighborBase
     val cmf = Random.nextDouble() * remainingProb
     val (_, newType) = {
       var sumProb = 0.0
-      distr.distr.map {
-        case (prob, t) =>
-          if (t != oldType) {
-            sumProb += prob
-          }
-          (sumProb, t)
-      }.dropWhile { case (sumProb, _) => sumProb < cmf }.head
+      distr.distr
+        .map {
+          case (prob, t) =>
+            if (t != oldType) {
+              sumProb += prob
+            }
+            (sumProb, t)
+        }
+        .dropWhile { case (sumProb, _) => sumProb < cmf }
+        .head
     }
     val pNewToOld = distr.typeProb(oldType) / (1 - distr.typeProb(newType))
     val pOldToNew = distr.typeProb(newType) / (1 - distr.typeProb(oldType))

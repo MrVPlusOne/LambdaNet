@@ -2,7 +2,15 @@ package funcdiff
 
 import ammonite.ops.Path
 
-import java.io.{File, FileInputStream, FileOutputStream, ObjectInputStream, ObjectOutputStream, ObjectStreamClass, Serializable}
+import java.io.{
+  File,
+  FileInputStream,
+  FileOutputStream,
+  ObjectInputStream,
+  ObjectOutputStream,
+  ObjectStreamClass,
+  Serializable
+}
 import scala.util.Random
 import collection.mutable
 import Numeric.Implicits._
@@ -106,7 +114,7 @@ object SimpleMath {
   def mean[T: Numeric](xs: Iterable[T]): Double = xs.sum.toDouble / xs.size
 
   def variance[T: Numeric](xs: Iterable[T]): Double = {
-    if(xs.size > 1) {
+    if (xs.size > 1) {
       val mu = mean(xs)
       xs.map(x => square(x.toDouble() - mu)).sum / (xs.size - 1)
     } else Double.NaN
@@ -465,10 +473,11 @@ object SimpleMath {
 
     def show: String = {
       stat.toSeq
-        .sortBy(_._2).reverseMap {
-        case (name, time) =>
-          s"$name: ${prettyPrintTime(time)}"
-      }
+        .sortBy(_._2)
+        .reverseMap {
+          case (name, time) =>
+            s"$name: ${prettyPrintTime(time)}"
+        }
         .mkString("\n")
     }
   }

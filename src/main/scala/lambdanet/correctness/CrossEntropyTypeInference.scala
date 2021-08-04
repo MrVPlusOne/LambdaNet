@@ -17,11 +17,11 @@ object CrossEntropyTypeInference {
   type Scores = Vector[Real]
 
   case class AssignmentGen(
-    projectNodes: Set[PNode],
-    checker: ValidTypeGen,
-    sameNodes: Set[Set[PNode]],
-    precomputedValidTypes: Map[PNode, Seq[PType]],
-    fixedAssignment: Assignment
+      projectNodes: Set[PNode],
+      checker: ValidTypeGen,
+      sameNodes: Set[Set[PNode]],
+      precomputedValidTypes: Map[PNode, Seq[PType]],
+      fixedAssignment: Assignment
   ) extends ((TypeDistrs, Int) => Samples) {
     private val logger = Logger(classOf[AssignmentGen])
 
@@ -62,11 +62,11 @@ object CrossEntropyTypeInference {
   }
 
   case class BeamSearch(
-    checker: ValidTypeGen,
-    sameNodes: Array[Set[PNode]],
-    precomputedValidTypes: Map[PNode, Array[PType]],
-    fixedAssignment: Assignment,
-    objective: Assignment => Double
+      checker: ValidTypeGen,
+      sameNodes: Array[Set[PNode]],
+      precomputedValidTypes: Map[PNode, Array[PType]],
+      fixedAssignment: Assignment,
+      objective: Assignment => Double
   ) {
     def search(param: TypeDistrs, k: Int): Array[Assignment] = {
       val topK = Array.fill(k)(fixedAssignment.withDefaultValue(PAny))
@@ -90,32 +90,55 @@ object CrossEntropyTypeInference {
   }
 
   object BeamSearch {
-    def apply(checker: ValidTypeGen,
-              sameNodes: Set[Set[PNode]],
-              precomputedValidTypes: Map[PNode, Set[PType]],
-              fixedAssignment: Assignment,
-              objective: Assignment => Double): BeamSearch = {
+    def apply(
+        checker: ValidTypeGen,
+        sameNodes: Set[Set[PNode]],
+        precomputedValidTypes: Map[PNode, Set[PType]],
+        fixedAssignment: Assignment,
+        objective: Assignment => Double
+    ): BeamSearch = {
 
-      new BeamSearch(checker, sameNodes.toArray, precomputedValidTypes.mapValuesNow(_.toArray), fixedAssignment, objective)
+      new BeamSearch(
+        checker,
+        sameNodes.toArray,
+        precomputedValidTypes.mapValuesNow(_.toArray),
+        fixedAssignment,
+        objective
+      )
     }
   }
 
   case class UpdateTypeDistrs(smoothing: Double)
-    extends ((TypeDistrs, Samples, Scores) => TypeDistrs) {
+      extends ((TypeDistrs, Samples, Scores) => TypeDistrs) {
     val monoid: Monoid[Map[PNode, Map[PType, Real]]] = implicitly
 
     override def apply(
-      distrs: TypeDistrs,
-      elites: Samples,
-      _scores: Scores
+        distrs: TypeDistrs,
+        elites: Samples,
+        _scores: Scores
     ): TypeDistrs = {
       val n = elites.size
-      val probs = elites.map(_.mapValues(x => Map(x -> 1.0 / n))).foldLeft(monoid.empty)(monoid.combine)
-      val totalProbs = multiply(distrs.mapValues(_.typeProb), smoothing) |+| multiply(probs, 1 - smoothing)
-      totalProbs.mapValuesNow(typeProbs => TopNDistribution(typeProbs.toVector.map(x => (x._2, x._1)).sortBy(-_._1), typeProbs))
+      val probs =
+        elites
+          .map(_.mapValues(x => Map(x -> 1.0 / n)))
+          .foldLeft(monoid.empty)(monoid.combine)
+      val totalProbs = multiply(distrs.mapValues(_.typeProb), smoothing) |+| multiply(
+        probs,
+        1 - smoothing
+      )
+      totalProbs.mapValuesNow(
+        typeProbs =>
+          TopNDistribution(
+            typeProbs.toVector.map(x => (x._2, x._1)).sortBy(-_._1),
+            typeProbs
+          )
+      )
     }
 
-    def multiply(distrs: Map[PNode, Map[PType, Real]], k: Real): Map[PNode, Map[PType, Real]] =
+    def multiply(
+        distrs: Map[PNode, Map[PType, Real]],
+        k: Real
+    ): Map[PNode, Map[PType, Real]] =
       distrs.mapValues(_.mapValues(_ * k))
   }
 
@@ -137,14 +160,17 @@ object CrossEntropyTypeInference {
     }
   }
 
-  class SampleAccuracy(maxIters: Int, accuracy: Accuracy) extends Metric with AverageAndStdev with Serializable {
+  class SampleAccuracy(maxIters: Int, accuracy: Accuracy)
+      extends Metric
+      with AverageAndStdev
+      with Serializable {
     def length: Int = maxIters
 
     override def apply(
-      _distrs: TypeDistrs,
-      elites: Samples,
-      _scores: Scores,
-      t: Int
+        _distrs: TypeDistrs,
+        elites: Samples,
+        _scores: Scores,
+        t: Int
     ): Unit = {
       recordAverageAndStdev(elites.map(accuracy.get), t)
       println(s"Accuracy at epoch $t: ${mean(t - 1)} +/- ${stdev(t - 1)}")
@@ -155,10 +181,10 @@ object CrossEntropyTypeInference {
     def length: Int = maxIters
 
     override def apply(
-      _distrs: TypeDistrs,
-      _elites: Samples,
-      scores: Scores,
-      t: Int
+        _distrs: TypeDistrs,
+        _elites: Samples,
+        scores: Scores,
+        t: Int
     ): Unit = {
       recordAverageAndStdev(scores, t)
     }
@@ -168,10 +194,10 @@ object CrossEntropyTypeInference {
     var best: Option[(Int, Real)] = None
 
     override def apply(
-      _distrs: TypeDistrs,
-      _elites: Samples,
-      scores: Scores,
-      t: Int
+        _distrs: TypeDistrs,
+        _elites: Samples,
+        scores: Scores,
+        t: Int
     ): Boolean = {
       val mean = scores.sum / scores.size
       if (best.isEmpty || best.exists { case (_, bestScore) => bestScore > mean }) {

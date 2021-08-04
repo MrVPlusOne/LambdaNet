@@ -14,8 +14,10 @@ object RunTrainedModel {
 
   val modelDir: Path = pwd / "models"
 
-  @deprecated("Instead of loading a ParamCollection, load a saved Model instead. The `Model` " +
-    "class contains the all the hyper-parameters needed to reconstruct the original model.")
+  @deprecated(
+    "Instead of loading a ParamCollection, load a saved Model instead. The `Model` " +
+      "class contains the all the hyper-parameters needed to reconstruct the original model."
+  )
   def runTrainedModel(
       paramPath: Path,
       sourcePath: Path,
@@ -50,10 +52,12 @@ object RunTrainedModel {
     val model = announced("Loading model...") {
       val pc = ParamCollection.fromFile(paramPath)
 
-      Training.Trainer(
-        Training.ModelConfig(),
-        SystemConfig(numOfThreads = numOfThreads, pwd / "test-trained")
-      ).makeModel(pc, dataSet)
+      Training
+        .Trainer(
+          Training.ModelConfig(),
+          SystemConfig(numOfThreads = numOfThreads, pwd / "test-trained")
+        )
+        .makeModel(pc, dataSet)
     }
 
     val datum = dataSet.testSet.head
