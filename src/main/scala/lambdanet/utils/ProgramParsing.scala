@@ -176,7 +176,7 @@ object ProgramParsing {
       GProject(
         root,
         srcTexts,
-        ProgramParsing.parseGModulesFromFiles(sources, root),
+        gModules,
         mapping,
         subProjects,
         devDependencies
