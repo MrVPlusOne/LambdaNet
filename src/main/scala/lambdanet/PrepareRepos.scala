@@ -5,8 +5,6 @@ import funcdiff.SimpleMath
 import lambdanet.Surface.GModule
 import lambdanet.translation.IR.IRModule
 import lambdanet.translation.ImportsResolution.{ErrorHandler, ModuleExports, NameDef}
-import lambdanet.translation.PredicateGraph._
-import lambdanet.translation._
 import lambdanet.translation.PredicateGraph.{DefineRel, LibNode, PNode, PNodeAllocator, PObject, PType, ProjNode, TyPredicate}
 import lambdanet.translation.QLang.QModule
 import lambdanet.translation._

@@ -4,7 +4,7 @@ import funcdiff.{GraphMode, ModeEval, ModeTraining}
 import ammonite.{ops => amm}
 import ammonite.ops.Path
 import lambdanet.NeuralInference.Predictor
-import lambdanet.PrepareRepos.{ParsedProject, parseProject, parseProjectWithGModule, parsedReposDir}
+import lambdanet.PrepareRepos.parseProject
 import lambdanet.Surface.GModule
 import lambdanet.TypeInferenceService.PredictionResults
 import lambdanet.architecture.LabelEncoder.TrainableLabelEncoder
