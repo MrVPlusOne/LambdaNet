@@ -1,20 +1,24 @@
 package driver;
 
 
+import ammonite.ops.Path;
 import funcdiff.SimpleMath$;
+import lambdanet.JavaAPI$;
 import lambdanet.Model;
+import lambdanet.TypeInferenceService;
+import lambdanet.TypeInferenceService$;
 
 public class JavaDriver {
     public static void main(String[] args) {
-        var api = lambdanet.JavaAPI$.MODULE$;
-        var workDir = api.pwd();
+        JavaAPI$ api = lambdanet.JavaAPI$.MODULE$;
+        Path workDir = api.pwd();
 
-        var modelDir = api.joinPath(workDir,
+        Path modelDir = api.joinPath(workDir,
                 "models/newParsing-GAT1-fc2-newSim-decay-6");
-        var modelCachePath = api.joinPath(modelDir, "model.serialized");
+        Path modelCachePath = api.joinPath(modelDir, "model.serialized");
 
-        var model = (Model)SimpleMath$.MODULE$.readObjectFromFile(modelCachePath);
-        var predService = api.predictionService(model, 8, 5);
+        Model model = (Model) SimpleMath$.MODULE$.readObjectFromFile(modelCachePath);
+        Model.PredictionService predService = api.predictionService(model, 8, 5);
         System.out.println("Type Inference Service successfully started.");
         System.out.println("Current working directory: " + workDir);
 
@@ -22,14 +26,14 @@ public class JavaDriver {
             // limit max loop iterations to 1000 in case something wrong happens
             System.out.print("Enter project path: ");
             System.out.flush();
-            var line = api.readLine();
+            String line = api.readLine();
             try {
-                assert !line.strip().isEmpty() : "Specified path should not be empty.";
-                var sourcePath = line.startsWith("/") ?
+                assert !line.trim().isEmpty() : "Specified path should not be empty.";
+                Path sourcePath = line.startsWith("/") ?
                         api.absPath(line) :
                         api.joinPath(workDir, line);
                 String[] skipSet = {"node_modules"};
-                var results =
+                TypeInferenceService.PredictionResults results =
                         predService.predictOnProject(sourcePath, false, skipSet);
                 results.prettyPrint();
                 System.out.println("DONE");

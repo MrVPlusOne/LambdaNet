@@ -2,9 +2,10 @@ package lambdanet
 
 import ammonite.ops._
 import funcdiff.SimpleMath
+import lambdanet.Surface.GModule
 import lambdanet.translation.IR.IRModule
 import lambdanet.translation.ImportsResolution.{ErrorHandler, ModuleExports, NameDef}
-import lambdanet.translation.PredicateGraph._
+import lambdanet.translation.PredicateGraph.{DefineRel, LibNode, PNode, PNodeAllocator, PObject, PType, ProjNode, TyPredicate}
 import lambdanet.translation.QLang.QModule
 import lambdanet.translation._
 import lambdanet.utils.ProgramParsing.GProject
@@ -655,6 +656,7 @@ object PrepareRepos {
       projectsBase: Path,
       projectRoot: Path,
       predictAny: Boolean,
+      gModules: Vector[GModule] = null,
       skipSet: Set[String] = Set("dist", "__tests__", "test", "tests"),
       shouldPruneGraph: Boolean = true,
       shouldPrintProject: Boolean = false,
@@ -666,6 +668,7 @@ object PrepareRepos {
 
       val p = ProgramParsing.parseGProjectFromRoot(
         projectRoot,
+        gModules,
         filter = (path: Path) => {
           path.segments.forall(!skipSet.contains(_))
         }
@@ -715,5 +718,4 @@ object PrepareRepos {
 
       ParsedProject(projectName, p.srcTexts, qModules, irModules, graph, predictAny)
     }
-
 }

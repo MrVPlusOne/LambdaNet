@@ -65,19 +65,6 @@ package object lambdanet extends SimpleMath.ExtensionsTrait {
     }
   }
 
-  case class SrcSpan(
-      start: (Int, Int),
-      until: (Int, Int),
-      srcFile: ProjectPath,
-  ) {
-    def showShort(oneBasedLineNumber: Boolean = true): String = {
-      val zeroIdx = if (oneBasedLineNumber) 1 else 0
-      val start1 = (start._1 + zeroIdx, start._2 + zeroIdx)
-      val until1 = (until._1 + zeroIdx, until._2 + zeroIdx)
-      s"$start1-$until1"
-    }
-  }
-
   sealed trait Annot[+T] {
     def map[B](f: T => B): Annot[B] = this match {
       case Annot.User(ty, b) => Annot.User(f(ty), b)
@@ -119,6 +106,19 @@ package object lambdanet extends SimpleMath.ExtensionsTrait {
     case class Fixed[T](ty: T) extends WithContent[T]
 
     case object Missing extends Annot[Nothing]
+  }
+
+  case class SrcSpan(
+      start: (Int, Int),
+      until: (Int, Int),
+      srcFile: ProjectPath,
+  ) {
+    def showShort(oneBasedLineNumber: Boolean = true): String = {
+      val zeroIdx = if (oneBasedLineNumber) 1 else 0
+      val start1 = (start._1 + zeroIdx, start._2 + zeroIdx)
+      val until1 = (until._1 + zeroIdx, until._2 + zeroIdx)
+      s"$start1-$until1"
+    }
   }
 
   implicit class AssertionSyntax[T](x: T) {

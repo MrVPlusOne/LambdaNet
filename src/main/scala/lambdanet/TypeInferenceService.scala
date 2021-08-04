@@ -63,7 +63,7 @@ object TypeInferenceService {
       System.out.flush()
       try {
         val line = scala.io.StdIn.readLine()
-        require(line.strip().nonEmpty, "Specified path should not be empty.")
+        require(line.trim().nonEmpty, "Specified path should not be empty.")
         val sourcePath = Path(line, amm.pwd)
         val results = service.predictOnProject(
           sourcePath,

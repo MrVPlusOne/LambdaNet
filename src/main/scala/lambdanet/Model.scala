@@ -1,10 +1,12 @@
 package lambdanet
 
+import Lambdanet.LambdanetForkJoinWorkerThreadFactory
 import funcdiff.{GraphMode, ModeEval, ModeTraining}
 import ammonite.{ops => amm}
 import ammonite.ops.Path
 import lambdanet.NeuralInference.Predictor
-import lambdanet.PrepareRepos.{ParsedProject, parseProject, parsedReposDir}
+import lambdanet.PrepareRepos.parseProject
+import lambdanet.Surface.GModule
 import lambdanet.TypeInferenceService.PredictionResults
 import lambdanet.architecture.LabelEncoder.TrainableLabelEncoder
 import lambdanet.architecture.{LabelEncoder, NNArchitecture}
@@ -237,7 +239,11 @@ case class Model(
   ) {
     val taskSupport: Option[ForkJoinTaskSupport] =
       if (numOfThreads > 1)
-        Some(new ForkJoinTaskSupport(new ForkJoinPool(numOfThreads)))
+        Some(new ForkJoinTaskSupport(new ForkJoinPool(
+                                            numOfThreads,
+                                            new LambdanetForkJoinWorkerThreadFactory(),
+                                            null,
+                                            false)))
       else None
 
     lazy val nonGenerifyIt = nonGenerify(libDefs)
@@ -269,6 +275,7 @@ case class Model(
 
     def predictOnProject(
         sourcePath: Path,
+        gModules: Vector[GModule] = null,
         skipSet: Set[String] = Set("node_modules"),
         alsoPredictNonSourceNodes: Boolean = false,
         warnOnErrors: Boolean,
@@ -278,11 +285,12 @@ case class Model(
           libDefs,
           sourcePath / amm.up,
           sourcePath,
+          predictAny,
+          gModules,
           skipSet = skipSet,
           shouldPruneGraph = false,
           errorHandler = handler,
           warnOnErrors = warnOnErrors,
-          predictAny = predictAny,
         )
       }
 

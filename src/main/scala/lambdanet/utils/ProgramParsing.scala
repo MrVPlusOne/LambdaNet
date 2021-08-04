@@ -88,6 +88,7 @@ object ProgramParsing {
 
   def parseGProjectFromRoot(
       root: Path,
+      gModules: Vector[GModule] = null,
       declarationFileMode: Boolean = false,
       filter: Path => Boolean = _ => true
   ): GProject = {
@@ -171,15 +172,25 @@ object ProgramParsing {
       .map(_._2)
       .toSet[PackageFile]
       .flatMap(_.devDependencies.flatMap(handleTypesPrefix))
-
-    GProject(
-      root,
-      srcTexts,
-      ProgramParsing.parseGModulesFromFiles(sources, root),
-      mapping,
-      subProjects,
-      devDependencies
-    )
+    if(gModules != null) {
+      GProject(
+        root,
+        srcTexts,
+        gModules,
+        mapping,
+        subProjects,
+        devDependencies
+      )
+    } else {
+      GProject(
+        root,
+        srcTexts,
+        ProgramParsing.parseGModulesFromFiles(sources, root),
+        mapping,
+        subProjects,
+        devDependencies
+      )
+    }
   }
 
   def parseJson(text: String): Js.Val = {
