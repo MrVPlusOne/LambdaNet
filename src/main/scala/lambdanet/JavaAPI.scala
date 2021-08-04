@@ -71,7 +71,7 @@ object JavaAPI {
                          predictTopK: Int,
                         ): PredictionResults = {
     val predictionService = model.PredictionService(numOfThreads, predictTopK)
-    predictionService.predictOnProjectWithGModules(sourcePath, gModules, warnOnErrors = false)
+    predictionService.predictOnProject(sourcePath, gModules, warnOnErrors = false)
   }
 
   def typeForSrcSpanFromMap(map: Map[PNode, TopNDistribution[PType]], srcSpan: Option[SrcSpan]): String = {

@@ -88,6 +88,7 @@ object ProgramParsing {
 
   def parseGProjectFromRoot(
       root: Path,
+      gModules: Vector[GModule] = null,
       declarationFileMode: Boolean = false,
       filter: Path => Boolean = _ => true
   ): GProject = {
@@ -171,112 +172,25 @@ object ProgramParsing {
       .map(_._2)
       .toSet[PackageFile]
       .flatMap(_.devDependencies.flatMap(handleTypesPrefix))
-
-    GProject(
-      root,
-      srcTexts,
-      ProgramParsing.parseGModulesFromFiles(sources, root),
-      mapping,
-      subProjects,
-      devDependencies
-    )
-  }
-
-  def parseGProjectFromGModules(
-                             root: Path,
-                             gModules: Vector[GModule],
-                             declarationFileMode: Boolean = false,
-                             filter: Path => Boolean = _ => true
-                           ): GProject = {
-    require(root.isDir)
-    val packageFiles =
-      ls.rec(root)
-        .filter(f => filter(f) && f.last == "package.json")
-        .map(f => f -> parsePackageFile(f))
-    val subProjects =
-      (for {
-        (f, pkg) <- packageFiles
-        name <- pkg.moduleName
-      } yield {
-        def isIndexFile(p: FilePath): Boolean = {
-          p.last == "index.ts" || p.last == "index.d.ts"
-        }
-
-        val linkTarget =
-          if (ls(f / up).toVector.any(isIndexFile)) f / up
-          else f / up / "src"
-        name -> linkTarget.relativeTo(root)
-      }).toMap
-
-    val baseDirs = {
-      def rec(
-               path: Path,
-               baseUrl: Option[ProjectPath]
-             ): Map[Dir, Option[ProjectPath]] = {
-        require(path.isDir)
-        val paths = ls(path)
-        val newBase = lambdanet.combineOption(
-          baseUrl,
-          paths
-            .find(_.last == "tsconfig.json")
-            .flatMap(
-              f =>
-                parseTsConfigFile(f).baseUrl
-                  .map((f / up).relativeTo(root) / _)
-            )
-        )
-
-        Map(path.relativeTo(root) -> newBase) ++ paths
-          .filter(_.isDir)
-          .flatMap(rec(_, newBase))
-      }
-      rec(root, None)
+    if(gModules != null) {
+      GProject(
+        root,
+        srcTexts,
+        ProgramParsing.parseGModulesFromFiles(sources, root),
+        mapping,
+        subProjects,
+        devDependencies
+      )
+    } else {
+      GProject(
+        root,
+        srcTexts,
+        ProgramParsing.parseGModulesFromFiles(sources, root),
+        mapping,
+        subProjects,
+        devDependencies
+      )
     }
-
-    val aliases: Map[ProjectPath, ProjectPath] =
-      (for {
-        f <- ls.rec(root) if f.isSymLink
-        pointsTo <- f.tryFollowLinks
-      } yield f.relativeTo(root) -> pointsTo.relativeTo(root)).toMap
-    val mapping = BasicPathMapping(subProjects, baseDirs, aliases)
-
-    val sources = ls
-      .rec(root)
-      .filter(filter)
-      .filter(_.isFile)
-      .filter { f =>
-        val name = f.last
-        if (declarationFileMode) name.endsWith(".d.ts")
-        else {
-          name.endsWith(".ts") ||
-            name.endsWith(".d.ts") ||
-            name.endsWith(".tsx")
-        }
-      }
-      .map(_.relativeTo(root))
-
-    val srcTexts = sources.map{ p =>
-      p -> read(root/p)
-    }.toMap
-
-    def handleTypesPrefix(p: ProjectPath): Set[ProjectPath] = {
-      if (p.segments.head == "@types") Set(RelPath(p.segments.tail, 0), p)
-      else Set(p)
-    }
-
-    val devDependencies = packageFiles
-      .map(_._2)
-      .toSet[PackageFile]
-      .flatMap(_.devDependencies.flatMap(handleTypesPrefix))
-
-    GProject(
-      root,
-      srcTexts,
-      gModules,
-      mapping,
-      subProjects,
-      devDependencies
-    )
   }
 
   def parseJson(text: String): Js.Val = {

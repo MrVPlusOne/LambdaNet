@@ -270,74 +270,37 @@ case class Model(
 
     def predictOnProject(
         sourcePath: Path,
+        gModules: Vector[GModule] = null,
         skipSet: Set[String] = Set("node_modules"),
         alsoPredictNonSourceNodes: Boolean = false,
         warnOnErrors: Boolean,
     ): PredictionResults = {
       val project = announced("parse project") {
-        parseProject(
-          libDefs,
-          sourcePath / amm.up,
-          sourcePath,
-          skipSet = skipSet,
-          shouldPruneGraph = false,
-          errorHandler = handler,
-          warnOnErrors = warnOnErrors,
-          predictAny = predictAny,
-        )
+        if(gModules != null) {
+          parseProject(
+            libDefs,
+            sourcePath / amm.up,
+            sourcePath,
+            predictAny,
+            gModules,
+            skipSet = skipSet,
+            shouldPruneGraph = false,
+            errorHandler = handler,
+            warnOnErrors = warnOnErrors,
+          )
+        } else {
+          parseProject(
+            libDefs,
+            sourcePath / amm.up,
+            sourcePath,
+            skipSet = skipSet,
+            shouldPruneGraph = false,
+            errorHandler = handler,
+            warnOnErrors = warnOnErrors,
+            predictAny = predictAny,
+          )
+        }
       }
-
-      def checkSource(node: PredicateGraph.PNode): Boolean =
-        alsoPredictNonSourceNodes || node.srcSpan.nonEmpty
-
-      // all user annotations will be used
-      val userAnnotations = project.allUserAnnots.mapValuesNow(nonGenerifyIt)
-
-      val graph = project.pGraph.addUserAnnotations(userAnnotations)
-      val stats = ProjectStats.computeProjectStats(
-        project.pGraph,
-        libTypesToPredict,
-        libDefs,
-        onlyPredictLibType,
-        predictAny,
-      )
-      val predictor = Predictor(
-        graph,
-        stats,
-        libDefs,
-        taskSupport,
-        onlyPredictLibType,
-        predictAny,
-      )
-
-      val nodesToPredict = project.allAnnots.keySet.collect {
-        case n if n.fromProject && checkSource(n) => ProjNode(n)
-      } -- project.nonInferredUserAnnots.keySet
-      val prediction = predictForNodes(nodesToPredict.toVector, predictor, predictTopK)
-      val srcLines = project.srcTexts.mapValuesNow(_.split("\n"))
-      PredictionResults(prediction, srcLines)
-    }
-
-    def predictOnProjectWithGModules(
-                          sourcePath: Path,
-                          gModules: Vector[GModule],
-                          warnOnErrors: Boolean,
-                          alsoPredictNonSourceNodes: Boolean = false,
-                          skipSet: Set[String] = Set("node_modules"),
-                          onlyPredictLibType: Boolean = false,
-                        ) = {
-      val project =
-        parseProjectWithGModule(
-          libDefs,
-          sourcePath / amm.up,
-          sourcePath,
-          gModules,
-          skipSet = skipSet,
-          shouldPruneGraph = false,
-          errorHandler = handler,
-          warnOnErrors = warnOnErrors,
-          predictAny = predictAny,
-        )
 
       def checkSource(node: PredicateGraph.PNode): Boolean =
         alsoPredictNonSourceNodes || node.srcSpan.nonEmpty
