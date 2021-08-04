@@ -1,5 +1,6 @@
 package lambdanet
 
+import Lambdanet.LambdanetForkJoinWorkerThreadFactory
 import funcdiff.{GraphMode, ModeEval, ModeTraining}
 import ammonite.{ops => amm}
 import ammonite.ops.Path
@@ -238,7 +239,11 @@ case class Model(
   ) {
     val taskSupport: Option[ForkJoinTaskSupport] =
       if (numOfThreads > 1)
-        Some(new ForkJoinTaskSupport(new ForkJoinPool(numOfThreads)))
+        Some(new ForkJoinTaskSupport(new ForkJoinPool(
+                                            numOfThreads,
+                                            new LambdanetForkJoinWorkerThreadFactory(),
+                                            null,
+                                            false)))
       else None
 
     lazy val nonGenerifyIt = nonGenerify(libDefs)

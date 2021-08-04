@@ -431,13 +431,7 @@ private[funcdiff] object DiffFunc {
 
     def name: String = "stackRows"
 
-    def value: Tensor = {
-      val current = Thread.currentThread().getContextClassLoader
-      Thread.currentThread().setContextClassLoader(this.getClass.getClassLoader)
-      val v = ns.stackTensorRows(args.map(_.value))
-      Thread.currentThread().setContextClassLoader(current)
-      v
-    }
+    def value: Tensor = ns.stackTensorRows(args.map(_.value))
 
     def backProp(grad: Gradient): IS[Gradient] = {
       grad match {
