@@ -272,8 +272,6 @@ case class Model(
         stats,
         libDefs,
         taskSupport,
-        onlyPredictLibType,
-        predictAny,
       )
       val nodes =
         pGraph.projNodes.filter(nodeSelector).map(ProjNode)
@@ -321,8 +319,6 @@ case class Model(
         stats,
         libDefs,
         taskSupport,
-        onlyPredictLibType,
-        predictAny,
       )
 
       val nodesToPredict = project.allAnnots.keySet.collect {

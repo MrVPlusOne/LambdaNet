@@ -1,4 +1,4 @@
-package lambdanet
+package lambdanet.test
 
 import ammonite.ops._
 import funcdiff.ParamCollection
@@ -7,6 +7,7 @@ import lambdanet.train.{DataSet, Timeouts, Training}
 import lambdanet.translation.ImportsResolution.{ErrorHandler, NameDef}
 import lambdanet.translation.PredicateGraph.{PAny, PNode}
 import lambdanet.utils.QLangDisplay
+import lambdanet.{Annot, PrepareRepos, announced, printResult, train, translation}
 
 import scala.util.Random
 

@@ -50,8 +50,6 @@ object NeuralInference {
       stats: ProjectStats,
       libDefs: LibDefs,
       taskSupport: Option[ForkJoinTaskSupport],
-      onlyPredictLibType: Boolean,
-      predictAny: Boolean,
   ) {
     import stats._
     private val parallelism =

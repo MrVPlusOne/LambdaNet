@@ -301,8 +301,6 @@ case class ProcessedProject(
       stats,
       libDefs,
       taskSupport,
-      onlyPredictLibType = stats.onlyPredictLibType,
-      predictAny = stats.predictAny,
     )
   }
 

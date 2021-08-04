@@ -63,7 +63,7 @@ object EvalUserAnnots {
           prog.step()
           (fr.totalCorrect, fr.libCorrect, fr.projCorrect)
         }
-        (toAccuracy(total) * 100, toAccuracy(lib) * 100, toAccuracy(proj) * 100)
+        (toAccuracy(total)*100, toAccuracy(lib)*100, toAccuracy(proj)*100)
       }.unzip3
       table.append(s"$ratio, ")
       table.append(Vector(totalAcc, libAcc, projAcc).map(Gaussian.apply).mkString(", "))
@@ -75,17 +75,5 @@ object EvalUserAnnots {
       write.over(modelDir / "EvalUserAnnots.csv", table.mkString)
     }
     prog.close()
-  }
-
-  case class Gaussian(mean: Double, std: Double) {
-    override def toString: String = {
-      val precision = if (std < 1.0) math.ceil(-math.log10(std)).toInt else 1
-      s"%.${precision}f±%.${precision + 1}f".format(mean, std)
-    }
-  }
-
-  object Gaussian {
-    def apply(xs: Seq[Double]): Gaussian =
-      Gaussian(mean(xs), stdDev(xs))
   }
 }
