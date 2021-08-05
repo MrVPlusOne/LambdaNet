@@ -735,10 +735,10 @@ object Training {
       *
       * @see [[lambdanet.translation.PredicateGraph.addUserAnnotations]].
       */
-    def randomSplit(
-        allAnnotations: Map[ProjNode, PType],
+    def randomSplit[K,V](
+        allAnnotations: Map[K, V],
         random: Random
-    ): (Map[ProjNode, PType], Map[ProjNode, PType]) = {
+    ): (Map[K, V], Map[K, V]) = {
       val pKeep = random.nextDouble() * (maxKeepProb - minKeepProb) + minKeepProb
       val nKeep = (pKeep * allAnnotations.size).toInt
       val (keep, drop) = random

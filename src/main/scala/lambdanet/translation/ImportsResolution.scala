@@ -65,6 +65,15 @@ object ImportsResolution {
 
       def aliases: Map[ProjectPath, ProjectPath] = Map()
     }
+
+    def asIs: PathMapping = new PathMapping with Serializable {
+      def map(
+          currentDir: ProjectPath,
+          pathToResolve: ProjectPath
+      ): ProjectPath = currentDir / pathToResolve
+
+      def aliases: Map[ProjectPath, ProjectPath] = Map()
+    }
   }
 
   /** Type and term definitions that are associated with a symbol */
@@ -201,7 +210,8 @@ object ImportsResolution {
   }
 
   sealed trait ResolutionError extends Error
-  case class SourceFileMissingError(path: ProjectPath, ctx: ModuleExports) extends ResolutionError {
+  case class SourceFileMissingError(path: ProjectPath, ctx: ModuleExports)
+      extends ResolutionError {
     override def toString: String =
       s"Source file missing for path: $path, ctx: $ctx"
   }

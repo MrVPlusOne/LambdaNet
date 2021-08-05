@@ -433,6 +433,7 @@ object SimpleMath {
   //    1 - vSum / variance
   //  }
 
+  /** Measure the time of the computation in nano sections. */
   def measureTime[R](block: => R): (R, Long) = {
     val t0 = System.nanoTime()
     val result = block
@@ -440,7 +441,7 @@ object SimpleMath {
     result -> (t1 - t0)
   }
 
-  def measureTimeAsSeconds[R](block: => R): (R, Double) = {
+  def measureTimeAsMillis[R](block: => R): (R, Double) = {
     val (r, long) = measureTime(block)
     (r, long.toDouble / 1e6)
   }

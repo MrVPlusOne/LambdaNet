@@ -67,6 +67,7 @@ object NeuralInference {
         encodeLibSignature: Boolean,
     )(implicit mode: GraphMode) {
       import architecture.{randomVar}
+      require(nodesToPredict.nonEmpty)
 
       /** returns softmax logits */
       def result: DecodingResult = {

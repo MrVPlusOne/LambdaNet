@@ -354,7 +354,7 @@ object PrepareRepos {
     }
 
     @transient
-    lazy val rawAllUserAnnots: Map[PNode, PAnnot] =
+    lazy val rawAllUserAnnots: Map[PNode, Annot.User[PType]] =
       allAnnots.collect {
         case (n, ant @ Annot.User(_, _)) if !shouldExclude(ant) =>
           n -> ant
@@ -657,11 +657,7 @@ object PrepareRepos {
 
     val newNodes = activeNodes.map(_.n) ++ graph.nodes.filter(_.fromLib)
     val newAnnots = graph.userAnnotations.filter { case (n, _) => newNodes.contains(n.n) }
-    PredicateGraph(newNodes, newPredicates, newAnnots, graph.typeMap).tap { g =>
-      printResult(
-        s"Before pruning: ${graph.nodes.size}, after: ${g.nodes.size}"
-      )
-    }
+    PredicateGraph(newNodes, newPredicates, newAnnots, graph.typeMap)
   }
 
   def parseProjectFromFiles(

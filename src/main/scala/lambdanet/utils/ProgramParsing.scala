@@ -72,6 +72,7 @@ object ProgramParsing {
     }
   }
 
+  @SerialVersionUID(7731257002629775234L)
   case class GProject(
       path: ProjectPath,
       srcTexts: Map[ProjectPath, String],
@@ -87,12 +88,16 @@ object ProgramParsing {
   }
 
   object GProject {
-    def fromSingleModule(module: GModule, path: ProjectPath, srcCode: String): GProject =
+    def fromSingleModule(
+        module: GModule,
+        path: ProjectPath,
+        srcTexts: Map[ProjectPath, String]
+    ): GProject =
       GProject(
         path = path,
-        srcTexts = Map(module.path -> srcCode),
+        srcTexts = srcTexts,
         modules = Vector(module),
-        pathMapping = PathMapping.empty,
+        pathMapping = PathMapping.asIs,
         subProjects = Map(),
         devDependencies = Set(),
       )

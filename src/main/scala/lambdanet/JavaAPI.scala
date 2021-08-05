@@ -83,27 +83,38 @@ object JavaAPI {
   def optionSrcSpanCompatibility(value: Object): Option[SrcSpan] =
     value.asInstanceOf[Option[SrcSpan]]
 
+  /**
+    * Note that `projectPath` should be without extension, whereas `srcFilePath`
+    * should include file extension.
+    */
   def predictSingleGModule(
       model: Model,
       projectPath: ProjectPath,
       module: GModule,
+      srcFilePath: ProjectPath,
       srcCode: String,
       numOfThreads: Int,
       predictTopK: Int,
+      announceTimes: Boolean = true,
   ): PredictionResults = {
     val predictionService = model.PredictionService(numOfThreads, predictTopK)
-    val project = GProject.fromSingleModule(module, projectPath, srcCode)
-    val pp = PrepareRepos.parseGProject(
-      project,
-      model.libDefs,
-      model.config.predictAny,
-      warnOnErrors = false,
-      errorHandler = ErrorHandler.alwaysStoreError
-    )
-    predictionService.predictOnParsedProject(
-      pp,
-      alsoPredictNonSourceNodes = false
-    )
+    val project =
+      GProject.fromSingleModule(module, projectPath, Map(srcFilePath -> srcCode))
+    val pp = announced("parse GProject", announceTimes){
+      PrepareRepos.parseGProject(
+        project,
+        model.libDefs,
+        model.config.predictAny,
+        warnOnErrors = false,
+        errorHandler = ErrorHandler.alwaysStoreError
+      )
+    }
+    announced("model prediction", announceTimes){
+      predictionService.predictOnParsedProject(
+        pp,
+        alsoPredictNonSourceNodes = false
+      )
+    }
   }
 
   def extractPredictionFromLocation(

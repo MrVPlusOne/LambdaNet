@@ -507,6 +507,9 @@ abstract class NNArchitecture(
     import cats.implicits._
     import numsca.:>
 
+    if(inputs.isEmpty)
+      return Map()
+
     val (nodes, vectors) = inputs.unzip
 
     val output = transformation(stackRows(vectors))
@@ -523,6 +526,9 @@ abstract class NNArchitecture(
   )(implicit mode: GraphMode): Map[K, Chain[CompNode]] = {
     import cats.implicits._
     import numsca.:>
+
+    if(inputs.isEmpty)
+      return Map()
 
     val (nodes, vectors) = inputs.unzip
     val (l, r) = vectors.unzip

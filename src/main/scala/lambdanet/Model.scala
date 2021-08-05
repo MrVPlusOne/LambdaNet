@@ -126,7 +126,7 @@ case class Model(
       predictTopK: Int,
   ): Map[PNode, TopNDistribution[PType]] = {
     val predSpace = predictor.stats.predictionSpace
-    val decoding = announced("run predictor") {
+    val decoding =
       predictor
         .run(
           architecture,
@@ -139,7 +139,6 @@ case class Model(
           encodeLibSignature,
         )(ModeEval)
         .result
-    }
     val predVec = decoding
       .topNPredictionsWithCertainty(predictTopK)
       .map { _.map(predSpace.typeOfIndex) }
@@ -298,20 +297,45 @@ case class Model(
           warnOnErrors = warnOnErrors,
         )
       }
-      predictOnParsedProject(p, alsoPredictNonSourceNodes)
+      predictOnParsedProject(p, alsoPredictNonSourceNodes = alsoPredictNonSourceNodes)
+    }
+
+    /**
+      * Given a parsed project, predict all on all nodes that has a corresponding missing
+      * type annotation in the source file. Existing annotations (both user-annotated and
+      * compiler-inferred) will be used as part of the input, unless they are also in the
+      * `excludeAnnots` set.
+      *
+      * @param alsoPredictNonSourceNodes if set to true, will also make predictions on
+      * nodes without a source file location (e.g.
+      * intermediate program expressions.)
+      */
+    def predictOnParsedProject(
+        project: ParsedProject,
+        excludeAnnots: Set[ProjNode] = Set(),
+        alsoPredictNonSourceNodes: Boolean = false,
+    ): PredictionResults = {
+      def checkSource(node: PredicateGraph.PNode): Boolean =
+        alsoPredictNonSourceNodes || node.srcSpan.nonEmpty
+
+      val nodesToPredict = project.allAnnots.keySet.collect {
+        case n if n.fromProject && checkSource(n) => ProjNode(n)
+      } -- project.nonInferredUserAnnots.keySet
+      val prediction = predictOnParsedProject(project, nodesToPredict, excludeAnnots)
+      val srcLines = project.srcTexts.mapValuesNow(_.split("\n"))
+      PredictionResults(prediction, srcLines)
     }
 
     def predictOnParsedProject(
         project: ParsedProject,
-        alsoPredictNonSourceNodes: Boolean = false,
-    ) = {
-      def checkSource(node: PredicateGraph.PNode): Boolean =
-        alsoPredictNonSourceNodes || node.srcSpan.nonEmpty
-
+        nodesToPredict: Set[ProjNode],
+        excludeAnnots: Set[ProjNode],
+    ): Map[PNode, TopNDistribution[PType]] = {
       // all user annotations will be used
-      val userAnnotations = project.allUserAnnots.mapValuesNow(nonGenerifyIt)
+      val userAnnots = project.allUserAnnots.mapValuesNow(nonGenerifyIt)
+      val inputAnnots = userAnnots -- excludeAnnots
 
-      val graph = project.pGraph.addUserAnnotations(userAnnotations)
+      val graph = project.pGraph.addUserAnnotations(inputAnnots)
       val stats = ProjectStats.computeProjectStats(
         project.pGraph,
         libTypesToPredict,
@@ -326,12 +350,7 @@ case class Model(
         taskSupport,
       )
 
-      val nodesToPredict = project.allAnnots.keySet.collect {
-        case n if n.fromProject && checkSource(n) => ProjNode(n)
-      } -- project.nonInferredUserAnnots.keySet
-      val prediction = predictForNodes(nodesToPredict.toVector, predictor, predictTopK)
-      val srcLines = project.srcTexts.mapValuesNow(_.split("\n"))
-      PredictionResults(prediction, srcLines)
+      predictForNodes(nodesToPredict.toVector, predictor, predictTopK)
     }
 
     /** Convenient method for Java API. */

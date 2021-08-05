@@ -84,9 +84,10 @@ object DataSet {
     val data: Vector[Vector[ProcessedProject]] = {
       ((trainSet ++ devSet).zip(Stream.continually(true)) ++
         testSet.zip(Stream.continually(testSetUseInferred))).toVector.par.map {
-        case (p @ ParsedProject(path, _, qModules, irModules, g, _), useInferred) =>
+        case (p, useInferred) =>
+          import p.{path, qModules, pGraph}
           val stats = ProjectStats.computeProjectStats(
-            g,
+            pGraph,
             libTypesToPredict,
             libDefs,
             onlyPredictLibType,
@@ -110,7 +111,7 @@ object DataSet {
               projectName = path,
               nodesToPredict = toPredict,
               visibleAnnotations = visible,
-              graph = g,
+              graph = pGraph,
               qModules = qModules.map { m =>
                 m.copy(mapping = m.mapping.mapValuesNow(_.map(nonGenerifyIt)))
               },
