@@ -66,7 +66,7 @@ object TypeInferenceService {
         require(line.trim().nonEmpty, "Specified path should not be empty.")
         val sourcePath = Path(line, amm.pwd)
         service
-          .predictOnProject(
+          .predictOnSourceFiles(
             sourcePath,
             warnOnErrors = false
           )

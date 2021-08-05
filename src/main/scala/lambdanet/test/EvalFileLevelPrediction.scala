@@ -1,7 +1,7 @@
 package lambdanet.test
 
 import funcdiff.{GraphMode, ModeEval}
-import lambdanet.Configs
+import lambdanet.{Configs, Model}
 import lambdanet.test.TestUtils.loadModelData
 
 import java.util.concurrent.ForkJoinPool
@@ -13,8 +13,7 @@ class EvalFileLevelPrediction {
     val (model, repos, _) = loadModelData(modelDir)
     val annotsRatio = 0.5
 
-    val numOfThreads = Configs().numOfThreads()
-    val taskSupport = new ForkJoinTaskSupport(new ForkJoinPool(numOfThreads))
+    val taskSupport = Model.mkTaskSupport(Configs().numOfThreads())
     implicit val m: GraphMode = ModeEval
 
     import cats.implicits._

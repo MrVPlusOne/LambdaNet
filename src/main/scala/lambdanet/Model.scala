@@ -4,7 +4,7 @@ import funcdiff.{GraphMode, ModeEval, ModeTraining}
 import ammonite.{ops => amm}
 import ammonite.ops.Path
 import lambdanet.NeuralInference.Predictor
-import lambdanet.PrepareRepos.parseProject
+import lambdanet.PrepareRepos.{ParsedProject, parseGProject, parseProjectFromFiles}
 import lambdanet.Surface.GModule
 import lambdanet.TypeInferenceService.PredictionResults
 import lambdanet.architecture.LabelEncoder.TrainableLabelEncoder
@@ -15,6 +15,7 @@ import lambdanet.train._
 import lambdanet.translation.ImportsResolution.ErrorHandler
 import lambdanet.translation.PredicateGraph
 import lambdanet.translation.PredicateGraph.{LibTypeNode, PNode, PType, ProjNode}
+import lambdanet.utils.ProgramParsing.GProject
 
 import java.util.concurrent.{ForkJoinPool, ForkJoinWorkerThread}
 import scala.collection.parallel.ForkJoinTaskSupport
@@ -278,28 +279,32 @@ case class Model(
       predictForNodes(nodes.toVector, predictor, predictTopK)
     }
 
-    def predictOnProject(
+    def predictOnSourceFiles(
         sourcePath: Path,
-        gModulesOpt: Option[Vector[GModule]] = None,
         skipSet: Set[String] = Set("node_modules"),
         alsoPredictNonSourceNodes: Boolean = false,
         shouldPruneGraph: Boolean = false,
         warnOnErrors: Boolean,
     ): PredictionResults = {
-      val project = announced("parse project") {
-        parseProject(
+      val p = announced("parse project") {
+        parseProjectFromFiles(
           libDefs,
           sourcePath / amm.up,
           sourcePath,
-          predictAny,
-          gModulesOpt,
+          predictAny = predictAny,
           skipSet = skipSet,
           shouldPruneGraph = shouldPruneGraph,
           errorHandler = handler,
           warnOnErrors = warnOnErrors,
         )
       }
+      predictOnParsedProject(p, alsoPredictNonSourceNodes)
+    }
 
+    def predictOnParsedProject(
+        project: ParsedProject,
+        alsoPredictNonSourceNodes: Boolean = false,
+    ) = {
       def checkSource(node: PredicateGraph.PNode): Boolean =
         alsoPredictNonSourceNodes || node.srcSpan.nonEmpty
 
@@ -335,7 +340,7 @@ case class Model(
         warnOnErrors: Boolean,
         skipSet: Array[String],
     ): PredictionResults = {
-      predictOnProject(
+      predictOnSourceFiles(
         sourcePath,
         skipSet = skipSet.toSet,
         warnOnErrors = warnOnErrors,

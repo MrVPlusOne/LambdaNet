@@ -16,7 +16,7 @@ object PrecomputeResults {
     val outputPath = inputPath / "results.serialized"
     if (amm.exists(outputPath) && !overwrite)
       return
-    val results = service.predictOnProject(
+    val results = service.predictOnSourceFiles(
       inputPath,
       warnOnErrors = false
     )

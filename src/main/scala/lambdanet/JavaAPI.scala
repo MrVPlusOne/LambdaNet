@@ -7,8 +7,11 @@ import lambdanet.Annot.{Fixed, Missing, User}
 import lambdanet.Surface.GModule
 import lambdanet.TypeInferenceService.PredictionResults
 import lambdanet.train.TopNDistribution
+import lambdanet.translation.ImportsResolution.ErrorHandler
 import lambdanet.translation.PredicateGraph.{PNode, PType}
 import lambdanet.utils.Js.Null
+import lambdanet.utils.ProgramParsing
+import lambdanet.utils.ProgramParsing.GProject
 
 import scala.io.StdIn
 
@@ -80,18 +83,26 @@ object JavaAPI {
   def optionSrcSpanCompatibility(value: Object): Option[SrcSpan] =
     value.asInstanceOf[Option[SrcSpan]]
 
-  def predictWithGModule(
+  def predictSingleGModule(
       model: Model,
-      sourcePath: Path,
-      gModules: Vector[GModule],
+      projectPath: ProjectPath,
+      module: GModule,
+      srcCode: String,
       numOfThreads: Int,
       predictTopK: Int,
   ): PredictionResults = {
     val predictionService = model.PredictionService(numOfThreads, predictTopK)
-    predictionService.predictOnProject(
-      sourcePath,
-      gModulesOpt = Some(gModules),
-      warnOnErrors = false
+    val project = GProject.fromSingleModule(module, projectPath, srcCode)
+    val pp = PrepareRepos.parseGProject(
+      project,
+      model.libDefs,
+      model.config.predictAny,
+      warnOnErrors = false,
+      errorHandler = ErrorHandler.alwaysStoreError
+    )
+    predictionService.predictOnParsedProject(
+      pp,
+      alsoPredictNonSourceNodes = false
     )
   }
 

@@ -4,7 +4,12 @@ import ammonite.ops._
 import funcdiff.SimpleMath
 import lambdanet.Surface.GModule
 import lambdanet.translation.IR.IRModule
-import lambdanet.translation.ImportsResolution.{ErrorHandler, ModuleExports, NameDef}
+import lambdanet.translation.ImportsResolution.{
+  ErrorHandler,
+  ModuleExports,
+  NameDef,
+  PathMapping
+}
 import lambdanet.translation.PredicateGraph.{
   DefineRel,
   LibNode,
@@ -134,7 +139,7 @@ object PrepareRepos {
         .flatMap { f =>
           val r = if (countTsCode(f, dir) < maxLinesOfCode) {
             try {
-              val p0 = parseProject(
+              val p0 = parseProjectFromFiles(
                 libDefs,
                 dir,
                 f,
@@ -329,16 +334,18 @@ object PrepareRepos {
     *                 the `srcSpan` field in `PNode`, this can be used to map the predictions
     *                 back into source code positions.
     */
-  @SerialVersionUID(2)
+  @SerialVersionUID(3)
   case class ParsedProject(
-      path: ProjectPath,
-      srcTexts: Map[ProjectPath, String],
+      gProject: GProject,
       qModules: Vector[QModule],
       irModules: Vector[IRModule],
       pGraph: PredicateGraph,
       predictAny: Boolean,
   ) {
     import NameDef.{isAny, unknownType}
+
+    def path: ProjectPath = gProject.path
+    def srcTexts: Map[ProjectPath, String] = gProject.srcTexts
 
     def allAnnots: Map[PNode, PAnnot] = irModules.flatMap(_.mapping).toMap
 
@@ -403,7 +410,7 @@ object PrepareRepos {
     def serializeIntoDir(
         dir: Path,
         timeoutSeconds: Int = 200,
-        chunkSize: Int = 50
+        chunkSize: Int = 30,
     ): Unit = {
       import cats.implicits._
 
@@ -424,7 +431,6 @@ object PrepareRepos {
         SM.saveObjectToFile((dir / "libDefs").toIO)(libDefs)
       }
 
-      val chunkSize = 30
       val chunks = withName(
         (trainSet ++ devSet ++ testSet).grouped(chunkSize).toList,
         "chunk"
@@ -537,8 +543,9 @@ object PrepareRepos {
     println("parsing library modules...")
     val GProject(_, _, modules, mapping, subProjects, devDependencies) =
       ProgramParsing
-        .parseGProjectFromRoot(
+        .parseGProjectFromFiles(
           declarationsDir,
+          declarationsDir / up,
           declarationFileMode = true
         )
 
@@ -624,10 +631,7 @@ object PrepareRepos {
     LibDefs(baseCtx1, nodeMapping, libExports, classes)
   }
 
-  def pruneGraph(
-      graph: PredicateGraph,
-      needed: Set[ProjNode]
-  ): PredicateGraph = {
+  def pruneGraph(graph: PredicateGraph, needed: Set[ProjNode]): PredicateGraph = {
     val predicates: Map[PNode, Set[TyPredicate]] = {
       graph.predicates
         .flatMap(p => p.allNodes.map(n => n -> p))
@@ -660,12 +664,11 @@ object PrepareRepos {
     }
   }
 
-  def parseProject(
+  def parseProjectFromFiles(
       libDefs: LibDefs,
-      projectsBase: Path,
+      allProjectsDir: Path,
       projectRoot: Path,
       predictAny: Boolean,
-      gModulesOpt: Option[Vector[GModule]] = None,
       skipSet: Set[String] = Set("dist", "__tests__", "test", "tests"),
       shouldPruneGraph: Boolean = true,
       shouldPrintProject: Boolean = false,
@@ -673,11 +676,9 @@ object PrepareRepos {
       errorHandler: ErrorHandler = ErrorHandler.alwaysThrowError,
   ): ParsedProject =
     SimpleMath.withErrorMessage(s"In project: $projectRoot") {
-      import libDefs._
-
-      val p = ProgramParsing.parseGProjectFromRoot(
+      val p = ProgramParsing.parseGProjectFromFiles(
         projectRoot,
-        gModulesOpt,
+        allProjectsDir: Path,
         filter = (path: Path) => {
           path.segments.forall(!skipSet.contains(_))
         }
@@ -685,12 +686,30 @@ object PrepareRepos {
 
       if (shouldPrintProject) println { p.prettyPrint }
 
+      val pp =
+        parseGProject(p, libDefs, predictAny, shouldPruneGraph, warnOnErrors, errorHandler)
+
+      if (warnOnErrors) errorHandler.warnErrors()
+
+      printResult(s"Project parsed: '${pp.path}', number of nodes: ${pp.pGraph.nodes.size}")
+      pp
+    }
+
+  def parseGProject(
+      p: GProject,
+      libDefs: LibDefs,
+      predictAny: Boolean,
+      shouldPruneGraph: Boolean = true,
+      warnOnErrors: Boolean = true,
+      errorHandler: ErrorHandler = ErrorHandler.alwaysThrowError,
+  ): ParsedProject =
+    SimpleMath.withErrorMessage(s"In project: ${p.path}") {
+      import libDefs.{baseCtx, libExports}
+
       val allocator = new PNodeAllocator(forLib = false)
       val irTranslator = new IRTranslation(allocator)
 
-      val projectName = projectRoot.relativeTo(projectsBase)
       val qModules = QLangTranslation.fromProject(
-        projectName,
         p.modules,
         baseCtx,
         libExports,
@@ -722,9 +741,7 @@ object PrepareRepos {
 
       if (warnOnErrors)
         errorHandler.warnErrors()
-      printResult(s"Project parsed: '$projectRoot'")
-      println("number of nodes: " + graph.nodes.size)
 
-      ParsedProject(projectName, p.srcTexts, qModules, irModules, graph, predictAny)
+      ParsedProject(p, qModules, irModules, graph, predictAny)
     }
 }

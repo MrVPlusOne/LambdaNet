@@ -32,7 +32,7 @@ object RunTrainedModel {
     val libDefs = repos.libDefs
     val handler = ErrorHandler(ErrorHandler.StoreError, ErrorHandler.StoreError)
     val testProject =
-      parseProject(
+      parseProjectFromFiles(
         libDefs,
         sourcePath / up,
         sourcePath,

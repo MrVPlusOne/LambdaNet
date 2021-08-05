@@ -163,7 +163,7 @@ class ParserTests extends WordSpec with MyTest {
     val f = pwd / RelPath("data/tests/export-import")
     lambdanet.shouldWarn = true
     val parsed =
-      parseProject(
+      parseProjectFromFiles(
         libDefs,
         f / up,
         f,
@@ -189,7 +189,7 @@ class ParserTests extends WordSpec with MyTest {
 
     def runOnProject(projDir: Path): Unit = {
       val parsed =
-        parseProject(
+        parseProjectFromFiles(
           libDefs,
           projDir / up,
           projDir,

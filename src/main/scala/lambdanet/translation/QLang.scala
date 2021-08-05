@@ -276,7 +276,6 @@ object QLangTranslation {
   }
 
   def fromProject(
-      projectName: RelPath,
       modules: Vector[GModule],
       baseCtx: ModuleExports,
       resolved: Map[ProjectPath, ModuleExports],

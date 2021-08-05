@@ -1,5 +1,6 @@
 package lambdanet.test
 
+import TestUtils._
 import funcdiff.{GraphMode, ModeEval}
 import ammonite.ops._
 import funcdiff.SimpleMath.{mean, readObjectFromFile, stdDev}
@@ -17,28 +18,15 @@ import scala.collection.parallel.ForkJoinTaskSupport
   * the user annotations and conditioning the prediction on the rest.
   */
 object EvalUserAnnots {
-  def loadModelData(modelDir: Path) = {
-    val modelPath = modelDir / "model.serialized"
-    val model = announced("Loading model") {
-      readObjectFromFile[Model](modelPath)
-    }
-    import model.config.{predictAny, onlyPredictLibType}
-    val repos = ParsedRepos.readFromDir(parsedReposDir(predictAny))
-    val dataSet = DataSet.makeDataSet(repos, onlyPredictLibType, predictAny)
-    (model, dataSet)
-  }
 
   def main(args: Array[String]): Unit = {
-    val modelDir = pwd / RelPath(
-      "running-results/UserAnnot-v1.3-GAT1-fc2AnnotsSampling(0.0,0.81)--decay-lossAgg_sum-encodeSignature-6/saved/bestModel",
-    )
+    val modelDir = Configs().modelDir()
     printInfo(s"Evaluating model at $modelDir...")
-    val (model, dataSet) = loadModelData(modelDir)
+    val (model, repos, dataSet) = loadModelData(modelDir)
     val annotsRatios = Vector(0.0, 0.2, 0.4, 0.6, 0.8, 0.9)
     val repeats = 10
 
-    val numOfThreads = Configs().numOfThreads()
-    val taskSupport = new ForkJoinTaskSupport(new ForkJoinPool(numOfThreads))
+    val taskSupport = Model.mkTaskSupport(Configs().numOfThreads())
     val table = new StringBuilder()
     table.append("Ratio, Total Acc, Lib Acc, Proj Acc\n")
     implicit val m: GraphMode = ModeEval

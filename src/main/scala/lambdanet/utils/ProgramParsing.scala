@@ -73,7 +73,7 @@ object ProgramParsing {
   }
 
   case class GProject(
-      root: Path,
+      path: ProjectPath,
       srcTexts: Map[ProjectPath, String],
       modules: Vector[GModule],
       pathMapping: PathMapping,
@@ -81,18 +81,31 @@ object ProgramParsing {
       devDependencies: Set[ProjectPath]
   ) {
     def prettyPrint: String = {
-      s"=== Project: $root ===\n" +
+      s"=== Project: $path ===\n" +
         modules.map(_.prettyPrint).mkString("\n")
     }
   }
 
-  def parseGProjectFromRoot(
+  object GProject {
+    def fromSingleModule(module: GModule, path: ProjectPath, srcCode: String): GProject =
+      GProject(
+        path = path,
+        srcTexts = Map(module.path -> srcCode),
+        modules = Vector(module),
+        pathMapping = PathMapping.empty,
+        subProjects = Map(),
+        devDependencies = Set(),
+      )
+  }
+
+  def parseGProjectFromFiles(
       root: Path,
-      gModulesOpt: Option[Vector[GModule]] = None,
+      allProjectsDir: Path,
       declarationFileMode: Boolean = false,
       filter: Path => Boolean = _ => true
   ): GProject = {
     require(root.isDir)
+    require(root != allProjectsDir)
     val packageFiles =
       ls.rec(root)
         .filter(f => filter(f) && f.last == "package.json")
@@ -172,19 +185,15 @@ object ProgramParsing {
       .map(_._2)
       .toSet[PackageFile]
       .flatMap(_.devDependencies.flatMap(handleTypesPrefix))
-    gModulesOpt match {
-      case Some(gModules) =>
-        GProject(root, srcTexts, gModules, mapping, subProjects, devDependencies)
-      case None =>
-        GProject(
-          root,
-          srcTexts,
-          ProgramParsing.parseGModulesFromFiles(sources, root),
-          mapping,
-          subProjects,
-          devDependencies
-        )
-    }
+
+    GProject(
+      root.relativeTo(allProjectsDir),
+      srcTexts,
+      ProgramParsing.parseGModulesFromFiles(sources, root),
+      mapping,
+      subProjects,
+      devDependencies
+    )
   }
 
   def parseJson(text: String): Js.Val = {

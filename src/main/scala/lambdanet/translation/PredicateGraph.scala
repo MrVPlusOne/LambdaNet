@@ -2,7 +2,7 @@ package lambdanet.translation
 
 import ammonite.ops.{Path, up}
 import funcdiff.SimpleMath
-import lambdanet.PrepareRepos.{ParsedProject, libDefsFile, parseProject}
+import lambdanet.PrepareRepos.{ParsedProject, libDefsFile, parseProjectFromFiles}
 import lambdanet.Surface.GStmt
 import lambdanet.translation.ImportsResolution.{ErrorHandler, NameDef}
 import lambdanet.translation.PredicateGraph.PSyntheticCall.signatureOpt
@@ -762,7 +762,7 @@ object PredicateGraphLoader {
     load(dir, libDefs)
 
   def load(dir: Path, libDefs: LibDefs): ParsedProject =
-    parseProject(
+    parseProjectFromFiles(
       libDefs,
       dir / up,
       dir,
