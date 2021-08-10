@@ -4,7 +4,7 @@ import funcdiff.{GraphMode, ModeEval, SimpleMath}
 import lambdanet.PrepareRepos.parseGProject
 import lambdanet.{ChainingSyntax, Configs}
 import lambdanet.test.TestUtils.{Gaussian, loadModelData}
-import lambdanet.train.{Counted, toAccuracy}
+import lambdanet.train.{Counted, toAccuracy, toAccuracyD}
 import lambdanet.train.Training.AnnotsSampling
 import lambdanet.translation.ImportsResolution.ErrorHandler
 import lambdanet.utils.ProgramParsing.GProject
@@ -52,7 +52,7 @@ object EvalFileLevelPrediction {
         if (toPredict.isEmpty) {
           // No prediction needed; skip this file
           prog.step()
-          (Counted.zero(0), Vector(), Vector())
+          (Map[Boolean, Counted[Int]](), Vector(), Vector())
         } else {
           val (preds, predTime) = SimpleMath.measureTimeAsMillis {
             service.predictOnParsedProject(
@@ -63,7 +63,9 @@ object EvalFileLevelPrediction {
           }
           val acc = preds.toList.foldMap {
             case (n, tDist) =>
-              Counted.fromBool(toPredict(ProjNode(n)) == tDist.topValue)
+              val label = toPredict(ProjNode(n))
+              val isLib = label.madeFromLibTypes
+              Map(isLib -> Counted.fromBool(label == tDist.topValue))
           }
           prog.step()
           (acc, Vector(parseTime), Vector(predTime))
@@ -72,8 +74,13 @@ object EvalFileLevelPrediction {
     }
     prog.close()
 
+    val totalAcc = toAccuracy(avgAcc(true) |+| avgAcc(false))
+    val libAcc = toAccuracy(avgAcc(true))
+    val projAcc = toAccuracy(avgAcc(false))
     val summary =
-      s"""average accuracy: ${toAccuracy(avgAcc)*100}%
+      s"""total accuracy: ${totalAcc*100}%
+         |library type accuracy: ${libAcc*100}%
+         |project type accuracy: ${projAcc*100}%
          |parsing time: ${Gaussian(parseTimes)}ms
          |inference time: ${Gaussian(predTimes)}ms""".stripMargin
     println("----- Results -----")
