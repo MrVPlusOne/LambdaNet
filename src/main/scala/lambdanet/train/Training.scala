@@ -29,9 +29,10 @@ object Training {
   def main(args: Array[String]): Unit = {
     checkMemoryConfigs()
 
-    val dropAllAnnots = false
+    val dropAllAnnots = false  // whether to drop all user annotations during training
     val modelConfig = ModelConfig(
       predictAny = false,
+      onlyPredictLibType = false,
       annotsSampling =
         if (dropAllAnnots) AnnotsSampling(0, 0) else AnnotsSampling(0.0, 0.81),
       maxLibRatio = 100.0,
@@ -735,7 +736,7 @@ object Training {
       *
       * @see [[lambdanet.translation.PredicateGraph.addUserAnnotations]].
       */
-    def randomSplit[K,V](
+    def randomSplit[K, V](
         allAnnotations: Map[K, V],
         random: Random
     ): (Map[K, V], Map[K, V]) = {
@@ -760,7 +761,7 @@ object Training {
     * @param useDropout whether to use dropout in some layers.
     * @param predictAny whether to include the special type `any` in the prediction space.
     * @param maxLibRatio the maximal ratio of (library type labels)/(project type labels).
-    *                    Ectra library labels will be randomly down-sampled.
+    *                    Extra library labels will be randomly down-sampled.
     * @param projWeight the relative weight ratio between a project type label and a
     *                   library type label. Setting this > 1 during training will encourage
     *                   the model to predict project types more frequently.

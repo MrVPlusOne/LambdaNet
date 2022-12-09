@@ -43,3 +43,13 @@ package-lock.json
 .DS_STORE
 /src/main/scala/lambdanet/correctness/CrossEntropyExperimentScript.scala
 /CE_Results/
+
+scripts/ts/*.js
+package.json
+
+# VSCode files
+.vscode
+.metals/
+.bloop/
+.ammonite/
+metals.sbt
